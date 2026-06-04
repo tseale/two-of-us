@@ -2,464 +2,582 @@
 
 **Baby**: Miller  
 **Users**: Taylor + wife  
-**Goal**: Track feeds, sleep, and diapers in real-time across both parents' phones  
+**Goal**: Track feeds, sleep, and diapers in real-time across both parents' iPhones  
+**Platform**: Native iOS (SwiftUI + CloudKit)  
+**Distribution**: TestFlight  
 **Last Updated**: June 2026
 
 ---
 
-## Recommended Tech Stack
+## Tech Stack
 
-### Backend: FastAPI (Python)
-**Why**: Taylor already runs Word Feeder and Sleeper Cell on FastAPI on his Mac mini — same tooling, same hosting, zero new infrastructure. FastAPI has native WebSocket support for real-time sync, which eliminates the need for Firebase or a separate pub/sub service.
-
-### Database: SQLite (MVP) → PostgreSQL (if needed)
-**Why**: Two users, one baby, maybe 50 events/day. SQLite handles this with room to spare and requires zero server setup. A single `.db` file is trivially backed up. Upgrade path to PostgreSQL is straightforward via SQLAlchemy if query complexity grows.
-
-### Frontend: React + TypeScript + Vite
-**Why**: React's ecosystem (Zustand, React Query, Framer Motion) maps exactly to the needs here. Vite's PWA plugin handles service worker generation and offline caching with minimal configuration. TypeScript catches event shape mismatches early — critical when feeding/sleep/diaper all share a timeline model.
-
-### Real-Time Sync: FastAPI WebSockets
-**Why**: No external service needed. FastAPI's WebSocket support is production-ready. A single broadcast room per baby — when parent A logs an event, the server broadcasts to parent B's open connection. Latency target: <200ms on same network, <500ms over mobile. Fallback to 10s polling if WebSocket drops.
-
-### Styling: Tailwind CSS + shadcn/ui
-**Why**: Tailwind's utility classes make mobile-first layouts fast to build. shadcn/ui provides accessible, unstyled components that can be themed for the calm aesthetic without fighting a component library's defaults.
-
-### Offline: Vite PWA Plugin + idb (IndexedDB wrapper)
-**Why**: Vite PWA plugin generates the service worker automatically. IndexedDB via `idb` stores events locally and queues sync. Background Sync API sends queued events when connection returns.
-
-### Auth: JWT + shared invite code
-**Why**: Two users total. No need for OAuth or a user management system. Email + password for account creation, invite-link or 6-digit code to add second parent to the same baby profile.
-
-### Hosting: Mac mini + Tailscale (already solved)
-Same pattern as Word Feeder and Sleeper Cell. FastAPI serves the built React frontend as static files + API on the same process. HTTPS via Tailscale.
+| Layer | Choice | Rationale |
+|---|---|---|
+| **UI** | SwiftUI | Declarative, modern, haptics for free, 120fps on Pro models |
+| **Local persistence** | SwiftData | First-class CloudKit sync, replaces Core Data boilerplate |
+| **Sync** | CloudKit (private + shared database) | Free for 2 users, no server, conflict resolution built-in |
+| **Live lock screen** | Live Activities + ActivityKit | Real-time feed/sleep timer on lock screen and Dynamic Island |
+| **Widgets** | WidgetKit | "Last feed: 2h 15m ago" on lock screen and home screen |
+| **Voice** | App Intents + Siri | "Hey Siri, log a diaper change" |
+| **Charts** | Swift Charts (iOS 16+) | Built-in, no dependency needed |
+| **Notifications** | APNs + UserNotifications | Reliable cross-parent push, no server needed |
+| **Distribution** | TestFlight | Send link, they install — indistinguishable from App Store |
 
 ---
 
 ## Data Model
 
+```swift
+// SwiftData models — CloudKit sync is automatic when using @Model
+// All models stored in a shared CloudKit container so both parents see the same data
+
+@Model class Baby {
+    var id: UUID
+    var name: String
+    var dateOfBirth: Date
+    var createdAt: Date
+}
+
+@Model class FeedEvent {
+    var id: UUID
+    var baby: Baby
+    var method: FeedMethod      // .breastLeft, .breastRight, .breastBoth, .bottle
+    var startedAt: Date
+    var endedAt: Date?          // nil while timer is running
+    var amountML: Double?       // bottle only
+    var notes: String?
+    var loggedBy: String        // "Taylor" or "Wife" — display name
+}
+
+@Model class SleepEvent {
+    var id: UUID
+    var baby: Baby
+    var startedAt: Date
+    var endedAt: Date?
+    var notes: String?
+    var loggedBy: String
+}
+
+@Model class DiaperEvent {
+    var id: UUID
+    var baby: Baby
+    var type: DiaperType        // .wet, .dirty, .both
+    var timestamp: Date
+    var notes: String?
+    var loggedBy: String
+}
+
+@Model class GrowthRecord {
+    var id: UUID
+    var baby: Baby
+    var date: Date
+    var weightKg: Double?
+    var heightCm: Double?
+    var headCircumferenceCm: Double?
+}
 ```
-Baby
-  id, name, dob, created_at
 
-User
-  id, email, password_hash, created_at
-
-BabyUser (join table)
-  baby_id, user_id, role (owner | partner)
-
-Event
-  id, baby_id, user_id
-  type: ENUM(feed, diaper, sleep)
-  started_at, ended_at (nullable)
-  duration_seconds (derived, stored for query speed)
-  notes (nullable)
-  created_at, updated_at, deleted_at (soft delete)
-
-FeedDetail
-  event_id
-  method: ENUM(breast_left, breast_right, breast_both, bottle)
-  amount_ml (nullable, for bottle)
-
-DiaperDetail
-  event_id
-  type: ENUM(wet, dirty, both)
-
-SleepDetail
-  event_id
-  location (nullable: crib, bassinet, contact, etc.)
-```
-
-Events are immutable after creation (soft delete + re-create for edits in MVP). This keeps sync simple — no update conflicts.
+Events are append-only in the MVP. Edits soft-delete the original and create a replacement. This avoids CloudKit merge conflicts.
 
 ---
 
 ## Phase 1: MVP Core
 
-**Goal**: Both parents can log feeds, diapers, and sleep. App works on phone as a PWA. Real-time sync handled in Phase 2 — Phase 1 is reliable logging.
+**Goal**: Both parents can log feeds, diapers, and sleep on their iPhones. Events sync between phones within seconds. App works end-to-end before any polish.
 
-**Effort**: 6–7 focused days
+**Effort**: 8–10 days  
+**Milestone**: Both parents' phones show the same timeline in real-time via TestFlight
 
-### What to Build
+### Features
 
-#### 1. Project Scaffold (Day 1, ~4 hrs)
-- FastAPI app with SQLite via SQLAlchemy + Alembic migrations
-- React + TypeScript + Vite frontend
-- Tailwind + shadcn/ui base config
-- PWA manifest (name, icons, theme color, display: standalone)
-- Serve React build from FastAPI with `StaticFiles`
-- Dev proxy: Vite → FastAPI on port 8000
-- Basic project structure:
+#### Xcode Project Setup (Day 1, ~4 hrs)
+- New Xcode project: SwiftUI, SwiftData enabled, CloudKit container (`iCloud.com.taylorseale.millertime`)
+- Target: iOS 17+ (Live Activities, Swift Charts, SwiftData all require it)
+- SwiftData stack wired up: `ModelContainer` with CloudKit sync enabled
+- Basic folder structure:
   ```
-  miller-time/
-    backend/
-      main.py
-      models/
-      routers/
-      db.py
-    frontend/
-      src/
-        pages/
-        components/
-        store/
-        hooks/
-    alembic/
+  MillerTime/
+    Models/          # SwiftData @Model classes
+    Views/
+      Main/          # HomeView, TimelineView
+      Feed/          # FeedSheet, FeedTimerView
+      Sleep/         # SleepSheet, SleepTimerView
+      Diaper/        # DiaperSheet
+    ViewModels/      # ObservableObject state
+    Widgets/         # WidgetKit extension
+    LiveActivities/  # ActivityKit extension
   ```
+- TestFlight build: provisioning profile + entitlements configured, first build pushed to TestFlight
 
-#### 2. Auth (Day 1, ~3 hrs)
-- `POST /auth/register` — email + password, creates user + baby profile
-- `POST /auth/login` — returns JWT (30-day expiry)
-- `POST /baby/invite` — generates 8-char invite code
-- `POST /baby/join` — accepts invite code, adds user to baby profile
-- JWT stored in `localStorage`, sent as `Authorization: Bearer`
-- No refresh tokens in MVP — if it expires, re-login
+#### SwiftData Models (Day 1, ~3 hrs)
+- All four models defined (`Baby`, `FeedEvent`, `SleepEvent`, `DiaperEvent`)
+- Seed a default `Baby` named "Miller" on first launch
+- CloudKit container shared between both parents via CloudKit Dashboard: enable sharing on the private database record zone
+- Verify sync: log an event on one simulator, see it appear on another
 
-#### 3. Event API (Day 2, ~5 hrs)
-- `POST /events` — create event (feed, diaper, sleep start)
-- `PATCH /events/{id}` — update (end a sleep/feed timer)
-- `DELETE /events/{id}` — soft delete
-- `GET /events/today` — all events for today, sorted by `started_at` DESC
-- `GET /events/active` — any in-progress feed or sleep timer (no `ended_at`)
-- All endpoints scoped to the authenticated user's baby
-- Pydantic schemas for each event type with discriminated union
+#### Main Screen — Quick-Log UI (Day 2–3, ~8 hrs)
+One-thumb operable. No nav bar clutter on this screen.
 
-#### 4. Quick-Log UI — Main Screen (Day 3, ~6 hrs)
-This is the most important screen. One-thumb operable.
-
-Layout:
 ```
 ┌──────────────────────────────┐
-│  Miller  ·  June 4           │
-│  Last feed: 2h 13m ago  💧🍼 │
+│  Miller  ·  Wednesday        │
+│  Feed: 2h 13m ago            │
+│  Sleep: 45m ago              │
+│  Diaper: 1h ago              │
 ├──────────────────────────────┤
 │                              │
-│  ┌─────────┐  ┌─────────┐   │
-│  │  Feed   │  │  Sleep  │   │
-│  │   🍼    │  │   💤    │   │
-│  └─────────┘  └─────────┘   │
+│  ┌──────────┐  ┌──────────┐  │
+│  │  Feed    │  │  Sleep   │  │
+│  │  🍼      │  │  💤      │  │
+│  └──────────┘  └──────────┘  │
 │                              │
-│       ┌─────────┐            │
-│       │  Diaper │            │
-│       │   💩    │            │
-│       └─────────┘            │
+│       ┌──────────┐           │
+│       │  Diaper  │           │
+│       │  💩      │           │
+│       └──────────┘           │
 │                              │
-│  ──── Today ────             │
-│  2:14p  Feed · Bottle 90ml   │
-│  1:10p  Sleep · 1h 22m       │
-│  11:40a Diaper · Wet         │
-│  ...                         │
+│  ── Today ──────────────     │
+│  2:14p  Feed · Bottle 90ml  │
+│  1:10p  Sleep · 1h 22m      │
+│  11:40a Diaper · Wet        │
 └──────────────────────────────┘
 ```
 
-- Three large tap targets (min 80×80px): Feed, Sleep, Diaper
-- "Last X ago" indicators above buttons — computed from today's events
-- Bottom sheet appears on tap to collect minimal details
-- Today's timeline below (last 5 events, "see all" link)
-- No nav bar clutter — single-page feel
+- Three large tap targets using SwiftUI `Button` with `.buttonStyle(.borderedProminent)` sized to fill half-screen width
+- "Time since last X" computed from latest event in each category, updates every minute
+- Bottom sheet (`sheet(isPresented:)`) appears on each button tap
+- Today's timeline: last 5 events in a `List`, "See All" link to full timeline
+- Dark mode from day 1 via `@Environment(\.colorScheme)`
 
-#### 5. Feed Logging Flow (Day 4, ~4 hrs)
-Tap "Feed" → bottom sheet slides up:
+#### Feed Logging Flow (Day 4, ~5 hrs)
+Tap Feed → sheet slides up:
 
 ```
-[ Breast L ]  [ Breast R ]  [ Bottle ]
-         [ Both Breast ]
+  [ Breast L ]  [ Breast R ]  [ Bottle ]
+        [ Both Breast ]
 
-  ── If Breast selected ──
+  ── Breast selected ──
   Timer starts immediately
-  ● 4:23 and counting
-  [      Stop      ]
+  ● 4:23 and counting...
+  [      Stop Feed      ]
 
-  ── If Bottle selected ──
-  [ 60 ]  [ 90 ]  [ 120 ]  [ __ml ]
-  [      Log      ]
+  ── Bottle selected ──
+  [ 60 ml ]  [ 90 ml ]  [ 120 ml ]  [ ___ml ]
+  [      Log Feed      ]
 ```
 
-- Breast feed starts timer immediately on method selection (no extra tap)
-- Timer shows elapsed time, updates every second
-- Stop button saves the event with duration
-- Bottle shows quick-select amounts (60/90/120ml) + manual entry
-- "Both Breast" creates a single event with `method: breast_both`
-- Timer persists if bottom sheet is closed (feed still in progress)
+- Breast: selecting method creates a `FeedEvent` with `endedAt = nil`, timer starts. `startedAt` stored server-side — elapsed time is computed on display, not tracked client-side (avoids backgrounding issues).
+- Bottle: quick-select amounts (60/90/120ml) + `TextField` for custom. Single "Log" tap saves event with no timer.
+- Both Breast: creates `FeedEvent(method: .breastBoth)` + timer
+- Stop button sets `endedAt`, saves to SwiftData (CloudKit syncs automatically)
+- Active feed badge visible on main screen while timer runs
 
-#### 6. Diaper Logging Flow (Day 4, ~1 hr)
-Tap "Diaper" → bottom sheet:
+#### Diaper Logging Flow (Day 4, ~1.5 hrs)
+Tap Diaper → sheet:
 
 ```
   [ Wet ]   [ Dirty ]   [ Both ]
 ```
 
-Three taps total: open app → Diaper → Wet. Done. No confirm needed — tap logs immediately with a success flash.
+Tapping any option immediately saves the event and dismisses the sheet with a haptic confirmation (`.notificationOccurred(.success)`). Two taps total from main screen.
 
-#### 7. Sleep Logging Flow (Day 4, ~2 hrs)
-Tap "Sleep" → starts timer immediately (same pattern as breast feed):
+#### Sleep Logging Flow (Day 4, ~2 hrs)
+Tap Sleep → timer starts immediately, sheet shows:
 
 ```
-  Sleeping
+  Sleeping...
   ● 23 minutes
   [      Wake Up      ]
 ```
 
-- Active sleep replaces the Sleep button with the live timer on the main screen
-- "Wake Up" stops the timer and saves the event
+Active sleep replaces the Sleep button on the main screen with a live timer card. "Wake Up" sets `endedAt` and saves.
 
-#### 8. Active Timer State on Main Screen (Day 5, ~2 hrs)
-When a feed or sleep is in progress, the main screen reflects it:
+#### Today's Full Timeline (Day 5, ~4 hrs)
+- `List` with all events for today sorted by time descending
+- Section headers by hour
+- Each row: event type icon, time, duration/details, "T" or "W" initial for who logged
+- Swipe-to-delete: soft delete (sets a `deletedAt` field) with confirmation
+- Tap row to show edit sheet (notes only in MVP; time editing in Phase 2)
 
-```
-  ┌─────────────────────────────┐
-  │  🍼 Feeding · 4:23          │
-  │  [   Stop Feed   ]          │
-  └─────────────────────────────┘
-```
+#### CloudKit Sync Verification (Day 6, ~3 hrs)
+- Configure CloudKit container in Apple Developer portal
+- Both phones share the same zone via CloudKit sharing or by using a single iCloud account owner's private database (simpler for 2 users: one account owns the container, the other is added as a shared user)
+- Test: log event on phone A, confirm it appears on phone B within 10 seconds
+- Handle sync errors gracefully: `ModelContext` error handling, CloudKit error types
+- Offline: SwiftData writes locally; CloudKit syncs when network returns automatically
 
-Active timer card appears above the log buttons. Big, obvious. One tap to stop.
+#### TestFlight Distribution (Day 7, ~2 hrs)
+- Archive build in Xcode, upload to App Store Connect
+- Add both parents as TestFlight internal testers
+- Distribute build, both install via TestFlight link
+- Smoke test all three log flows on real hardware
 
-#### 9. Today's Timeline (Day 5, ~3 hrs)
-Full timeline page (reached from "see all" on main screen):
-- Grouped by hour
-- Each event: type icon, time, duration/details, "who logged" initial (T or W)
-- Tap to expand: shows full details
-- Tap-hold or swipe-left: delete option (soft delete)
-- Pull-to-refresh (will become real-time in Phase 2)
-
-#### 10. PWA Polish (Day 6, ~2 hrs)
-- `manifest.webmanifest`: name, short_name, icons (192×192, 512×512), theme_color, background_color, display: standalone
-- Vite PWA plugin with `generateSW` strategy
-- App icon: design a simple "M" mark or clock icon
-- Status bar color matches app header on iOS
-- "Add to Home Screen" prompt nudge on first visit
-- Splash screen via manifest
-
-#### 11. Dark Mode (Day 6, ~3 hrs)
-- System preference detection via `prefers-color-scheme`
-- Manual toggle in settings (override system)
-- Preference stored in `localStorage`
-- Tailwind `dark:` classes throughout
-- Dark palette: `#0D1117` background, `#1C2128` cards, muted grays, amber accent
-- Test all screens in dark mode
-
-#### 12. Integration + Bug Fix Day (Day 7)
-- Connect all flows end-to-end
-- Fix edge cases: active timer on page reload, multiple active events guard
-- Test on actual phone (Safari + Chrome on iOS)
-- Verify PWA install flow works
-- Verify all three event types round-trip correctly
+#### Integration + Polish Day (Days 8–10)
+- Fix edge cases: two active timers guard (only one feed and one sleep can be active at once)
+- Timer display when app is backgrounded and relaunched
+- "No events yet" empty states
+- App icon design (simple "M" in a clock or milk bottle motif)
+- Pull-to-refresh on timeline (CloudKit sync is automatic but pull-to-refresh is good UX)
 
 ### Definition of Done — Phase 1
-- [ ] Both parents can create accounts and join same baby profile
-- [ ] Feed (breast L/R/both/bottle), diaper (W/D/both), sleep (start/stop) all log correctly
-- [ ] Active timers persist across page navigations
-- [ ] Today's timeline shows all events in order
-- [ ] App installs to home screen on iPhone
+- [ ] Both parents have the app on their iPhones via TestFlight
+- [ ] Feed (breast L/R/both/bottle), diaper (W/D/both), sleep (start/stop timer) all log correctly
+- [ ] Events sync from phone A to phone B within ~10 seconds
+- [ ] Active timers survive app backgrounding and relaunching
+- [ ] Today's timeline shows all events in chronological order
 - [ ] Dark mode works on all screens
-- [ ] Runs on Mac mini, accessible via Tailscale
+- [ ] Swipe-to-delete works in timeline
+
+### Key Risks — Phase 1
+
+| Risk | Mitigation |
+|---|---|
+| CloudKit sharing setup complexity | Use a single iCloud account's private database with CloudKit record sharing for the second parent. Simpler than two independent accounts |
+| SwiftData + CloudKit sync edge cases | SwiftData + CloudKit is production-quality in iOS 17. Test both online and offline write → sync. Apple's `NSPersistentCloudKitContainer` docs cover conflict resolution |
+| TestFlight entitlement mismatch | Provision both devices in Apple Developer portal before archiving |
 
 ---
 
-## Phase 2: Real-Time Sync + Offline
+## Phase 2: Live Features
 
-**Goal**: When one parent logs an event, the other parent's screen updates within 500ms without refreshing. App works without internet and syncs when connection returns.
+**Goal**: Real-time lock screen timer during active feeds and sleep. Widgets on home and lock screen. Push notifications for "it's been 3 hours since the last feed."
 
-**Effort**: 4–5 days
+**Effort**: 5–6 days  
+**Milestone**: Parents can glance at the lock screen to see how long Miller has been sleeping
 
-### What to Build
+### Features
 
-#### Real-Time Sync via WebSockets (2 days)
-- FastAPI `/ws/baby/{baby_id}` WebSocket endpoint
-- Connection manager: tracks active connections per baby
-- On any event mutation (create/update/delete), broadcast serialized event to all other connections in the room
-- Frontend: `useWebSocket` hook that manages connection lifecycle (reconnect on disconnect, exponential backoff)
-- Zustand store receives broadcast events and merges into local state
-- Optimistic updates: local state updates immediately on user action, WebSocket confirms/corrects
+#### Live Activities — Feed & Sleep Timers (Days 1–3, ~10 hrs)
+When a feed or sleep timer is running, a Live Activity appears on the lock screen and Dynamic Island.
 
-```python
-# Connection lifecycle
-connect → join room baby_id
-event mutated → broadcast delta to room
-disconnect → leave room
+```
+Lock screen:                    Dynamic Island (compact):
+┌─────────────────────────┐     [🍼 Feeding · 4:23]
+│ 🍼 Miller is feeding    │
+│ Started 2:14 PM         │     Dynamic Island (expanded):
+│ ● 4 min 23 sec          │     ┌────────────────────────────┐
+└─────────────────────────┘     │ 🍼 Miller feeding · 4:23   │
+                                │ [       Stop Feed       ]   │
+                                └────────────────────────────┘
 ```
 
-Broadcast payload:
-```json
-{
-  "type": "event_created" | "event_updated" | "event_deleted",
-  "event": { ...event object },
-  "actor_user_id": "uuid"
-}
+Technical approach:
+- Add `WidgetKit` + `ActivityKit` extension targets to Xcode project
+- Define `FeedActivityAttributes` conforming to `ActivityAttributes` with `ContentState` holding elapsed time
+- Start activity on feed/sleep start: `Activity<FeedActivityAttributes>.request(...)`
+- Update activity state every second via `Task` + `Timer.publish`
+- End activity on stop: `activity.end(dismissalPolicy: .immediate)`
+- Deep link from Dynamic Island tap → app opens to active timer screen
+
+#### WidgetKit Widgets (Days 3–4, ~6 hrs)
+Three widget sizes (small, medium, large) for lock screen and home screen:
+
+**Small (lock screen accessory):**
+```
+🍼 2h 15m
+since last feed
 ```
 
-- No full-state sync on connect — just fetch `GET /events/today` on connect, then apply deltas
-- Presence indicator: "Taylor is viewing" / "Wife is logging" dot on main screen
+**Medium (home screen):**
+```
+🍼 Last feed: 2h 15m ago
+💤 Last sleep: 45m ago
+💩 Last diaper: 1h 10m ago
+```
 
-#### Offline Support (2 days)
-- Service worker (already installed via Vite PWA) caches app shell
-- Outbound event creation queued in IndexedDB when offline
-- `useNetworkStatus` hook: detects online/offline
-- Offline banner: "You're offline — events will sync when connected"
-- Background Sync API: fires queued POST requests on reconnect
-- Conflict resolution: last-write-wins on `started_at` (for same-second conflicts, use `created_at` tiebreak)
-- Sync indicator: small badge on timeline when events are pending sync
+**Large (home screen):**
+```
+Miller · Today
+🍼 Last feed: 2h 15m ago
+💤 Last sleep: 45m ago
+💩 Last diaper: 1h 10m ago
 
-#### Edit/Delete Past Entries (0.5 day)
-- Swipe left on timeline entry reveals Delete
-- Tap event → edit sheet (can change type details, notes, times)
-- Edits broadcast to partner via WebSocket
-- Soft delete (set `deleted_at`) — never hard delete in MVP
+Recent:
+2:14p  Bottle · 90ml
+1:10p  Sleep · 1h 22m
+```
 
-#### Push Notifications (0.5 day, optional)
-- `POST /notifications/subscribe` — stores Web Push subscription
-- Server sends push via `web-push` library:
-  - "Last feed was 3 hours ago" (configurable interval, default 3h)
-  - "Miller has been asleep for 2 hours" (optional wake check)
-- Opt-in only, per-user settings
-- Notification tap opens app to today's view
+Technical approach:
+- `WidgetConfiguration` with `TimelineProvider`
+- `TimelineEntry` holds last event timestamps for each category
+- Timeline reloads every 15 minutes (or on relevant `URLSession` background task)
+- Widget reads from an App Group shared `ModelContainer` so it can access SwiftData without launching the main app
+
+#### Push Notifications — Feed Reminders (Day 5, ~4 hrs)
+- Request `UNUserNotificationAuthorization` on first launch
+- `UNCalendarNotificationTrigger` for feed reminders: if no feed logged in N hours, schedule a local notification ("Miller hasn't eaten in 3 hours")
+- Default threshold: 3 hours, configurable in Settings
+- Clear pending notifications when a feed is logged
+- No server needed — local notifications only for MVP
+
+#### Edit/Delete Past Entries (Day 6, ~3 hrs)
+- Tap event in timeline → edit sheet
+- Editable fields: start time, end time, notes, method/type
+- Edit creates a new record and soft-deletes the old one (append-only pattern)
+- Swipe-to-delete on timeline rows (already wired up in Phase 1)
+- Changes sync to CloudKit automatically via SwiftData
 
 ### Definition of Done — Phase 2
-- [ ] Parent B's screen updates within 500ms of Parent A logging
-- [ ] App works completely offline — events queue and sync on reconnect
-- [ ] No data loss on reconnect after being offline
-- [ ] Edit and delete work and sync to other parent
-- [ ] Push notifications fire on configurable intervals (if enabled)
-- [ ] Presence indicator shows when other parent is active
+- [ ] Live Activity appears on lock screen and Dynamic Island when feed or sleep timer is running
+- [ ] Live Activity dismisses automatically when timer is stopped
+- [ ] Lock screen widget shows "Last feed: Xh Xm ago" and updates
+- [ ] Home screen widget (medium) shows all three last-event times
+- [ ] Local notifications fire when no feed logged in configured threshold
+- [ ] Edit and delete work and sync to partner's phone
+
+### Key Risks — Phase 2
+
+| Risk | Mitigation |
+|---|---|
+| Live Activities API complexity | Apple's documentation + WWDC sessions are thorough. ActivityKit is stable in iOS 16.2+. Budget an extra day for debugging UI layout in Dynamic Island |
+| Widget reads from shared SwiftData store | App Group container setup in Xcode entitlements required. Test widget reads before styling |
+| Local notifications cleared on app reinstall | Reschedule notifications on `applicationDidBecomeActive` if no feed logged recently |
 
 ---
 
-## Phase 3: Insights + Patterns
+## Phase 3: Insights
 
-**Goal**: Give parents a useful summary of how Miller is doing — totals, trends, patterns — without overwhelming them.
+**Goal**: Give parents a clear picture of Miller's patterns — daily totals, weekly trends, sleep duration chart, feed frequency heatmap.
 
-**Effort**: 3 days
+**Effort**: 4–5 days  
+**Milestone**: "Stats" tab shows today's summary, weekly charts, and growth percentile
 
-### What to Build
+### Features
 
-#### Daily Summary (0.5 day)
-Simple stats block on main screen or dedicated "Today" tab:
-- Total feeds today: N (Xh Xm total nursing, X bottles)
-- Diapers: N wet, N dirty
-- Sleep: N hours Xm total, last woke X ago
+#### Daily Summary (Day 1, ~3 hrs)
+A summary card on the main screen (or dedicated Stats tab):
 
-#### Weekly Summary (0.5 day)
-- `GET /stats/weekly` — aggregate query
-- Bar chart: daily sleep hours for last 7 days (recharts)
-- Feed frequency heatmap (by hour of day, by day of week)
-- Average feeds/day, average sleep/day
+```
+Today
+🍼  5 feeds · 2h 10m nursing · 1 bottle (90ml)
+💤  3h 45m total sleep · longest stretch 1h 30m
+💩  4 diapers (3 wet, 1 dirty)
+```
 
-#### Feed Pattern Visualization (0.5 day)
-- Circular 24-hour clock showing when feeds typically happen
-- Color-coded: breast vs bottle
-- Useful for predicting next feed window
+Technical approach:
+- Computed properties on a `StatsViewModel: ObservableObject`
+- Query SwiftData for all events where `startedAt >= startOfToday`
+- Group by event type, compute totals
+- Update on `onChange(of: modelContext)` or scheduled refresh
 
-#### Sleep Pattern Chart (0.5 day)
-- Gantt-style timeline: shows sleep blocks across last 7 days
-- Longest stretch highlighted (important for new parents tracking "longest sleep")
-- Average nighttime sleep duration
+#### Weekly Trends — Swift Charts (Days 2–3, ~8 hrs)
+Using the built-in Swift Charts framework (no dependencies):
 
-#### Growth Tracking (1 day)
-- Add weight/height/head circumference logging (separate from events)
-- WHO growth chart percentile calculation (built-in lookup table, no external API)
-- Simple line chart showing growth trajectory
-- "Miller is in the X percentile for weight" 
+- **Sleep bar chart**: daily total sleep hours, last 7 days
+- **Feed frequency heatmap**: 7-day × 24-hour grid, color intensity = feeds per hour
+- **Feed type breakdown**: pie chart of breast vs bottle over last 7 days
+- **Diaper count**: simple bar chart, wet vs dirty per day
+
+Technical approach:
+- `Chart` view with `BarMark`, `PointMark`, `SectorMark`
+- Data aggregated from SwiftData fetch with date predicates
+- Charts wrapped in `ScrollView` for mobile scrollability
+- Touch targets sized appropriately; charts are display-only in MVP
+
+#### Sleep Pattern Visualization (Day 3, ~4 hrs)
+Gantt-style sleep blocks:
+
+```
+Mon  ████       ██████
+Tue  ███    ████████
+Wed  █████       ██████
+Thu  ██   ████████
+Fri  ████     █████
+```
+
+- Each block represents a sleep event, x-axis is 24 hours
+- Helps parents spot when Miller sleeps longest
+- "Longest stretch this week: 4h 12m (Wednesday 2–6am)"
+
+#### Growth Tracking (Days 4–5, ~6 hrs)
+- New `GrowthRecord` model (weight, height, head circumference, date)
+- "Add measurement" button in Stats tab
+- Line charts for each measurement over time using Swift Charts
+- WHO growth chart percentile lookup (static data table embedded in app, no network call)
+- Display: "Miller is in the 45th percentile for weight at 2 months"
 
 ### Definition of Done — Phase 3
-- [ ] Daily stats visible on main screen
-- [ ] Weekly summary accessible
-- [ ] Growth log + percentile chart working
-- [ ] Charts render correctly on mobile (no overflow, touch-friendly)
+- [ ] Daily summary visible on main screen or Stats tab
+- [ ] Weekly sleep, feed, and diaper charts render correctly on iPhone
+- [ ] Growth log accepts entries and shows line charts
+- [ ] Growth percentile displayed for weight and height
+- [ ] All charts handle empty state gracefully
+
+### Key Risks — Phase 3
+
+| Risk | Mitigation |
+|---|---|
+| Swift Charts layout on small screens | Use `chartXAxis` modifier to limit label density; test on iPhone SE |
+| WHO growth chart data accuracy | Use CDC/WHO published lookup tables verbatim; cite the source in the app |
+| Performance with many events | SwiftData predicates push filtering to SQLite; for date-range queries this is fast |
 
 ---
 
 ## Phase 4: Smart Features
 
-**Goal**: Reduce cognitive load for exhausted parents by surfacing the right info at the right time.
+**Goal**: Reduce cognitive load for exhausted parents. Urgency indicators on main screen, Siri shortcuts for hands-free logging, pediatrician export.
 
-**Effort**: 3 days
+**Effort**: 5–6 days  
+**Milestone**: Taylor can say "Hey Siri, Miller just had a wet diaper" while holding Miller
 
-#### "Time Since Last..." Indicators (0.5 day)
-Already planned for Phase 1 main screen — Phase 4 upgrades them:
-- Animated urgency: text turns amber at 2.5h since feed, red at 3.5h
-- "Next feed likely around X" based on average interval
+### Features
 
-#### Pattern-Based Reminders (1 day)
-- Analyze last 7 days' feed intervals per time-of-day
-- Calculate personalized reminder threshold (not hardcoded 3h)
-- Push notification with context: "Usually feeds around this time — last was 2h 45m ago"
+#### Urgency Indicators on Main Screen (Day 1, ~3 hrs)
+Upgrade the "time since last X" indicators with color coding:
 
-#### Pediatrician Export (1 day)
-- `GET /export/pdf` — generates PDF report
-- 2-week summary: feeds, sleep, diapers, growth
-- Clean, formatted layout (not a data dump)
-- Shareable link with 7-day expiry (no auth required to view, but only accessible via link)
+| State | Color | Meaning |
+|---|---|---|
+| 0–2h since feed | Green | All good |
+| 2–3h since feed | Amber | Getting hungry |
+| 3h+ since feed | Red | Likely hungry |
 
-#### Notes Field (0.5 day)
-- Add optional notes to any event (feed, diaper, sleep)
-- Free text, shown in timeline
-- Searchable in Phase 5
+- `TimeInterval` thresholds configurable in Settings
+- Similar green/amber/red for sleep and diapers (customizable thresholds)
+- "Next feed likely around X" prediction: average interval from last 7 days, added to last feed time
+
+#### Siri Integration via App Intents (Days 2–4, ~8 hrs)
+Using the `AppIntents` framework (iOS 16+):
+
+Define these intents:
+- `LogFeedIntent` — "Hey Siri, Miller just ate" → logs bottle or prompts for breast/bottle
+- `LogDiaperIntent` — "Hey Siri, log a wet diaper" → logs diaper event immediately
+- `StartSleepIntent` — "Hey Siri, Miller is asleep" → starts sleep timer
+- `StopSleepIntent` — "Hey Siri, Miller woke up" → stops active sleep timer
+- `LastFeedIntent` — "Hey Siri, when did Miller last eat?" → returns time since last feed
+
+Technical approach:
+- `struct LogFiaperIntent: AppIntent` with `@Parameter` for diaper type
+- `perform()` creates SwiftData event and returns a spoken response string
+- Register intents in `AppIntentsPackage`
+- Test with Shortcuts app before testing with Siri (faster iteration)
+- Add `AppShortcutsProvider` so intents show up in Spotlight without setup
+
+#### Notes on Any Event (Day 4, ~2 hrs)
+- `TextField` for notes already in model from Phase 1
+- Wire up notes field in all three log sheets
+- Notes visible in timeline row (truncated to one line, full text on tap)
+- Free text only; no search in MVP
+
+#### Photo Milestones (Day 5, ~4 hrs)
+- New `Milestone` model: date, photo (stored as `Data` in CloudKit, max 10MB), caption
+- "Add milestone" button in a Milestones tab (gallery view)
+- `PhotosPicker` (SwiftUI native, iOS 16+) for photo selection
+- Photos stored as binary in CloudKit — CloudKit private database asset support handles the upload automatically
+- Thumbnail grid layout in Milestones tab
+
+#### Pediatrician PDF Export (Day 6, ~4 hrs)
+- `UIGraphicsPDFRenderer` to generate a 2-week summary PDF
+- Content: feeds (total count, breast/bottle breakdown, average interval), sleep (total hours, longest stretch), diapers (count, wet vs dirty), growth if logged
+- Share sheet via `ShareLink` — AirDrop, email, or save to Files
+- Formatted for print (not a data dump)
 
 ### Definition of Done — Phase 4
-- [ ] Time-since indicators on main screen with urgency coloring
-- [ ] Personalized reminders working (based on actual patterns)
-- [ ] PDF export covers last 2 weeks, is legible and printable
+- [ ] Main screen urgency colors change at configured thresholds
+- [ ] "Log a wet diaper" via Siri creates a diaper event and confirms audibly
+- [ ] "When did Miller last eat?" via Siri returns the correct time
 - [ ] Notes can be added to any event
+- [ ] Photo milestones can be added and viewed in gallery
+- [ ] PDF export covers last 2 weeks and is legible at print scale
+
+### Key Risks — Phase 4
+
+| Risk | Mitigation |
+|---|---|
+| Siri intent parameter disambiguation | Use `@Parameter` enums with display representations; Siri will prompt for clarification if input is ambiguous |
+| CloudKit photo storage limits | Free tier: 5GB asset storage. For 2 users' baby photos this won't be reached. CloudKit private database asset quota is shared with iCloud Photos |
+| PDF layout on different paper sizes | Use points not pixels; A4 and US Letter are both handled by `UIGraphicsPDFRenderer` with appropriate page rect |
 
 ---
 
-## Phase 5: Nice-to-Haves
+## Phase 5: Polish & Extras
 
-**Goal**: Round out for longer-term use and caregiver sharing. Build when Phase 1–4 are stable.
+**Goal**: Apple Watch logging, caregiver sharing, multiple baby profiles, haptic polish throughout. Build after Phase 1–4 are solid.
 
-**Effort**: Variable / ongoing
+**Effort**: Variable / ongoing (3–8 days depending on features chosen)
 
 ### Features (priority order)
 
-1. **Multiple baby profiles** — add baby button in settings, switch between profiles in header. Database already supports this (all events scoped to `baby_id`).
+#### 1. Apple Watch App (3–4 days)
+- WatchKit extension with simplified UI: three large buttons (Feed, Diaper, Sleep)
+- Tap Feed → choose method on watch → timer starts on both watch and iPhone
+- Watch complication: "🍼 2h 15m" on active watch face
+- Deep integration: stopping a feed timer on the watch stops it on the iPhone and vice versa
+- Why: quick logging from the wrist when one hand is occupied with Miller
 
-2. **Caregiver sharing** — invite link generates a `viewer` role. Caregivers see live timeline and stats but cannot log events. Good for grandparents.
+#### 2. Haptic Feedback Polish (0.5 days)
+- `UIImpactFeedbackGenerator.impactOccurred()` on every log tap
+- `UINotificationFeedbackGenerator.notificationOccurred(.success)` on event save
+- Subtle haptic on active timer tick (optional, configurable)
+- Review every interaction for missing haptic confirmation
 
-3. **Photo milestones** — attach a photo to any event. Store in S3-compatible storage (Backblaze B2 is cheap). Thumbnail on timeline entry.
+#### 3. Caregiver Sharing (2–3 days)
+- CloudKit record sharing: owner creates a share, grandparent/nanny receives an invitation URL
+- Shared users get read-only access to the timeline and stats (cannot log events)
+- "View only" role enforced by CloudKit permissions
+- Good for grandparents who want to stay informed
 
-4. **AI insights** — weekly digest: "Miller slept 30 min more this week than last. Longest stretch: 4h 12m on Wednesday." Simple template-based, no LLM needed for basic version.
+#### 4. Multiple Baby Profiles (1–2 days)
+- `Baby` model already exists; add baby switcher in Settings
+- Profile picker in nav bar: "Miller ▾" → tap to switch
+- All events scoped to selected `baby.id`
+- Useful for future siblings; future-proofed from day 1 (schema already supports it)
 
-5. **Data export (CSV)** — `GET /export/csv` — all events as CSV. Good for paranoid parents who want their data.
+#### 5. Feeding Reminders Based on Pattern (1 day)
+- Upgrade Phase 2 local notifications with personalized threshold
+- Analyze last 7 days: compute average feed interval per time-of-day bucket (morning/afternoon/evening/night)
+- Threshold adapts: "usually eats every 2h in the morning" → reminder fires at 2h, not the hardcoded 3h
+- Shown in Settings: "Miller's average interval: 2h 30m (daytime), 3h 15m (nighttime)"
 
-6. **Baby monitor integration** — out of scope until there's a clear integration target. Skip.
+#### 6. Custom App Icon (0.5 days)
+- Design a calm, simple icon: milk bottle with a moon, or "M" lettermark in a soft color
+- Export at all required sizes via Xcode's asset catalog
+- Alternate app icons (light/dark/tinted) for iOS 18+ customization
+
+### Definition of Done — Phase 5 (per feature)
+- Apple Watch: log all three event types from the watch, sync to iPhone, complication showing time since last feed
+- Haptics: every tap target has appropriate haptic response
+- Caregiver sharing: grandparent can install app and view live timeline, cannot log events
+- Multiple babies: switching profiles shows correct events and stats for each baby
+- Pattern reminders: notification threshold adapts to Miller's observed intervals
 
 ---
 
-## Build Order & Milestones
+## Build Timeline
 
 ```
-Week 1  ████████████  Phase 1 MVP
-Week 2  ████          Phase 2 Real-Time Sync
-        ████          Phase 2 Offline Support
-Week 3  ███           Phase 3 Stats
-        ██            Phase 4 Smart Features (partial)
-Week 4+ ░░░           Phase 4/5 as desired
+Week 1   ████████████  Phase 1: Xcode setup, SwiftData models, all 3 log flows, TestFlight
+Week 2   ████████████  Phase 1 cont: Timeline, CloudKit sync, integration, bug fixes
+Week 3   ████████████  Phase 2: Live Activities, Widgets, push notifications, edit/delete
+Week 4   ████████████  Phase 3: Daily summary, weekly charts, growth tracking
+Week 5   ████████████  Phase 4: Urgency indicators, Siri intents, photos, PDF export
+Week 6+  ░░░░░░░░░░░░  Phase 5: Apple Watch, caregiver sharing, polish (as desired)
 ```
 
-**Milestone 1** (End of Week 1): App on both phones, all three log types working, PWA installed.  
-**Milestone 2** (Mid Week 2): Real-time sync live — one parent logs, other sees it instantly.  
-**Milestone 3** (End of Week 2): Offline mode working — hospital/weak signal use case solved.  
-**Milestone 4** (Week 3): Weekly stats and growth charts visible.
+**Milestone 1** (End of Week 2): Both phones running TestFlight build. All three log types working. Events sync between phones.  
+**Milestone 2** (Mid Week 3): Feed/sleep timer shows live on lock screen. Widgets installed on home screen.  
+**Milestone 3** (End of Week 4): Stats tab with weekly charts. Growth log with percentile.  
+**Milestone 4** (End of Week 5): Siri logging works hands-free. PDF export ready for pediatrician.
 
 ---
 
-## Key Technical Decisions to Revisit
+## Key Technical Decisions
 
 | Decision | Choice | Revisit If |
 |---|---|---|
-| SQLite vs PostgreSQL | SQLite | Queries slow, need full-text search, multiple babies |
-| WebSocket vs SSE | WebSocket | Need broadcast from server only (SSE is simpler then) |
-| JWT vs sessions | JWT (30-day) | Need server-side revocation |
-| Offline queue in IndexedDB | Yes | Browser storage quota issues (unlikely for event data) |
-| Push notifications | Web Push API | Safari support is still inconsistent on iOS |
+| SwiftData vs Core Data | SwiftData | iOS 16 support needed (SwiftData is iOS 17+); use Core Data if targeting iOS 16 |
+| CloudKit private vs shared | Private database with record sharing | Need non-iCloud login or web access |
+| Single CloudKit container owner | Taylor's Apple ID owns, wife is shared user | Wife needs full write access independently — then use shared database zone |
+| Local notifications only | Yes (Phase 2–3) | Need cross-device push ("partner just logged something") — then need APNs server key + server-side scheduling |
+| Swift Charts | Yes | Need chart types not in Swift Charts (rare) — then DGCharts |
 
 ---
 
 ## Risks
 
-**iOS Safari PWA limitations**: Background sync and push notifications on iOS PWA are better in iOS 16.4+ but still inconsistent. Mitigation: in-app polling as fallback, push is opt-in.
+**CloudKit sharing between two accounts**: Sharing a private database zone with a second iCloud account is well-documented but requires testing on real hardware, not simulators. Simulators share the same iCloud account and will appear to "just work" — test on two physical iPhones before claiming sync works.
 
-**WebSocket on mobile networks**: Mobile connections drop frequently. Mitigation: reconnect with exponential backoff, fall back to 10s polling, offline queue for all writes.
+**Live Activities simulator gap**: Live Activities cannot be tested in the iOS Simulator. Requires real devices with iOS 16.2+. Budget time for on-device debugging.
 
-**Timer accuracy when app is backgrounded**: Browser timers throttle in background tabs. Mitigation: store `timer_started_at` timestamp server-side; recompute duration on display rather than tracking elapsed client-side.
+**SwiftData + CloudKit conflict resolution**: SwiftData uses last-write-wins by default. If both parents log the same event simultaneously, both events will appear in the timeline — treat this as "both are correct" and let parents delete the duplicate. True conflict resolution adds significant complexity and isn't worth it for 2 users.
 
-**Conflict on simultaneous logging**: Both parents log a feed at the same time (rare but possible). Mitigation: last-write-wins by `created_at`, show both events in timeline (they can delete the duplicate).
+**App Store Review**: Not needed for TestFlight internal testing (up to 100 testers, no review required). If ever submitted to the App Store, CloudKit entitlements and usage descriptions for notifications/photos will be reviewed.
