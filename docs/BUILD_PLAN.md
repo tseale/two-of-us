@@ -13,6 +13,11 @@
 - [DESIGN.md](DESIGN.md) — design system, screen states, glanceable surfaces, accessibility
 - [PRIVACY.md](PRIVACY.md) — what's stored, where, who can access
 - [IOS_VS_WEB_COMPARISON.md](IOS_VS_WEB_COMPARISON.md) — why native iOS (decision record)
+- **phases/** — a build-ready design doc per increment, written before that increment is built:
+  - [01-foundation.md](phases/01-foundation.md) — Foundation & Core Loop (+ CloudKit sharing spike)
+  - 02 — Sync & Sharing · 03 — Glance Layer · 04 — Notifications & TestFlight *(to be written before each)*
+
+> **Note:** the locked v1 scope is broader than the original "Phase 1" below (sharing, glance layer, edit/backdate, notifications were pulled into v1). v1 is delivered as the four increments in `phases/`; the Phase 1–5 sections below remain useful background but the `phases/` docs are the build-time source of truth.
 
 ---
 
