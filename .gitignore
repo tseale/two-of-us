@@ -5,3 +5,14 @@ __pycache__/
 .venv/
 .claude/
 node_modules/
+
+# Xcode / generated project (project.yml is the source of truth)
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+.swiftpm/
+build/
+*.ipa
+*.dSYM.zip
+.DS_Store

@@ -1,0 +1,64 @@
+import SwiftUI
+import UIKit
+
+extension Color {
+    init(hex: String) {
+        self.init(uiColor: UIColor(hex: hex))
+    }
+}
+
+extension UIColor {
+    convenience init(hex: String) {
+        var s = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.hasPrefix("#") { s.removeFirst() }
+        var rgb: UInt64 = 0
+        Scanner(string: s).scanHexInt64(&rgb)
+        let r = CGFloat((rgb & 0xFF0000) >> 16) / 255
+        let g = CGFloat((rgb & 0x00FF00) >> 8) / 255
+        let b = CGFloat(rgb & 0x0000FF) / 255
+        self.init(red: r, green: g, blue: b, alpha: 1)
+    }
+}
+
+/// A color that resolves differently in light vs dark appearance.
+private func dyn(light: String, dark: String) -> Color {
+    Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark ? UIColor(hex: dark) : UIColor(hex: light)
+    })
+}
+
+/// Semantic color tokens. Views reference these, never raw hex.
+enum AppColor {
+    static let bg        = dyn(light: "F2F2F7", dark: "000000")
+    static let card      = dyn(light: "FFFFFF", dark: "1C1C1E")
+    static let card2     = dyn(light: "ECECF0", dark: "2C2C2E")
+    static let separator = dyn(light: "D1D1D6", dark: "38383A")
+    static let text      = dyn(light: "000000", dark: "FFFFFF")
+    static let text2     = dyn(light: "6C6C70", dark: "98989F")
+    static let text3     = dyn(light: "8E8E93", dark: "636366")
+
+    static let accentFeed   = Color(hex: "5AC8B8")
+    static let accentSleep  = Color(hex: "8E8EFF")
+    static let accentDiaper = Color(hex: "F5B971")
+
+    static let urgencyGreen = Color(hex: "5AD17E")
+    static let urgencyAmber = Color(hex: "F5B971")
+    static let urgencyRed   = Color(hex: "FF6B6B")
+}
+
+/// Colors assigned to participants for their timeline initial.
+enum ParticipantColors {
+    static let palette: [String] = [
+        "5AC8B8", // teal
+        "8E8EFF", // periwinkle
+        "F5B971", // amber
+        "FF8FA3", // pink
+        "7FB2FF", // blue
+        "B6E36B", // green
+    ]
+
+    /// Next color not already used, falling back to cycling the palette.
+    static func next(avoiding used: [String]) -> String {
+        palette.first { !used.contains($0) } ?? palette[used.count % palette.count]
+    }
+}
