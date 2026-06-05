@@ -2,10 +2,42 @@
 
 **Baby**: Miller  
 **Users**: Taylor + wife  
-**Goal**: Track feeds, sleep, and diapers in real-time across both parents' iPhones  
-**Platform**: Native iOS (SwiftUI + CloudKit)  
+**Goal**: Track feeds, sleep, and diapers in real-time across both parents' devices  
+**Platform**: Native iOS — iPhone + iPad (SwiftUI + CloudKit)  
 **Distribution**: TestFlight  
 **Last Updated**: June 2026
+
+### Document set
+- **BUILD_PLAN.md** (this doc) — scope, phases, timeline, risks
+- [DATA_MODEL.md](DATA_MODEL.md) — SwiftData schema, storage tiers, CloudKit layout, schema-evolution rules
+- [DESIGN.md](DESIGN.md) — design system, screen states, glanceable surfaces, accessibility
+- [PRIVACY.md](PRIVACY.md) — what's stored, where, who can access
+- [IOS_VS_WEB_COMPARISON.md](IOS_VS_WEB_COMPARISON.md) — why native iOS (decision record)
+
+---
+
+## v1 Scope (locked June 5, 2026)
+
+A scoping pass narrowed v1. **These decisions supersede anything below that conflicts:**
+
+- **Formula-only feeding** (Baby Brezza Pro Advanced). There is **no nursing/breast timer.** A feed = **amount in ounces** + timestamp, an instantaneous event (~2 taps, like a diaper).
+- **Three core events only**: Feed (oz), Sleep (start/stop timer), Diaper (wet/dirty/both). Nothing else in v1 — no spit-up, meds, or mood logs.
+- **Sleep is the only running timer** in the app.
+- **Glanceable layer ships in v1** (not deferred): home/lock-screen **widget** ("Last bottle: 2h 40m ago") + **Sleep Live Activity**. Feeds are instantaneous, so there is no feed Live Activity.
+- **Feed reminders = next-feed countdown**: each logged bottle schedules a reminder at +target interval (default ~3h, single value, editable in Settings; no day/night split yet). Logging a feed cancels the pending reminder and schedules the next.
+- **Devices: iPhone + iPad** (adaptive SwiftUI). No Apple Watch in v1.
+- **Units: ounces (oz)** throughout.
+- **Full edit + backdate in v1**: logging lets you set a custom time ("now / 15 min ago / pick time"); any past entry can be edited or deleted. (Pulled forward from Phase 2 — parents log late.)
+- **Urgency colors in v1**: green → amber → red on the time-since indicators (all three events) as the next bottle approaches. (Pulled forward from Phase 4.)
+- **Rolling timeline**: home shows a continuous recent window (~last 12–24h), not a "Today" list that resets at midnight. Day-grouping is a stats-only concern, deferred.
+- **Sharing via invite links (caregiver sharing pulled into v1)**: Taylor is the owner and sends CloudKit share invites to multiple participants — starting with his wife, also caregivers. Two roles: **Full** (log/edit/settings — co-parent) and **Logger** (log + edit events, no settings/baby changes — caregiver). No view-only tier. Both are read-write CloudKit participants; the role difference is enforced in-app, not by CloudKit. Rules out the shared-iCloud-login approach.
+- **Attribution = colored initial** per participant on each timeline row (scales to N people, not a fixed T/W).
+- **Per-user notifications**: push for any event type the *other* participants log is allowed, but each type is an opt-in toggle and prefs are **per-user/local (not synced)**. Requires CloudKit subscriptions / silent push. Includes a per-user **quiet-hours** window so reminders/alerts don't fire overnight.
+- **Settings split**: *Shared* (synced) = baby info/DOB, target feed interval, oz presets. *Per-user* (local) = my notification toggles, my quiet hours, my display name/initial.
+- **Appearance**: dark + light, **follows the iOS system setting**. (No dedicated 3am night mode in v1.)
+- **Manage People**: full sharing lifecycle in v1 — invite + a screen to view participants, change role, and **revoke** access. Revoked person's logged events remain.
+- **Cross-cutting constraints**: iCloud required (clear sign-in gate; still logs locally and back-fills on reconnect) · notifications are best-effort, never safety-critical · schema-migration discipline (SwiftData+CloudKit: all new properties optional/defaulted, resist rename/delete — name the model right now) · store absolute timestamps render local, handle DST/time-zone/midnight-crossing · accessibility: Dynamic Type, VoiceOver, haptics, **silent operation** · no analytics/tracking SDKs, no third-party deps.
+- **Deferred**: nursing timer (n/a), growth charts/percentiles, Siri/App Intents, photo milestones, PDF export, Apple Watch, caregiver sharing.
 
 ---
 
@@ -41,12 +73,10 @@
 @Model class FeedEvent {
     var id: UUID
     var baby: Baby
-    var method: FeedMethod      // .breastLeft, .breastRight, .breastBoth, .bottle
-    var startedAt: Date
-    var endedAt: Date?          // nil while timer is running
-    var amountML: Double?       // bottle only
+    var amountOz: Double         // formula amount in ounces
+    var timestamp: Date          // feeds are instantaneous — no start/end
     var notes: String?
-    var loggedBy: String        // "Taylor" or "Wife" — display name
+    var loggedBy: String         // "Taylor" or "Wife" — display name
 }
 
 @Model class SleepEvent {
@@ -78,6 +108,8 @@
 ```
 
 Events are append-only in the MVP. Edits soft-delete the original and create a replacement. This avoids CloudKit merge conflicts.
+
+> **Note (v1 scope):** `loggedBy: String` is a placeholder. With multiple invited participants (wife + caregivers), attribution should store a stable participant identity (display name + assigned color/initial), not a hardcoded "Taylor"/"Wife". Each timeline row renders that participant's colored initial. A lightweight `Participant` concept (name, color, role: `.full` / `.logger`) backs this; role gates the settings/baby-edit UI in-app.
 
 ---
 
@@ -137,7 +169,7 @@ One-thumb operable. No nav bar clutter on this screen.
 │       └──────────┘           │
 │                              │
 │  ── Today ──────────────     │
-│  2:14p  Feed · Bottle 90ml  │
+│  2:14p  Feed · 3 oz         │
 │  1:10p  Sleep · 1h 22m      │
 │  11:40a Diaper · Wet        │
 └──────────────────────────────┘
@@ -149,28 +181,18 @@ One-thumb operable. No nav bar clutter on this screen.
 - Today's timeline: last 5 events in a `List`, "See All" link to full timeline
 - Dark mode from day 1 via `@Environment(\.colorScheme)`
 
-#### Feed Logging Flow (Day 4, ~5 hrs)
-Tap Feed → sheet slides up:
+#### Feed Logging Flow (Day 4, ~2 hrs)
+Formula-only — a feed is just an amount. Tap Feed → sheet slides up:
 
 ```
-  [ Breast L ]  [ Breast R ]  [ Bottle ]
-        [ Both Breast ]
-
-  ── Breast selected ──
-  Timer starts immediately
-  ● 4:23 and counting...
-  [      Stop Feed      ]
-
-  ── Bottle selected ──
-  [ 60 ml ]  [ 90 ml ]  [ 120 ml ]  [ ___ml ]
-  [      Log Feed      ]
+  [ 2 oz ]  [ 3 oz ]  [ 4 oz ]  [ ___ oz ]
+  [          Log Feed          ]
 ```
 
-- Breast: selecting method creates a `FeedEvent` with `endedAt = nil`, timer starts. `startedAt` stored server-side — elapsed time is computed on display, not tracked client-side (avoids backgrounding issues).
-- Bottle: quick-select amounts (60/90/120ml) + `TextField` for custom. Single "Log" tap saves event with no timer.
-- Both Breast: creates `FeedEvent(method: .breastBoth)` + timer
-- Stop button sets `endedAt`, saves to SwiftData (CloudKit syncs automatically)
-- Active feed badge visible on main screen while timer runs
+- Quick-select oz amounts (2/3/4 oz) + `TextField` for custom. Single tap on a preset can log-and-dismiss immediately (≈2 taps total), or tap custom for a precise amount.
+- Saves a `FeedEvent(amountOz:, timestamp: .now)` — no timer, no method.
+- On save: cancel any pending feed reminder and schedule the next at +target interval (default 3h, see Phase 2). Haptic confirmation.
+- Adjust amount presets in Settings if Miller's typical bottle size changes.
 
 #### Diaper Logging Flow (Day 4, ~1.5 hrs)
 Tap Diaper → sheet:
@@ -213,7 +235,7 @@ Active sleep replaces the Sleep button on the main screen with a live timer card
 - Smoke test all three log flows on real hardware
 
 #### Integration + Polish Day (Days 8–10)
-- Fix edge cases: two active timers guard (only one feed and one sleep can be active at once)
+- Fix edge cases: single active timer guard (only one sleep timer can be active at once)
 - Timer display when app is backgrounded and relaunched
 - "No events yet" empty states
 - App icon design (simple "M" in a clock or milk bottle motif)
@@ -221,7 +243,7 @@ Active sleep replaces the Sleep button on the main screen with a live timer card
 
 ### Definition of Done — Phase 1
 - [ ] Both parents have the app on their iPhones via TestFlight
-- [ ] Feed (breast L/R/both/bottle), diaper (W/D/both), sleep (start/stop timer) all log correctly
+- [ ] Feed (oz amount), diaper (W/D/both), sleep (start/stop timer) all log correctly
 - [ ] Events sync from phone A to phone B within ~10 seconds
 - [ ] Active timers survive app backgrounding and relaunching
 - [ ] Today's timeline shows all events in chronological order
@@ -318,7 +340,7 @@ Technical approach:
 - Changes sync to CloudKit automatically via SwiftData
 
 ### Definition of Done — Phase 2
-- [ ] Live Activity appears on lock screen and Dynamic Island when feed or sleep timer is running
+- [ ] Live Activity appears on lock screen and Dynamic Island when the sleep timer is running (feeds are instantaneous — no feed activity)
 - [ ] Live Activity dismisses automatically when timer is stopped
 - [ ] Lock screen widget shows "Last feed: Xh Xm ago" and updates
 - [ ] Home screen widget (medium) shows all three last-event times
