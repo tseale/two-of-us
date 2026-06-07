@@ -28,16 +28,18 @@ enum SleepActivityManager {
     }
 
     static func end() {
-        Task {
-            await endAll()
-            AppGroup.userDefaults?.removeObject(forKey: activityIDKey)
-        }
+        endAll()
+        AppGroup.userDefaults?.removeObject(forKey: activityIDKey)
     }
 
     private static func endAll() {
-        Task {
-            for activity in Activity<SleepActivityAttributes>.activities {
-                await activity.end(dismissalPolicy: .immediate)
+        for activity in Activity<SleepActivityAttributes>.activities {
+            let finalContent = ActivityContent(
+                state: activity.content.state,
+                staleDate: nil
+            )
+            Task {
+                await activity.end(finalContent, dismissalPolicy: .immediate)
             }
         }
     }
