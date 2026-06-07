@@ -34,11 +34,55 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        NSSupportsLiveActivities: YES
+    entitlements:
+      path: MillerTime/MillerTime.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.taylorseale.millertime
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.taylorseale.millertime
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1,2"
         ENABLE_PREVIEWS: YES
-        # Increment 1 runs on the Simulator with no signing.
-        # CloudKit / App Group capabilities are added in later increments.
+    dependencies:
+      - target: MillerTimeWidgets
+
+  MillerTimeWidgets:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: MillerTimeWidgets
+      - path: MillerTime/Models/Baby.swift
+      - path: MillerTime/Models/FeedEvent.swift
+      - path: MillerTime/Models/SleepEvent.swift
+      - path: MillerTime/Models/DiaperEvent.swift
+      - path: MillerTime/Models/Participant.swift
+      - path: MillerTime/Models/SharedSettings.swift
+      - path: MillerTime/Models/Enums.swift
+      - path: MillerTime/Store/Schema.swift
+      - path: MillerTime/Support/AppGroup.swift
+      - path: MillerTime/DesignSystem/Colors.swift
+      - path: MillerTime/DesignSystem/TimeFormatting.swift
+      - path: MillerTime/DesignSystem/Urgency.swift
+      - path: MillerTime/LiveActivities/SleepActivityAttributes.swift
+    info:
+      path: MillerTimeWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: MillerTimeWidgets
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: MillerTimeWidgets/MillerTimeWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.taylorseale.millertime
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.taylorseale.millertime.widgets
+        SKIP_INSTALL: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: NO

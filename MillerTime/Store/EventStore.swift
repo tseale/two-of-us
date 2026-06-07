@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import WidgetKit
 
 /// Anything that can be soft-deleted.
 protocol SoftDeletable: AnyObject {
@@ -48,6 +49,7 @@ struct EventStore {
         )
         context.insert(event)
         save()
+        reloadWidgets()
         return event
     }
 
@@ -61,6 +63,7 @@ struct EventStore {
         )
         context.insert(event)
         save()
+        reloadWidgets()
         return event
     }
 
@@ -76,12 +79,16 @@ struct EventStore {
         )
         context.insert(event)
         save()
+        SleepActivityManager.start(babyName: baby?.name ?? "Miller", at: date)
+        reloadWidgets()
         return event
     }
 
     func stopSleep(_ event: SleepEvent, at date: Date = .now) {
         event.endedAt = date
         save()
+        SleepActivityManager.end()
+        reloadWidgets()
     }
 
     // MARK: Edit (append-only: soft-delete original, insert replacement)
@@ -99,6 +106,7 @@ struct EventStore {
         original.deletedAt = .now
         context.insert(replacement)
         save()
+        reloadWidgets()
         return replacement
     }
 
@@ -115,6 +123,7 @@ struct EventStore {
         original.deletedAt = .now
         context.insert(replacement)
         save()
+        reloadWidgets()
         return replacement
     }
 
@@ -131,6 +140,7 @@ struct EventStore {
         original.deletedAt = .now
         context.insert(replacement)
         save()
+        reloadWidgets()
         return replacement
     }
 
@@ -139,6 +149,7 @@ struct EventStore {
     func softDelete(_ event: any SoftDeletable) {
         event.deletedAt = .now
         save()
+        reloadWidgets()
     }
 
     // MARK: Time-since
@@ -196,9 +207,13 @@ struct EventStore {
         return entries.sorted { $0.sortDate > $1.sortDate }
     }
 
-    // MARK: Save
+    // MARK: Private
 
     private func save() {
         do { try context.save() } catch { print("EventStore save error: \(error)") }
+    }
+
+    private func reloadWidgets() {
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }
