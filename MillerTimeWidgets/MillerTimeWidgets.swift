@@ -8,6 +8,8 @@ struct MillerTimeWidgetBundle: WidgetBundle {
         LastFeedWidget()
         LastSleepWidget()
         LastDiaperWidget()
+        DayRibbonWidget()
+        NextFeedGaugeWidget()
         HomeScreenMediumWidget()
         HomeScreenLargeWidget()
         SleepLiveActivity()

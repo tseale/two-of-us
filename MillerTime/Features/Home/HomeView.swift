@@ -32,6 +32,12 @@ struct HomeView: View {
             List {
                 Section {
                     header
+                    TodayRibbonCard(
+                        marks: todayMarks,
+                        feedCount: todaySummary?.feedCount ?? 0,
+                        sleepSeconds: todaySummary?.sleepSeconds ?? 0,
+                        diaperCount: todaySummary?.diaperCount ?? 0
+                    )
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         VStack(spacing: 18) {
                             statusRow(now: ctx.date)
@@ -119,6 +125,17 @@ struct HomeView: View {
 
     private var lastSleepEnd: Date? {
         sleeps.first(where: { $0.endedAt != nil })?.endedAt
+    }
+
+    // MARK: Today ribbon
+
+    private var todayMarks: [RibbonMark] {
+        RibbonMark.forDay(.now, feeds: feeds, sleeps: sleeps, diapers: diapers)
+    }
+
+    private var todaySummary: DaySummary? {
+        StatsEngine(feeds: feeds, sleeps: sleeps, diapers: diapers)
+            .dailySummaries(days: 1).first
     }
 
     // MARK: Log buttons

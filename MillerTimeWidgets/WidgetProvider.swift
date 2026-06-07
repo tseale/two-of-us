@@ -68,6 +68,9 @@ struct WidgetProvider: TimelineProvider {
         // Recent items for large widget
         let recentItems = fetchRecentItems(ctx: ctx, since: .now.addingTimeInterval(-86400), limit: 5)
 
+        // Today's ribbon marks
+        let todayMarks = fetchTodayMarks(ctx: ctx)
+
         return WidgetEntry(
             date: .now,
             lastFeedDate: lastFeedDate,
@@ -76,7 +79,8 @@ struct WidgetProvider: TimelineProvider {
             feedTargetInterval: feedTarget,
             isActiveSleep: isActive,
             activeSleepStartedAt: isActive ? lastSleepEvent?.startedAt : nil,
-            recentItems: recentItems
+            recentItems: recentItems,
+            todayMarks: todayMarks
         )
     }
 
@@ -114,5 +118,20 @@ struct WidgetProvider: TimelineProvider {
         }
 
         return items.sorted { $0.date > $1.date }.prefix(limit).map { $0 }
+    }
+
+    private func fetchTodayMarks(ctx: ModelContext) -> [RibbonMark] {
+        let start = Calendar.current.startOfDay(for: .now)
+        let feeds = (try? ctx.fetch(FetchDescriptor<FeedEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= start }
+        ))) ?? []
+        // Sleeps overlapping today: started today, or still running from earlier.
+        let sleeps = (try? ctx.fetch(FetchDescriptor<SleepEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && ($0.startedAt >= start || $0.endedAt == nil) }
+        ))) ?? []
+        let diapers = (try? ctx.fetch(FetchDescriptor<DiaperEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= start }
+        ))) ?? []
+        return RibbonMark.forDay(.now, feeds: feeds, sleeps: sleeps, diapers: diapers)
     }
 }

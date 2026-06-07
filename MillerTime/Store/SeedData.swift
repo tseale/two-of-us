@@ -42,4 +42,64 @@ enum SeedData {
         try? context.save()
         return baby
     }
+
+    /// Seeds a week of illustrative events for SwiftUI previews (charts need data).
+    /// No-op if any feed already exists. Attributes night feeds to "Mom" so the
+    /// night-shift split renders.
+    static func seedSampleEvents(in context: ModelContext, days: Int = 7) {
+        guard let baby = try? context.fetch(FetchDescriptor<Baby>()).first else { return }
+        if (try? context.fetch(FetchDescriptor<FeedEvent>()))?.isEmpty == false { return }
+
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: .now)
+        let now = Date()
+        let mom = (name: "Mom", color: ParticipantColors.palette[3]) // pink
+        let dad = (name: "Dad", color: ParticipantColors.palette[1]) // periwinkle
+
+        func feed(_ oz: Double, _ date: Date, _ who: (name: String, color: String)) {
+            guard date <= now else { return }
+            context.insert(FeedEvent(
+                baby: baby, amountOz: oz, timestamp: date,
+                loggedByID: UUID(), loggedByName: who.name, loggedByColorHex: who.color
+            ))
+        }
+        func sleep(_ start: Date, hours: Double, _ who: (name: String, color: String)) {
+            guard start <= now else { return }
+            context.insert(SleepEvent(
+                baby: baby, startedAt: start, endedAt: min(now, start.addingTimeInterval(hours * 3600)),
+                loggedByID: UUID(), loggedByName: who.name, loggedByColorHex: who.color
+            ))
+        }
+        func diaper(_ type: DiaperType, _ date: Date) {
+            guard date <= now else { return }
+            context.insert(DiaperEvent(
+                baby: baby, type: type, timestamp: date,
+                loggedByID: UUID(), loggedByName: dad.name, loggedByColorHex: dad.color
+            ))
+        }
+
+        for d in 0..<days {
+            guard let dayStart = cal.date(byAdding: .day, value: -d, to: today) else { continue }
+
+            // Daytime feeds ~ every 3h, night feed ~2am (Mom).
+            for h in stride(from: 6, through: 21, by: 3) {
+                let date = dayStart.addingTimeInterval(Double(h) * 3600 + Double((h * 11) % 40) * 60)
+                feed(2.5 + Double((h / 3) % 3) * 0.5, date, h >= 19 ? mom : dad)
+            }
+            feed(3, dayStart.addingTimeInterval(2 * 3600), mom)
+
+            // Night stretch grows with recency; plus an afternoon nap.
+            let stretch = 3.0 + Double(days - 1 - d) * 0.45
+            sleep(dayStart.addingTimeInterval(22 * 3600), hours: stretch, dad)
+            sleep(dayStart.addingTimeInterval(13 * 3600), hours: 1.5, dad)
+
+            // Diapers ~ every 4h.
+            for h in stride(from: 5, through: 21, by: 4) {
+                diaper(h % 8 == 0 ? .both : (h % 3 == 0 ? .dirty : .wet),
+                       dayStart.addingTimeInterval(Double(h) * 3600))
+            }
+        }
+
+        try? context.save()
+    }
 }

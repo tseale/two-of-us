@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Miller Time — Visualization Mockups</title>
+<style>
+  :root{
+    --bg:#000; --card:#1C1C1E; --card2:#2C2C2E; --text:#fff; --text2:#98989F;
+    --text3:#636366; --sep:#38383A; --feed:#5AC8B8; --sleep:#8E8EFF; --diaper:#F5B971;
+    --u-green:#5AD17E; --u-amber:#F5B971; --u-red:#FF6B6B;
+  }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  body{margin:0;background:#0a0a0c;color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:40px;}
+  h1{font-size:26px;font-weight:700;margin:0 0 4px;}
+  .sub{color:var(--text2);font-size:14px;margin:0 0 32px;}
+  .section-title{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--text2);margin:36px 0 14px;}
+  .row{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start;}
+  .cap{font-size:12px;color:var(--text3);margin-top:8px;text-align:center;max-width:300px;}
+  .frame-wrap{display:flex;flex-direction:column;align-items:center;}
+
+  /* iPhone frame */
+  .phone{width:300px;height:620px;background:var(--bg);border-radius:46px;
+    border:9px solid #2a2a2e;position:relative;overflow:hidden;
+    box-shadow:0 18px 50px rgba(0,0,0,.6);}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);
+    width:120px;height:26px;background:#000;border-radius:0 0 18px 18px;z-index:5;}
+
+  /* Lock screen */
+  .lock{padding:54px 22px 22px;height:100%;display:flex;flex-direction:column;
+    background:radial-gradient(120% 80% at 50% 0%,#15151c 0%,#000 70%);}
+  .lock-date{text-align:center;color:var(--text2);font-size:15px;font-weight:500;margin-top:6px;}
+  .lock-time{text-align:center;font-size:74px;font-weight:300;letter-spacing:-2px;
+    line-height:1;margin:2px 0 18px;}
+  .acc-rect{background:rgba(255,255,255,.10);border-radius:14px;padding:10px 12px;
+    backdrop-filter:blur(6px);}
+  .acc-circ-row{display:flex;gap:14px;justify-content:center;margin-top:auto;margin-bottom:6px;}
+  .acc-circ{width:64px;height:64px;display:flex;flex-direction:column;align-items:center;}
+
+  /* widget tinted (monochrome) text */
+  .tint{color:#e9e9ee;}
+  .tint-dim{color:#9a9aa2;}
+
+  /* Home screen */
+  .home{padding:54px 16px 16px;height:100%;
+    background:linear-gradient(170deg,#1a1d2b 0%,#0c0d14 60%,#000 100%);}
+  .home-widget{background:var(--card);border-radius:22px;padding:14px 16px;margin-bottom:16px;
+    box-shadow:0 6px 20px rgba(0,0,0,.4);}
+  .hw-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;}
+  .hw-title{font-size:16px;font-weight:700;}
+  .hw-time{font-size:12px;color:var(--text3);}
+  .erow{display:flex;align-items:center;gap:9px;padding:5px 0;}
+  .edot{width:9px;height:9px;border-radius:50%;flex:none;}
+  .elabel{font-size:13px;color:var(--text2);flex:1;}
+  .eval{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;}
+
+  /* In-app screens */
+  .app{height:100%;background:var(--bg);padding:54px 0 0;display:flex;flex-direction:column;}
+  .app-head{padding:0 18px 12px;}
+  .app-h1{font-size:24px;font-weight:700;}
+  .app-h2{font-size:13px;color:var(--text2);margin-top:2px;}
+  .scroll{flex:1;overflow:hidden;padding:4px 14px 14px;}
+  .card{background:var(--card);border-radius:18px;padding:14px 14px 12px;margin-bottom:14px;}
+  .card-title{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:10px;
+    display:flex;justify-content:space-between;}
+  .tabbar{height:50px;border-top:1px solid var(--sep);display:flex;}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:3px;font-size:10px;color:var(--text3);}
+  .tab.active{color:var(--feed);}
+  .tab .ic{font-size:17px;}
+
+  /* stat tiles */
+  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .tile{background:var(--card);border-radius:18px;padding:14px;}
+  .tile-k{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;}
+  .tile-v{font-size:26px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums;}
+  .tile-u{font-size:12px;color:var(--text3);margin-top:2px;}
+  .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:9px;font-weight:600;}
+
+  .legend{display:flex;gap:14px;font-size:11px;color:var(--text2);margin-top:8px;}
+  .lg{display:flex;align-items:center;gap:5px;}
+  .lg .sw{width:10px;height:10px;border-radius:3px;}
+  text{font-family:inherit;}
+</style>
+</head>
+<body>
+<h1>Miller Time — Visualization Mockups</h1>
+<p class="sub">Dark mode · exact palette (feed&nbsp;#5AC8B8 · sleep&nbsp;#8E8EFF · diaper&nbsp;#F5B971). Sample day for "Miller, 12 weeks."</p>
+
+<!-- ============ LOCK SCREEN ============ -->
+<div class="section-title">1 · Lock screen — "when did things happen today"</div>
+<div class="row">
+
+  <!-- Lock with 24h ribbon (rectangular) -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="lock">
+        <div class="lock-date">Saturday, June 7</div>
+        <div class="lock-time">2:47</div>
+
+        <!-- accessory rectangular: 24h ribbon -->
+        <div class="acc-rect">
+          <div style="display:flex;justify-content:space-between;font-size:11px;" class="tint-dim">
+            <span>Today</span><span>🍼 5 · 💤 4h10 · 💩 6</span>
+          </div>
+          <svg width="100%" height="34" viewBox="0 0 252 34" style="margin-top:6px;display:block">
+            <line x1="2" y1="22" x2="250" y2="22" stroke="#6b6b73" stroke-width="1"/>
+            <!-- hour ticks -->
+            <g stroke="#4a4a52" stroke-width="1">
+              <line x1="2" y1="19" x2="2" y2="25"/><line x1="63" y1="20" x2="63" y2="24"/>
+              <line x1="125" y1="19" x2="125" y2="25"/><line x1="187" y1="20" x2="187" y2="24"/>
+              <line x1="250" y1="19" x2="250" y2="25"/>
+            </g>
+            <!-- sleep segments (underline bars) -->
+            <g stroke="#e9e9ee" stroke-width="3" stroke-linecap="round">
+              <line x1="14" y1="28" x2="52" y2="28"/>
+              <line x1="92" y1="28" x2="116" y2="28"/>
+              <line x1="150" y1="28" x2="178" y2="28"/>
+              <line x1="206" y1="28" x2="224" y2="28"/>
+            </g>
+            <!-- feed = filled dot -->
+            <g fill="#e9e9ee">
+              <circle cx="22" cy="14" r="3.2"/><circle cx="74" cy="14" r="3.2"/>
+              <circle cx="120" cy="14" r="3.2"/><circle cx="168" cy="14" r="3.2"/>
+              <circle cx="214" cy="14" r="3.2"/>
+            </g>
+            <!-- diaper = hollow dot -->
+            <g fill="none" stroke="#bdbdc4" stroke-width="1.6">
+              <circle cx="40" cy="14" r="3"/><circle cx="96" cy="14" r="3"/>
+              <circle cx="132" cy="14" r="3"/><circle cx="158" cy="14" r="3"/>
+              <circle cx="196" cy="14" r="3"/><circle cx="232" cy="14" r="3"/>
+            </g>
+            <text x="2" y="8" fill="#7a7a82" font-size="7">12a</text>
+            <text x="113" y="8" fill="#7a7a82" font-size="7">12p</text>
+            <text x="236" y="8" fill="#7a7a82" font-size="7">now</text>
+          </svg>
+        </div>
+
+        <!-- accessory circular trio -->
+        <div class="acc-circ-row">
+          <!-- next-feed gauge -->
+          <div class="acc-circ">
+            <svg width="50" height="50" viewBox="0 0 50 50">
+              <circle cx="25" cy="25" r="20" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="5"/>
+              <circle cx="25" cy="25" r="20" fill="none" stroke="#e9e9ee" stroke-width="5"
+                stroke-linecap="round" stroke-dasharray="125.6" stroke-dashoffset="40"
+                transform="rotate(-90 25 25)"/>
+              <text x="25" y="23" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">19m</text>
+              <text x="25" y="33" text-anchor="middle" fill="#9a9aa2" font-size="7">to feed</text>
+            </svg>
+            <div class="cap" style="font-size:9px;margin-top:2px">gauge</div>
+          </div>
+          <!-- radial clock dial -->
+          <div class="acc-circ">
+            <svg width="50" height="50" viewBox="0 0 50 50">
+              <circle cx="25" cy="25" r="20" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="2"/>
+              <!-- sleep arcs on rim -->
+              <circle cx="25" cy="25" r="20" fill="none" stroke="#e9e9ee" stroke-width="4"
+                stroke-dasharray="10 18 8 22 7 50" transform="rotate(-90 25 25)" opacity=".85"/>
+              <!-- feed marks -->
+              <g fill="#fff">
+                <circle cx="25" cy="7.5" r="2"/><circle cx="40" cy="20" r="2"/>
+                <circle cx="33" cy="40" r="2"/><circle cx="12" cy="33" r="2"/>
+              </g>
+              <circle cx="25" cy="25" r="1.6" fill="#9a9aa2"/>
+            </svg>
+            <div class="cap" style="font-size:9px;margin-top:2px">clock dial</div>
+          </div>
+          <!-- micro list -->
+          <div class="acc-circ" style="width:auto">
+            <div class="acc-rect" style="padding:6px 9px">
+              <div style="font-size:10px;line-height:1.5" class="tint">
+                🍼 <b>19m</b><br>💤 1h10<br>💩 32m
+              </div>
+            </div>
+            <div class="cap" style="font-size:9px;margin-top:2px">micro list</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><b>Lock screen.</b> 24h ribbon (rectangular) + circular trio. Monochrome-tinted, so shape encodes type: ● feed · ○ diaper · — sleep span.</div>
+  </div>
+
+  <!-- ============ HOME SCREEN ============ -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="home">
+        <!-- medium color widget with today strip -->
+        <div class="home-widget">
+          <div class="hw-head"><span class="hw-title">Miller · 12 wks</span><span class="hw-time">2:47 PM</span></div>
+          <!-- color ribbon -->
+          <svg width="100%" height="30" viewBox="0 0 256 30" style="margin-bottom:10px;display:block">
+            <line x1="2" y1="20" x2="254" y2="20" stroke="#3a3a40" stroke-width="1"/>
+            <g stroke="var(--sleep)" stroke-width="4" stroke-linecap="round">
+              <line x1="14" y1="25" x2="54" y2="25"/><line x1="94" y1="25" x2="118" y2="25"/>
+              <line x1="152" y1="25" x2="180" y2="25"/><line x1="210" y1="25" x2="228" y2="25"/>
+            </g>
+            <g fill="var(--feed)"><circle cx="22" cy="11" r="3.4"/><circle cx="76" cy="11" r="3.4"/>
+              <circle cx="122" cy="11" r="3.4"/><circle cx="170" cy="11" r="3.4"/><circle cx="218" cy="11" r="3.4"/></g>
+            <g fill="var(--diaper)"><circle cx="42" cy="11" r="3"/><circle cx="98" cy="11" r="3"/>
+              <circle cx="134" cy="11" r="3"/><circle cx="160" cy="11" r="3"/><circle cx="198" cy="11" r="3"/><circle cx="236" cy="11" r="3"/></g>
+            <text x="2" y="9" fill="#5e5e66" font-size="7">12a</text>
+            <text x="120" y="9" fill="#5e5e66" font-size="7">12p</text>
+          </svg>
+          <div class="erow"><span class="edot" style="background:var(--feed)"></span>
+            <span class="elabel">Last bottle</span><span class="eval" style="color:var(--u-amber)">2h 41m</span></div>
+          <div class="erow"><span class="edot" style="background:var(--sleep)"></span>
+            <span class="elabel">Last sleep</span><span class="eval" style="color:var(--u-green)">1h 10m</span></div>
+          <div class="erow"><span class="edot" style="background:var(--diaper)"></span>
+            <span class="elabel">Last diaper</span><span class="eval" style="color:var(--u-green)">32m</span></div>
+        </div>
+
+        <!-- small widgets pair -->
+        <div style="display:flex;gap:16px">
+          <div class="home-widget" style="flex:1;text-align:center;margin:0;padding:16px 8px">
+            <div style="font-size:22px">🍼</div>
+            <div style="font-size:22px;font-weight:700;color:var(--u-amber);margin-top:4px">2h41</div>
+            <div style="font-size:10px;color:var(--text3);letter-spacing:.06em">SINCE FEED</div>
+          </div>
+          <div class="home-widget" style="flex:1;text-align:center;margin:0;padding:16px 8px">
+            <svg width="58" height="58" viewBox="0 0 58 58">
+              <circle cx="29" cy="29" r="23" fill="none" stroke="#2c2c30" stroke-width="6"/>
+              <circle cx="29" cy="29" r="23" fill="none" stroke="var(--u-amber)" stroke-width="6"
+                stroke-linecap="round" stroke-dasharray="144.5" stroke-dashoffset="22"
+                transform="rotate(-90 29 29)"/>
+              <text x="29" y="27" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">19m</text>
+              <text x="29" y="38" text-anchor="middle" fill="var(--text3)" font-size="8">next feed</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><b>Home screen (full color).</b> Medium widget gains a "today so far" ribbon above the time-since rows; small next-feed gauge ring.</div>
+  </div>
+</div>
+
+<!-- ============ IN-APP SCREENS ============ -->
+<div class="section-title">2 · In-app screens — Home (glance + log), History, Stats</div>
+<div class="row">
+
+  <!-- ===== IN-APP HOME ===== -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="app">
+        <div class="app-head" style="display:flex;justify-content:space-between;align-items:flex-end">
+          <div><div class="app-h1">Miller</div><div class="app-h2">12 weeks old</div></div>
+          <div style="font-size:13px;color:var(--text3)">2:47 PM</div>
+        </div>
+        <div class="scroll">
+
+          <!-- TODAY SO FAR — the glanceable visualization -->
+          <div class="card">
+            <div class="card-title"><span>Today so far</span>
+              <span style="color:var(--text3)">🍼 5 · 💤 4h10 · 💩 6</span></div>
+            <svg width="100%" height="36" viewBox="0 0 256 36" style="display:block">
+              <line x1="2" y1="24" x2="254" y2="24" stroke="#3a3a40" stroke-width="1"/>
+              <g stroke="var(--sleep)" stroke-width="4" stroke-linecap="round">
+                <line x1="14" y1="30" x2="54" y2="30"/><line x1="94" y1="30" x2="118" y2="30"/>
+                <line x1="152" y1="30" x2="180" y2="30"/><line x1="210" y1="30" x2="228" y2="30"/>
+              </g>
+              <g fill="var(--feed)"><circle cx="22" cy="14" r="3.6"/><circle cx="76" cy="14" r="3.6"/>
+                <circle cx="122" cy="14" r="3.6"/><circle cx="170" cy="14" r="3.6"/><circle cx="218" cy="14" r="3.6"/></g>
+              <g fill="var(--diaper)"><circle cx="42" cy="14" r="3.1"/><circle cx="98" cy="14" r="3.1"/>
+                <circle cx="134" cy="14" r="3.1"/><circle cx="160" cy="14" r="3.1"/><circle cx="198" cy="14" r="3.1"/><circle cx="236" cy="14" r="3.1"/></g>
+              <!-- now marker -->
+              <line x1="240" y1="8" x2="240" y2="30" stroke="#fff" stroke-width="1" opacity=".5" stroke-dasharray="2 2"/>
+              <text x="2" y="9" fill="#5e5e66" font-size="7">12a</text>
+              <text x="120" y="9" fill="#5e5e66" font-size="7">12p</text>
+              <text x="226" y="9" fill="#8a8a92" font-size="7">now</text>
+            </svg>
+            <div class="legend">
+              <span class="lg"><span class="sw" style="background:var(--feed);border-radius:50%"></span>feed</span>
+              <span class="lg"><span class="sw" style="background:var(--diaper);border-radius:50%"></span>diaper</span>
+              <span class="lg"><span class="sw" style="background:var(--sleep)"></span>sleep</span>
+            </div>
+          </div>
+
+          <!-- status: time-since with next-feed -->
+          <div class="card">
+            <div class="erow"><span class="edot" style="background:var(--feed)"></span>
+              <span class="elabel">Last bottle · next in 19m</span><span class="eval" style="color:var(--u-amber)">2h 41m</span></div>
+            <div style="height:1px;background:var(--sep);margin:3px 0"></div>
+            <div class="erow"><span class="edot" style="background:var(--sleep)"></span>
+              <span class="elabel">Last sleep</span><span class="eval" style="color:var(--u-green)">1h 10m</span></div>
+            <div style="height:1px;background:var(--sep);margin:3px 0"></div>
+            <div class="erow"><span class="edot" style="background:var(--diaper)"></span>
+              <span class="elabel">Last diaper</span><span class="eval" style="color:var(--u-green)">32m</span></div>
+          </div>
+
+          <!-- quick log -->
+          <div style="display:flex;gap:10px;margin-bottom:14px">
+            <div style="flex:1;background:var(--feed);color:#06302b;border-radius:16px;padding:12px 0;text-align:center;font-weight:700;font-size:13px">🍼 Bottle</div>
+            <div style="flex:1;background:var(--sleep);color:#15153a;border-radius:16px;padding:12px 0;text-align:center;font-weight:700;font-size:13px">💤 Sleep</div>
+            <div style="flex:1;background:var(--diaper);color:#3a2606;border-radius:16px;padding:12px 0;text-align:center;font-weight:700;font-size:13px">💩 Diaper</div>
+          </div>
+
+          <!-- recent timeline -->
+          <div class="card-title" style="margin-bottom:8px"><span>Recent</span></div>
+          <div class="erow" style="padding:6px 0"><span style="font-size:15px">🍼</span>
+            <span class="elabel" style="color:var(--text)">Bottle · 4 oz</span><span class="eval" style="color:var(--text3)">12:06</span></div>
+          <div class="erow" style="padding:6px 0"><span style="font-size:15px">💤</span>
+            <span class="elabel" style="color:var(--text)">Sleep · 1h 22m</span><span class="eval" style="color:var(--text3)">10:40</span></div>
+          <div class="erow" style="padding:6px 0"><span style="font-size:15px">💩</span>
+            <span class="elabel" style="color:var(--text)">Diaper · Wet</span><span class="eval" style="color:var(--text3)">10:15</span></div>
+        </div>
+        <div class="tabbar">
+          <div class="tab active"><span class="ic">🏠</span>Home</div>
+          <div class="tab"><span class="ic">📊</span>History</div>
+          <div class="tab"><span class="ic">✨</span>Stats</div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><b>Home tab.</b> The "today so far" ribbon sits above the time-since status and quick-log — glanceable rhythm on the screen you open most. Deep charts live in History/Stats.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="app">
+        <div class="app-head"><div class="app-h1">History</div><div class="app-h2">Last 7 days</div></div>
+        <div class="scroll">
+
+          <!-- Gantt swimlane -->
+          <div class="card">
+            <div class="card-title"><span>Day in the life</span><span style="color:var(--text3)">24h</span></div>
+            <svg width="100%" height="150" viewBox="0 0 256 150">
+              <!-- hour gridlines -->
+              <g stroke="#2a2a2e" stroke-width="1">
+                <line x1="34" y1="6" x2="34" y2="132"/><line x1="89" y1="6" x2="89" y2="132"/>
+                <line x1="145" y1="6" x2="145" y2="132"/><line x1="200" y1="6" x2="200" y2="132"/><line x1="250" y1="6" x2="250" y2="132"/>
+              </g>
+              <!-- rows -->
+              <!-- helper: x = 34 + hour*9 (24h across ~216px) -->
+              <g font-size="8" fill="var(--text3)">
+                <text x="2" y="20">Mon</text><text x="2" y="38">Tue</text><text x="2" y="56">Wed</text>
+                <text x="2" y="74">Thu</text><text x="2" y="92">Fri</text><text x="6" y="110">Sat</text>
+                <text x="4" y="128" fill="var(--feed)">Sun</text>
+              </g>
+              <!-- sleep bars (periwinkle) + feed marks (teal) + diaper (amber) per row -->
+              <!-- Row template y for each day -->
+              <g>
+                <!-- Mon y=16 --><g>
+                  <rect x="34" y="12" width="40" height="7" rx="3" fill="var(--sleep)" opacity=".9"/>
+                  <rect x="120" y="12" width="22" height="7" rx="3" fill="var(--sleep)" opacity=".9"/>
+                  <rect x="180" y="12" width="26" height="7" rx="3" fill="var(--sleep)" opacity=".9"/>
+                  <circle cx="100" cy="15" r="2.2" fill="var(--feed)"/><circle cx="160" cy="15" r="2.2" fill="var(--feed)"/><circle cx="215" cy="15" r="2.2" fill="var(--feed)"/>
+                </g>
+                <!-- Tue y=34 --><g transform="translate(0,18)">
+                  <rect x="34" y="12" width="46" height="7" rx="3" fill="var(--sleep)" opacity=".9"/>
+                  <rect x="118" y="12" width="20" height="7" rx="3" fill="var(--sleep)" opacity=".9"/>
+                  <rect x="185" y="12" width="30" height="7" rx="3" fill="var(--sleep)" opacity=".9"/>
+                  <circle cx="98" cy="15" r="2.2" fill="var(--feed)"/><circle cx="158" cy="15" r="2.2" fill="var(--feed)"/><circle cx="225" cy="15" r="2.2" fill="var(--feed)"/>
+                </g>
+                <!-- Wed y=52 --><g transform="translate(0,36)">
+                  <rect x="34" y="12" width="52" height="7" rx="3" fill="var(--sleep)" opacity=".9"/>
+                  <rect x="124" y="12" width="18" height="7" rx="3" fill="var(--sleep)" opacity=".9"/>
+                  <rect x="188" y="12" width="34" height="7" rx="3" fill="var(--sleep)" opacity=".9"/>
+                  <circle cx="104" cy="15" r="2.2" fill="var(--feed)"/><circle cx="165" cy="15" r="2.2" fill="var(--feed)"/>
+                </g>
+                <!-- Thu y=70 --><g transform="translate(0,54)">
+                  <rect x="34" y="12" width="58" height="7" rx="3" fill="var(--sleep)" opacity=".9"/>
+                  <rect x="128" y="12" width="16" height="7" rx="3" fill="var(--sleep)" opacity=".9"/>
+                  <rect x="190" y="12" width="38" height="7" rx="3" fill="var(--sleep)" opacity=".9"/>
+                  <circle cx="110" cy="15" r="2.2" fill="var(--feed)"/><circle cx="168" cy="15" r="2.2" fill="var(--feed)"/>
+                </g>
+                <!-- Fri y=88 --><g transform="translate(0,72)">
+                  <rect x="34" y="12" width="62" height="7" rx="3" fill="var(--sleep)" opacity=".9"/>
+                  <rect x="132" y="12" width="14" height="7" rx="3" fill="var(--sleep)" opacity=".9"/>
+                  <rect x="194" y="12" width="40" height="7" rx="3" fill="var(--sleep)" opacity=".9"/>
+                  <circle cx="115" cy="15" r="2.2" fill="var(--feed)"/>
+                </g>
+                <!-- Sat y=106 --><g transform="translate(0,90)">
+                  <rect x="34" y="12" width="70" height="7" rx="3" fill="var(--sleep)"/>
+                  <rect x="138" y="12" width="14" height="7" rx="3" fill="var(--sleep)"/>
+                  <rect x="196" y="12" width="42" height="7" rx="3" fill="var(--sleep)"/>
+                  <circle cx="120" cy="15" r="2.2" fill="var(--feed)"/>
+                </g>
+                <!-- Sun y=124 --><g transform="translate(0,108)">
+                  <rect x="34" y="12" width="78" height="7" rx="3" fill="var(--sleep)"/>
+                  <rect x="146" y="12" width="12" height="7" rx="3" fill="var(--sleep)"/>
+                  <rect x="200" y="12" width="44" height="7" rx="3" fill="var(--sleep)"/>
+                  <circle cx="128" cy="15" r="2.2" fill="var(--feed)"/>
+                </g>
+              </g>
+              <g font-size="7" fill="#5e5e66">
+                <text x="26" y="144">12a</text><text x="120" y="144">12p</text><text x="232" y="144">12a</text>
+              </g>
+            </svg>
+            <div class="legend">
+              <span class="lg"><span class="sw" style="background:var(--sleep)"></span>sleep</span>
+              <span class="lg"><span class="sw" style="background:var(--feed);border-radius:50%"></span>feed</span>
+              <span class="lg" style="color:var(--text3)">night stretch lengthening ↘</span>
+            </div>
+          </div>
+
+          <!-- Sleep consolidation line -->
+          <div class="card">
+            <div class="card-title"><span>Longest night stretch</span><span style="color:var(--u-green)">▲ 5h 40m</span></div>
+            <svg width="100%" height="90" viewBox="0 0 256 90">
+              <g stroke="#2a2a2e" stroke-width="1">
+                <line x1="20" y1="20" x2="250" y2="20"/><line x1="20" y1="45" x2="250" y2="45"/><line x1="20" y1="70" x2="250" y2="70"/>
+              </g>
+              <text x="2" y="23" font-size="7" fill="#5e5e66">6h</text>
+              <text x="2" y="73" font-size="7" fill="#5e5e66">2h</text>
+              <polyline fill="none" stroke="var(--sleep)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                points="24,66 60,60 96,55 132,46 168,40 204,30 244,24"/>
+              <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="var(--sleep)" stop-opacity=".25"/>
+                <stop offset="1" stop-color="var(--sleep)" stop-opacity="0"/>
+              </linearGradient>
+              <polygon fill="url(#g1)" points="24,66 60,60 96,55 132,46 168,40 204,30 244,24 244,78 24,78"/>
+              <g fill="var(--sleep)">
+                <circle cx="24" cy="66" r="2.5"/><circle cx="244" cy="24" r="3"/>
+              </g>
+            </svg>
+          </div>
+
+          <!-- Feed volume bars -->
+          <div class="card">
+            <div class="card-title"><span>Daily formula (oz)</span><span style="color:var(--text3)">avg 26</span></div>
+            <svg width="100%" height="80" viewBox="0 0 256 80">
+              <line x1="20" y1="62" x2="250" y2="62" stroke="#3a3a40" stroke-width="1"/>
+              <line x1="20" y1="34" x2="250" y2="34" stroke="#2a2a2e" stroke-width="1" stroke-dasharray="3 3"/>
+              <text x="2" y="37" font-size="7" fill="#5e5e66">26</text>
+              <g fill="var(--feed)">
+                <rect x="28" y="40" width="20" height="22" rx="3"/>
+                <rect x="60" y="36" width="20" height="26" rx="3"/>
+                <rect x="92" y="44" width="20" height="18" rx="3"/>
+                <rect x="124" y="32" width="20" height="30" rx="3"/>
+                <rect x="156" y="38" width="20" height="24" rx="3"/>
+                <rect x="188" y="28" width="20" height="34" rx="3"/>
+                <rect x="220" y="30" width="20" height="32" rx="3"/>
+              </g>
+              <g font-size="7" fill="#5e5e66" text-anchor="middle">
+                <text x="38" y="72">M</text><text x="70" y="72">T</text><text x="102" y="72">W</text>
+                <text x="134" y="72">T</text><text x="166" y="72">F</text><text x="198" y="72">S</text><text x="230" y="72">S</text>
+              </g>
+            </svg>
+          </div>
+
+        </div>
+        <div class="tabbar">
+          <div class="tab"><span class="ic">🏠</span>Home</div>
+          <div class="tab active"><span class="ic">📊</span>History</div>
+          <div class="tab"><span class="ic">✨</span>Stats</div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><b>History tab.</b> Day-in-the-life swimlane (sleep bars + feed dots, one row/day), sleep-consolidation line, daily oz bars. Built with Swift Charts.</div>
+  </div>
+
+  <!-- ============ FUN STATS ============ -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="app">
+        <div class="app-head"><div class="app-h1">Stats ✨</div><div class="app-h2">Miller · 84 days old</div></div>
+        <div class="scroll">
+
+          <!-- record hero -->
+          <div class="card" style="background:linear-gradient(135deg,#2a2a4d,#1c1c2e)">
+            <div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">🏆 Record — longest sleep</div>
+            <div style="font-size:34px;font-weight:800;margin-top:6px">6h 12m</div>
+            <div style="font-size:12px;color:var(--text2)">May 28 · beat his old record by 41m</div>
+          </div>
+
+          <!-- lifetime tiles -->
+          <div class="tiles" style="margin-bottom:14px">
+            <div class="tile">
+              <div class="tile-k">🥛 Total milk</div>
+              <div class="tile-v" style="color:var(--feed)">412 oz</div>
+              <div class="tile-u">≈ 3.2 gallons</div>
+            </div>
+            <div class="tile">
+              <div class="tile-k">💤 Total sleep</div>
+              <div class="tile-v" style="color:var(--sleep)">1,130h</div>
+              <div class="tile-u">≈ 47 days</div>
+            </div>
+            <div class="tile">
+              <div class="tile-k">💩 Diapers</div>
+              <div class="tile-v" style="color:var(--diaper)">847</div>
+              <div class="tile-u">since day one</div>
+            </div>
+            <div class="tile">
+              <div class="tile-k">🍼 Bottles</div>
+              <div class="tile-v">312</div>
+              <div class="tile-u">avg 3.7 / day</div>
+            </div>
+          </div>
+
+          <!-- night shift -->
+          <div class="card">
+            <div class="card-title"><span>🌙 Night shift · this week</span></div>
+            <div style="display:flex;height:14px;border-radius:7px;overflow:hidden;margin-bottom:8px">
+              <div style="width:72%;background:var(--feed)"></div>
+              <div style="width:28%;background:var(--sleep)"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:12px">
+              <span style="color:var(--feed)">● Mom — 7 feeds</span>
+              <span style="color:var(--sleep)">Dad — 2 ●</span>
+            </div>
+            <div style="font-size:12px;color:var(--text3);margin-top:8px">Night MVP this week: <b style="color:var(--text)">Mom</b> 👑</div>
+          </div>
+
+          <!-- hungriest hour + on this day -->
+          <div class="card" style="margin-bottom:6px">
+            <div style="font-size:13px"><b>🕕 Hungriest hour</b> — around <b style="color:var(--feed)">6 PM</b></div>
+            <div style="font-size:13px;margin-top:10px"><b>📅 On this day</b> — a week ago, every 2h. Now every <b style="color:var(--u-green)">3h</b>.</div>
+          </div>
+
+        </div>
+        <div class="tabbar">
+          <div class="tab"><span class="ic">🏠</span>Home</div>
+          <div class="tab"><span class="ic">📊</span>History</div>
+          <div class="tab active"><span class="ic">✨</span>Stats</div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><b>Stats tab.</b> Record hero, lifetime counters in fun units, night-shift split (uses logged-by attribution), hungriest-hour & "on this day."</div>
+  </div>
+</div>
+
+</body>
+</html>

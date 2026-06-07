@@ -32,6 +32,7 @@ enum AppModelContainer {
     @MainActor static let preview: ModelContainer = {
         let container = make(inMemory: true)
         SeedData.seedIfNeeded(in: container.mainContext, babyName: "Miller")
+        SeedData.seedSampleEvents(in: container.mainContext)
         return container
     }()
 }

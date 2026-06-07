@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// Routes to onboarding until a Baby exists, then to the home screen.
+/// Routes to onboarding until a Baby exists, then to the main tabbed UI.
 struct RootView: View {
     @Query private var babies: [Baby]
 
@@ -10,10 +10,24 @@ struct RootView: View {
             if babies.isEmpty {
                 OnboardingView()
             } else {
-                HomeView()
+                MainTabView()
             }
         }
         .tint(AppColor.accentFeed)
+    }
+}
+
+/// Home (glance + log), History (trends), Stats (records & fun numbers).
+struct MainTabView: View {
+    var body: some View {
+        TabView {
+            HomeView()
+                .tabItem { Label("Home", systemImage: "house.fill") }
+            HistoryView()
+                .tabItem { Label("History", systemImage: "chart.bar.xaxis") }
+            StatsView()
+                .tabItem { Label("Stats", systemImage: "sparkles") }
+        }
     }
 }
 

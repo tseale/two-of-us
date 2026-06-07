@@ -16,7 +16,11 @@ struct MediumWidgetView: View {
                     .fill(AppColor.urgencyGreen)
                     .frame(width: 6, height: 6)
             }
-            .padding(.bottom, 8)
+            .padding(.bottom, 6)
+
+            DayRibbonView(marks: entry.todayMarks, style: .color)
+                .frame(height: 18)
+                .padding(.bottom, 6)
 
             VStack(spacing: 6) {
                 eventRow(emoji: "🍼", label: "Feed",

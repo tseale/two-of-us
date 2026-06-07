@@ -67,6 +67,7 @@ targets:
       - path: MillerTime/DesignSystem/Colors.swift
       - path: MillerTime/DesignSystem/TimeFormatting.swift
       - path: MillerTime/DesignSystem/Urgency.swift
+      - path: MillerTime/DesignSystem/DayRibbon.swift
       - path: MillerTime/LiveActivities/SleepActivityAttributes.swift
     info:
       path: MillerTimeWidgets/Info.plist

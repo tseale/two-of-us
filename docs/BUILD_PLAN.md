@@ -364,6 +364,8 @@ Technical approach:
 
 ## Phase 3: Insights
 
+> **Design exploration:** see [VISUALIZATIONS.md](VISUALIZATIONS.md) for lock-screen "when did it happen today" widgets, in-app history/trend charts, and fun stats ideas + mockups.
+
 **Goal**: Give parents a clear picture of Miller's patterns — daily totals, weekly trends, sleep duration chart, feed frequency heatmap.
 
 **Effort**: 4–5 days  

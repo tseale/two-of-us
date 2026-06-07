@@ -17,6 +17,9 @@ struct WidgetEntry: TimelineEntry {
     /// Flat list of recent events for the large widget (newest first, max 5).
     let recentItems: [WidgetItem]
 
+    /// Today's events as ribbon marks, for the "today so far" / lock-screen ribbon.
+    let todayMarks: [RibbonMark]
+
     static let placeholder = WidgetEntry(
         date: .now,
         lastFeedDate: Date(timeIntervalSinceNow: -7800),   // 2h 10m ago
@@ -29,7 +32,8 @@ struct WidgetEntry: TimelineEntry {
             WidgetItem(kind: .feed, date: Date(timeIntervalSinceNow: -7800), detail: "3 oz"),
             WidgetItem(kind: .sleep, date: Date(timeIntervalSinceNow: -9000), detail: "1h 22m"),
             WidgetItem(kind: .diaper, date: Date(timeIntervalSinceNow: -4200), detail: "Wet"),
-        ]
+        ],
+        todayMarks: WidgetEntry.sampleMarks
     )
 
     static let empty = WidgetEntry(
@@ -40,8 +44,24 @@ struct WidgetEntry: TimelineEntry {
         feedTargetInterval: 10800,
         isActiveSleep: false,
         activeSleepStartedAt: nil,
-        recentItems: []
+        recentItems: [],
+        todayMarks: []
     )
+
+    /// Illustrative marks spread across today, for previews/placeholders.
+    private static var sampleMarks: [RibbonMark] {
+        let start = Calendar.current.startOfDay(for: .now)
+        func at(_ h: Double) -> Date { start.addingTimeInterval(h * 3600) }
+        return [
+            RibbonMark(kind: .sleep, start: at(1), end: at(4)),
+            RibbonMark(kind: .feed, start: at(2)),
+            RibbonMark(kind: .diaper, start: at(3)),
+            RibbonMark(kind: .feed, start: at(6)),
+            RibbonMark(kind: .sleep, start: at(8), end: at(9.5)),
+            RibbonMark(kind: .feed, start: at(10)),
+            RibbonMark(kind: .diaper, start: at(11)),
+        ]
+    }
 }
 
 struct WidgetItem {
