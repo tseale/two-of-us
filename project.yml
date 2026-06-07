@@ -86,3 +86,13 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"
         GENERATE_INFOPLIST_FILE: NO
+
+schemes:
+  MillerTime:
+    build:
+      targets:
+        MillerTime: all
+    run:
+      config: Debug
+    archive:
+      config: Release

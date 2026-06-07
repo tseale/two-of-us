@@ -5,7 +5,9 @@ import SwiftUI
 @main
 struct MillerTimeWidgetBundle: WidgetBundle {
     var body: some Widget {
-        LockScreenFeedWidget()
+        LastFeedWidget()
+        LastSleepWidget()
+        LastDiaperWidget()
         HomeScreenMediumWidget()
         HomeScreenLargeWidget()
         SleepLiveActivity()
