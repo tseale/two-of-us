@@ -17,6 +17,7 @@ struct HomeView: View {
     @State private var editing: TimelineEntry?
     @State private var toast: ToastData?
     @State private var showSettings = false
+    @State private var showNLLog = false
 
     private enum ActiveSheet: String, Identifiable { case feed, diaper; var id: String { rawValue } }
 
@@ -58,6 +59,13 @@ struct HomeView: View {
             .background(AppColor.bg)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if MillerIntelligence.isAvailable {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { showNLLog = true } label: { Image(systemName: "sparkles") }
+                            .tint(AppColor.accentFeed)
+                            .accessibilityLabel("Log in words")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showSettings = true } label: { Image(systemName: "gearshape") }
                         .tint(AppColor.text3)
@@ -74,6 +82,10 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
+            }
+            .sheet(isPresented: $showNLLog) {
+                NLLogSheet(onApply: applyParsed)
+                    .presentationDetents([.medium])
             }
             .loggedToast($toast)
         }
@@ -204,6 +216,36 @@ struct HomeView: View {
 
     private func showToast(_ message: String, undo: @escaping () -> Void) {
         toast = ToastData(message: message, undo: undo)
+    }
+
+    // MARK: Natural-language logging
+
+    /// Turns a parsed entry into the matching store write, backdating by the
+    /// model's `minutesAgo`. Mirrors the tap-driven log paths (toast + undo).
+    private func applyParsed(_ p: MillerIntelligence.ParsedLog) {
+        let date = Calendar.current.date(byAdding: .minute, value: -max(0, p.minutesAgo), to: .now) ?? .now
+        switch p.kind {
+        case "feed":
+            let oz = p.amountOz ?? settingsList.first?.defaultFeedOz ?? 4
+            let event = store.logFeed(amountOz: oz, at: date)
+            showToast("Logged \(OzFormat.string(oz)) oz feed") { store.softDelete(event) }
+        case "diaper":
+            let type = DiaperType(rawValue: p.diaperType ?? "wet") ?? .wet
+            let event = store.logDiaper(type, at: date)
+            showToast("Logged \(type.label.lowercased()) diaper") { store.softDelete(event) }
+        case "sleepStart":
+            if let event = store.startSleep(at: date) {
+                showToast("Started sleep") { store.softDelete(event) }
+            }
+        case "sleepEnd":
+            if let active = activeSleep {
+                store.stopSleep(active, at: date)
+                showToast("Ended sleep") {}
+            }
+        default:
+            break
+        }
+        Haptics.tap()
     }
 }
 

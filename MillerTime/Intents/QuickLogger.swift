@@ -56,6 +56,20 @@ struct QuickLogger {
         )).first
     }
 
+    /// Timestamp of the most recent (non-deleted) feed — used to re-arm the feed
+    /// alarm on app foreground.
+    var lastFeedDate: Date? {
+        var d = FetchDescriptor<FeedEvent>(
+            predicate: #Predicate { $0.deletedAt == nil },
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        d.fetchLimit = 1
+        return (try? context.fetch(d))?.first?.timestamp
+    }
+
+    /// Shared target feed interval (seconds), defaulting to 3h.
+    var targetFeedInterval: TimeInterval { settings?.targetFeedInterval ?? TimeInterval(180 * 60) }
+
     /// Default feed amount for one-tap logging: SharedSettings.defaultFeedOz,
     /// else the most-recent feed's amount, else 4 oz.
     var defaultFeedOz: Double {

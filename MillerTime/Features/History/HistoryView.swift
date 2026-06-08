@@ -172,7 +172,7 @@ struct Card<Content: View>: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppColor.card, in: RoundedRectangle(cornerRadius: 18))
+        .glassCard(cornerRadius: 18)
     }
 }
 

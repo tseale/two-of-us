@@ -13,5 +13,10 @@ struct MillerTimeWidgetBundle: WidgetBundle {
         HomeScreenMediumWidget()
         HomeScreenLargeWidget()
         SleepLiveActivity()
+
+        // Control Center / Lock Screen / Action Button (iOS 18+).
+        LogFeedControl()
+        LogDiaperControl()
+        SleepToggleControl()
     }
 }

@@ -37,6 +37,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             babyName: logger.babyName ?? "Miller",
             activeSleepStartedAt: logger.activeSleep?.startedAt
         )
+        // Re-arm the feed alarm off whatever's in the store now — this catches
+        // feeds logged via widget/Siri or synced from the co-parent's device.
+        let lastFeed = logger.lastFeedDate
+        let interval = logger.targetFeedInterval
+        Task { await FeedAlarmManager.reschedule(lastFeed: lastFeed, interval: interval) }
     }
 
     /// The joining parent tapped the share invite — accept it and start syncing

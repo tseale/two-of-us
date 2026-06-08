@@ -46,6 +46,22 @@ enum AppColor {
     static let urgencyRed   = Color(hex: "FF6B6B")
 }
 
+// MARK: - Liquid Glass (iOS 26)
+
+extension View {
+    /// Liquid Glass surface for content cards. Drop-in replacement for the old
+    /// `.background(AppColor.card, in: RoundedRectangle(cornerRadius:))` pattern.
+    func glassCard(cornerRadius: CGFloat = 18) -> some View {
+        glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
+    }
+
+    /// Accent-tinted, touch-responsive glass for the primary log tiles.
+    func glassTile(cornerRadius: CGFloat = 20, tint: Color) -> some View {
+        glassEffect(.regular.tint(tint.opacity(0.18)).interactive(),
+                    in: .rect(cornerRadius: cornerRadius))
+    }
+}
+
 /// Colors assigned to participants for their timeline initial.
 enum ParticipantColors {
     static let palette: [String] = [

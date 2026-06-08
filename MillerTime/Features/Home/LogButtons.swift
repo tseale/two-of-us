@@ -9,14 +9,16 @@ struct LogButtons: View {
     let onDiaper: () -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 12) {
-                tile(title: "Feed", hint: "log a bottle", emoji: "🍼", color: AppColor.accentFeed, action: onFeed)
-                if !sleepActive {
-                    tile(title: "Sleep", hint: "start timer", emoji: "💤", color: AppColor.accentSleep, action: onSleep)
+        GlassEffectContainer(spacing: 12) {
+            VStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    tile(title: "Feed", hint: "log a bottle", emoji: "🍼", color: AppColor.accentFeed, action: onFeed)
+                    if !sleepActive {
+                        tile(title: "Sleep", hint: "start timer", emoji: "💤", color: AppColor.accentSleep, action: onSleep)
+                    }
                 }
+                wideTile(title: "Diaper", hint: "wet · dirty · both", emoji: "💩", color: AppColor.accentDiaper, action: onDiaper)
             }
-            wideTile(title: "Diaper", hint: "wet · dirty · both", emoji: "💩", color: AppColor.accentDiaper, action: onDiaper)
         }
     }
 
@@ -31,7 +33,7 @@ struct LogButtons: View {
             }
             .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
             .padding(18)
-            .background(color.opacity(0.18), in: RoundedRectangle(cornerRadius: 20))
+            .glassTile(cornerRadius: 20, tint: color)
             .foregroundStyle(AppColor.text)
         }
         .buttonStyle(.plain)
@@ -49,7 +51,7 @@ struct LogButtons: View {
             }
             .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
             .padding(18)
-            .background(color.opacity(0.18), in: RoundedRectangle(cornerRadius: 20))
+            .glassTile(cornerRadius: 20, tint: color)
             .foregroundStyle(AppColor.text)
         }
         .buttonStyle(.plain)

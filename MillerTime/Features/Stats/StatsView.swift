@@ -17,10 +17,16 @@ struct StatsView: View {
     }
     private var babyName: String { babies.first?.name ?? "Miller" }
 
+    @State private var summary: String?
+    @State private var summaryLoading = false
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
+                    if MillerIntelligence.isAvailable {
+                        insightsCard
+                    }
                     recordHero
                     lifetimeTiles
                     nightShiftCard
@@ -31,6 +37,65 @@ struct StatsView: View {
             .background(AppColor.bg)
             .navigationTitle("Stats")
         }
+    }
+
+    // MARK: Insights (on-device AI)
+
+    private var insightsCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("INSIGHTS", systemImage: "sparkles")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(AppColor.text2)
+            if let summary {
+                Text(summary)
+                    .font(.subheadline)
+                    .foregroundStyle(AppColor.text)
+            } else if summaryLoading {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Reading the last week…")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColor.text2)
+                }
+            } else {
+                Text("Log a few feeds and sleeps to see patterns here.")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColor.text2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .glassCard(cornerRadius: 18)
+        .task(id: feeds.count) { await loadSummary() }
+    }
+
+    private func loadSummary() async {
+        guard MillerIntelligence.isAvailable, !feeds.isEmpty else { return }
+        summaryLoading = true
+        defer { summaryLoading = false }
+        summary = await MillerIntelligence.summary(digest: buildDigest(), babyName: babyName)
+    }
+
+    /// Compact, model-friendly digest of the last week's numbers.
+    private func buildDigest() -> String {
+        let t = engine.lifetime()
+        let days = engine.dailySummaries(days: 7)
+        var lines = ["Baby: \(babyName)"]
+        lines.append("Lifetime: \(Int(t.totalOz.rounded())) oz over \(t.feedCount) feeds, "
+                     + "\(t.diaperCount) diapers, \(Int((t.totalSleepSeconds / 3600).rounded()))h sleep.")
+        if let r = engine.longestSleep() {
+            lines.append("Longest sleep: \(Int(r.duration / 3600))h \(Int(r.duration.truncatingRemainder(dividingBy: 3600) / 60))m.")
+        }
+        if let hour = engine.hungriestHour() { lines.append("Busiest feeding hour: \(hour):00.") }
+        if let avg = engine.averageFeedInterval(fromDaysAgo: 3, toDaysAgo: 0) {
+            lines.append("Recent avg gap between feeds: \(Int(avg / 3600))h \(Int(avg.truncatingRemainder(dividingBy: 3600) / 60))m.")
+        }
+        lines.append("Last 7 days (day: oz / feeds / sleep h / diapers):")
+        for d in days {
+            lines.append("  \(Self.monthDay(d.day)): \(Int(d.feedOz.rounded()))oz / \(d.feedCount) / "
+                         + "\(String(format: "%.1f", d.sleepSeconds / 3600))h / \(d.diaperCount)")
+        }
+        return lines.joined(separator: "\n")
     }
 
     // MARK: Record hero
@@ -100,7 +165,7 @@ struct StatsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(AppColor.card, in: RoundedRectangle(cornerRadius: 18))
+        .glassCard(cornerRadius: 18)
     }
 
     // MARK: Night shift

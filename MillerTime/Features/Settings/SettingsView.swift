@@ -42,11 +42,21 @@ struct SettingsView: View {
 
                 coParentSection
 
+                Section {
+                    Toggle("Feed reminder", isOn: $prefs.feedReminderEnabled)
+                        .onChange(of: prefs.feedReminderEnabled) { _, on in
+                            Task { await updateFeedAlarm(enabled: on) }
+                        }
+                } header: {
+                    Text("Reminders")
+                } footer: {
+                    Text("Alerts you when the next feed is due — even on Silent or Focus. This device only.")
+                }
+
                 Section("My notifications") {
                     Toggle("Feeds", isOn: $prefs.notifyFeed)
                     Toggle("Sleep", isOn: $prefs.notifySleep)
                     Toggle("Diapers", isOn: $prefs.notifyDiaper)
-                    Toggle("Feed reminder", isOn: $prefs.feedReminderEnabled)
                 }
                 .disabled(true)
                 footerNote
@@ -102,9 +112,30 @@ struct SettingsView: View {
 
     private var footerNote: some View {
         Section {
-            Text("Invite the other parent to share Miller's log in real time. Notification delivery arrives in an upcoming update.")
+            Text("Invite the other parent to share Miller's log in real time. Per-event push delivery arrives in an upcoming update.")
                 .font(.footnote)
                 .foregroundStyle(AppColor.text3)
         }
+    }
+
+    /// Arms or clears this device's AlarmKit feed reminder when the toggle flips.
+    /// Reverts the toggle if the user declines alarm authorization.
+    private func updateFeedAlarm(enabled: Bool) async {
+        guard enabled else { await FeedAlarmManager.cancel(); return }
+        guard await FeedAlarmManager.requestAuthorization() else {
+            prefs.feedReminderEnabled = false
+            return
+        }
+        await FeedAlarmManager.reschedule(lastFeed: lastFeedDate(),
+                                          interval: settings?.targetFeedInterval ?? 0)
+    }
+
+    private func lastFeedDate() -> Date? {
+        var d = FetchDescriptor<FeedEvent>(
+            predicate: #Predicate { $0.deletedAt == nil },
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        d.fetchLimit = 1
+        return (try? context.fetch(d))?.first?.timestamp
     }
 }
