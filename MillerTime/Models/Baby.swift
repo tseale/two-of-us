@@ -10,6 +10,13 @@ final class Baby {
     var dateOfBirth: Date = Date()
     var createdAt: Date = Date()
 
+    // Inverse relationships — required for CloudKit (NSPersistentCloudKitContainer
+    // mandates that every relationship has an inverse). Optional arrays to satisfy
+    // CloudKit's all-optional rule.
+    @Relationship(deleteRule: .cascade, inverse: \FeedEvent.baby) var feeds: [FeedEvent]? = []
+    @Relationship(deleteRule: .cascade, inverse: \SleepEvent.baby) var sleeps: [SleepEvent]? = []
+    @Relationship(deleteRule: .cascade, inverse: \DiaperEvent.baby) var diapers: [DiaperEvent]? = []
+
     init(id: UUID = UUID(), name: String, dateOfBirth: Date, createdAt: Date = Date()) {
         self.id = id
         self.name = name

@@ -38,6 +38,9 @@ struct MediumWidgetView: View {
                          color: AppColor.accentDiaper,
                          urgency: Urgency.from(since: entry.lastDiaperDate, target: UrgencyDefaults.diaper))
             }
+
+            Spacer(minLength: 8)
+            QuickLogRow(isSleeping: entry.isActiveSleep)
         }
         .padding(14)
         .containerBackground(AppColor.card, for: .widget)
@@ -53,7 +56,7 @@ struct MediumWidgetView: View {
                 .foregroundStyle(AppColor.text2)
             Spacer()
             if let date {
-                Text(TimeFormatting.since(date))
+                Text(date, style: .relative)
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(urgency.color)
                 Text("ago")

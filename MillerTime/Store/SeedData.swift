@@ -34,6 +34,10 @@ enum SeedData {
 
         let owner = Participant(displayName: ownerName, colorHex: ownerColorHex, role: .full)
         context.insert(owner)
+        // Remember who "me" is on this device (used to stamp logger identity and,
+        // after sharing, to distinguish the two parents). Role stays .solo until
+        // the owner actually invites a co-parent.
+        LocalPrefs.shared.myParticipantID = owner.id
 
         if (try? context.fetch(FetchDescriptor<SharedSettings>()))?.isEmpty != false {
             context.insert(SharedSettings())

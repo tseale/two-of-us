@@ -1,14 +1,23 @@
 import SwiftUI
 import SwiftData
 
-/// Routes to onboarding until a Baby exists, then to the main tabbed UI.
+/// Routes to onboarding until a Baby exists; to a join-profile prompt for a
+/// parent who accepted a share but hasn't set up their own profile; otherwise to
+/// the main tabbed UI.
 struct RootView: View {
     @Query private var babies: [Baby]
+    @State private var prefs = LocalPrefs.shared
+
+    private var needsJoinProfile: Bool {
+        prefs.syncRole == .participant && prefs.myParticipantID == nil
+    }
 
     var body: some View {
         Group {
             if babies.isEmpty {
                 OnboardingView()
+            } else if needsJoinProfile {
+                JoinProfileView()
             } else {
                 MainTabView()
             }

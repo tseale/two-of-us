@@ -35,11 +35,18 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         NSSupportsLiveActivities: YES
+        UIBackgroundModes:
+          - remote-notification
     entitlements:
       path: MillerTime/MillerTime.entitlements
       properties:
         com.apple.security.application-groups:
           - group.com.taylorseale.millertime
+        com.apple.developer.icloud-container-identifiers:
+          - iCloud.com.taylorseale.millertime
+        com.apple.developer.icloud-services:
+          - CloudKit
+        aps-environment: development
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.taylorseale.millertime
@@ -69,6 +76,11 @@ targets:
       - path: MillerTime/DesignSystem/Urgency.swift
       - path: MillerTime/DesignSystem/DayRibbon.swift
       - path: MillerTime/LiveActivities/SleepActivityAttributes.swift
+      # Shared with the app target: interactive-widget / Siri App Intents + their writer.
+      - path: MillerTime/Intents/QuickLogger.swift
+      - path: MillerTime/Intents/LogFeedIntent.swift
+      - path: MillerTime/Intents/LogDiaperIntent.swift
+      - path: MillerTime/Intents/ToggleSleepIntent.swift
     info:
       path: MillerTimeWidgets/Info.plist
       properties:

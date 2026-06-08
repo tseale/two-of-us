@@ -5,13 +5,17 @@ import WidgetKit
 /// Anything that can be soft-deleted.
 protocol SoftDeletable: AnyObject {
     var deletedAt: Date? { get set }
+    var id: UUID { get }
 }
 extension FeedEvent: SoftDeletable {}
 extension SleepEvent: SoftDeletable {}
 extension DiaperEvent: SoftDeletable {}
 
 /// Thin layer over `ModelContext` so views never hand-roll predicates.
-/// Stamps every write with the owner participant's identity (denormalized).
+/// Stamps every write with the local user's identity (denormalized) and hands
+/// changed record ids to `SyncManager` for CloudKit. MainActor since it's only
+/// used from SwiftUI views and talks to the MainActor `SyncManager`.
+@MainActor
 struct EventStore {
     let context: ModelContext
 
@@ -21,9 +25,15 @@ struct EventStore {
         try? context.fetch(FetchDescriptor<Baby>()).first
     }
 
-    /// v1 single-device: the sole participant is the owner.
+    /// The local user ("me"). Resolved via `LocalPrefs.myParticipantID` once
+    /// sharing introduces a second participant; falls back to the first record.
     var owner: Participant? {
-        try? context.fetch(FetchDescriptor<Participant>()).first
+        if let myID = LocalPrefs.shared.myParticipantID {
+            var d = FetchDescriptor<Participant>(predicate: #Predicate { $0.id == myID })
+            d.fetchLimit = 1
+            if let me = try? context.fetch(d).first { return me }
+        }
+        return try? context.fetch(FetchDescriptor<Participant>()).first
     }
 
     var settings: SharedSettings? {
@@ -49,6 +59,7 @@ struct EventStore {
         )
         context.insert(event)
         save()
+        sync(save: [event.id])
         reloadWidgets()
         return event
     }
@@ -63,6 +74,7 @@ struct EventStore {
         )
         context.insert(event)
         save()
+        sync(save: [event.id])
         reloadWidgets()
         return event
     }
@@ -79,6 +91,7 @@ struct EventStore {
         )
         context.insert(event)
         save()
+        sync(save: [event.id])
         SleepActivityManager.start(babyName: baby?.name ?? "Miller", at: date)
         reloadWidgets()
         return event
@@ -87,6 +100,7 @@ struct EventStore {
     func stopSleep(_ event: SleepEvent, at date: Date = .now) {
         event.endedAt = date
         save()
+        sync(save: [event.id])
         SleepActivityManager.end()
         reloadWidgets()
     }
@@ -106,6 +120,7 @@ struct EventStore {
         original.deletedAt = .now
         context.insert(replacement)
         save()
+        sync(save: [original.id, replacement.id])
         reloadWidgets()
         return replacement
     }
@@ -123,6 +138,7 @@ struct EventStore {
         original.deletedAt = .now
         context.insert(replacement)
         save()
+        sync(save: [original.id, replacement.id])
         reloadWidgets()
         return replacement
     }
@@ -140,6 +156,7 @@ struct EventStore {
         original.deletedAt = .now
         context.insert(replacement)
         save()
+        sync(save: [original.id, replacement.id])
         reloadWidgets()
         return replacement
     }
@@ -149,6 +166,7 @@ struct EventStore {
     func softDelete(_ event: any SoftDeletable) {
         event.deletedAt = .now
         save()
+        sync(save: [event.id])   // soft delete travels as a `deletedAt` update
         reloadWidgets()
     }
 
@@ -211,6 +229,12 @@ struct EventStore {
 
     private func save() {
         do { try context.save() } catch { print("EventStore save error: \(error)") }
+    }
+
+    /// Hands changed record ids to the sync engine (no-op when sync is inactive).
+    private func sync(save: [UUID] = [], delete: [UUID] = []) {
+        SyncManager.shared?.enqueueSave(save)
+        SyncManager.shared?.enqueueDelete(delete)
     }
 
     private func reloadWidgets() {
