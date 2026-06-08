@@ -1,11 +1,20 @@
 import AppIntents
 
-/// Exposes the quick-log intents to Siri ("Hey Siri, log a diaper"), Spotlight,
+/// Exposes the log + query intents to Siri ("Hey Siri, log a diaper"), Spotlight,
 /// and the Shortcuts app — no separate extension needed.
+///
+/// Note: iOS allows up to 10 App Shortcuts per app; we register 8.
 struct MillerTimeShortcuts: AppShortcutsProvider {
+    static var shortcutTileColor: ShortcutTileColor { .teal }
+
     static var appShortcuts: [AppShortcut] {
+        // MARK: Logging
         AppShortcut(
             intent: LogFeedIntent(),
+            // Note: App Shortcut phrases can only interpolate AppEntity/AppEnum
+            // parameters, not a raw Double — so a spoken ounce amount can't be a
+            // phrase. The `amountOz` parameter is still settable in the Shortcuts
+            // app (build a "Log 3 oz" shortcut there).
             phrases: [
                 "Log a feed in \(.applicationName)",
                 "Log a bottle in \(.applicationName)",
@@ -19,6 +28,7 @@ struct MillerTimeShortcuts: AppShortcutsProvider {
             phrases: [
                 "Log a diaper in \(.applicationName)",
                 "Log a diaper change in \(.applicationName)",
+                "Log a \(\.$type) diaper in \(.applicationName)",
                 "\(.applicationName) diaper"
             ],
             shortTitle: "Log Diaper",
@@ -33,6 +43,57 @@ struct MillerTimeShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Sleep",
             systemImageName: "moon.fill"
+        )
+
+        // MARK: Queries ("ask Miller Time")
+        AppShortcut(
+            intent: LastFeedIntent(),
+            phrases: [
+                "When did Miller last eat in \(.applicationName)",
+                "Miller's last feed in \(.applicationName)",
+                "\(.applicationName) last feed"
+            ],
+            shortTitle: "Last Feed",
+            systemImageName: "clock.fill"
+        )
+        AppShortcut(
+            intent: LastDiaperIntent(),
+            phrases: [
+                "When was Miller's last diaper in \(.applicationName)",
+                "\(.applicationName) last diaper"
+            ],
+            shortTitle: "Last Diaper",
+            systemImageName: "clock.badge.questionmark"
+        )
+        AppShortcut(
+            intent: SleepStatusIntent(),
+            phrases: [
+                "Is Miller asleep in \(.applicationName)",
+                "How long has Miller been sleeping in \(.applicationName)",
+                "\(.applicationName) sleep status"
+            ],
+            shortTitle: "Sleep Status",
+            systemImageName: "bed.double.fill"
+        )
+        AppShortcut(
+            intent: TodaySummaryIntent(),
+            phrases: [
+                "How is Miller doing today in \(.applicationName)",
+                "Miller's day in \(.applicationName)",
+                "\(.applicationName) today"
+            ],
+            shortTitle: "Today",
+            systemImageName: "sun.max.fill"
+        )
+        AppShortcut(
+            intent: UndoLastLogIntent(),
+            phrases: [
+                "Undo that in \(.applicationName)",
+                "Undo the last log in \(.applicationName)",
+                "\(.applicationName) undo"
+            ],
+            shortTitle: "Undo Last Log",
+            systemImageName: "arrow.uturn.backward"
         )
     }
 }

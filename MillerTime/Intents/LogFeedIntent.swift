@@ -14,9 +14,17 @@ struct LogFeedIntent: AppIntent {
     init(amountOz: Double? = nil) { self.amountOz = amountOz }
 
     @MainActor
-    func perform() async throws -> some IntentResult {
-        guard let logger = QuickLogger.make() else { return .result() }
-        logger.logFeed(amountOz: amountOz ?? logger.defaultFeedOz)
-        return .result()
+    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+        guard let logger = QuickLogger.make() else {
+            return .result(dialog: "Couldn't reach Miller Time.")
+        }
+        let name = logger.babyName ?? "Miller"
+        let event = logger.logFeed(amountOz: amountOz ?? logger.defaultFeedOz)
+        let oz = OzFormat.string(event.amountOz)
+        return .result(
+            dialog: "Logged \(oz) oz for \(name).",
+            view: ConfirmationSnippet(emoji: "🍼", title: "Logged \(oz) oz",
+                                      subtitle: "for \(name) · \(TimeFormatting.clock(event.timestamp))")
+        )
     }
 }
