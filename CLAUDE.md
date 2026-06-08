@@ -3,7 +3,7 @@
 Native iOS baby tracking app for Taylor and his wife to track their newborn son Miller.  
 Distributed via TestFlight to 2 users (both parents).
 
-## Status: Research & design phase — no code yet.
+## Status: In active development — Phase 1 (core logging) implemented in SwiftUI + SwiftData. CloudKit sync, widgets, Live Activities, and Siri intents in progress.
 
 ## Tech Stack
 - **SwiftUI** — declarative UI, iOS 17+
