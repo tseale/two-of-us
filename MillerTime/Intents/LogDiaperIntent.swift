@@ -33,8 +33,17 @@ struct LogDiaperIntent: AppIntent {
     init(type: DiaperTypeAppEnum = .wet) { self.type = type }
 
     @MainActor
-    func perform() async throws -> some IntentResult {
-        QuickLogger.make()?.logDiaper(type.diaperType)
-        return .result()
+    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+        guard let logger = QuickLogger.make() else {
+            return .result(dialog: "Couldn't reach Miller Time.")
+        }
+        let name = logger.babyName ?? "Miller"
+        let event = logger.logDiaper(type.diaperType)
+        let label = event.type.label.lowercased()
+        return .result(
+            dialog: "Logged a \(label) diaper for \(name).",
+            view: ConfirmationSnippet(emoji: event.type.emoji, title: "\(event.type.label) diaper",
+                                      subtitle: "\(name) · \(TimeFormatting.clock(event.timestamp))")
+        )
     }
 }

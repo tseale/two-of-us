@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import WidgetKit
+import AppIntents
 
 /// Anything that can be soft-deleted.
 protocol SoftDeletable: AnyObject {
@@ -62,6 +63,7 @@ struct EventStore {
         sync(save: [event.id])
         reloadWidgets()
         scheduleFeedReminder()
+        donate(LogFeedIntent(amountOz: amountOz))
         return event
     }
 
@@ -77,6 +79,7 @@ struct EventStore {
         save()
         sync(save: [event.id])
         reloadWidgets()
+        donate(LogDiaperIntent(type: DiaperTypeAppEnum(rawValue: type.rawValue) ?? .wet))
         return event
     }
 
@@ -95,6 +98,7 @@ struct EventStore {
         sync(save: [event.id])
         SleepActivityManager.start(babyName: baby?.name ?? "Miller", at: date)
         reloadWidgets()
+        donate(ToggleSleepIntent())
         return event
     }
 
@@ -104,6 +108,15 @@ struct EventStore {
         sync(save: [event.id])
         SleepActivityManager.end()
         reloadWidgets()
+        donate(ToggleSleepIntent())
+    }
+
+    /// Best-effort Siri donation so Suggestions / Spotlight rank Miller Time
+    /// actions by the family's real rhythm. Fire-and-forget; never blocks a log.
+    private func donate(_ intent: some AppIntent) {
+        Task.detached {
+            _ = try? await IntentDonationManager.shared.donate(intent: intent)
+        }
     }
 
     // MARK: Edit (append-only: soft-delete original, insert replacement)

@@ -82,6 +82,7 @@ targets:
       - path: MillerTime/Intents/LogFeedIntent.swift
       - path: MillerTime/Intents/LogDiaperIntent.swift
       - path: MillerTime/Intents/ToggleSleepIntent.swift
+      - path: MillerTime/Intents/ConfirmationSnippet.swift
     info:
       path: MillerTimeWidgets/Info.plist
       properties:

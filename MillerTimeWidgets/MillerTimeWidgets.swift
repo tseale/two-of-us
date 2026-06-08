@@ -15,8 +15,10 @@ struct MillerTimeWidgetBundle: WidgetBundle {
         SleepLiveActivity()
 
         // Control Center / Lock Screen / Action Button (iOS 18+).
-        LogFeedControl()
-        LogDiaperControl()
-        SleepToggleControl()
+        if #available(iOS 18.0, *) {
+            LogFeedControl()
+            LogDiaperControl()
+            ToggleSleepControl()
+        }
     }
 }

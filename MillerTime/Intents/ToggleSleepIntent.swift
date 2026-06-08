@@ -11,8 +11,26 @@ struct ToggleSleepIntent: AppIntent {
     init() {}
 
     @MainActor
-    func perform() async throws -> some IntentResult {
-        QuickLogger.make()?.toggleSleep()
-        return .result()
+    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+        guard let logger = QuickLogger.make() else {
+            return .result(dialog: "Couldn't reach Miller Time.")
+        }
+        let name = logger.babyName ?? "Miller"
+        // Grab the running sleep (if any) BEFORE toggling so we can report its length.
+        let runningStart = logger.activeSleep?.startedAt
+        let started = logger.toggleSleep()
+        if started {
+            return .result(
+                dialog: "\(name) is down for sleep.",
+                view: ConfirmationSnippet(emoji: "💤", title: "Sleep started",
+                                          subtitle: name)
+            )
+        }
+        let slept = runningStart.map { TimeFormatting.duration(from: $0, to: .now) }
+        return .result(
+            dialog: slept.map { "\(name) is awake — slept \($0)." } ?? "\(name) is awake.",
+            view: ConfirmationSnippet(emoji: "☀️", title: "\(name) is awake",
+                                      subtitle: slept.map { "Slept \($0)" })
+        )
     }
 }
