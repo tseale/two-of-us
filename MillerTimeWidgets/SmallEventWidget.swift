@@ -53,9 +53,26 @@ struct SmallEventWidgetView: View {
             Text(captionLabel)
                 .font(.caption)
                 .foregroundStyle(AppColor.text2)
+            quickLogButton
         }
         .padding(12)
         .containerBackground(AppColor.card, for: .widget)
+    }
+
+    /// One-tap logging straight from the home-screen tile (no app launch).
+    @ViewBuilder private var quickLogButton: some View {
+        switch kind {
+        case .feed:
+            WidgetActionButton(title: "Log feed", systemImage: "plus", tint: accentColor,
+                               intent: LogFeedIntent())
+        case .diaper:
+            WidgetActionButton(title: "Log diaper", systemImage: "plus", tint: accentColor,
+                               intent: LogDiaperIntent())
+        case .sleep:
+            WidgetActionButton(title: showingActiveSleep ? "Wake up" : "Start sleep",
+                               systemImage: showingActiveSleep ? "sun.max.fill" : "moon.fill",
+                               tint: accentColor, intent: ToggleSleepIntent())
+        }
     }
 
     // MARK: Content per kind
@@ -70,7 +87,8 @@ struct SmallEventWidgetView: View {
             return Text(started, style: .timer)
         }
         if let date = sinceDate {
-            return Text(TimeFormatting.since(date))
+            // Self-updating relative time — ticks on its own with no timeline reloads.
+            return Text(date, style: .relative)
         }
         return Text("–")
     }

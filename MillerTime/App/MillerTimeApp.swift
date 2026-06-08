@@ -3,6 +3,7 @@ import SwiftData
 
 @main
 struct MillerTimeApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     let container = AppModelContainer.make()
 
     init() {
@@ -19,6 +20,12 @@ struct MillerTimeApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .task {
+                    if SyncManager.shared == nil {
+                        SyncManager.shared = SyncManager(modelContainer: container)
+                    }
+                    SyncManager.shared?.start()
+                }
         }
         .modelContainer(container)
     }

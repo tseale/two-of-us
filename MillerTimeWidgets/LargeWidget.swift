@@ -51,7 +51,8 @@ struct LargeWidgetView: View {
                     }
                 }
             }
-            Spacer()
+            Spacer(minLength: 8)
+            QuickLogRow(isSleeping: entry.isActiveSleep)
         }
         .padding(14)
         .containerBackground(AppColor.card, for: .widget)
@@ -65,7 +66,7 @@ struct LargeWidgetView: View {
                 .foregroundStyle(AppColor.text2)
             Spacer()
             if let date {
-                Text(TimeFormatting.since(date))
+                Text(date, style: .relative)
                     .font(.subheadline.bold().monospacedDigit())
                     .foregroundStyle(urgency.color)
                 Text("ago")

@@ -79,31 +79,37 @@ struct DayRibbonWidget: Widget {
 // MARK: - Next-feed gauge (lock-screen circular)
 
 /// A ring filling toward the next feed's target interval, with remaining time in the center.
+/// Uses `ProgressView(timerInterval:)` so the ring and the countdown advance on their own,
+/// with no timeline reloads, falling back to a static gauge before the first feed.
 struct NextFeedGaugeView: View {
     let entry: WidgetEntry
 
-    private var fraction: Double {
-        guard entry.feedTargetInterval > 0, let last = entry.lastFeedDate else { return 0 }
-        let elapsed = max(0, entry.date.timeIntervalSince(last))
-        return min(1, elapsed / entry.feedTargetInterval)
-    }
-
-    private var remainingLabel: String {
-        guard let last = entry.lastFeedDate else { return "—" }
-        let remaining = entry.feedTargetInterval - entry.date.timeIntervalSince(last)
-        let minutes = Int((abs(remaining) / 60).rounded())
-        if remaining <= 0 { return "now" }
-        if minutes >= 60 { return "\(minutes / 60)h" }
-        return "\(minutes)m"
+    private var due: Date? {
+        guard entry.feedTargetInterval > 0, let last = entry.lastFeedDate else { return nil }
+        return last.addingTimeInterval(entry.feedTargetInterval)
     }
 
     var body: some View {
-        Gauge(value: fraction) {
-            Image(systemName: "drop.fill")
-        } currentValueLabel: {
-            Text(remainingLabel)
+        Group {
+            if let last = entry.lastFeedDate, let due {
+                ProgressView(timerInterval: last...due, countsDown: false) {
+                    Image(systemName: "drop.fill")
+                } currentValueLabel: {
+                    Text(due, style: .relative)
+                        .font(.caption2)
+                        .minimumScaleFactor(0.5)
+                }
+                .progressViewStyle(.circular)
+                .tint(AppColor.accentFeed)
+            } else {
+                Gauge(value: 0) {
+                    Image(systemName: "drop.fill")
+                } currentValueLabel: {
+                    Text("—")
+                }
+                .gaugeStyle(.accessoryCircularCapacity)
+            }
         }
-        .gaugeStyle(.accessoryCircularCapacity)
         .containerBackground(.fill.tertiary, for: .widget)
     }
 }

@@ -14,10 +14,39 @@ struct WidgetProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WidgetEntry>) -> Void) {
-        let entry = buildEntry()
-        // Reload every 15 min; EventStore also calls WidgetCenter.reloadAllTimelines() on each log.
-        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: entry.date)!
-        completion(Timeline(entries: [entry], policy: .after(nextUpdate)))
+        let base = buildEntry()
+
+        // Stage entries at the feed urgency thresholds so the dot/accent color flips
+        // at the exact moment (amber at 66% of target, red at 100%) without waking
+        // code, and so the widget's Smart Stack relevance rises as feed time nears.
+        var entries: [WidgetEntry] = [base.redated(to: base.date, relevance: relevance(for: base, at: base.date))]
+        if let last = base.lastFeedDate, base.feedTargetInterval > 0 {
+            let amberAt = last.addingTimeInterval(base.feedTargetInterval * 0.66)
+            let redAt = last.addingTimeInterval(base.feedTargetInterval)
+            for date in [amberAt, redAt] where date > base.date {
+                entries.append(base.redated(to: date, relevance: relevance(for: base, at: date)))
+            }
+        }
+        entries.sort { $0.date < $1.date }
+
+        // Reload ~15 min after the last staged entry; EventStore /
+        // QuickLogger also push WidgetCenter.reloadAllTimelines() on each write.
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: entries.last?.date ?? base.date)!
+        completion(Timeline(entries: entries, policy: .after(nextUpdate)))
+    }
+
+    /// Relevance score for the feed widget at a given moment — 0 while recent,
+    /// rising through "due soon" to "overdue" so the Smart Stack surfaces it.
+    private func relevance(for entry: WidgetEntry, at date: Date) -> TimelineEntryRelevance? {
+        guard let last = entry.lastFeedDate, entry.feedTargetInterval > 0 else { return nil }
+        let ratio = date.timeIntervalSince(last) / entry.feedTargetInterval
+        let score: Float
+        switch ratio {
+        case ..<0.66: score = 0
+        case ..<1.0:  score = 0.5
+        default:      score = 1.0
+        }
+        return TimelineEntryRelevance(score: score)
     }
 
     // MARK: Private

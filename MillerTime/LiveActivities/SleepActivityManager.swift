@@ -32,6 +32,21 @@ enum SleepActivityManager {
         AppGroup.userDefaults?.removeObject(forKey: activityIDKey)
     }
 
+    /// Brings the Live Activity in line with the data — used when the app
+    /// becomes active, since sleeps started/stopped from a widget button or
+    /// Siri can't manage the Live Activity from their own process.
+    static func reconcile(babyName: String, activeSleepStartedAt: Date?) {
+        let running = !Activity<SleepActivityAttributes>.activities.isEmpty
+        switch (activeSleepStartedAt, running) {
+        case let (startedAt?, false):
+            start(babyName: babyName, at: startedAt)
+        case (nil, true):
+            end()
+        default:
+            break
+        }
+    }
+
     private static func endAll() {
         for activity in Activity<SleepActivityAttributes>.activities {
             let finalContent = ActivityContent(

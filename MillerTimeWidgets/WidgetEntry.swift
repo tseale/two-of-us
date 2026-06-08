@@ -20,6 +20,29 @@ struct WidgetEntry: TimelineEntry {
     /// Today's events as ribbon marks, for the "today so far" / lock-screen ribbon.
     let todayMarks: [RibbonMark]
 
+    /// Smart Stack relevance — higher as the next feed becomes due/overdue, so the
+    /// widget surfaces in the rotation at feeding time. Defaulted so existing
+    /// constructors don't need to pass it.
+    var relevance: TimelineEntryRelevance? = nil
+
+    /// A copy of this snapshot re-dated to a future threshold, with its own
+    /// relevance score. Used to stage urgency transitions in the timeline so the
+    /// dot/accent color flips at the exact moment with no extra reloads.
+    func redated(to date: Date, relevance: TimelineEntryRelevance?) -> WidgetEntry {
+        WidgetEntry(
+            date: date,
+            lastFeedDate: lastFeedDate,
+            lastSleepDate: lastSleepDate,
+            lastDiaperDate: lastDiaperDate,
+            feedTargetInterval: feedTargetInterval,
+            isActiveSleep: isActiveSleep,
+            activeSleepStartedAt: activeSleepStartedAt,
+            recentItems: recentItems,
+            todayMarks: todayMarks,
+            relevance: relevance
+        )
+    }
+
     static let placeholder = WidgetEntry(
         date: .now,
         lastFeedDate: Date(timeIntervalSinceNow: -7800),   // 2h 10m ago
