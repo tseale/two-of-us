@@ -72,6 +72,10 @@ struct QuickLogger {
         return try? context.fetch(d).first
     }
 
+    /// Shared target feed interval (seconds), defaulting to 3h. Used to re-arm
+    /// the AlarmKit feed reminder on app foreground.
+    var targetFeedInterval: TimeInterval { settings?.targetFeedInterval ?? TimeInterval(180 * 60) }
+
     /// Most recent live diaper (by timestamp).
     var lastDiaper: DiaperEvent? {
         var d = FetchDescriptor<DiaperEvent>(

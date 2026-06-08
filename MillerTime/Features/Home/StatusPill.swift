@@ -24,7 +24,7 @@ struct StatusPill: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 11)
-        .background(AppColor.card, in: RoundedRectangle(cornerRadius: 16))
+        .glassCard(cornerRadius: 16)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(label), \(value), \(urgency.accessibilityWord)")
     }

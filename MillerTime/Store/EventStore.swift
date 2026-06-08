@@ -62,6 +62,7 @@ struct EventStore {
         save()
         sync(save: [event.id])
         reloadWidgets()
+        scheduleFeedReminder()
         donate(LogFeedIntent(amountOz: amountOz))
         return event
     }
@@ -135,6 +136,7 @@ struct EventStore {
         save()
         sync(save: [original.id, replacement.id])
         reloadWidgets()
+        scheduleFeedReminder()
         return replacement
     }
 
@@ -252,5 +254,13 @@ struct EventStore {
 
     private func reloadWidgets() {
         WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    /// Re-arms this device's AlarmKit feed reminder off the latest feed + the
+    /// shared target interval. Honors the per-device opt-in inside the manager.
+    private func scheduleFeedReminder() {
+        let interval = settings?.targetFeedInterval ?? 0
+        let last = lastEventDate(of: .feed)
+        Task { await FeedAlarmManager.reschedule(lastFeed: last, interval: interval) }
     }
 }

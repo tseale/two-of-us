@@ -2,7 +2,7 @@ name: MillerTime
 options:
   bundleIdPrefix: com.taylorseale
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "26.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
@@ -18,7 +18,7 @@ targets:
   MillerTime:
     type: application
     platform: iOS
-    deploymentTarget: "17.0"
+    deploymentTarget: "26.0"
     sources:
       - path: MillerTime
     info:
@@ -35,6 +35,7 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         NSSupportsLiveActivities: YES
+        NSAlarmKitUsageDescription: Miller Time uses alarms to remind you when the next feed is due, even when your phone is silenced.
         UIBackgroundModes:
           - remote-notification
     entitlements:
@@ -59,7 +60,7 @@ targets:
   MillerTimeWidgets:
     type: app-extension
     platform: iOS
-    deploymentTarget: "17.0"
+    deploymentTarget: "26.0"
     sources:
       - path: MillerTimeWidgets
       - path: MillerTime/Models/Baby.swift

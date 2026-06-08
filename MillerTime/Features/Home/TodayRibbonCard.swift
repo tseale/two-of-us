@@ -30,7 +30,7 @@ struct TodayRibbonCard: View {
             }
         }
         .padding(14)
-        .background(AppColor.card, in: RoundedRectangle(cornerRadius: 18))
+        .glassCard(cornerRadius: 18)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Today: \(feedCount) feeds, \(sleepSummary) sleep, \(diaperCount) diapers")
     }

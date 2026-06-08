@@ -37,6 +37,8 @@ struct MainTabView: View {
             StatsView()
                 .tabItem { Label("Stats", systemImage: "sparkles") }
         }
+        // Collapse the glass tab bar while scrolling so content leads (iOS 26).
+        .tabBarMinimizeBehavior(.onScrollDown)
     }
 }
 
