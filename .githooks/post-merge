@@ -1,0 +1,6 @@
+#!/bin/sh
+# Runs after `git merge` / `git pull`. Regenerate only if the merge moved project.yml.
+
+if ! git diff --quiet ORIG_HEAD HEAD -- project.yml 2>/dev/null; then
+  exec "$(dirname "$0")/regenerate-project.sh"
+fi
