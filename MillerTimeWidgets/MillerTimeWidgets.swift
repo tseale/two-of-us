@@ -13,5 +13,10 @@ struct MillerTimeWidgetBundle: WidgetBundle {
         HomeScreenMediumWidget()
         HomeScreenLargeWidget()
         SleepLiveActivity()
+        if #available(iOS 18.0, *) {
+            LogFeedControl()
+            LogDiaperControl()
+            ToggleSleepControl()
+        }
     }
 }

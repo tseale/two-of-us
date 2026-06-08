@@ -56,6 +56,54 @@ struct QuickLogger {
         )).first
     }
 
+    /// How long the running sleep has lasted, or nil if Miller is awake.
+    var activeSleepDuration: TimeInterval? {
+        guard let s = activeSleep else { return nil }
+        return Date.now.timeIntervalSince(s.startedAt)
+    }
+
+    /// Most recent live feed (by timestamp).
+    var lastFeed: FeedEvent? {
+        var d = FetchDescriptor<FeedEvent>(
+            predicate: #Predicate { $0.deletedAt == nil },
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        d.fetchLimit = 1
+        return try? context.fetch(d).first
+    }
+
+    /// Most recent live diaper (by timestamp).
+    var lastDiaper: DiaperEvent? {
+        var d = FetchDescriptor<DiaperEvent>(
+            predicate: #Predicate { $0.deletedAt == nil },
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        d.fetchLimit = 1
+        return try? context.fetch(d).first
+    }
+
+    /// Most recent completed sleep (by end time), ignoring any running one.
+    var lastEndedSleep: SleepEvent? {
+        var d = FetchDescriptor<SleepEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.endedAt != nil },
+            sortBy: [SortDescriptor(\.endedAt, order: .reverse)]
+        )
+        d.fetchLimit = 1
+        return try? context.fetch(d).first
+    }
+
+    /// Today's running totals (since local start-of-day).
+    var todayCounts: (feeds: Int, oz: Double, diapers: Int) {
+        let dayStart = Calendar.current.startOfDay(for: .now)
+        let feeds = (try? context.fetch(FetchDescriptor<FeedEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= dayStart }
+        ))) ?? []
+        let diapers = (try? context.fetch(FetchDescriptor<DiaperEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= dayStart }
+        ))) ?? []
+        return (feeds.count, feeds.reduce(0) { $0 + $1.amountOz }, diapers.count)
+    }
+
     /// Default feed amount for one-tap logging: SharedSettings.defaultFeedOz,
     /// else the most-recent feed's amount, else 4 oz.
     var defaultFeedOz: Double {
@@ -71,7 +119,8 @@ struct QuickLogger {
 
     // MARK: Writes
 
-    func logFeed(amountOz: Double) {
+    @discardableResult
+    func logFeed(amountOz: Double) -> FeedEvent {
         let event = FeedEvent(
             baby: baby, amountOz: amountOz, timestamp: .now,
             loggedByID: owner?.id ?? UUID(),
@@ -80,9 +129,11 @@ struct QuickLogger {
         )
         context.insert(event)
         commit(syncing: [event.id])
+        return event
     }
 
-    func logDiaper(_ type: DiaperType) {
+    @discardableResult
+    func logDiaper(_ type: DiaperType) -> DiaperEvent {
         let event = DiaperEvent(
             baby: baby, type: type, timestamp: .now,
             loggedByID: owner?.id ?? UUID(),
@@ -91,6 +142,43 @@ struct QuickLogger {
         )
         context.insert(event)
         commit(syncing: [event.id])
+        return event
+    }
+
+    /// Soft-deletes the single most-recent live event across all three kinds.
+    /// Mirrors the app's append-only model (sets `deletedAt`, never hard-deletes).
+    /// - Returns: a human label of what was removed, or nil if there was nothing.
+    @discardableResult
+    func undoLastLog() -> String? {
+        let feed = lastFeed
+        let diaper = lastDiaper
+        // For "undo" the relevant sleep instant is whichever the user just touched:
+        // a running sleep (started) or the most recently ended one.
+        let sleep = activeSleep ?? lastEndedSleep
+
+        let feedAt = feed?.timestamp ?? .distantPast
+        let diaperAt = diaper?.timestamp ?? .distantPast
+        let sleepAt = sleep.map { $0.endedAt ?? $0.startedAt } ?? .distantPast
+
+        let newest = max(feedAt, diaperAt, sleepAt)
+        guard newest > .distantPast else { return nil }
+
+        if newest == feedAt, let feed {
+            feed.deletedAt = .now
+            commit(syncing: [feed.id])
+            return "feed of \(OzFormat.string(feed.amountOz)) oz"
+        }
+        if newest == diaperAt, let diaper {
+            diaper.deletedAt = .now
+            commit(syncing: [diaper.id])
+            return "\(diaper.type.label.lowercased()) diaper"
+        }
+        if newest == sleepAt, let sleep {
+            sleep.deletedAt = .now
+            commit(syncing: [sleep.id])
+            return sleep.endedAt == nil ? "sleep that just started" : "last sleep"
+        }
+        return nil
     }
 
     /// Starts a sleep if none is running, otherwise stops the running one.
