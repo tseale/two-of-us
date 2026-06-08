@@ -1,27 +1,19 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
+<html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Miller Time — Mockups</title>
 <style>
   :root {
     --bg: #000000;
-    --card: #1c1c1e;
-    --card2: #2c2c2e;
-    --sep: #38383a;
     --text: #ffffff;
-    --text2: #98989f;
-    --text3: #636366;
-    --accent: #5ac8b8;      /* calm teal */
-    --accent-dim: #2f4f4b;
+    --text2: #a8a8b0;
+    --text3: #6b6b73;
     --feed: #5ac8b8;        /* teal */
     --sleep: #8e8eff;       /* periwinkle */
     --diaper: #f5b971;      /* warm amber */
     --green: #5ad17e;
     --amber: #f5b971;
     --red: #ff6b6b;
-    --radius: 22px;
     --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
@@ -29,15 +21,14 @@
     background: #0d0d0f;
     font-family: var(--font);
     color: var(--text);
-    padding: 48px 32px 80px;
     background-image: radial-gradient(circle at 50% 0%, #18181c 0%, #08080a 60%);
-    min-height: 100vh;
   }
+  .page { padding: 48px 32px 80px; min-height: 100vh; }
   h1.title { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; text-align: center; margin-bottom: 6px; }
   p.sub { text-align: center; color: var(--text2); font-size: 15px; margin-bottom: 44px; }
   .gallery {
     display: flex; gap: 40px; justify-content: center; align-items: flex-start; flex-wrap: wrap;
-    max-width: 1500px; margin: 0 auto;
+    max-width: 1600px; margin: 0 auto;
   }
   .frame-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
   .frame-label { color: var(--text2); font-size: 13px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; }
@@ -51,6 +42,13 @@
     box-shadow: 0 0 0 2px #2a2a2c, 0 30px 60px rgba(0,0,0,0.6);
     position: relative; overflow: hidden;
   }
+  /* Subtle wallpaper glow so Liquid Glass translucency reads */
+  .phone .screen, .lock {
+    background-image:
+      radial-gradient(circle at 18% 8%, rgba(90,200,184,0.16), transparent 42%),
+      radial-gradient(circle at 88% 22%, rgba(142,142,255,0.18), transparent 45%),
+      radial-gradient(circle at 70% 96%, rgba(245,185,113,0.12), transparent 45%);
+  }
   .notch {
     position: absolute; top: 11px; left: 50%; transform: translateX(-50%);
     width: 108px; height: 30px; background: #000; border-radius: 18px; z-index: 50;
@@ -62,51 +60,81 @@
   }
   .screen { position: absolute; inset: 0; padding: 56px 18px 18px; overflow: hidden; }
 
+  /* ---- Liquid Glass ---- */
+  .glass {
+    background: rgba(255,255,255,0.07);
+    backdrop-filter: blur(26px) saturate(180%);
+    -webkit-backdrop-filter: blur(26px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(0,0,0,0.18), 0 10px 30px rgba(0,0,0,0.32);
+  }
+  .glass-tint {
+    backdrop-filter: blur(26px) saturate(180%);
+    -webkit-backdrop-filter: blur(26px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.28), 0 10px 30px rgba(0,0,0,0.32);
+    position: relative;
+  }
+  .glass-tint::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: linear-gradient(160deg, rgba(255,255,255,0.18), rgba(255,255,255,0) 42%);
+  }
+
   /* Home */
-  .app-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; padding: 0 4px; }
+  .app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; padding: 0 4px; }
   .app-header .name { font-size: 26px; font-weight: 700; letter-spacing: -0.4px; }
   .app-header .day { font-size: 14px; color: var(--text2); }
-  .gear { color: var(--text3); font-size: 18px; }
+  .head-actions { display: flex; align-items: center; gap: 10px; }
+  .icon-btn {
+    width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: var(--text);
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  }
+  .icon-btn.spark { color: var(--feed); }
 
   .status-row { display: flex; gap: 8px; margin: 14px 2px 18px; }
-  .status-pill {
-    flex: 1; background: var(--card); border-radius: 16px; padding: 11px 8px 12px; text-align: center;
-    border: 1px solid rgba(255,255,255,0.04);
-  }
+  .status-pill { flex: 1; border-radius: 18px; padding: 11px 8px 12px; text-align: center; }
   .status-pill .ico { font-size: 17px; }
   .status-pill .val { font-size: 15px; font-weight: 700; margin-top: 3px; }
   .status-pill .lbl { font-size: 10px; color: var(--text3); margin-top: 1px; letter-spacing: 0.2px; }
   .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
 
+  /* On-device AI insight strip */
+  .insight { border-radius: 18px; padding: 13px 15px; margin: 0 2px 16px; display: flex; gap: 11px; align-items: flex-start; }
+  .insight .i-ico { color: var(--feed); font-size: 16px; margin-top: 1px; }
+  .insight .i-top { font-size: 10px; font-weight: 700; letter-spacing: 0.6px; color: var(--text3); margin-bottom: 3px; }
+  .insight .i-txt { font-size: 13px; line-height: 1.35; color: var(--text); }
+
   .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 2px 8px; }
   .big-btn {
-    border-radius: 20px; padding: 22px 14px 18px; text-align: left; position: relative;
-    border: 1px solid rgba(255,255,255,0.06); min-height: 96px;
-    display: flex; flex-direction: column; justify-content: space-between;
+    border-radius: 22px; padding: 22px 14px 18px; text-align: left; position: relative; overflow: hidden;
+    min-height: 96px; display: flex; flex-direction: column; justify-content: space-between;
   }
-  .big-btn.feed { background: linear-gradient(145deg, #1f3d39, #14302c); }
-  .big-btn.sleep { background: linear-gradient(145deg, #2b2b52, #1e1e3c); }
-  .big-btn.diaper { background: linear-gradient(145deg, #43361f, #322816); grid-column: span 2; min-height: 76px; flex-direction: row; align-items: center; justify-content: flex-start; gap: 14px; }
+  .big-btn.feed { background: linear-gradient(155deg, rgba(90,200,184,0.34), rgba(47,79,75,0.30)); }
+  .big-btn.sleep { background: linear-gradient(155deg, rgba(142,142,255,0.34), rgba(40,40,80,0.30)); }
+  .big-btn.diaper { background: linear-gradient(155deg, rgba(245,185,113,0.30), rgba(70,55,30,0.30)); grid-column: span 2; min-height: 76px; flex-direction: row; align-items: center; justify-content: flex-start; gap: 14px; }
   .big-btn .b-ico { font-size: 30px; }
   .big-btn .b-lbl { font-size: 19px; font-weight: 700; }
   .big-btn.diaper .b-lbl { font-size: 18px; }
-  .big-btn .b-hint { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+  .big-btn .b-hint { font-size: 11px; color: rgba(255,255,255,0.62); margin-top: 2px; }
 
   .timeline-h { font-size: 13px; color: var(--text3); font-weight: 600; margin: 16px 6px 8px; letter-spacing: 0.3px; }
-  .tl-card { background: var(--card); border-radius: 16px; overflow: hidden; }
-  .tl-row { display: flex; align-items: center; gap: 11px; padding: 11px 14px; border-bottom: 1px solid var(--sep); }
+  .tl-card { border-radius: 18px; overflow: hidden; }
+  .tl-row { display: flex; align-items: center; gap: 11px; padding: 11px 14px; border-bottom: 1px solid rgba(255,255,255,0.08); }
   .tl-row:last-child { border-bottom: none; }
   .tl-ico { font-size: 17px; width: 22px; text-align: center; }
   .tl-main { flex: 1; }
   .tl-title { font-size: 14px; font-weight: 600; }
   .tl-time { font-size: 12px; color: var(--text3); }
-  .tl-who { font-size: 11px; font-weight: 700; color: var(--text3); width: 22px; height: 22px; line-height: 22px; text-align: center; background: var(--card2); border-radius: 50%; }
+  .tl-who { font-size: 11px; font-weight: 700; color: #fff; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 50%; }
+  .who-t { background: #5ac8b8; color: #0c2521; }
+  .who-w { background: #8e8eff; color: #16162c; }
 
-  /* Sleep active screen */
+  /* Sleep active */
   .sleep-active {
-    background: linear-gradient(160deg, #2b2b52, #16162c); border-radius: 24px;
-    padding: 30px 20px; text-align: center; margin: 0 2px 12px;
-    border: 1px solid rgba(142,142,255,0.2);
+    background: linear-gradient(160deg, rgba(142,142,255,0.30), rgba(22,22,44,0.30));
+    border-radius: 24px; padding: 30px 20px; text-align: center; margin: 0 2px 12px; position: relative; overflow: hidden;
   }
   .sleep-active .sa-ico { font-size: 38px; }
   .sleep-active .sa-lbl { font-size: 15px; color: var(--text2); margin-top: 8px; }
@@ -114,289 +142,240 @@
   .sleep-active .sa-since { font-size: 13px; color: var(--text3); }
   .wake-btn { background: var(--sleep); color: #15152e; font-weight: 700; font-size: 17px; border-radius: 16px; padding: 16px; text-align: center; margin: 14px 2px 0; }
 
-  /* Sheet (feed / diaper) */
+  /* Sheets */
   .sheet-demo { display: flex; flex-direction: column; height: 100%; justify-content: flex-end; }
-  .scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.5); }
+  .scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.45); backdrop-filter: blur(2px); }
   .sheet {
-    position: relative; background: #1c1c1e; border-radius: 26px 26px 0 0; padding: 12px 18px 30px;
-    box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+    position: relative; border-radius: 28px 28px 0 0; padding: 12px 18px 30px;
+    background: rgba(28,28,32,0.72);
+    backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.14); border-bottom: none;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 -10px 40px rgba(0,0,0,0.5);
   }
-  .grabber { width: 38px; height: 5px; background: #48484a; border-radius: 3px; margin: 0 auto 18px; }
+  .grabber { width: 38px; height: 5px; background: rgba(255,255,255,0.3); border-radius: 3px; margin: 0 auto 18px; }
   .sheet-title { font-size: 21px; font-weight: 700; margin-bottom: 4px; }
   .sheet-sub { font-size: 13px; color: var(--text2); margin-bottom: 20px; }
   .oz-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 11px; margin-bottom: 12px; }
-  .oz-btn {
-    background: var(--card2); border-radius: 18px; padding: 22px 8px; text-align: center;
-    border: 2px solid transparent;
-  }
-  .oz-btn.sel { border-color: var(--feed); background: var(--accent-dim); }
+  .oz-btn { border-radius: 18px; padding: 22px 8px; text-align: center; border: 2px solid transparent; background: rgba(255,255,255,0.06); }
+  .oz-btn.sel { border-color: var(--feed); background: rgba(90,200,184,0.22); }
   .oz-btn .oz-num { font-size: 26px; font-weight: 700; }
   .oz-btn .oz-unit { font-size: 12px; color: var(--text2); margin-top: 1px; }
-  .oz-custom { background: var(--card2); border-radius: 16px; padding: 15px; text-align: center; font-size: 15px; color: var(--text2); margin-bottom: 18px; }
+  .oz-custom { border-radius: 16px; padding: 15px; text-align: center; font-size: 15px; color: var(--text2); margin-bottom: 18px; background: rgba(255,255,255,0.06); }
   .log-btn { background: var(--feed); color: #0c2521; font-weight: 700; font-size: 17px; border-radius: 16px; padding: 16px; text-align: center; }
-  .log-btn.next { font-size: 12px; font-weight: 500; color: rgba(12,37,33,0.7); margin-top: 3px; }
-
+  .log-btn.next { font-size: 12px; font-weight: 500; color: rgba(12,37,33,0.72); margin-top: 3px; }
   .diaper-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 11px; }
-  .diaper-btn { background: var(--card2); border-radius: 18px; padding: 26px 8px; text-align: center; border: 2px solid transparent; }
+  .diaper-btn { border-radius: 18px; padding: 26px 8px; text-align: center; border: 2px solid transparent; background: rgba(255,255,255,0.06); }
   .diaper-btn .d-ico { font-size: 28px; }
   .diaper-btn .d-lbl { font-size: 14px; font-weight: 600; margin-top: 8px; }
 
-  /* Widget / lock screen frame */
+  /* NL quick-log sheet */
+  .nl-field { border-radius: 14px; padding: 15px 16px; font-size: 16px; color: var(--text); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.16); margin-bottom: 14px; }
+  .nl-field .cursor { color: var(--feed); }
+  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .chip { font-size: 12px; font-weight: 600; padding: 7px 12px; border-radius: 20px; background: rgba(90,200,184,0.18); border: 1px solid rgba(90,200,184,0.4); color: var(--feed); }
+  .nl-parsed { font-size: 12px; color: var(--text3); margin: 4px 2px 16px; }
+
+  /* Lock screen */
   .lock {
     width: 320px; height: 693px; border-radius: 46px; border: 11px solid #1a1a1c;
     box-shadow: 0 0 0 2px #2a2a2c, 0 30px 60px rgba(0,0,0,0.6); position: relative; overflow: hidden;
-    background: linear-gradient(165deg, #2a2438 0%, #14101f 55%, #0a0810 100%);
+    background-color: #14101f;
   }
-  .lock-time { text-align: center; color: #fff; font-weight: 600; padding-top: 70px; }
+  .lock-time { text-align: center; color: #fff; font-weight: 600; padding-top: 64px; }
   .lock-time .lt-day { font-size: 17px; opacity: 0.85; }
   .lock-time .lt-clock { font-size: 74px; font-weight: 600; letter-spacing: -1px; line-height: 1; margin-top: 2px; }
+  .alarm-banner {
+    margin: 26px 16px 0; border-radius: 20px; padding: 13px 15px; display: flex; gap: 12px; align-items: center;
+    background: rgba(245,185,113,0.14); border: 1px solid rgba(245,185,113,0.34);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  }
+  .alarm-banner .ab-ico { font-size: 22px; }
+  .alarm-banner .ab-title { font-size: 14px; font-weight: 700; }
+  .alarm-banner .ab-sub { font-size: 12px; color: var(--text2); margin-top: 1px; }
   .live-activity {
-    margin: 36px 16px 0; background: rgba(20,20,28,0.78); backdrop-filter: blur(10px);
-    border-radius: 22px; padding: 16px 18px; display: flex; align-items: center; gap: 14px;
-    border: 1px solid rgba(255,255,255,0.08);
+    margin: 16px 16px 0; border-radius: 22px; padding: 16px 18px; display: flex; align-items: center; gap: 14px;
   }
   .la-ico { font-size: 30px; }
   .la-main { flex: 1; }
   .la-title { font-size: 14px; font-weight: 700; }
   .la-sub { font-size: 12px; color: var(--text2); margin-top: 1px; }
   .la-timer { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--sleep); }
-  .lock-widgets { display: flex; gap: 12px; margin: 22px 16px 0; }
-  .lock-w {
-    flex: 1; background: rgba(20,20,28,0.7); backdrop-filter: blur(10px); border-radius: 18px;
-    padding: 12px 13px; border: 1px solid rgba(255,255,255,0.06);
-  }
+  .lock-widgets { display: flex; gap: 12px; margin: 18px 16px 0; }
+  .lock-w { flex: 1; border-radius: 18px; padding: 12px 13px; }
   .lock-w .lw-top { font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 5px; }
   .lock-w .lw-val { font-size: 22px; font-weight: 700; margin-top: 4px; }
   .lock-w .lw-lbl { font-size: 10px; color: var(--text3); }
 
-  /* Home screen widget standalone */
-  .hs-widget {
-    background: var(--card); border-radius: 24px; padding: 18px 20px; width: 300px;
-    border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 14px 30px rgba(0,0,0,0.4);
-  }
+  /* Control Center */
+  .cc-screen { position: absolute; inset: 0; padding: 70px 22px 22px; }
+  .cc-title { font-size: 13px; color: var(--text2); font-weight: 600; letter-spacing: 0.4px; margin: 0 4px 14px; text-transform: uppercase; }
+  .cc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .cc-tile { border-radius: 22px; padding: 18px 16px; min-height: 96px; display: flex; flex-direction: column; justify-content: space-between; }
+  .cc-tile .cc-ico { width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .cc-tile .cc-lbl { font-size: 14px; font-weight: 600; }
+  .cc-tile .cc-state { font-size: 11px; color: var(--text2); }
+  .cc-feed .cc-ico { background: rgba(90,200,184,0.9); color: #08221e; }
+  .cc-diaper .cc-ico { background: rgba(245,185,113,0.9); color: #2c2208; }
+  .cc-sleep { grid-column: span 2; flex-direction: row; align-items: center; gap: 14px; }
+  .cc-sleep .cc-ico { background: rgba(142,142,255,0.9); color: #15152e; }
+  .cc-toggle { margin-left: auto; width: 50px; height: 30px; border-radius: 16px; background: rgba(142,142,255,0.9); position: relative; }
+  .cc-toggle::after { content: ""; position: absolute; top: 3px; right: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; }
+
+  /* Stats insights */
+  .stats-screen { position: absolute; inset: 0; padding: 56px 16px 18px; overflow: hidden; }
+  .stats-head { font-size: 26px; font-weight: 700; letter-spacing: -0.4px; margin: 0 4px 14px; }
+  .ai-card { border-radius: 20px; padding: 16px; margin-bottom: 14px; }
+  .ai-top { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; letter-spacing: 0.6px; color: var(--text2); margin-bottom: 9px; }
+  .ai-top .sp { color: var(--feed); font-size: 14px; }
+  .ai-body { font-size: 14px; line-height: 1.45; color: var(--text); }
+  .stat-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .stat-tile { border-radius: 18px; padding: 16px; }
+  .stat-tile .st-val { font-size: 24px; font-weight: 700; }
+  .stat-tile .st-lbl { font-size: 12px; color: var(--text3); margin-top: 3px; }
+
+  /* Home-screen widget */
+  .hs-widget { border-radius: 24px; padding: 18px 20px; width: 300px; box-shadow: 0 14px 30px rgba(0,0,0,0.4); background: #1c1c1e; border: 1px solid rgba(255,255,255,0.06); }
   .hsw-title { font-size: 13px; color: var(--text3); font-weight: 600; margin-bottom: 14px; letter-spacing: 0.3px; }
   .hsw-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
   .hsw-ico { font-size: 20px; width: 26px; text-align: center; }
   .hsw-lbl { flex: 1; font-size: 14px; color: var(--text2); }
   .hsw-val { font-size: 16px; font-weight: 700; }
-</style>
-</head>
-<body>
-  <h1 class="title">Miller Time</h1>
-  <p class="sub">v1 mockups · formula-feeding · dark mode · iPhone</p>
-
-  <div class="gallery">
-
-    <!-- HOME -->
-    <div class="frame-wrap">
-      <div class="phone">
-        <div class="notch"></div>
-        <div class="statusbar"><span>9:41</span><span>5G&nbsp;&nbsp;100%</span></div>
-        <div class="screen">
-          <div class="app-header">
-            <div>
-              <div class="name">Miller</div>
-              <div class="day">Friday · 12 weeks old</div>
-            </div>
-            <div class="gear">⚙︎</div>
-          </div>
-
-          <div class="status-row">
-            <div class="status-pill">
-              <div class="ico">🍼</div>
-              <div class="val"><span class="dot" style="background:var(--amber)"></span>2h 40m</div>
-              <div class="lbl">SINCE FEED</div>
-            </div>
-            <div class="status-pill">
-              <div class="ico">💤</div>
-              <div class="val">45m</div>
-              <div class="lbl">SINCE SLEEP</div>
-            </div>
-            <div class="status-pill">
-              <div class="ico">💩</div>
-              <div class="val">1h 10m</div>
-              <div class="lbl">SINCE DIAPER</div>
-            </div>
-          </div>
-
-          <div class="btn-grid">
-            <div class="big-btn feed">
-              <div class="b-ico">🍼</div>
-              <div><div class="b-lbl">Feed</div><div class="b-hint">log a bottle</div></div>
-            </div>
-            <div class="big-btn sleep">
-              <div class="b-ico">💤</div>
-              <div><div class="b-lbl">Sleep</div><div class="b-hint">start timer</div></div>
-            </div>
-            <div class="big-btn diaper">
-              <div class="b-ico">💩</div>
-              <div><div class="b-lbl">Diaper</div><div class="b-hint">wet · dirty · both</div></div>
-            </div>
-          </div>
-
-          <div class="timeline-h">RECENT</div>
-          <div class="tl-card">
-            <div class="tl-row">
-              <div class="tl-ico">🍼</div>
-              <div class="tl-main"><div class="tl-title">Feed · 3 oz</div><div class="tl-time">2:14 PM</div></div>
-              <div class="tl-who">T</div>
-            </div>
-            <div class="tl-row">
-              <div class="tl-ico">💤</div>
-              <div class="tl-main"><div class="tl-title">Sleep · 1h 22m</div><div class="tl-time">12:48 PM</div></div>
-              <div class="tl-who">W</div>
-            </div>
-            <div class="tl-row">
-              <div class="tl-ico">💩</div>
-              <div class="tl-main"><div class="tl-title">Diaper · Wet</div><div class="tl-time">11:40 AM</div></div>
-              <div class="tl-who">T</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="frame-label">Home</div>
+</style></head>
+<body><div class="page"><h1 class="title">Miller Time</h1><p class="sub">iOS 26 · Liquid Glass · on-device AI · formula-feeding · dark mode</p><div class="gallery">
+<div class="frame-wrap"><div class="phone"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>5G&nbsp;&nbsp;100%</span></div>
+  <div class="screen">
+    <div class="app-header">
+      <div><div class="name">Miller</div><div class="day">Friday · 12 weeks old</div></div>
+      <div class="head-actions"><div class="icon-btn spark">✨</div><div class="icon-btn">⚙︎</div></div>
     </div>
-
-    <!-- FEED SHEET -->
-    <div class="frame-wrap">
-      <div class="phone">
-        <div class="notch"></div>
-        <div class="statusbar"><span>9:41</span><span>5G&nbsp;&nbsp;100%</span></div>
-        <div class="screen sheet-demo">
-          <div class="scrim"></div>
-          <div class="sheet">
-            <div class="grabber"></div>
-            <div class="sheet-title">Log a feed 🍼</div>
-            <div class="sheet-sub">How much did Miller take?</div>
-            <div class="oz-grid">
-              <div class="oz-btn"><div class="oz-num">2</div><div class="oz-unit">oz</div></div>
-              <div class="oz-btn sel"><div class="oz-num">3</div><div class="oz-unit">oz</div></div>
-              <div class="oz-btn"><div class="oz-num">4</div><div class="oz-unit">oz</div></div>
-            </div>
-            <div class="oz-custom">Custom amount…</div>
-            <div class="log-btn">Log 3 oz<div class="log-btn next">next bottle reminder · 5:14 PM</div></div>
-          </div>
-        </div>
-      </div>
-      <div class="frame-label">Feed — tap an amount</div>
+    <div class="status-row">
+      <div class="status-pill glass"><div class="ico">🍼</div><div class="val"><span class="dot" style="background:var(--amber)"></span>2h 40m</div><div class="lbl">SINCE FEED</div></div>
+      <div class="status-pill glass"><div class="ico">💤</div><div class="val">45m</div><div class="lbl">SINCE SLEEP</div></div>
+      <div class="status-pill glass"><div class="ico">💩</div><div class="val">1h 10m</div><div class="lbl">SINCE DIAPER</div></div>
     </div>
-
-    <!-- SLEEP ACTIVE -->
-    <div class="frame-wrap">
-      <div class="phone">
-        <div class="notch"></div>
-        <div class="statusbar"><span>9:41</span><span>5G&nbsp;&nbsp;100%</span></div>
-        <div class="screen">
-          <div class="app-header">
-            <div>
-              <div class="name">Miller</div>
-              <div class="day">Friday · 12 weeks old</div>
-            </div>
-            <div class="gear">⚙︎</div>
-          </div>
-          <div class="status-row">
-            <div class="status-pill">
-              <div class="ico">🍼</div>
-              <div class="val"><span class="dot" style="background:var(--green)"></span>1h 05m</div>
-              <div class="lbl">SINCE FEED</div>
-            </div>
-            <div class="status-pill">
-              <div class="ico">💩</div>
-              <div class="val">35m</div>
-              <div class="lbl">SINCE DIAPER</div>
-            </div>
-          </div>
-          <div class="sleep-active">
-            <div class="sa-ico">💤</div>
-            <div class="sa-lbl">Miller is sleeping</div>
-            <div class="sa-timer">23:47</div>
-            <div class="sa-since">since 9:17 AM</div>
-          </div>
-          <div class="wake-btn">Wake up ☀️</div>
-          <div class="timeline-h">RECENT</div>
-          <div class="tl-card">
-            <div class="tl-row">
-              <div class="tl-ico">🍼</div>
-              <div class="tl-main"><div class="tl-title">Feed · 3 oz</div><div class="tl-time">8:36 AM</div></div>
-              <div class="tl-who">W</div>
-            </div>
-            <div class="tl-row">
-              <div class="tl-ico">💩</div>
-              <div class="tl-main"><div class="tl-title">Diaper · Both</div><div class="tl-time">9:06 AM</div></div>
-              <div class="tl-who">W</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="frame-label">Sleep — timer running</div>
+    <div class="insight glass">
+      <div class="i-ico">✨</div>
+      <div><div class="i-top">ON-DEVICE INSIGHT</div><div class="i-txt">Miller’s feeding about every 2h 50m today — his longest sleep was 2h 10m last night.</div></div>
     </div>
-
-    <!-- DIAPER SHEET -->
-    <div class="frame-wrap">
-      <div class="phone">
-        <div class="notch"></div>
-        <div class="statusbar"><span>9:41</span><span>5G&nbsp;&nbsp;100%</span></div>
-        <div class="screen sheet-demo">
-          <div class="scrim"></div>
-          <div class="sheet">
-            <div class="grabber"></div>
-            <div class="sheet-title">Log a diaper 💩</div>
-            <div class="sheet-sub">One tap logs and closes</div>
-            <div class="diaper-grid">
-              <div class="diaper-btn"><div class="d-ico">💧</div><div class="d-lbl">Wet</div></div>
-              <div class="diaper-btn"><div class="d-ico">💩</div><div class="d-lbl">Dirty</div></div>
-              <div class="diaper-btn"><div class="d-ico">💧💩</div><div class="d-lbl">Both</div></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="frame-label">Diaper — one tap</div>
+    <div class="btn-grid">
+      <div class="big-btn feed glass-tint"><div class="b-ico">🍼</div><div><div class="b-lbl">Feed</div><div class="b-hint">log a bottle</div></div></div>
+      <div class="big-btn sleep glass-tint"><div class="b-ico">💤</div><div><div class="b-lbl">Sleep</div><div class="b-hint">start timer</div></div></div>
+      <div class="big-btn diaper glass-tint"><div class="b-ico">💩</div><div><div class="b-lbl">Diaper</div><div class="b-hint">wet · dirty · both</div></div></div>
     </div>
-
-    <!-- LOCK SCREEN: live activity + widgets -->
-    <div class="frame-wrap">
-      <div class="lock">
-        <div class="notch"></div>
-        <div class="lock-time">
-          <div class="lt-day">Friday, June 5</div>
-          <div class="lt-clock">9:41</div>
-        </div>
-        <div class="live-activity">
-          <div class="la-ico">💤</div>
-          <div class="la-main">
-            <div class="la-title">Miller is sleeping</div>
-            <div class="la-sub">since 9:17 AM</div>
-          </div>
-          <div class="la-timer">23:47</div>
-        </div>
-        <div class="lock-widgets">
-          <div class="lock-w">
-            <div class="lw-top">🍼 Feed</div>
-            <div class="lw-val">2h 40m</div>
-            <div class="lw-lbl">next ~3:14 PM</div>
-          </div>
-          <div class="lock-w">
-            <div class="lw-top">💩 Diaper</div>
-            <div class="lw-val">1h 10m</div>
-            <div class="lw-lbl">ago</div>
-          </div>
-        </div>
-      </div>
-      <div class="frame-label">Lock screen — Live Activity + widgets</div>
+    <div class="timeline-h">RECENT</div>
+    <div class="tl-card glass">
+      <div class="tl-row"><div class="tl-ico">🍼</div><div class="tl-main"><div class="tl-title">Feed · 3 oz</div><div class="tl-time">2:14 PM</div></div><div class="tl-who who-t">T</div></div>
+      <div class="tl-row"><div class="tl-ico">💤</div><div class="tl-main"><div class="tl-title">Sleep · 1h 22m</div><div class="tl-time">12:48 PM</div></div><div class="tl-who who-w">W</div></div>
+      <div class="tl-row"><div class="tl-ico">💩</div><div class="tl-main"><div class="tl-title">Diaper · Wet</div><div class="tl-time">11:40 AM</div></div><div class="tl-who who-t">T</div></div>
     </div>
-
-    <!-- HOME SCREEN WIDGET -->
-    <div class="frame-wrap">
-      <div style="height:120px"></div>
-      <div class="hs-widget">
-        <div class="hsw-title">MILLER · TODAY</div>
-        <div class="hsw-row"><div class="hsw-ico">🍼</div><div class="hsw-lbl">Last bottle</div><div class="hsw-val">2h 40m</div></div>
-        <div class="hsw-row"><div class="hsw-ico">💤</div><div class="hsw-lbl">Last sleep</div><div class="hsw-val">45m</div></div>
-        <div class="hsw-row"><div class="hsw-ico">💩</div><div class="hsw-lbl">Last diaper</div><div class="hsw-val">1h 10m</div></div>
+  </div></div><div class="frame-label">Home</div></div>
+<div class="frame-wrap"><div class="phone"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>5G&nbsp;&nbsp;100%</span></div>
+  <div class="screen sheet-demo"><div class="scrim"></div>
+    <div class="sheet">
+      <div class="grabber"></div>
+      <div class="sheet-title">Log a feed 🍼</div>
+      <div class="sheet-sub">How much did Miller take?</div>
+      <div class="oz-grid">
+        <div class="oz-btn"><div class="oz-num">2</div><div class="oz-unit">oz</div></div>
+        <div class="oz-btn sel"><div class="oz-num">3</div><div class="oz-unit">oz</div></div>
+        <div class="oz-btn"><div class="oz-num">4</div><div class="oz-unit">oz</div></div>
       </div>
-      <div class="frame-label" style="margin-top:14px">Home-screen widget (medium)</div>
+      <div class="oz-custom">Custom amount…</div>
+      <div class="log-btn">Log 3 oz<div class="log-btn next">next feed reminder · 5:14 PM</div></div>
     </div>
-
+  </div></div><div class="frame-label">Feed — tap an amount</div></div>
+<div class="frame-wrap"><div class="phone"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>5G&nbsp;&nbsp;100%</span></div>
+  <div class="screen">
+    <div class="app-header"><div><div class="name">Miller</div><div class="day">Friday · 12 weeks old</div></div>
+      <div class="head-actions"><div class="icon-btn spark">✨</div><div class="icon-btn">⚙︎</div></div></div>
+    <div class="status-row">
+      <div class="status-pill glass"><div class="ico">🍼</div><div class="val"><span class="dot" style="background:var(--green)"></span>1h 05m</div><div class="lbl">SINCE FEED</div></div>
+      <div class="status-pill glass"><div class="ico">💩</div><div class="val">35m</div><div class="lbl">SINCE DIAPER</div></div>
+    </div>
+    <div class="sleep-active glass-tint">
+      <div class="sa-ico">💤</div><div class="sa-lbl">Miller is sleeping</div>
+      <div class="sa-timer">23:47</div><div class="sa-since">since 9:17 AM</div>
+    </div>
+    <div class="wake-btn">Wake up ☀️</div>
+    <div class="timeline-h">RECENT</div>
+    <div class="tl-card glass">
+      <div class="tl-row"><div class="tl-ico">🍼</div><div class="tl-main"><div class="tl-title">Feed · 3 oz</div><div class="tl-time">8:36 AM</div></div><div class="tl-who who-w">W</div></div>
+      <div class="tl-row"><div class="tl-ico">💩</div><div class="tl-main"><div class="tl-title">Diaper · Both</div><div class="tl-time">9:06 AM</div></div><div class="tl-who who-w">W</div></div>
+    </div>
+  </div></div><div class="frame-label">Sleep — timer running</div></div>
+<div class="frame-wrap"><div class="phone"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>5G&nbsp;&nbsp;100%</span></div>
+  <div class="screen sheet-demo"><div class="scrim"></div>
+    <div class="sheet">
+      <div class="grabber"></div>
+      <div class="sheet-title">Log a diaper 💩</div>
+      <div class="sheet-sub">One tap logs and closes</div>
+      <div class="diaper-grid">
+        <div class="diaper-btn"><div class="d-ico">💧</div><div class="d-lbl">Wet</div></div>
+        <div class="diaper-btn"><div class="d-ico">💩</div><div class="d-lbl">Dirty</div></div>
+        <div class="diaper-btn"><div class="d-ico">💧💩</div><div class="d-lbl">Both</div></div>
+      </div>
+    </div>
+  </div></div><div class="frame-label">Diaper — one tap</div></div>
+<div class="frame-wrap"><div class="phone"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>5G&nbsp;&nbsp;100%</span></div>
+  <div class="screen sheet-demo"><div class="scrim"></div>
+    <div class="sheet">
+      <div class="grabber"></div>
+      <div class="sheet-title">Quick log ✨</div>
+      <div class="sheet-sub">Type what happened in plain words.</div>
+      <div class="nl-field">4 oz bottle, 20 minutes ago<span class="cursor">|</span></div>
+      <div class="chip-row">
+        <div class="chip">🍼 Feed · 3 oz</div>
+        <div class="chip">⏱ 20 min ago</div>
+      </div>
+      <div class="nl-parsed">Parsed on-device · nothing leaves this iPhone</div>
+      <div class="log-btn">Log feed</div>
+    </div>
+  </div></div><div class="frame-label">Quick log — natural language</div></div>
+<div class="frame-wrap"><div class="phone"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>5G&nbsp;&nbsp;100%</span></div>
+  <div class="stats-screen">
+    <div class="stats-head">Stats</div>
+    <div class="ai-card glass">
+      <div class="ai-top"><span class="sp">✨</span> INSIGHTS</div>
+      <div class="ai-body">Miller settled into a steady rhythm this week — feeding roughly every three hours and stretching to a 4h 05m sleep on Tuesday night. Diaper changes held even at about eight a day.</div>
+    </div>
+    <div class="stat-tiles">
+      <div class="stat-tile glass"><div class="st-val">4h 05m</div><div class="st-lbl">Longest sleep</div></div>
+      <div class="stat-tile glass"><div class="st-val">26 oz</div><div class="st-lbl">Today’s feeds</div></div>
+      <div class="stat-tile glass"><div class="st-val">8×</div><div class="st-lbl">Feeds / day avg</div></div>
+      <div class="stat-tile glass"><div class="st-val">10 PM</div><div class="st-lbl">Busiest hour</div></div>
+    </div>
+  </div></div><div class="frame-label">Stats — on-device insights</div></div>
+<div class="frame-wrap"><div class="lock"><div class="notch"></div>
+  <div class="lock-time"><div class="lt-day">Friday, June 5</div><div class="lt-clock">9:41</div></div>
+  <div class="alarm-banner">
+    <div class="ab-ico">🍼</div>
+    <div><div class="ab-title">Next feed due</div><div class="ab-sub">Miller · reminder breaks through Silent</div></div>
   </div>
-</body>
-</html>
+  <div class="live-activity glass">
+    <div class="la-ico">💤</div>
+    <div class="la-main"><div class="la-title">Miller is sleeping</div><div class="la-sub">since 9:17 AM</div></div>
+    <div class="la-timer">23:47</div>
+  </div>
+  <div class="lock-widgets">
+    <div class="lock-w glass"><div class="lw-top">🍼 Feed</div><div class="lw-val">2h 40m</div><div class="lw-lbl">next ~3:14 PM</div></div>
+    <div class="lock-w glass"><div class="lw-top">💩 Diaper</div><div class="lw-val">1h 10m</div><div class="lw-lbl">ago</div></div>
+  </div>
+</div><div class="frame-label">Lock screen — Live Activity, widgets & feed reminder</div></div>
+<div class="frame-wrap"><div class="phone"><div class="notch"></div>
+  <div class="cc-screen">
+    <div class="cc-title">Control Center</div>
+    <div class="cc-grid">
+      <div class="cc-tile cc-feed glass"><div class="cc-ico">💧</div><div><div class="cc-lbl">Log Feed</div><div class="cc-state">default amount</div></div></div>
+      <div class="cc-tile cc-diaper glass"><div class="cc-ico">🍃</div><div><div class="cc-lbl">Log Diaper</div><div class="cc-state">wet</div></div></div>
+      <div class="cc-tile cc-sleep glass"><div class="cc-ico">🌙</div><div><div class="cc-lbl">Sleep</div><div class="cc-state">Asleep · 23:47</div></div><div class="cc-toggle"></div></div>
+    </div>
+    <div class="cc-title" style="margin-top:22px">Also on the Lock Screen &amp; Action Button</div>
+  </div></div><div class="frame-label">Control Center — one-tap controls</div></div>
+<div class="frame-wrap"><div style="height:120px"></div>
+  <div class="hs-widget">
+    <div class="hsw-title">MILLER · TODAY</div>
+    <div class="hsw-row"><div class="hsw-ico">🍼</div><div class="hsw-lbl">Last bottle</div><div class="hsw-val">2h 40m</div></div>
+    <div class="hsw-row"><div class="hsw-ico">💤</div><div class="hsw-lbl">Last sleep</div><div class="hsw-val">45m</div></div>
+    <div class="hsw-row"><div class="hsw-ico">💩</div><div class="hsw-lbl">Last diaper</div><div class="hsw-val">1h 10m</div></div>
+  </div>
+  <div class="frame-label" style="margin-top:14px">Home-screen widget (medium)</div></div></div></div></body></html>
