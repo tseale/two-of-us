@@ -103,6 +103,8 @@ struct SettingsView: View {
                     }
                 }
 
+                demoSection
+
                 footerNote
             }
             .navigationTitle("Settings")
@@ -179,6 +181,23 @@ struct SettingsView: View {
                     Task { await SyncManager.shared?.removeParticipant(p) }
                 }
             }
+        }
+    }
+
+    @ViewBuilder private var demoSection: some View {
+        Section {
+            Toggle("Demo mode", isOn: $prefs.demoModeEnabled)
+            if prefs.demoModeEnabled {
+                Button("Reset demo data") {
+                    // Re-seed by dropping back to real and re-entering demo.
+                    prefs.demoModeEnabled = false
+                    DispatchQueue.main.async { prefs.demoModeEnabled = true }
+                }
+            }
+        } header: {
+            Text("Demo mode")
+        } footer: {
+            Text("Shows sample data so you can explore the app. Your real entries are hidden and untouched, and nothing syncs while demo mode is on.")
         }
     }
 

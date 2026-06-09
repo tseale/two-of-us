@@ -219,6 +219,8 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     enum SyncError: Error { case iCloudUnavailable }
 
     func makeShare() async throws -> CKShare {
+        // Demo mode runs against a throwaway store; never touch the real iCloud zone.
+        guard !LocalPrefs.shared.demoModeEnabled else { throw SyncError.iCloudUnavailable }
         guard cloudAvailable else { throw SyncError.iCloudUnavailable }
         LocalPrefs.shared.syncRole = .owner
         startPrivateEngine()
@@ -239,6 +241,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
 
     /// Owner stops sharing: deletes the share (co-parent loses access).
     func stopSharing() async {
+        guard !LocalPrefs.shared.demoModeEnabled else { return }
         let db = SyncConstants.container.privateCloudDatabase
         let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: privateZoneID)
         _ = try? await db.modifyRecords(saving: [], deleting: [shareID])
@@ -251,6 +254,9 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     /// back to removing the sole non-owner participant. Marks the local record
     /// inactive (its past logs still render via denormalized identity) and syncs.
     func removeParticipant(_ participant: Participant) async {
+        // In demo the participant belongs to the in-memory store and there's no real
+        // share to mutate — leave the seeded People list intact.
+        guard !LocalPrefs.shared.demoModeEnabled else { return }
         if cloudAvailable {
             let db = SyncConstants.container.privateCloudDatabase
             let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: privateZoneID)
@@ -276,6 +282,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     /// copy. Either way the local store is cleared, sync state dropped, and
     /// `LocalPrefs` reset — `RootView` then returns to onboarding.
     func deleteEverything() async {
+        guard !LocalPrefs.shared.demoModeEnabled else { return }
         if cloudAvailable, LocalPrefs.shared.syncRole != .participant {
             let db = SyncConstants.container.privateCloudDatabase
             _ = try? await db.modifyRecordZones(saving: [], deleting: [privateZoneID])
@@ -313,6 +320,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     /// Participant leaves the share: stops the shared engine and reverts to solo.
     /// Local copies of the owner's data remain on-device but stop updating.
     func leaveShare() {
+        guard !LocalPrefs.shared.demoModeEnabled else { return }
         sharedEngine = nil
         sharedZoneID = nil
         try? FileManager.default.removeItem(at: stateURL(.shared))

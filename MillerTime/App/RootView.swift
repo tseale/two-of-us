@@ -24,6 +24,23 @@ struct RootView: View {
         }
         .tint(AppColor.accentFeed)
         .preferredColorScheme(prefs.appearance.colorScheme)
+        .overlay(alignment: .top) {
+            if prefs.demoModeEnabled { demoBanner }
+        }
+    }
+
+    /// Slim pill marking the demo world; tap to exit back to real data.
+    private var demoBanner: some View {
+        Button { prefs.demoModeEnabled = false } label: {
+            Label("DEMO — tap to exit", systemImage: "theatermasks.fill")
+                .font(.caption2.weight(.semibold))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .background(.thinMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(AppColor.accentFeed.opacity(0.5)))
+        }
+        .tint(AppColor.accentFeed)
+        .padding(.top, 4)
     }
 }
 

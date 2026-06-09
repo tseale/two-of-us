@@ -46,6 +46,14 @@ final class LocalPrefs {
         static let appearance = "ui.appearance"
         static let myParticipantID = "sync.myParticipantID"
         static let syncRole = "sync.role"
+        static let demoMode = "demo.enabled"
+    }
+
+    /// When on, the app runs against a throwaway in-memory store seeded with
+    /// sample data (see `DemoData`). Device-local and never synced — the real
+    /// store and the co-parent's data are untouched while demo mode is active.
+    var demoModeEnabled: Bool {
+        didSet { defaults.set(demoModeEnabled, forKey: Key.demoMode) }
     }
 
     var appearance: Appearance {
@@ -84,5 +92,6 @@ final class LocalPrefs {
         appearance = Appearance(rawValue: defaults.string(forKey: Key.appearance) ?? "") ?? .system
         myParticipantID = (AppGroup.userDefaults?.string(forKey: Key.myParticipantID)).flatMap(UUID.init)
         syncRole = SyncRole(rawValue: defaults.string(forKey: Key.syncRole) ?? "") ?? .solo
+        demoModeEnabled = defaults.object(forKey: Key.demoMode) as? Bool ?? false
     }
 }
