@@ -1,10 +1,33 @@
-import Foundation
+import SwiftUI
 
 /// This device's role in CloudKit sharing.
 enum SyncRole: String {
     case solo        // single account, no co-parent yet (owns its data)
     case owner       // created the baby and shared it with a co-parent
     case participant // accepted a co-parent's share
+}
+
+/// Light/dark appearance preference. `.system` follows iOS settings.
+enum Appearance: String, CaseIterable, Identifiable {
+    case system, light, dark
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
+
+    /// nil means "don't override" — let the system decide.
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
+    }
 }
 
 /// Per-user, device-local preferences. These never sync (they're device identity
@@ -20,8 +43,13 @@ final class LocalPrefs {
         static let notifySleep = "notify.sleep"
         static let notifyDiaper = "notify.diaper"
         static let feedReminder = "notify.feedReminder"
+        static let appearance = "ui.appearance"
         static let myParticipantID = "sync.myParticipantID"
         static let syncRole = "sync.role"
+    }
+
+    var appearance: Appearance {
+        didSet { defaults.set(appearance.rawValue, forKey: Key.appearance) }
     }
 
     /// The local user's own Participant id — used to stamp logger identity and to
@@ -53,6 +81,7 @@ final class LocalPrefs {
         notifySleep = defaults.object(forKey: Key.notifySleep) as? Bool ?? false
         notifyDiaper = defaults.object(forKey: Key.notifyDiaper) as? Bool ?? false
         feedReminderEnabled = defaults.object(forKey: Key.feedReminder) as? Bool ?? true
+        appearance = Appearance(rawValue: defaults.string(forKey: Key.appearance) ?? "") ?? .system
         myParticipantID = (AppGroup.userDefaults?.string(forKey: Key.myParticipantID)).flatMap(UUID.init)
         syncRole = SyncRole(rawValue: defaults.string(forKey: Key.syncRole) ?? "") ?? .solo
     }
