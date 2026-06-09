@@ -2,7 +2,8 @@ import SwiftUI
 import SwiftData
 import CloudKit
 
-/// Settings shell. Shared settings (Full role) + per-user prefs + co-parent sharing.
+/// Settings shell. Shared settings (Full role) + per-user prefs + co-parent
+/// sharing + a "Manage data" link for export/clear/delete.
 struct SettingsView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -14,26 +15,51 @@ struct SettingsView: View {
     @State private var showShareSheet = false
     @State private var preparingShare = false
 
+    // Editing drafts (committed through the sync-aware EventStore helpers).
+    @State private var babyNameDraft = ""
+    @State private var myNameDraft = ""
+    @State private var myColorDraft = ParticipantColors.palette[0]
+
     private var baby: Baby? { babies.first }
     private var settings: SharedSettings? { settingsList.first }
+    private var store: EventStore { EventStore(context: context) }
+
+    /// This device's app role. Loggers can't change shared baby/feeding settings.
+    private var myRole: ParticipantRole {
+        participants.first { $0.id == prefs.myParticipantID }?.role ?? .full
+    }
+    private var canEditShared: Bool { myRole == .full }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Baby") {
                     if let baby {
-                        LabeledContent("Name", value: baby.name)
-                        DatePicker("Date of birth",
-                                   selection: Binding(get: { baby.dateOfBirth },
-                                                      set: { baby.dateOfBirth = $0; try? context.save() }),
-                                   in: ...Date(), displayedComponents: .date)
+                        if canEditShared {
+                            TextField("Name", text: $babyNameDraft)
+                                .onSubmit { commitBaby() }
+                            DatePicker("Date of birth",
+                                       selection: Binding(get: { baby.dateOfBirth },
+                                                          set: { store.updateBaby(name: resolvedBabyName(), dateOfBirth: $0) }),
+                                       in: ...Date(), displayedComponents: .date)
+                        } else {
+                            LabeledContent("Name", value: baby.name)
+                            LabeledContent("Date of birth", value: baby.dateOfBirth.formatted(date: .abbreviated, time: .omitted))
+                        }
                     }
                 }
 
-                if let settings {
+                Section("You") {
+                    TextField("Your name", text: $myNameDraft)
+                        .onSubmit { commitMyProfile() }
+                    ParticipantColorPicker(selection: $myColorDraft)
+                        .onChange(of: myColorDraft) { _, _ in commitMyProfile() }
+                }
+
+                if let settings, canEditShared {
                     Section("Feeding") {
                         Stepper(value: Binding(get: { settings.targetFeedIntervalMinutes },
-                                               set: { settings.targetFeedIntervalMinutes = $0; try? context.save() }),
+                                               set: { store.updateSettings(targetFeedIntervalMinutes: $0) }),
                                 in: 60...360, step: 15) {
                             Text("Target interval: \(settings.targetFeedIntervalMinutes / 60)h \(settings.targetFeedIntervalMinutes % 60)m")
                         }
@@ -68,6 +94,15 @@ struct SettingsView: View {
                     Toggle("Diapers", isOn: $prefs.notifyDiaper)
                 }
                 .disabled(true)
+
+                Section {
+                    NavigationLink {
+                        ManageDataView()
+                    } label: {
+                        Label("Manage data", systemImage: "externaldrive")
+                    }
+                }
+
                 footerNote
             }
             .navigationTitle("Settings")
@@ -77,19 +112,14 @@ struct SettingsView: View {
             .sheet(isPresented: $showShareSheet) {
                 if let share { CloudShareView(share: share) }
             }
+            .onAppear(perform: loadDrafts)
         }
     }
 
     @ViewBuilder private var coParentSection: some View {
-        Section("Co-parent") {
+        Section("People") {
             ForEach(participants.filter { $0.isActive }) { p in
-                HStack {
-                    Circle().fill(Color(hex: p.colorHex)).frame(width: 14, height: 14)
-                    Text(p.displayName.isEmpty ? "—" : p.displayName)
-                    if p.id == prefs.myParticipantID {
-                        Text("(you)").foregroundStyle(AppColor.text3)
-                    }
-                }
+                participantRow(p)
             }
 
             if prefs.syncRole == .participant {
@@ -105,8 +135,7 @@ struct SettingsView: View {
                         if share != nil { showShareSheet = true }
                     }
                 } label: {
-                    Label(prefs.syncRole == .owner ? "Manage co-parent" : "Invite co-parent",
-                          systemImage: "person.badge.plus")
+                    Label("Invite someone", systemImage: "person.badge.plus")
                 }
                 .disabled(preparingShare)
 
@@ -119,12 +148,72 @@ struct SettingsView: View {
         }
     }
 
+    /// One co-parent row. The owner can change another participant's role and
+    /// remove them individually (swipe) without ending sharing for everyone.
+    @ViewBuilder private func participantRow(_ p: Participant) -> some View {
+        let isMe = p.id == prefs.myParticipantID
+        let canManage = prefs.syncRole == .owner && !isMe
+
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Circle().fill(Color(hex: p.colorHex)).frame(width: 14, height: 14)
+                Text(p.displayName.isEmpty ? "—" : p.displayName)
+                if isMe {
+                    Text("(you)").foregroundStyle(AppColor.text3)
+                } else {
+                    Text("— \(p.role.displayName)").foregroundStyle(AppColor.text3)
+                }
+            }
+            if canManage {
+                Picker("Access", selection: Binding(get: { p.role },
+                                                    set: { store.setRole(p, $0) })) {
+                    Text(ParticipantRole.full.displayName).tag(ParticipantRole.full)
+                    Text(ParticipantRole.logger.displayName).tag(ParticipantRole.logger)
+                }
+                .pickerStyle(.segmented)
+            }
+        }
+        .swipeActions {
+            if canManage {
+                Button("Remove", role: .destructive) {
+                    Task { await SyncManager.shared?.removeParticipant(p) }
+                }
+            }
+        }
+    }
+
     private var footerNote: some View {
         Section {
-            Text("Invite the other parent to share Miller's log in real time. Per-event push delivery arrives in an upcoming update.")
+            Text("People you invite join as guests and can log entries in real time. To give the other parent full access, tap their name and choose Co-parent. Per-event push delivery arrives in an upcoming update.")
                 .font(.footnote)
                 .foregroundStyle(AppColor.text3)
         }
+    }
+
+    // MARK: Draft commit
+
+    private func loadDrafts() {
+        babyNameDraft = baby?.name ?? ""
+        if let me = store.owner {
+            myNameDraft = me.displayName
+            myColorDraft = me.colorHex.isEmpty ? ParticipantColors.palette[0] : me.colorHex
+        }
+    }
+
+    private func resolvedBabyName() -> String {
+        let trimmed = babyNameDraft.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? (baby?.name ?? "") : trimmed
+    }
+
+    private func commitBaby() {
+        guard let baby else { return }
+        store.updateBaby(name: resolvedBabyName(), dateOfBirth: baby.dateOfBirth)
+    }
+
+    private func commitMyProfile() {
+        let name = myNameDraft.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        store.updateMyProfile(name: name, colorHex: myColorDraft)
     }
 
     /// Arms or clears this device's AlarmKit feed reminder when the toggle flips.

@@ -17,13 +17,13 @@ struct JoinProfileView: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("You've joined \(babies.first?.name ?? "the baby")'s log. Set up your profile so what you log shows as yours.")
+                    Text("You've joined \(babies.first?.name ?? "the baby")'s log as a guest. Set up your profile so what you log shows as yours — a parent can give you full access if needed.")
                         .font(.footnote)
                         .foregroundStyle(AppColor.text3)
                 }
                 Section("You") {
                     TextField("Your name", text: $name)
-                    colorPicker
+                    ParticipantColorPicker(selection: $colorHex)
                 }
             }
             .navigationTitle("Welcome")
@@ -35,24 +35,11 @@ struct JoinProfileView: View {
         }
     }
 
-    private var colorPicker: some View {
-        HStack(spacing: 12) {
-            Text("Your color")
-            Spacer()
-            ForEach(ParticipantColors.palette, id: \.self) { hex in
-                Circle()
-                    .fill(Color(hex: hex))
-                    .frame(width: 28, height: 28)
-                    .overlay(Circle().stroke(AppColor.text, lineWidth: colorHex == hex ? 2 : 0))
-                    .onTapGesture { colorHex = hex }
-                    .accessibilityLabel("Color \(hex)")
-            }
-        }
-    }
-
     private func finish() {
+        // New joiners start as guests (least privilege); the owner can promote
+        // the other parent to co-parent from Settings → People.
         let me = Participant(displayName: name.trimmingCharacters(in: .whitespaces),
-                             colorHex: colorHex, role: .full)
+                             colorHex: colorHex, role: .logger)
         context.insert(me)
         try? context.save()
         LocalPrefs.shared.myParticipantID = me.id

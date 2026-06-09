@@ -30,6 +30,14 @@ enum DiaperType: String, Codable, CaseIterable, Identifiable {
 enum ParticipantRole: String, Codable {
     case full      // co-parent: log, edit, delete, change settings
     case logger    // caregiver: log + edit events, no settings/baby changes
+
+    /// User-facing label. Raw values stay "full"/"logger" for sync compatibility.
+    var displayName: String {
+        switch self {
+        case .full: return "Co-parent"
+        case .logger: return "Guest"
+        }
+    }
 }
 
 /// The three loggable event categories (used for "time since" lookups).

@@ -25,7 +25,7 @@ struct OnboardingView: View {
 
                 Section("You") {
                     TextField("Your name", text: $ownerName)
-                    colorPicker
+                    ParticipantColorPicker(selection: $ownerColorHex)
                 }
             }
             .navigationTitle("Welcome")
@@ -34,23 +34,6 @@ struct OnboardingView: View {
                     Button("Start") { finish() }
                         .disabled(!canContinue)
                 }
-            }
-        }
-    }
-
-    private var colorPicker: some View {
-        HStack(spacing: 12) {
-            Text("Your color")
-            Spacer()
-            ForEach(ParticipantColors.palette, id: \.self) { hex in
-                Circle()
-                    .fill(Color(hex: hex))
-                    .frame(width: 28, height: 28)
-                    .overlay(
-                        Circle().stroke(AppColor.text, lineWidth: ownerColorHex == hex ? 2 : 0)
-                    )
-                    .onTapGesture { ownerColorHex = hex }
-                    .accessibilityLabel("Color \(hex)")
             }
         }
     }
