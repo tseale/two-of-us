@@ -40,6 +40,15 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("Appearance") {
+                    Picker("Theme", selection: $prefs.appearance) {
+                        ForEach(Appearance.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
                 coParentSection
 
                 Section {

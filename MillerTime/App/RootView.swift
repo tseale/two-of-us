@@ -23,6 +23,7 @@ struct RootView: View {
             }
         }
         .tint(AppColor.accentFeed)
+        .preferredColorScheme(prefs.appearance.colorScheme)
     }
 }
 
