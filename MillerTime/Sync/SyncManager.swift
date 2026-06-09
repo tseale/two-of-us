@@ -245,6 +245,69 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         LocalPrefs.shared.syncRole = .solo
     }
 
+    /// Owner removes a single co-parent from the share — the others keep access
+    /// (unlike `stopSharing`, which removes everyone). Matches the CKShare
+    /// participant by `cloudUserID` when known; with only one co-parent it falls
+    /// back to removing the sole non-owner participant. Marks the local record
+    /// inactive (its past logs still render via denormalized identity) and syncs.
+    func removeParticipant(_ participant: Participant) async {
+        if cloudAvailable {
+            let db = SyncConstants.container.privateCloudDatabase
+            let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: privateZoneID)
+            if let share = try? await db.record(for: shareID) as? CKShare {
+                let removable = share.participants.filter { $0.role != .owner }
+                let target = removable.first { $0.userIdentity.userRecordID?.recordName == participant.cloudUserID }
+                    ?? (removable.count == 1 ? removable.first : nil)
+                if let target {
+                    share.removeParticipant(target)
+                    _ = try? await db.modifyRecords(saving: [share], deleting: [])
+                }
+            }
+        }
+        participant.isActive = false
+        try? context.save()
+        enqueueSave([participant.id])
+    }
+
+    /// Permanently deletes ALL data and resets this device to a fresh solo install.
+    /// Owner/solo: deletes the private zone (server-side cascade removes every
+    /// record and the zone-wide share, so the co-parent loses the data too).
+    /// Participant: can't delete the owner's zone, so this just wipes the local
+    /// copy. Either way the local store is cleared, sync state dropped, and
+    /// `LocalPrefs` reset — `RootView` then returns to onboarding.
+    func deleteEverything() async {
+        if cloudAvailable, LocalPrefs.shared.syncRole != .participant {
+            let db = SyncConstants.container.privateCloudDatabase
+            _ = try? await db.modifyRecordZones(saving: [], deleting: [privateZoneID])
+        }
+        // Stop engines and drop persisted sync state so a fresh start re-bootstraps.
+        privateEngine = nil
+        sharedEngine = nil
+        sharedZoneID = nil
+        try? FileManager.default.removeItem(at: stateURL(.private))
+        try? FileManager.default.removeItem(at: stateURL(.shared))
+        UserDefaults.standard.removeObject(forKey: "sync.bootstrap.private")
+        UserDefaults.standard.removeObject(forKey: "sync.bootstrap.shared")
+
+        wipeLocalModels()
+
+        LocalPrefs.shared.syncRole = .solo
+        LocalPrefs.shared.myParticipantID = nil
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    /// Hard-deletes every local model (events cascade from Baby, but we clear all
+    /// types explicitly to also drop participants and settings).
+    private func wipeLocalModels() {
+        try? context.delete(model: FeedEvent.self)
+        try? context.delete(model: SleepEvent.self)
+        try? context.delete(model: DiaperEvent.self)
+        try? context.delete(model: Participant.self)
+        try? context.delete(model: SharedSettings.self)
+        try? context.delete(model: Baby.self)
+        try? context.save()
+    }
+
     // MARK: Sharing (participant)
 
     /// Participant leaves the share: stops the shared engine and reverts to solo.

@@ -185,6 +185,89 @@ struct EventStore {
         reloadWidgets()
     }
 
+    /// Soft-deletes every live event (keeps baby, participants, settings). Used by
+    /// "Clear all logs" — travels to the co-parent as ordinary `deletedAt` updates.
+    func clearAllLogs() {
+        var ids: [UUID] = []
+        func purge<T: PersistentModel & SoftDeletable>(_ type: T.Type) {
+            let all = (try? context.fetch(FetchDescriptor<T>())) ?? []
+            for e in all where e.deletedAt == nil {
+                e.deletedAt = .now
+                ids.append(e.id)
+            }
+        }
+        purge(FeedEvent.self)
+        purge(SleepEvent.self)
+        purge(DiaperEvent.self)
+        SleepActivityManager.end()   // tear down any running sleep Live Activity
+        save()
+        sync(save: ids)
+        reloadWidgets()
+    }
+
+    // MARK: Profile / baby / settings edits
+    //
+    // All sync-aware: each routes the change through `sync(...)` so it reaches the
+    // co-parent. (Earlier inline edits in SettingsView called `context.save()`
+    // only, so baby DOB / target-interval changes never propagated.)
+
+    /// Updates the shared Baby record (name + date of birth) and syncs it.
+    func updateBaby(name: String, dateOfBirth: Date) {
+        guard let baby else { return }
+        baby.name = name
+        baby.dateOfBirth = dateOfBirth
+        save()
+        sync(save: [baby.id])
+        reloadWidgets()
+    }
+
+    /// Updates the shared feeding target and syncs it.
+    func updateSettings(targetFeedIntervalMinutes: Int) {
+        guard let settings else { return }
+        settings.targetFeedIntervalMinutes = targetFeedIntervalMinutes
+        save()
+        sync(save: [settings.id])
+    }
+
+    /// Updates the local user's own name + color and **backfills** that identity
+    /// onto every event they logged, so past timeline rows relabel too. Syncs the
+    /// participant plus all rewritten events.
+    func updateMyProfile(name: String, colorHex: String) {
+        guard let me = owner else { return }
+        me.displayName = name
+        me.colorHex = colorHex
+        var changed = [me.id]
+        changed += backfillIdentity(loggerID: me.id, name: name, colorHex: colorHex)
+        save()
+        sync(save: changed)
+        reloadWidgets()
+    }
+
+    /// Rewrites denormalized logger identity on every event logged by `loggerID`.
+    /// Returns the ids of the events it changed.
+    private func backfillIdentity(loggerID: UUID, name: String, colorHex: String) -> [UUID] {
+        var ids: [UUID] = []
+        func rewrite<T: PersistentModel & AnyEventModel & HasSyncID>(_ type: T.Type) {
+            let all = (try? context.fetch(FetchDescriptor<T>())) ?? []
+            for e in all where e.loggedByID == loggerID {
+                e.loggedByName = name
+                e.loggedByColorHex = colorHex
+                ids.append(e.id)
+            }
+        }
+        rewrite(FeedEvent.self)
+        rewrite(SleepEvent.self)
+        rewrite(DiaperEvent.self)
+        return ids
+    }
+
+    /// Owner sets a co-parent's app role (full vs logger) and syncs it.
+    func setRole(_ participant: Participant, _ role: ParticipantRole) {
+        participant.role = role
+        save()
+        sync(save: [participant.id])
+    }
+
     // MARK: Time-since
 
     func lastEventDate(of kind: EventKind) -> Date? {
