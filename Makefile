@@ -6,8 +6,15 @@ SCHEME      := MillerTime
 SIMULATOR   := iPhone 17
 DESTINATION := platform=iOS Simulator,name=$(SIMULATOR)
 PROJECT     := MillerTime.xcodeproj
+BUNDLE_ID   := com.taylorseale.millertime
 
-.PHONY: help project build clean hooks ensure-hooks bootstrap
+# This repo lives under ~/Documents, which is iCloud Drive-synced. The File
+# Provider attaches com.apple.FinderInfo / com.apple.provenance xattrs to build
+# products, and codesign rejects them ("resource fork ... detritus not allowed").
+# Keeping DerivedData OUTSIDE the synced folder avoids that entirely.
+DERIVED_DATA := $(HOME)/Library/Developer/Xcode/DerivedData/MillerTime-local
+
+.PHONY: help project build run clean hooks ensure-hooks bootstrap
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -26,10 +33,18 @@ project: ensure-hooks ## Regenerate MillerTime.xcodeproj from project.yml (and e
 	xcodegen generate
 
 build: project ## Regenerate, then build for the simulator
-	xcodebuild build -project $(PROJECT) -scheme $(SCHEME) -destination '$(DESTINATION)'
+	xcodebuild build -project $(PROJECT) -scheme $(SCHEME) \
+		-destination '$(DESTINATION)' -derivedDataPath '$(DERIVED_DATA)'
+
+run: build ## Build, then install and launch on the simulator
+	xcrun simctl boot '$(SIMULATOR)' 2>/dev/null || true
+	open -a Simulator
+	xcrun simctl install '$(SIMULATOR)' \
+		'$(DERIVED_DATA)/Build/Products/Debug-iphonesimulator/MillerTime.app'
+	xcrun simctl launch '$(SIMULATOR)' '$(BUNDLE_ID)'
 
 clean: ## Remove the generated project and Xcode's build output
-	rm -rf $(PROJECT) build DerivedData
+	rm -rf $(PROJECT) build DerivedData '$(DERIVED_DATA)'
 
 hooks: ## Point git at the tracked .githooks/ directory (run once per clone)
 	git config core.hooksPath .githooks
