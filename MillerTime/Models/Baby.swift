@@ -10,6 +10,12 @@ final class Baby {
     var dateOfBirth: Date = Date()
     var createdAt: Date = Date()
 
+    /// Optional avatar, stored as a downscaled JPEG (~512px, see `ImageDownscale`)
+    /// and synced to the co-parent as a CKAsset. Stored inline — small (~50KB) and
+    /// inline keeps it compatible with SwiftData's CloudKit-mirroring container,
+    /// which does not support external-storage attributes.
+    var photoData: Data?
+
     // Inverse relationships — required for CloudKit (NSPersistentCloudKitContainer
     // mandates that every relationship has an inverse). Optional arrays to satisfy
     // CloudKit's all-optional rule.
