@@ -37,11 +37,18 @@ build: project ## Regenerate, then build for the simulator
 		-destination '$(DESTINATION)' -derivedDataPath '$(DERIVED_DATA)'
 
 run: build ## Build, then install and launch on the simulator
-	xcrun simctl boot '$(SIMULATOR)' 2>/dev/null || true
+	# Shut every simulator down first, then boot ONLY the target. With more than
+	# one device booted, Simulator may foreground a different one than we install
+	# to — so a fresh build lands on an off-screen device and "nothing changed".
+	# Booting exactly one device guarantees the window you see is the one we use.
+	xcrun simctl shutdown all 2>/dev/null || true
+	xcrun simctl boot '$(SIMULATOR)'
 	open -a Simulator
 	xcrun simctl install '$(SIMULATOR)' \
 		'$(DERIVED_DATA)/Build/Products/Debug-iphonesimulator/MillerTime.app'
-	xcrun simctl launch '$(SIMULATOR)' '$(BUNDLE_ID)'
+	# --terminate-running-process so a relaunch always loads the binary we just
+	# installed, not the copy already running from a previous build.
+	xcrun simctl launch --terminate-running-process '$(SIMULATOR)' '$(BUNDLE_ID)'
 
 clean: ## Remove the generated project and Xcode's build output
 	rm -rf $(PROJECT) build DerivedData '$(DERIVED_DATA)'
