@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs after `git rebase` / `git commit --amend`. Regenerating is cheap and
+# idempotent, so just resync rather than trying to diff across rewritten history.
+exec "$(dirname "$0")/regenerate-project.sh"
