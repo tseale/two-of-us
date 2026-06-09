@@ -7,13 +7,22 @@ SIMULATOR   := iPhone 17
 DESTINATION := platform=iOS Simulator,name=$(SIMULATOR)
 PROJECT     := MillerTime.xcodeproj
 
-.PHONY: help project build clean hooks bootstrap
+.PHONY: help project build clean hooks ensure-hooks bootstrap
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
-project: ## Regenerate MillerTime.xcodeproj from project.yml
+# Quietly enable the tracked hooks if they aren't already. Depended on by
+# `project`, so the unavoidable first `make project` on any clone also wires
+# up auto-regeneration — no separate bootstrap step to remember.
+ensure-hooks:
+	@[ "$$(git config --get core.hooksPath)" = ".githooks" ] || { \
+		git config core.hooksPath .githooks; \
+		echo "✅ git hooks enabled — project.yml changes now auto-regenerate the .xcodeproj."; \
+	}
+
+project: ensure-hooks ## Regenerate MillerTime.xcodeproj from project.yml (and enable hooks)
 	xcodegen generate
 
 build: project ## Regenerate, then build for the simulator
