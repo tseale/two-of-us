@@ -35,7 +35,18 @@ Colors are defined as **semantic tokens** that resolve differently in light vs d
 Thresholds derive from `SharedSettings.targetFeedInterval` for feed; sleep and diaper use sensible per-category defaults. Urgency is conveyed by **both color and the value position** (never color alone — see Accessibility).
 
 ### Typography
-System font (SF Pro), Dynamic Type throughout. Scale: Large Title 26–30 (baby name), Title 20–22 (sheet headers, timers use tabular numerals), Body 15–17, Caption 11–13 (labels, "since" text). Timers and amounts use `.monospacedDigit()` so they don't jitter.
+Two type families, by role (helpers in `DesignSystem/Typography.swift`):
+- **Glance numerals → SF Rounded.** Anything you read in ~1.5s at 3am — a timer, a "time since", a record, a lifetime total — uses `AppFont.display(_:)` (rounded + `.monospacedDigit()`). Rounded reads as warm and human ("calm, not clinical"); mono keeps ticking values from jittering. The baby-name hero uses `AppFont.hero()` (also rounded). Tile titles use `.rounded` too.
+- **Everything else → SF Pro**, Dynamic Type throughout. Body 15–17, Caption 11–13.
+- **Eyebrow labels** are uppercase, tracked, `text2`/`text3` — apply with `.sectionLabelStyle()`. They sit *above* a display value and recede behind it.
+
+`MetricStack` is the reusable "eyebrow + big value + caption" glance unit. Everything scales with Dynamic Type (test at XXL — display values carry `.minimumScaleFactor`).
+
+### Surfaces & depth (hierarchy through glass)
+Liquid Glass signals *elevation and interactivity*, not decoration. Reserve it for the floating/tappable layer:
+- **Glass** (`glassTile`/`glassCard`, `glassEffect`): the log tiles, the active-sleep card, the tab bar.
+- **Solid surface** (`surfaceCard()` — `card` fill + hairline): calm content you read but don't tap — status pills, data cards, timeline. This keeps the glass elements visually on top.
+Don't stack glass on glass. The Stats "record" hero keeps its indigo gradient as the one intentional delight surface.
 
 ### Spacing & shape
 8-pt rhythm. Corner radii: cards/sheets 16–26, big tap targets 20, pills 16. Generous padding around tap targets — minimum 44×44pt hit area, the primary log buttons are far larger.
@@ -58,7 +69,8 @@ Every screen specifies its **empty**, **loading**, and **error** states — not 
 
 ### 1. Home
 - **Header**: baby name + age ("12 weeks old"), settings gear.
-- **Status row**: time-since pills (feed / sleep / diaper) with urgency color. When a sleep timer is active, the sleep pill is replaced by the live timer card and the row shows the remaining two.
+- **Day arc (signature centerpiece)**: today drawn as a sunrise-to-night dome (`DayArcView`). A faint full-day track; a dawn→day gradient fills the elapsed portion, led by a glowing "now" orb that is **warm amber by day, cool periwinkle at night**. Feeds/diapers ride the arc as marks; sleep stretches render as soft periwinkle bands. Below it: the day's three glance numbers (feeds / sleep / changes) and a part-of-day greeting.
+- **Status row**: time-since pills (feed / sleep / diaper) with urgency color, on calm solid surfaces. When a sleep timer is active, the sleep pill is replaced by the live timer card and the row shows the remaining two.
 - **Actions**: Feed and Sleep as large side-by-side targets; Diaper full-width below. When sleep is active, the Sleep target becomes a running timer card with a "Wake up" action.
 - **Timeline**: rolling recent window (~last 12–24h), continuous — *not* a "Today" list that resets at midnight. Each row: type icon, detail (3 oz / 1h 22m / Wet), local time, participant initial. Tap a row → edit. Swipe → delete (confirm).
 - **Empty**: "No events yet — tap 🍼 to log Miller's first feed."
@@ -95,7 +107,7 @@ If not signed into iCloud: a full-screen explainer ("Sign into iCloud to sync wi
 ## Glanceable surfaces
 
 ### Sleep Live Activity (lock screen + Dynamic Island)
-Shown only while a sleep timer runs (feeds are instantaneous — no feed activity). Lock screen: "Miller is sleeping · since 9:17 AM · 23:47". Dynamic Island compact: `💤 23:47`; expanded adds a "Wake up" action. Uses ActivityKit's native timer text so it counts without app wake-ups.
+Shown only while a sleep timer runs (feeds are instantaneous — no feed activity). A calm night scene: a haloed moon, an uppercase eyebrow, and a large rounded timer over the brand indigo gradient (the same one as the Stats record hero), so the in-app and lock-screen sleep surfaces share one visual language. Dynamic Island compact: `💤 23:47`; expanded adds a "Wake up" action. Uses ActivityKit's native timer text so it counts without app wake-ups (no continuous animation — ActivityKit doesn't support it).
 
 ### Widgets (home + lock screen)
 - **Lock-screen accessory / small**: "🍼 2h 40m since feed".

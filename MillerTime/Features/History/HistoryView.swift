@@ -68,19 +68,34 @@ struct HistoryView: View {
                 emptyState("No completed sleeps yet")
             } else {
                 Chart(summaries) { s in
+                    let hours = s.longestStretch / 3600
+                    AreaMark(
+                        x: .value("Day", s.day, unit: .day),
+                        y: .value("Hours", hours)
+                    )
+                    .foregroundStyle(.linearGradient(
+                        colors: [AppColor.accentSleep.opacity(0.35), AppColor.accentSleep.opacity(0.02)],
+                        startPoint: .top, endPoint: .bottom
+                    ))
+                    .interpolationMethod(.catmullRom)
+
                     LineMark(
                         x: .value("Day", s.day, unit: .day),
-                        y: .value("Hours", s.longestStretch / 3600)
+                        y: .value("Hours", hours)
                     )
                     .foregroundStyle(AppColor.accentSleep)
+                    .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
                     .interpolationMethod(.catmullRom)
+
                     PointMark(
                         x: .value("Day", s.day, unit: .day),
-                        y: .value("Hours", s.longestStretch / 3600)
+                        y: .value("Hours", hours)
                     )
                     .foregroundStyle(AppColor.accentSleep)
+                    .symbolSize(28)
                 }
                 .chartXAxis { weekdayAxis() }
+                .chartYAxis { softYAxis(unit: "h") }
                 .frame(height: 120)
             }
         }
@@ -99,12 +114,23 @@ struct HistoryView: View {
                 Chart(summaries) { s in
                     BarMark(
                         x: .value("Day", s.day, unit: .day),
-                        y: .value("Ounces", s.feedOz)
+                        y: .value("Ounces", s.feedOz),
+                        width: .ratio(0.58)
                     )
-                    .foregroundStyle(AppColor.accentFeed)
-                    .cornerRadius(4)
+                    .foregroundStyle(.linearGradient(
+                        colors: [AppColor.accentFeed, AppColor.accentFeed.opacity(0.45)],
+                        startPoint: .top, endPoint: .bottom
+                    ))
+                    .cornerRadius(6)
+
+                    if avg > 0 {
+                        RuleMark(y: .value("Average", avg))
+                            .foregroundStyle(AppColor.text3.opacity(0.6))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    }
                 }
                 .chartXAxis { weekdayAxis() }
+                .chartYAxis { softYAxis(unit: "oz") }
                 .frame(height: 120)
             }
         }
@@ -113,9 +139,25 @@ struct HistoryView: View {
     // MARK: Helpers
 
     private func weekdayAxis() -> some AxisContent {
-        AxisMarks(values: .stride(by: .day)) { value in
+        AxisMarks(values: .stride(by: .day)) { _ in
+            AxisGridLine().foregroundStyle(AppColor.separator.opacity(0.35))
             AxisValueLabel(format: .dateTime.weekday(.narrow))
-            AxisGridLine()
+                .font(.caption2)
+                .foregroundStyle(AppColor.text3)
+        }
+    }
+
+    /// A quiet y-axis: a few soft gridlines with compact, unit-suffixed labels.
+    private func softYAxis(unit: String) -> some AxisContent {
+        AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
+            AxisGridLine().foregroundStyle(AppColor.separator.opacity(0.3))
+            AxisValueLabel {
+                if let n = value.as(Double.self) {
+                    Text("\(Int(n))\(unit)")
+                        .font(.caption2)
+                        .foregroundStyle(AppColor.text3)
+                }
+            }
         }
     }
 
@@ -159,8 +201,7 @@ struct Card<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppColor.text2)
+                    .sectionLabelStyle()
                 Spacer()
                 if let trailing {
                     Text(trailing)
@@ -172,7 +213,7 @@ struct Card<Content: View>: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard(cornerRadius: 18)
+        .surfaceCard(cornerRadius: 18)
     }
 }
 

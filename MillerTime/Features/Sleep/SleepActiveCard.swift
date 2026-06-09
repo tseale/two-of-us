@@ -14,13 +14,13 @@ struct SleepActiveCard: View {
     var body: some View {
         VStack(spacing: 6) {
             Text("💤").font(.system(size: 34))
-            Text("Miller is sleeping")
-                .font(.subheadline)
-                .foregroundStyle(AppColor.text2)
+            Text("MILLER IS SLEEPING")
+                .sectionLabelStyle(color: AppColor.accentSleep)
             Text(elapsed)
-                .font(.system(size: 40, weight: .bold))
-                .monospacedDigit()
+                .font(AppFont.display(48, weight: .heavy))
                 .foregroundStyle(AppColor.text)
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
             Text("since \(TimeFormatting.clock(sleep.startedAt))")
                 .font(.caption)
                 .foregroundStyle(AppColor.text3)

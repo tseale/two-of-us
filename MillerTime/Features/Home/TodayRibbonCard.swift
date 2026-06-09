@@ -1,7 +1,9 @@
 import SwiftUI
 
-/// The "today so far" glance card on the Home tab: a 24h ribbon of when events
-/// happened, plus a one-line tally. Deep multi-day charts live in the History tab.
+/// The Home centerpiece: today rendered as a sunrise-to-night **arc** (see
+/// `DayArcView`), with the day's three glance numbers beneath it. This is the
+/// app's signature surface — the thing you see. Deep multi-day charts live in
+/// the History tab.
 struct TodayRibbonCard: View {
     let marks: [RibbonMark]
     let feedCount: Int
@@ -9,30 +11,49 @@ struct TodayRibbonCard: View {
     let diaperCount: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Today so far")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppColor.text2)
+                Text("TODAY").sectionLabelStyle()
                 Spacer()
-                Text("🍼 \(feedCount)  ·  💤 \(sleepSummary)  ·  💩 \(diaperCount)")
+                Text(timeOfDayWord)
                     .font(.caption)
                     .foregroundStyle(AppColor.text3)
             }
 
-            DayRibbonView(marks: marks, style: .color)
-                .frame(height: 34)
+            DayArcView(marks: marks)
+                .frame(height: 132)
 
-            HStack(spacing: 16) {
-                legend(color: AppColor.accentFeed, label: "feed", isBar: false)
-                legend(color: AppColor.accentDiaper, label: "diaper", isBar: false)
-                legend(color: AppColor.accentSleep, label: "sleep", isBar: true)
+            HStack(spacing: 0) {
+                metric(emoji: "🍼", value: "\(feedCount)", label: "feeds", color: AppColor.accentFeed)
+                metricDivider
+                metric(emoji: "💤", value: sleepSummary, label: "sleep", color: AppColor.accentSleep)
+                metricDivider
+                metric(emoji: "💩", value: "\(diaperCount)", label: "changes", color: AppColor.accentDiaper)
             }
         }
-        .padding(14)
-        .glassCard(cornerRadius: 18)
+        .padding(16)
+        .surfaceCard(cornerRadius: 20)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Today: \(feedCount) feeds, \(sleepSummary) sleep, \(diaperCount) diapers")
+    }
+
+    private func metric(emoji: String, value: String, label: String, color: Color) -> some View {
+        VStack(spacing: 3) {
+            Text(emoji).font(.footnote)
+            Text(value)
+                .font(AppFont.display(26))
+                .foregroundStyle(color)
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
+            Text(label).sectionLabelStyle(color: AppColor.text3)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var metricDivider: some View {
+        Rectangle()
+            .fill(AppColor.separator.opacity(0.5))
+            .frame(width: 0.5, height: 34)
     }
 
     private var sleepSummary: String {
@@ -43,14 +64,13 @@ struct TodayRibbonCard: View {
         return m == 0 ? "\(h)h" : "\(h)h\(m)"
     }
 
-    private func legend(color: Color, label: String, isBar: Bool) -> some View {
-        HStack(spacing: 5) {
-            if isBar {
-                RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 12, height: 4)
-            } else {
-                Circle().fill(color).frame(width: 8, height: 8)
-            }
-            Text(label).font(.caption2).foregroundStyle(AppColor.text2)
+    /// A gentle greeting for the arc, matched to the part of the day.
+    private var timeOfDayWord: String {
+        switch Calendar.current.component(.hour, from: .now) {
+        case 5..<12:  return "morning ☀️"
+        case 12..<17: return "afternoon"
+        case 17..<21: return "evening 🌆"
+        default:      return "night 🌙"
         }
     }
 }

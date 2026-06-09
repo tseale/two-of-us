@@ -60,6 +60,21 @@ extension View {
         glassEffect(.regular.tint(tint.opacity(0.18)).interactive(),
                     in: .rect(cornerRadius: cornerRadius))
     }
+
+    /// A calm, *solid* content surface (no glass). Used for things you read but
+    /// don't tap — status pills, data cards, timeline rows — so that the glass
+    /// elements (log tiles, active sleep card, tab bar) read as the elevated,
+    /// interactive layer. Hierarchy through depth: glass floats, surfaces sit.
+    func surfaceCard(cornerRadius: CGFloat = 18, hairline: Bool = true) -> some View {
+        self
+            .background(AppColor.card, in: .rect(cornerRadius: cornerRadius))
+            .overlay {
+                if hairline {
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .strokeBorder(AppColor.separator.opacity(0.5), lineWidth: 0.5)
+                }
+            }
+    }
 }
 
 /// Colors assigned to participants for their timeline initial.
