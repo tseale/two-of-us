@@ -2,8 +2,10 @@ import SwiftUI
 import SwiftData
 import CloudKit
 
-/// Settings shell. Shared settings (Full role) + per-user prefs + co-parent
-/// sharing + a "Manage data" link for export/clear/delete.
+/// Settings shell. A baby profile header + your identity card, then shared
+/// settings (Full role), per-user prefs, co-parent sharing, a "Manage data" link,
+/// and an About footer. Editing baby / your profile happens in focused sheets;
+/// everything else is inline with Apple-Settings-style colored icon rows.
 struct SettingsView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -14,15 +16,17 @@ struct SettingsView: View {
     @State private var share: CKShare?
     @State private var showShareSheet = false
     @State private var preparingShare = false
-
-    // Editing drafts (committed through the sync-aware EventStore helpers).
-    @State private var babyNameDraft = ""
-    @State private var myNameDraft = ""
-    @State private var myColorDraft = ParticipantColors.palette[0]
+    @State private var showBabyEdit = false
+    @State private var showProfileEdit = false
 
     private var baby: Baby? { babies.first }
     private var settings: SharedSettings? { settingsList.first }
     private var store: EventStore { EventStore(context: context) }
+
+    /// The local user's own participant record (for the "You" card).
+    private var me: Participant? {
+        participants.first { $0.id == prefs.myParticipantID } ?? participants.first
+    }
 
     /// This device's app role. Loggers can't change shared baby/feeding settings.
     private var myRole: ParticipantRole {
@@ -33,79 +37,58 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Baby") {
-                    if let baby {
-                        if canEditShared {
-                            TextField("Name", text: $babyNameDraft)
-                                .onSubmit { commitBaby() }
-                            DatePicker("Date of birth",
-                                       selection: Binding(get: { baby.dateOfBirth },
-                                                          set: { store.updateBaby(name: resolvedBabyName(), dateOfBirth: $0) }),
-                                       in: ...Date(), displayedComponents: .date)
-                        } else {
-                            LabeledContent("Name", value: baby.name)
-                            LabeledContent("Date of birth", value: baby.dateOfBirth.formatted(date: .abbreviated, time: .omitted))
-                        }
-                    }
-                }
-
-                Section("You") {
-                    TextField("Your name", text: $myNameDraft)
-                        .onSubmit { commitMyProfile() }
-                    ParticipantColorPicker(selection: $myColorDraft)
-                        .onChange(of: myColorDraft) { _, _ in commitMyProfile() }
-                }
+                babySection
+                youSection
 
                 if let settings, canEditShared {
                     Section("Feeding") {
                         Stepper(value: Binding(get: { settings.targetFeedIntervalMinutes },
                                                set: { store.updateSettings(targetFeedIntervalMinutes: $0) }),
                                 in: 60...360, step: 15) {
-                            Text("Target interval: \(settings.targetFeedIntervalMinutes / 60)h \(settings.targetFeedIntervalMinutes % 60)m")
+                            SettingsIconLabel(
+                                title: "Feed every \(settings.targetFeedIntervalMinutes / 60)h \(settings.targetFeedIntervalMinutes % 60)m",
+                                systemImage: "timer", tint: AppColor.accentFeed)
                         }
                     }
                 }
 
                 Section("Appearance") {
-                    Picker("Theme", selection: $prefs.appearance) {
+                    Picker(selection: $prefs.appearance) {
                         ForEach(Appearance.allCases) { mode in
                             Text(mode.label).tag(mode)
                         }
+                    } label: {
+                        SettingsIconLabel(title: "Theme", systemImage: "circle.lefthalf.filled",
+                                          tint: AppColor.accentSleep)
                     }
-                    .pickerStyle(.segmented)
                 }
 
                 coParentSection
 
                 Section {
-                    Toggle("Feed reminder", isOn: $prefs.feedReminderEnabled)
-                        .onChange(of: prefs.feedReminderEnabled) { _, on in
-                            Task { await updateFeedAlarm(enabled: on) }
-                        }
+                    Toggle(isOn: $prefs.feedReminderEnabled) {
+                        SettingsIconLabel(title: "Feed reminder", systemImage: "bell.badge",
+                                          tint: AppColor.urgencyAmber)
+                    }
+                    .onChange(of: prefs.feedReminderEnabled) { _, on in
+                        Task { await updateFeedAlarm(enabled: on) }
+                    }
                 } header: {
                     Text("Reminders")
                 } footer: {
                     Text("Alerts you when the next feed is due — even on Silent or Focus. This device only.")
                 }
 
-                Section("My notifications") {
-                    Toggle("Feeds", isOn: $prefs.notifyFeed)
-                    Toggle("Sleep", isOn: $prefs.notifySleep)
-                    Toggle("Diapers", isOn: $prefs.notifyDiaper)
-                }
-                .disabled(true)
-
                 Section {
                     NavigationLink {
                         ManageDataView()
                     } label: {
-                        Label("Manage data", systemImage: "externaldrive")
+                        SettingsIconLabel(title: "Manage data", systemImage: "externaldrive", tint: .gray)
                     }
                 }
 
                 demoSection
-
-                footerNote
+                aboutSection
             }
             .navigationTitle("Settings")
             .toolbar {
@@ -114,9 +97,75 @@ struct SettingsView: View {
             .sheet(isPresented: $showShareSheet) {
                 if let share { CloudShareView(share: share) }
             }
-            .onAppear(perform: loadDrafts)
+            .sheet(isPresented: $showBabyEdit) {
+                if let baby { BabyEditSheet(baby: baby) }
+            }
+            .sheet(isPresented: $showProfileEdit) {
+                ProfileEditSheet()
+            }
         }
     }
+
+    // MARK: Baby profile header
+
+    @ViewBuilder private var babySection: some View {
+        Section {
+            if canEditShared {
+                Button { showBabyEdit = true } label: { babyHeader(showChevron: true) }
+                    .buttonStyle(.plain)
+            } else {
+                babyHeader(showChevron: false)
+            }
+        }
+    }
+
+    private func babyHeader(showChevron: Bool) -> some View {
+        HStack(spacing: 14) {
+            Avatar(photoData: baby?.photoData, name: baby?.name ?? "",
+                   colorHex: ParticipantColors.babyHex, size: 64)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(baby?.name.isEmpty == false ? baby!.name : "Baby")
+                    .font(AppFont.hero(26))
+                    .foregroundStyle(AppColor.text)
+                if let baby {
+                    Text("\(TimeFormatting.age(from: baby.dateOfBirth)) · born \(baby.dateOfBirth.formatted(.dateTime.month().day()))")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColor.text2)
+                }
+            }
+            Spacer()
+            if showChevron {
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(AppColor.text3)
+            }
+        }
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
+    }
+
+    // MARK: You
+
+    @ViewBuilder private var youSection: some View {
+        Section("You") {
+            Button { showProfileEdit = true } label: {
+                HStack(spacing: 12) {
+                    Avatar(photoData: me?.photoData, name: me?.displayName ?? "",
+                           colorHex: me?.colorHex ?? ParticipantColors.palette[0], size: 40)
+                    Text(me?.displayName.isEmpty == false ? me!.displayName : "Your name")
+                        .foregroundStyle(AppColor.text)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(AppColor.text3)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: People (co-parent sharing)
 
     @ViewBuilder private var coParentSection: some View {
         Section("People") {
@@ -137,7 +186,8 @@ struct SettingsView: View {
                         if share != nil { showShareSheet = true }
                     }
                 } label: {
-                    Label("Invite someone", systemImage: "person.badge.plus")
+                    SettingsIconLabel(title: "Invite someone", systemImage: "person.badge.plus",
+                                      tint: AppColor.accentSleep)
                 }
                 .disabled(preparingShare)
 
@@ -150,21 +200,19 @@ struct SettingsView: View {
         }
     }
 
-    /// One co-parent row. The owner can change another participant's role and
-    /// remove them individually (swipe) without ending sharing for everyone.
+    /// One co-parent row: avatar + name + a role pill. The owner can change another
+    /// participant's role and remove them individually (swipe) without ending
+    /// sharing for everyone.
     @ViewBuilder private func participantRow(_ p: Participant) -> some View {
         let isMe = p.id == prefs.myParticipantID
         let canManage = prefs.syncRole == .owner && !isMe
 
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Circle().fill(Color(hex: p.colorHex)).frame(width: 14, height: 14)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Avatar(photoData: p.photoData, name: p.displayName, colorHex: p.colorHex, size: 36)
                 Text(p.displayName.isEmpty ? "—" : p.displayName)
-                if isMe {
-                    Text("(you)").foregroundStyle(AppColor.text3)
-                } else {
-                    Text("— \(p.role.displayName)").foregroundStyle(AppColor.text3)
-                }
+                Spacer()
+                rolePill(isMe: isMe, role: p.role)
             }
             if canManage {
                 Picker("Access", selection: Binding(get: { p.role },
@@ -184,9 +232,23 @@ struct SettingsView: View {
         }
     }
 
+    private func rolePill(isMe: Bool, role: ParticipantRole) -> some View {
+        let tint: Color = isMe ? AppColor.text3 : (role == .full ? AppColor.accentFeed : AppColor.text2)
+        return Text(isMe ? "You" : role.displayName)
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(tint.opacity(0.16), in: Capsule())
+            .foregroundStyle(tint)
+    }
+
+    // MARK: Demo mode
+
     @ViewBuilder private var demoSection: some View {
         Section {
-            Toggle("Demo mode", isOn: $prefs.demoModeEnabled)
+            Toggle(isOn: $prefs.demoModeEnabled) {
+                SettingsIconLabel(title: "Demo mode", systemImage: "sparkles", tint: AppColor.accentDiaper)
+            }
             if prefs.demoModeEnabled {
                 Button("Reset demo data") {
                     // Re-seed by dropping back to real and re-entering demo.
@@ -201,39 +263,32 @@ struct SettingsView: View {
         }
     }
 
-    private var footerNote: some View {
+    // MARK: About
+
+    private var aboutSection: some View {
         Section {
-            Text("People you invite join as guests and can log entries in real time. To give the other parent full access, tap their name and choose Co-parent. Per-event push delivery arrives in an upcoming update.")
-                .font(.footnote)
-                .foregroundStyle(AppColor.text3)
+            VStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(AppColor.accentFeed)
+                    .frame(width: 60, height: 60)
+                    .overlay { Text("🍼").font(.system(size: 30)) }
+                Text("Miller Time")
+                    .font(AppFont.hero(20))
+                    .foregroundStyle(AppColor.text)
+                Text(AppInfo.versionString)
+                    .font(.caption)
+                    .foregroundStyle(AppColor.text3)
+                Text("Made with love for Miller 🤍")
+                    .font(.footnote)
+                    .foregroundStyle(AppColor.text2)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .listRowBackground(Color.clear)
         }
     }
 
-    // MARK: Draft commit
-
-    private func loadDrafts() {
-        babyNameDraft = baby?.name ?? ""
-        if let me = store.owner {
-            myNameDraft = me.displayName
-            myColorDraft = me.colorHex.isEmpty ? ParticipantColors.palette[0] : me.colorHex
-        }
-    }
-
-    private func resolvedBabyName() -> String {
-        let trimmed = babyNameDraft.trimmingCharacters(in: .whitespaces)
-        return trimmed.isEmpty ? (baby?.name ?? "") : trimmed
-    }
-
-    private func commitBaby() {
-        guard let baby else { return }
-        store.updateBaby(name: resolvedBabyName(), dateOfBirth: baby.dateOfBirth)
-    }
-
-    private func commitMyProfile() {
-        let name = myNameDraft.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else { return }
-        store.updateMyProfile(name: name, colorHex: myColorDraft)
-    }
+    // MARK: Feed reminder
 
     /// Arms or clears this device's AlarmKit feed reminder when the toggle flips.
     /// Reverts the toggle if the user declines alarm authorization.

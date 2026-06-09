@@ -79,6 +79,9 @@ extension View {
 
 /// Colors assigned to participants for their timeline initial.
 enum ParticipantColors {
+    /// The baby's own avatar tint (feed teal) for the monogram fallback.
+    static let babyHex = "5AC8B8"
+
     static let palette: [String] = [
         "5AC8B8", // teal
         "8E8EFF", // periwinkle

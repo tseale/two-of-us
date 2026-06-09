@@ -49,6 +49,7 @@ enum RecordMapping {
             r["name"] = m.name
             r["dateOfBirth"] = m.dateOfBirth
             r["createdAt"] = m.createdAt
+            r["photoData"] = asset(from: m.photoData)
             return r
         }
         if let m = fetchOne(Participant.self, id: uuid, in: context) {
@@ -59,6 +60,7 @@ enum RecordMapping {
             r["cloudUserID"] = m.cloudUserID
             r["isActive"] = m.isActive ? 1 : 0
             r["invitedAt"] = m.invitedAt
+            r["photoData"] = asset(from: m.photoData)
             return r
         }
         if let m = fetchOne(SharedSettings.self, id: uuid, in: context) {
@@ -146,6 +148,7 @@ enum RecordMapping {
         m.name = r["name"] as? String ?? m.name
         m.dateOfBirth = r["dateOfBirth"] as? Date ?? m.dateOfBirth
         m.createdAt = r["createdAt"] as? Date ?? m.createdAt
+        m.photoData = data(from: r["photoData"])
     }
 
     private static func applyParticipant(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
@@ -157,6 +160,7 @@ enum RecordMapping {
         m.cloudUserID = r["cloudUserID"] as? String
         m.isActive = (r["isActive"] as? Int ?? 1) != 0
         m.invitedAt = r["invitedAt"] as? Date ?? m.invitedAt
+        m.photoData = data(from: r["photoData"])
     }
 
     private static func applySettings(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
@@ -180,6 +184,23 @@ enum RecordMapping {
     }
 
     // MARK: Helpers
+
+    /// Wraps avatar bytes in a CKAsset (CloudKit can't store `Data` as a scalar).
+    /// Writes to a temp file CloudKit reads on upload; returns nil when there's no
+    /// photo, which clears the field on the record.
+    private static func asset(from photoData: Data?) -> CKAsset? {
+        guard let photoData else { return nil }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        guard (try? photoData.write(to: url)) != nil else { return nil }
+        return CKAsset(fileURL: url)
+    }
+
+    /// Reads avatar bytes back from a CKAsset field. Returns nil when the field is
+    /// absent or the asset file can't be read (so a missing photo clears locally).
+    private static func data(from value: Any?) -> Data? {
+        guard let asset = value as? CKAsset, let url = asset.fileURL else { return nil }
+        return try? Data(contentsOf: url)
+    }
 
     private static func fetchOne<T: PersistentModel & HasSyncID>(_ type: T.Type, id: UUID, in context: ModelContext) -> T? {
         // In-memory filter avoids #Predicate key-path issues on the shared `id`

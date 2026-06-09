@@ -13,6 +13,10 @@ final class Participant {
     var isActive: Bool = true          // false once access is revoked
     var invitedAt: Date = Date()
 
+    /// Optional avatar (downscaled JPEG, synced as a CKAsset; stored inline for
+    /// CloudKit-mirroring compatibility). See `ImageDownscale`.
+    var photoData: Data?
+
     var role: ParticipantRole {
         get { ParticipantRole(rawValue: roleRaw) ?? .full }
         set { roleRaw = newValue.rawValue }

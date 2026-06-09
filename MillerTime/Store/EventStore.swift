@@ -216,11 +216,14 @@ struct EventStore {
     // co-parent. (Earlier inline edits in SettingsView called `context.save()`
     // only, so baby DOB / target-interval changes never propagated.)
 
-    /// Updates the shared Baby record (name + date of birth) and syncs it.
-    func updateBaby(name: String, dateOfBirth: Date) {
+    /// Updates the shared Baby record (name, date of birth, optional avatar) and
+    /// syncs it. `photo: .some(nil)` clears the avatar; `.none` (the default)
+    /// leaves it untouched.
+    func updateBaby(name: String, dateOfBirth: Date, photo: Data?? = .none) {
         guard let baby else { return }
         baby.name = name
         baby.dateOfBirth = dateOfBirth
+        if case let .some(value) = photo { baby.photoData = value }
         save()
         sync(save: [baby.id])
         reloadWidgets()
@@ -237,10 +240,11 @@ struct EventStore {
     /// Updates the local user's own name + color and **backfills** that identity
     /// onto every event they logged, so past timeline rows relabel too. Syncs the
     /// participant plus all rewritten events.
-    func updateMyProfile(name: String, colorHex: String) {
+    func updateMyProfile(name: String, colorHex: String, photo: Data?? = .none) {
         guard let me = owner else { return }
         me.displayName = name
         me.colorHex = colorHex
+        if case let .some(value) = photo { me.photoData = value }
         var changed = [me.id]
         changed += backfillIdentity(loggerID: me.id, name: name, colorHex: colorHex)
         save()
