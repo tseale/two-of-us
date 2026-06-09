@@ -20,6 +20,10 @@ extension DiaperEvent: SoftDeletable {}
 struct EventStore {
     let context: ModelContext
 
+    /// In demo mode the context is a throwaway in-memory store: all writes must
+    /// stay local (no CloudKit, widgets, alarms, Live Activities, or Siri).
+    private var demo: Bool { LocalPrefs.shared.demoModeEnabled }
+
     // MARK: Lookups
 
     var baby: Baby? {
@@ -96,7 +100,7 @@ struct EventStore {
         context.insert(event)
         save()
         sync(save: [event.id])
-        SleepActivityManager.start(babyName: baby?.name ?? "Miller", at: date)
+        if !demo { SleepActivityManager.start(babyName: baby?.name ?? "Miller", at: date) }
         reloadWidgets()
         donate(ToggleSleepIntent())
         return event
@@ -106,7 +110,7 @@ struct EventStore {
         event.endedAt = date
         save()
         sync(save: [event.id])
-        SleepActivityManager.end()
+        if !demo { SleepActivityManager.end() }
         reloadWidgets()
         donate(ToggleSleepIntent())
     }
@@ -114,6 +118,7 @@ struct EventStore {
     /// Best-effort Siri donation so Suggestions / Spotlight rank Miller Time
     /// actions by the family's real rhythm. Fire-and-forget; never blocks a log.
     private func donate(_ intent: some AppIntent) {
+        guard !demo else { return }
         Task.detached {
             _ = try? await IntentDonationManager.shared.donate(intent: intent)
         }
@@ -199,7 +204,7 @@ struct EventStore {
         purge(FeedEvent.self)
         purge(SleepEvent.self)
         purge(DiaperEvent.self)
-        SleepActivityManager.end()   // tear down any running sleep Live Activity
+        if !demo { SleepActivityManager.end() }   // tear down any running sleep Live Activity
         save()
         sync(save: ids)
         reloadWidgets()
@@ -331,17 +336,20 @@ struct EventStore {
 
     /// Hands changed record ids to the sync engine (no-op when sync is inactive).
     private func sync(save: [UUID] = [], delete: [UUID] = []) {
+        guard !demo else { return }
         SyncManager.shared?.enqueueSave(save)
         SyncManager.shared?.enqueueDelete(delete)
     }
 
     private func reloadWidgets() {
+        guard !demo else { return }
         WidgetCenter.shared.reloadAllTimelines()
     }
 
     /// Re-arms this device's AlarmKit feed reminder off the latest feed + the
     /// shared target interval. Honors the per-device opt-in inside the manager.
     private func scheduleFeedReminder() {
+        guard !demo else { return }
         let interval = settings?.targetFeedInterval ?? 0
         let last = lastEventDate(of: .feed)
         Task { await FeedAlarmManager.reschedule(lastFeed: last, interval: interval) }

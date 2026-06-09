@@ -18,8 +18,10 @@ struct ManageDataView: View {
         (participants.first { $0.id == prefs.myParticipantID }?.role ?? .full) == .full
     }
     /// Only the data owner (or a solo user) can purge the shared CloudKit zone.
+    /// Hidden in demo mode — "Delete everything" acts on the real iCloud zone, which
+    /// must never be touched while showing sample data.
     private var canDeleteEverything: Bool {
-        prefs.syncRole == .owner || prefs.syncRole == .solo
+        !prefs.demoModeEnabled && (prefs.syncRole == .owner || prefs.syncRole == .solo)
     }
 
     var body: some View {
