@@ -97,7 +97,7 @@ struct HomeView: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(baby?.name ?? "Miller")
-                    .font(.largeTitle.weight(.bold))
+                    .font(AppFont.hero())
                 if let dob = baby?.dateOfBirth {
                     Text(TimeFormatting.age(from: dob))
                         .font(.subheadline)
@@ -172,11 +172,12 @@ struct HomeView: View {
     private var timelineSection: some View {
         Section {
             if timelineEntries.isEmpty {
-                Text("No events yet — tap 🍼 to log Miller's first feed.")
-                    .font(.subheadline)
-                    .foregroundStyle(AppColor.text3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .listRowBackground(Color.clear)
+                EmptyStateView(
+                    emoji: "🍼",
+                    title: "No events yet",
+                    message: "Tap a button above to log \(baby?.name ?? "Miller")'s first feed."
+                )
+                .listRowBackground(Color.clear)
             } else {
                 ForEach(timelineEntries) { entry in
                     TimelineRow(entry: entry)

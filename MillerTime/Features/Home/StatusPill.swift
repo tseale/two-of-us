@@ -8,23 +8,25 @@ struct StatusPill: View {
     let urgency: Urgency
 
     var body: some View {
-        VStack(spacing: 3) {
-            Text(emoji).font(.headline)
+        VStack(spacing: 5) {
             HStack(spacing: 4) {
+                Text(emoji).font(.footnote)
                 Circle()
                     .fill(urgency.color)
-                    .frame(width: 7, height: 7)
-                Text(value)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(AppColor.text)
+                    .frame(width: 6, height: 6)
             }
+            Text(value)
+                .font(AppFont.display(20))
+                .foregroundStyle(AppColor.text)
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
             Text(label)
-                .font(.caption2)
-                .foregroundStyle(AppColor.text3)
+                .sectionLabelStyle(color: AppColor.text3)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 11)
-        .glassCard(cornerRadius: 16)
+        .padding(.vertical, 13)
+        .padding(.horizontal, 6)
+        .surfaceCard(cornerRadius: 16)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(label), \(value), \(urgency.accessibilityWord)")
     }

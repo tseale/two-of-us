@@ -33,6 +33,7 @@ struct DiaperSheet: View {
             }
         }
         .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
     }
 
     private func button(for type: DiaperType) -> some View {
@@ -41,14 +42,14 @@ struct DiaperSheet: View {
         } label: {
             VStack(spacing: 8) {
                 Text(type.emoji).font(.title)
-                Text(type.label).font(.subheadline.weight(.semibold))
+                Text(type.label).font(.system(.subheadline, design: .rounded).weight(.semibold))
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 20)
             .background(AppColor.card2, in: RoundedRectangle(cornerRadius: 16))
             .foregroundStyle(AppColor.text)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableTileStyle())
     }
 
     private func log(_ type: DiaperType) {

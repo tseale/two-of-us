@@ -65,7 +65,7 @@ struct StatsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .glassCard(cornerRadius: 18)
+        .surfaceCard(cornerRadius: 18)
         .task(id: feeds.count) { await loadSummary() }
     }
 
@@ -103,19 +103,18 @@ struct StatsView: View {
     private var recordHero: some View {
         let record = engine.longestSleep()
         return VStack(alignment: .leading, spacing: 6) {
-            Text("🏆 RECORD — LONGEST SLEEP")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(AppColor.text2)
+            Text("🏆 Record — longest sleep")
+                .sectionLabelStyle(color: AppColor.text2.opacity(0.9))
             if let record {
                 Text(durationLong(record.duration))
-                    .font(.system(size: 34, weight: .heavy))
+                    .font(AppFont.display(38, weight: .heavy))
                     .foregroundStyle(AppColor.text)
                 Text(Self.monthDay(record.date))
                     .font(.subheadline)
                     .foregroundStyle(AppColor.text2)
             } else {
                 Text("—")
-                    .font(.system(size: 34, weight: .heavy))
+                    .font(AppFont.display(38, weight: .heavy))
                     .foregroundStyle(AppColor.text)
                 Text("No completed sleeps yet")
                     .font(.subheadline)
@@ -160,12 +159,16 @@ struct StatsView: View {
     private func tile(key: String, value: String, unit: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(key).font(.caption).foregroundStyle(AppColor.text2)
-            Text(value).font(.title.weight(.bold)).foregroundStyle(color)
+            Text(value)
+                .font(AppFont.display(28))
+                .foregroundStyle(color)
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
             Text(unit).font(.caption2).foregroundStyle(AppColor.text3)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .glassCard(cornerRadius: 18)
+        .surfaceCard(cornerRadius: 18)
     }
 
     // MARK: Night shift

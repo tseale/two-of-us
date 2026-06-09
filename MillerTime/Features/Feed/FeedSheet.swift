@@ -69,6 +69,7 @@ struct FeedSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 
     private func presetChip(_ oz: Double) -> some View {
@@ -79,7 +80,7 @@ struct FeedSheet: View {
             customText = ""
         } label: {
             VStack(spacing: 2) {
-                Text(OzFormat.string(oz)).font(.title2.weight(.bold))
+                Text(OzFormat.string(oz)).font(.system(.title2, design: .rounded).weight(.bold))
                 Text("oz").font(.caption2)
             }
             .frame(maxWidth: .infinity)

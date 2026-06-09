@@ -27,7 +27,7 @@ struct LogButtons: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text(emoji).font(.system(size: 30))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(title).font(.title3.weight(.bold))
+                    Text(title).font(.system(.title3, design: .rounded).weight(.bold))
                     Text(hint).font(.caption).foregroundStyle(AppColor.text2)
                 }
             }
@@ -36,7 +36,7 @@ struct LogButtons: View {
             .glassTile(cornerRadius: 20, tint: color)
             .foregroundStyle(AppColor.text)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableTileStyle())
     }
 
     private func wideTile(title: String, hint: String, emoji: String, color: Color, action: @escaping () -> Void) -> some View {
@@ -44,7 +44,7 @@ struct LogButtons: View {
             HStack(spacing: 14) {
                 Text(emoji).font(.system(size: 28))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(title).font(.title3.weight(.bold))
+                    Text(title).font(.system(.title3, design: .rounded).weight(.bold))
                     Text(hint).font(.caption).foregroundStyle(AppColor.text2)
                 }
                 Spacer()
@@ -54,6 +54,19 @@ struct LogButtons: View {
             .glassTile(cornerRadius: 20, tint: color)
             .foregroundStyle(AppColor.text)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableTileStyle())
+    }
+}
+
+/// Tactile press feedback for the log tiles: a quick scale-down + spring settle on
+/// release, so a tap feels physical. Falls back to no motion under Reduce Motion.
+struct PressableTileStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(reduceMotion ? 1 : (configuration.isPressed ? 0.96 : 1))
+            .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.6),
+                       value: configuration.isPressed)
     }
 }
