@@ -179,8 +179,13 @@ struct HomeView: View {
                 )
                 .listRowBackground(Color.clear)
             } else {
+                TimelineNowCap()
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                 ForEach(timelineEntries) { entry in
-                    TimelineRow(entry: entry)
+                    DayTimelineRow(entry: entry)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                         .contentShape(Rectangle())
                         .onTapGesture { editing = entry }
                         .swipeActions(edge: .trailing) {

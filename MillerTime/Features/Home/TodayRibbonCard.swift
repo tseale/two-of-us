@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// The Home centerpiece: today rendered as a sunrise-to-night **arc** (see
-/// `DayArcView`), with the day's three glance numbers beneath it. This is the
-/// app's signature surface — the thing you see. Deep multi-day charts live in
-/// the History tab.
+/// The Home glance header: today's rhythm as a slim 24-hour **ribbon** (see
+/// `DayRibbonView`) with the day's three glance numbers beneath it. The full
+/// event story lives in the timeline rail (`DayTimelineRow`) just below. Deep
+/// multi-day charts live in the History tab.
 struct TodayRibbonCard: View {
     let marks: [RibbonMark]
     let feedCount: Int
@@ -20,8 +20,8 @@ struct TodayRibbonCard: View {
                     .foregroundStyle(AppColor.text3)
             }
 
-            DayArcView(marks: marks)
-                .frame(height: 132)
+            DayRibbonView(marks: marks)
+                .frame(height: 40)
 
             HStack(spacing: 0) {
                 metric(emoji: "🍼", value: "\(feedCount)", label: "feeds", color: AppColor.accentFeed)
