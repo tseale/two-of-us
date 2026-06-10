@@ -20,6 +20,8 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSAlarmKitUsageDescription</key>
 	<string>Two of Us uses alarms to remind you when the next feed is due, even when your phone is silenced.</string>
 	<key>NSSupportsLiveActivities</key>

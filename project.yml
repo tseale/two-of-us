@@ -11,7 +11,7 @@ settings:
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
-    DEVELOPMENT_TEAM: ""
+    DEVELOPMENT_TEAM: Q58H65DQ64
     CODE_SIGN_STYLE: Automatic
 
 targets:
@@ -25,6 +25,9 @@ targets:
       path: TwoOfUs/Info.plist
       properties:
         CFBundleDisplayName: Two of Us
+        # Only standard HTTPS/CloudKit crypto — exempt. Without this, every
+        # TestFlight build waits on a manual export-compliance answer in ASC.
+        ITSAppUsesNonExemptEncryption: NO
         UILaunchScreen:
           UIColorName: LaunchBackground
           UIImageName: LaunchLogo
