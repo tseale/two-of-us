@@ -1,139 +1,223 @@
 import SwiftUI
 
-/// The four stops in the first-launch story. `OnboardingView` owns the paging and
-/// the bottom CTA bar; these are the page bodies plus a couple of small presentational
-/// helpers. All scrollable so large Dynamic Type never clips, all dark-mode aware.
+/// The five story stops in the first-launch flow, plus shared presentational
+/// helpers. `OnboardingView` owns paging, the ambient backdrop, and the CTA bar;
+/// setup-chapter pages live in `OnboardingSetupSteps.swift`.
+///
+/// Every scrolling page reserves `OnboardingLayout.barClearance` at the bottom so
+/// content never sits under the floating bar, and uses `basedOnSize` bounce so
+/// short pages feel fixed.
 
-// MARK: - Pages
+enum OnboardingLayout {
+    /// Height of the floating bottom bar (dots + primary + reserved secondary).
+    static let barClearance: CGFloat = 160
+}
 
-/// Warm hello + the value in one line. The demo button lives in the bottom bar.
+// MARK: - Welcome
+
+/// The hand-off from the launch splash: opens in "splash pose" — a black scrim
+/// with the mark dead-center, exactly matching `SplashView` — then settles: the
+/// scrim melts into the night-stage ambient, the mark glides up, and the copy
+/// fades in. `OnboardingView` drives the three booleans (see `runIntro`).
 struct OnboardingWelcomePage: View {
-    let babyName: String
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var appeared = false
+    /// Mark in its settled (hero) pose vs. splash-center pose.
+    let markSettled: Bool
+    /// Black scrim fully faded into the ambient.
+    let scrimGone: Bool
+    /// Copy visible.
+    let revealed: Bool
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                Spacer(minLength: 48)
-                Text("👶")
-                    .font(.system(size: 76))
-                    .scaleEffect(appeared || reduceMotion ? 1 : 0.6)
-                    .opacity(appeared || reduceMotion ? 1 : 0)
+        ZStack {
+            Color.black
+                .opacity(scrimGone ? 0 : 1)
+                .ignoresSafeArea()
+
+            // Stays on a dark stage even after the scrim fades (the welcome
+            // ambient is near-black in both schemes), so the fixed-white copy
+            // and the `.screen`-blended mark always read correctly.
+            CradleMark(size: 240)
+                .scaleEffect(markSettled ? 0.7 : 1)
+                .offset(y: markSettled ? -96 : 0)
+
+            VStack(spacing: 10) {
                 Text("Welcome to Two of Us")
                     .font(AppFont.hero(30))
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(AppColor.text)
-                Text("A calm little log for \(babyName)'s feeds, sleeps, and diapers — made for one-handed 3am taps.")
+                    .foregroundStyle(.white)
+                Text("A calm little log for your little one's feeds, sleeps, and diapers — made for one-handed 3am taps.")
                     .font(.body)
-                    .foregroundStyle(AppColor.text2)
-                    .multilineTextAlignment(.center)
-                Spacer(minLength: 48)
+                    .foregroundStyle(.white.opacity(0.75))
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 28)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 32)
+            .offset(y: 96)
+            .opacity(revealed ? 1 : 0)
         }
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) { appeared = true }
-        }
+        // Non-scrolling pages must take the pager's size explicitly — the page
+        // TabView otherwise sizes them to their ideal width and text overflows.
+        .containerRelativeFrame([.horizontal, .vertical])
     }
 }
 
+// MARK: - Three things, a tap away
+
 /// Shows the three things you log, styled exactly like the Home tiles.
 struct OnboardingTrackPage: View {
+    let revealed: Bool
+
     var body: some View {
         ScrollView {
             VStack(spacing: 28) {
                 Spacer(minLength: 24)
-                VStack(spacing: 8) {
-                    Text("Three things, a tap away")
-                        .font(AppFont.hero(26))
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(AppColor.text)
-                    Text("Feeds, sleep, and diapers — logged in a tap or two, even with a baby in your other arm.")
-                        .font(.subheadline)
-                        .foregroundStyle(AppColor.text2)
-                        .multilineTextAlignment(.center)
-                }
+                OnboardingStepHeader(
+                    title: "Three things, a tap away",
+                    subtitle: "Feeds, sleep, and diapers — logged in a tap or two, even with a baby in your other arm."
+                )
+                .onboardingEntrance(revealed)
+
                 GlassEffectContainer(spacing: 12) {
                     VStack(spacing: 12) {
                         OnboardingShowcaseTile(emoji: "🍼", title: "Feed", hint: "log a bottle", tint: AppColor.accentFeed)
+                            .onboardingEntrance(revealed, index: 1)
                         OnboardingShowcaseTile(emoji: "💤", title: "Sleep", hint: "start a timer", tint: AppColor.accentSleep)
+                            .onboardingEntrance(revealed, index: 2)
                         OnboardingShowcaseTile(emoji: "💩", title: "Diaper", hint: "wet · dirty · both", tint: AppColor.accentDiaper)
+                            .onboardingEntrance(revealed, index: 3)
                     }
                 }
-                Spacer(minLength: 24)
+                Spacer(minLength: 16)
             }
             .padding(.horizontal, 28)
         }
+        .contentMargins(.bottom, OnboardingLayout.barClearance, for: .scrollContent)
+        .scrollBounceBehavior(.basedOnSize)
     }
 }
 
-/// The two-parent / CloudKit story.
-struct OnboardingSyncPage: View {
+// MARK: - Everywhere you are
+
+/// Widgets, the Dynamic Island, Siri, Control Center — a loose collage of
+/// miniatures so the app's reach is *seen*, not listed.
+struct OnboardingEverywherePage: View {
+    let revealed: Bool
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 26) {
+                Spacer(minLength: 24)
+                OnboardingStepHeader(
+                    title: "Everywhere you are",
+                    subtitle: "Widgets on your lock screen, a live timer in the Dynamic Island, Siri, and Control Center — log and glance without opening the app."
+                )
+                .onboardingEntrance(revealed)
+
+                VStack(spacing: 20) {
+                    MockDynamicIsland()
+                        .rotationEffect(.degrees(-2))
+                        .onboardingEntrance(revealed, index: 1)
+                    HStack(alignment: .center, spacing: 22) {
+                        MockSmallWidget()
+                            .rotationEffect(.degrees(1.5))
+                            .onboardingEntrance(revealed, index: 2)
+                        MockControlToggle()
+                            .onboardingEntrance(revealed, index: 3)
+                    }
+                    MockSiriChip()
+                        .rotationEffect(.degrees(-1))
+                        .onboardingEntrance(revealed, index: 4)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Lock screen widgets, a live sleep timer in the Dynamic Island, Siri phrases, and Control Center controls.")
+                Spacer(minLength: 16)
+            }
+            .padding(.horizontal, 28)
+        }
+        .contentMargins(.bottom, OnboardingLayout.barClearance, for: .scrollContent)
+        .scrollBounceBehavior(.basedOnSize)
+    }
+}
+
+// MARK: - It learns your rhythm
+
+/// The history/stats story: the day ribbon, a rising trend, the Night MVP —
+/// and, on capable hardware, the on-device AI digest.
+struct OnboardingRhythmPage: View {
+    let revealed: Bool
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                Spacer(minLength: 32)
-                HStack(spacing: -16) {
-                    OnboardingInitialBadge(initial: "A", colorHex: ParticipantColors.palette[0])
-                    OnboardingInitialBadge(initial: "J", colorHex: ParticipantColors.palette[1])
+                Spacer(minLength: 24)
+                OnboardingStepHeader(
+                    title: "It learns your rhythm",
+                    subtitle: "Today as a 24-hour ribbon, week-over-week trends, records and patterns."
+                )
+                .onboardingEntrance(revealed)
+
+                VStack(spacing: 14) {
+                    MockRibbonCard()
+                        .onboardingEntrance(revealed, index: 1)
+                    MockTrendCard(progress: revealed ? 1 : 0)
+                        .onboardingEntrance(revealed, index: 2)
+                    MockNightMVPCard()
+                        .onboardingEntrance(revealed, index: 3)
                 }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Two parents")
-                VStack(spacing: 8) {
-                    Text("Made for both of you")
-                        .font(AppFont.hero(26))
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(AppColor.text)
-                    Text("Log from either phone and it syncs over iCloud — you both see the latest within seconds. No account, no server.")
-                        .font(.subheadline)
-                        .foregroundStyle(AppColor.text2)
-                        .multilineTextAlignment(.center)
+                .accessibilityLabel("A 24-hour ribbon of the day, a rising longest-sleep trend, and a weekly Night MVP.")
+
+                if BabyIntelligence.isAvailable {
+                    HStack(spacing: 10) {
+                        Image(systemName: "sparkles")
+                            .foregroundStyle(AppColor.accentFeed)
+                        Text("Plus a weekly digest, written on your phone — nothing leaves it.")
+                            .font(.footnote)
+                            .foregroundStyle(AppColor.text2)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+                    .onboardingEntrance(revealed, index: 4)
                 }
-                Spacer(minLength: 32)
+                Spacer(minLength: 16)
             }
             .padding(.horizontal, 28)
         }
+        .contentMargins(.bottom, OnboardingLayout.barClearance, for: .scrollContent)
+        .scrollBounceBehavior(.basedOnSize)
     }
 }
 
-/// The actual setup form — same four fields as before, themed onto the page background.
-struct OnboardingSetupPage: View {
-    @Binding var babyName: String
-    @Binding var dateOfBirth: Date
-    @Binding var ownerName: String
-    @Binding var ownerColorHex: String
+// MARK: - Made for both of you
+
+/// The two-parent / CloudKit story; the badges drift together as the page lands.
+struct OnboardingTogetherPage: View {
+    let revealed: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Form {
-            Section {
-                VStack(spacing: 4) {
-                    Text("Last step")
-                        .font(AppFont.hero(26))
-                        .foregroundStyle(AppColor.text)
-                    Text("Who are we tracking, and who's logging?")
-                        .font(.subheadline)
-                        .foregroundStyle(AppColor.text2)
-                        .multilineTextAlignment(.center)
+        ScrollView {
+            VStack(spacing: 24) {
+                Spacer(minLength: 120)
+                HStack(spacing: revealed || reduceMotion ? -16 : 24) {
+                    OnboardingInitialBadge(initial: "A", colorHex: ParticipantColors.palette[0])
+                    OnboardingInitialBadge(initial: "J", colorHex: ParticipantColors.palette[1])
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .listRowBackground(Color.clear)
-            }
+                .animation(reduceMotion ? nil : .spring(response: 0.6, dampingFraction: 0.75), value: revealed)
+                .onboardingEntrance(revealed)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Two parents")
 
-            Section("Baby") {
-                TextField("Name", text: $babyName)
-                DatePicker("Date of birth", selection: $dateOfBirth, in: ...Date(), displayedComponents: .date)
+                OnboardingStepHeader(
+                    title: "Made for both of you",
+                    subtitle: "Log from either phone and it syncs over iCloud — you both see the latest within seconds. No account, no server."
+                )
+                .onboardingEntrance(revealed, index: 1)
+                Spacer(minLength: 16)
             }
-
-            Section("You") {
-                TextField("Your name", text: $ownerName)
-                ParticipantColorPicker(selection: $ownerColorHex)
-            }
+            .padding(.horizontal, 28)
         }
-        .scrollContentBackground(.hidden)
+        .contentMargins(.bottom, OnboardingLayout.barClearance, for: .scrollContent)
+        .scrollBounceBehavior(.basedOnSize)
     }
 }
 

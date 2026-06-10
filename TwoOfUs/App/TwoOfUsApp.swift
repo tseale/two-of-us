@@ -27,6 +27,13 @@ struct TwoOfUsApp: App {
             SeedData.seedIfNeeded(in: ctx, babyName: "Charlie")
             SeedData.seedSampleEvents(in: ctx)
         }
+        // Dev-only: `-previewJoin` simulates a parent who just accepted a share,
+        // so the co-parent join flow can be iterated on in the simulator (the real
+        // path needs a second iCloud account accepting a CloudKit invite).
+        if ProcessInfo.processInfo.arguments.contains("-previewJoin") {
+            LocalPrefs.shared.syncRole = .participant
+            LocalPrefs.shared.myParticipantID = nil
+        }
         #endif
 
         // Build the demo store up front when launching straight into demo mode,
@@ -50,8 +57,11 @@ struct TwoOfUsApp: App {
                 RootView()
                     .modelContainer(activeContainer)
                     // Teardown is keyed to the container instance, so the swap and the
-                    // tree rebuild always happen together.
+                    // tree rebuild always happen together. The transition pairs with
+                    // the `withAnimation` around token bumps in `configure()` so demo
+                    // enter/exit crossfades instead of hard-cutting.
                     .id(containerToken)
+                    .transition(.opacity)
                     .task(id: prefs.demoModeEnabled) { configure() }
 
                 // Hosted above the `.id` rebuild so it plays once per cold launch and
@@ -76,14 +86,14 @@ struct TwoOfUsApp: App {
                 let c = AppModelContainer.make(inMemory: true)
                 DemoData.seed(into: c.mainContext)
                 demoContainer = c
-                containerToken = UUID()
+                withAnimation(.easeInOut(duration: 0.35)) { containerToken = UUID() }
             }
             DemoSession.activate()
         } else {
             DemoSession.deactivate()
             if demoContainer != nil {
                 demoContainer = nil
-                containerToken = UUID()
+                withAnimation(.easeInOut(duration: 0.35)) { containerToken = UUID() }
             }
             if SyncManager.shared == nil {
                 SyncManager.shared = SyncManager(modelContainer: realContainer)
