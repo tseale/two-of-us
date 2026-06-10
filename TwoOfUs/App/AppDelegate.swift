@@ -19,12 +19,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
     func application(
         _ application: UIApplication,
-        didReceiveRemoteNotification userInfo: [AnyHashable: Any]
-    ) async -> UIBackgroundFetchResult {
-        await MainActor.run { SyncManager.shared?.handleRemoteNotification() }
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        SyncManager.shared?.handleRemoteNotification()
         // Reload after a brief moment so a just-imported change is reflected.
         WidgetCenter.shared.reloadAllTimelines()
-        return .newData
+        completionHandler(.newData)
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
