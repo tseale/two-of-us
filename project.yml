@@ -23,6 +23,13 @@ targets:
     deploymentTarget: "26.0"
     sources:
       - path: TwoOfUs
+        excludes:
+          - TwoOfUs.icon
+      # The Liquid Glass icon bundle must be a single file reference (compiled by
+      # actool), not a recursed group of loose json/png resources.
+      - path: TwoOfUs/TwoOfUs.icon
+        type: file
+        buildPhase: resources
     info:
       path: TwoOfUs/Info.plist
       properties:
@@ -66,7 +73,7 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1,2"
         ENABLE_PREVIEWS: YES
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_APPICON_NAME: TwoOfUs
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     dependencies:
       - target: TwoOfUsWidgets
