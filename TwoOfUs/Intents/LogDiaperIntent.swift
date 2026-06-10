@@ -20,10 +20,10 @@ enum DiaperTypeAppEnum: String, AppEnum {
     }
 }
 
-/// Logs a diaper change for Miller without opening the app.
+/// Logs a diaper change without opening the app.
 struct LogDiaperIntent: AppIntent {
     static var title: LocalizedStringResource = "Log a Diaper"
-    static var description = IntentDescription("Logs a diaper change for Miller.")
+    static var description = IntentDescription("Logs a diaper change for your baby.")
     static var openAppWhenRun: Bool = false
 
     @Parameter(title: "Type", default: .wet)
@@ -37,7 +37,7 @@ struct LogDiaperIntent: AppIntent {
         guard let logger = QuickLogger.make() else {
             return .result(dialog: "Couldn't reach Two of Us.")
         }
-        let name = logger.babyName ?? "Miller"
+        let name = logger.babyName ?? "Baby"
         let event = logger.logDiaper(type.diaperType)
         let label = event.type.label.lowercased()
         return .result(

@@ -100,7 +100,7 @@ struct EventStore {
         context.insert(event)
         save()
         sync(save: [event.id])
-        if !demo { SleepActivityManager.start(babyName: baby?.name ?? "Miller", at: date) }
+        if !demo { SleepActivityManager.start(babyName: baby?.name ?? "Baby", at: date) }
         reloadWidgets()
         donate(ToggleSleepIntent())
         return event
@@ -356,6 +356,7 @@ struct EventStore {
         guard !demo else { return }
         let interval = settings?.targetFeedInterval ?? 0
         let last = lastEventDate(of: .feed)
-        Task { await FeedAlarmManager.reschedule(lastFeed: last, interval: interval) }
+        let name = baby?.name ?? "Baby"
+        Task { await FeedAlarmManager.reschedule(babyName: name, lastFeed: last, interval: interval) }
     }
 }

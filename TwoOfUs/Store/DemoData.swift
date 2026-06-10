@@ -25,14 +25,14 @@ enum DemoData {
         let today = cal.startOfDay(for: now)
 
         let baby = Baby(
-            name: "Miller",
+            name: "Charlie",
             dateOfBirth: cal.date(byAdding: .weekOfYear, value: -14, to: now) ?? now
         )
         context.insert(baby)
 
         // Owner first (so even a no-override fetch resolves "you"), then co-parent,
         // then two guests. Colors come from the shared palette.
-        let you = Participant(id: ownerID, displayName: "Taylor",
+        let you = Participant(id: ownerID, displayName: "Alex",
                               colorHex: ParticipantColors.palette[0], role: .full)
         let partner = Participant(displayName: "Jordan",
                                   colorHex: ParticipantColors.palette[3], role: .full)

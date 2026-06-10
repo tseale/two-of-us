@@ -5,7 +5,7 @@ import AppIntents
 /// active (a widget-extension process can't reliably start a Live Activity).
 struct ToggleSleepIntent: AppIntent {
     static var title: LocalizedStringResource = "Start or Stop Sleep"
-    static var description = IntentDescription("Starts a sleep timer for Miller, or stops the running one.")
+    static var description = IntentDescription("Starts a sleep timer for your baby, or stops the running one.")
     static var openAppWhenRun: Bool = false
 
     init() {}
@@ -15,7 +15,7 @@ struct ToggleSleepIntent: AppIntent {
         guard let logger = QuickLogger.make() else {
             return .result(dialog: "Couldn't reach Two of Us.")
         }
-        let name = logger.babyName ?? "Miller"
+        let name = logger.babyName ?? "Baby"
         // Grab the running sleep (if any) BEFORE toggling so we can report its length.
         let runningStart = logger.activeSleep?.startedAt
         let started = logger.toggleSleep()

@@ -8,7 +8,9 @@ enum SyncConstants {
 
     /// Single custom zone that holds all of the baby's records. A custom zone
     /// (not the default zone) is required to create a zone-wide CKShare.
-    static let zoneName = "MillerZone"
+    /// Renaming this strands existing installs' records (a zone-wide CKShare is
+    /// bound to its zone) — only safe while no one is syncing yet.
+    static let zoneName = "TwoOfUsZone"
 
     /// CKRecord type names — one per @Model that syncs.
     enum RecordType {

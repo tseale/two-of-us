@@ -67,6 +67,7 @@ struct WidgetProvider: TimelineProvider {
 
         let ctx = ModelContext(container)
         let feedTarget = (try? ctx.fetch(FetchDescriptor<SharedSettings>()))?.first?.targetFeedInterval ?? 10800
+        let babyName = (try? ctx.fetch(FetchDescriptor<Baby>()))?.first?.name ?? "Baby"
 
         // Last feed
         var feedDesc = FetchDescriptor<FeedEvent>(
@@ -102,6 +103,7 @@ struct WidgetProvider: TimelineProvider {
 
         return WidgetEntry(
             date: .now,
+            babyName: babyName,
             lastFeedDate: lastFeedDate,
             lastSleepDate: lastSleepDate,
             lastDiaperDate: lastDiaperDate,

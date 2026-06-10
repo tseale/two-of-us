@@ -9,7 +9,7 @@ struct LargeWidgetView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
-                Text("Miller")
+                Text(entry.babyName)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppColor.text)
                 Spacer()

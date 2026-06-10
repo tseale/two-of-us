@@ -56,7 +56,7 @@ struct QuickLogger {
         )).first
     }
 
-    /// How long the running sleep has lasted, or nil if Miller is awake.
+    /// How long the running sleep has lasted, or nil if the baby is awake.
     var activeSleepDuration: TimeInterval? {
         guard let s = activeSleep else { return nil }
         return Date.now.timeIntervalSince(s.startedAt)

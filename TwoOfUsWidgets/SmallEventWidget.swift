@@ -142,7 +142,7 @@ struct LastFeedWidget: Widget {
             SmallEventWidgetView(kind: .feed, entry: entry)
         }
         .configurationDisplayName("Last Feed")
-        .description("Time since Miller's last bottle.")
+        .description("Time since your baby's last bottle.")
         .supportedFamilies([.accessoryRectangular, .systemSmall])
         .contentMarginsDisabled()
     }
@@ -156,7 +156,7 @@ struct LastSleepWidget: Widget {
             SmallEventWidgetView(kind: .sleep, entry: entry)
         }
         .configurationDisplayName("Last Sleep")
-        .description("Time since Miller's last sleep — or a live timer while sleeping.")
+        .description("Time since your baby's last sleep — or a live timer while sleeping.")
         .supportedFamilies([.accessoryRectangular, .systemSmall])
         .contentMarginsDisabled()
     }
@@ -170,7 +170,7 @@ struct LastDiaperWidget: Widget {
             SmallEventWidgetView(kind: .diaper, entry: entry)
         }
         .configurationDisplayName("Last Diaper")
-        .description("Time since Miller's last diaper change.")
+        .description("Time since your baby's last diaper change.")
         .supportedFamilies([.accessoryRectangular, .systemSmall])
         .contentMarginsDisabled()
     }

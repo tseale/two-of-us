@@ -6,6 +6,9 @@ import Foundation
 struct WidgetEntry: TimelineEntry {
     let date: Date
 
+    /// The baby's name as entered during onboarding, for widget headers.
+    let babyName: String
+
     let lastFeedDate: Date?
     let lastSleepDate: Date?
     let lastDiaperDate: Date?
@@ -31,6 +34,7 @@ struct WidgetEntry: TimelineEntry {
     func redated(to date: Date, relevance: TimelineEntryRelevance?) -> WidgetEntry {
         WidgetEntry(
             date: date,
+            babyName: babyName,
             lastFeedDate: lastFeedDate,
             lastSleepDate: lastSleepDate,
             lastDiaperDate: lastDiaperDate,
@@ -45,6 +49,7 @@ struct WidgetEntry: TimelineEntry {
 
     static let placeholder = WidgetEntry(
         date: .now,
+        babyName: "Baby",
         lastFeedDate: Date(timeIntervalSinceNow: -7800),   // 2h 10m ago
         lastSleepDate: Date(timeIntervalSinceNow: -2700),  // 45m ago
         lastDiaperDate: Date(timeIntervalSinceNow: -4200), // 1h 10m ago
@@ -61,6 +66,7 @@ struct WidgetEntry: TimelineEntry {
 
     static let empty = WidgetEntry(
         date: .now,
+        babyName: "Baby",
         lastFeedDate: nil,
         lastSleepDate: nil,
         lastDiaperDate: nil,

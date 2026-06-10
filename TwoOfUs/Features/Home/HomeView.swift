@@ -59,7 +59,7 @@ struct HomeView: View {
             .background(AppColor.bg)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if MillerIntelligence.isAvailable {
+                if BabyIntelligence.isAvailable {
                     ToolbarItem(placement: .topBarLeading) {
                         Button { showNLLog = true } label: { Image(systemName: "sparkles") }
                             .tint(AppColor.accentFeed)
@@ -96,7 +96,7 @@ struct HomeView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(baby?.name ?? "Miller")
+                Text(baby?.name ?? "Baby")
                     .font(AppFont.hero())
                 if let dob = baby?.dateOfBirth {
                     Text(TimeFormatting.age(from: dob))
@@ -175,7 +175,7 @@ struct HomeView: View {
                 EmptyStateView(
                     emoji: "🍼",
                     title: "No events yet",
-                    message: "Tap a button above to log \(baby?.name ?? "Miller")'s first feed."
+                    message: "Tap a button above to log \(baby?.name ?? "Baby")'s first feed."
                 )
                 .listRowBackground(Color.clear)
             } else {
@@ -228,7 +228,7 @@ struct HomeView: View {
 
     /// Turns a parsed entry into the matching store write, backdating by the
     /// model's `minutesAgo`. Mirrors the tap-driven log paths (toast + undo).
-    private func applyParsed(_ p: MillerIntelligence.ParsedLog) {
+    private func applyParsed(_ p: BabyIntelligence.ParsedLog) {
         let date = Calendar.current.date(byAdding: .minute, value: -max(0, p.minutesAgo), to: .now) ?? .now
         switch p.kind {
         case "feed":

@@ -35,7 +35,7 @@ enum FeedAlarmManager {
     /// Re-arms the feed alarm for `interval` after `lastFeed`, replacing any
     /// pending one. Clears the alarm (and no-ops) when reminders are off, no feed
     /// exists yet, or the next feed is already overdue.
-    static func reschedule(lastFeed: Date?, interval: TimeInterval) async {
+    static func reschedule(babyName: String, lastFeed: Date?, interval: TimeInterval) async {
         await cancel()
         guard LocalPrefs.shared.feedReminderEnabled,
               let lastFeed, interval > 0 else { return }
@@ -45,7 +45,7 @@ enum FeedAlarmManager {
         guard await requestAuthorization() else { return }
 
         let alert = AlarmPresentation.Alert(
-            title: "Miller — feed due",
+            title: "\(babyName) — feed due",
             stopButton: AlarmButton(text: "Done", textColor: .white, systemImageName: "checkmark")
         )
         let attributes = AlarmAttributes<FeedAlarmMetadata>(

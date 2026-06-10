@@ -15,7 +15,7 @@ struct StatsView: View {
     private var engine: StatsEngine {
         StatsEngine(feeds: feeds, sleeps: sleeps, diapers: diapers)
     }
-    private var babyName: String { babies.first?.name ?? "Miller" }
+    private var babyName: String { babies.first?.name ?? "Baby" }
 
     @State private var summary: String?
     @State private var summaryLoading = false
@@ -24,7 +24,7 @@ struct StatsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
-                    if MillerIntelligence.isAvailable {
+                    if BabyIntelligence.isAvailable {
                         insightsCard
                     }
                     recordHero
@@ -70,10 +70,10 @@ struct StatsView: View {
     }
 
     private func loadSummary() async {
-        guard MillerIntelligence.isAvailable, !feeds.isEmpty else { return }
+        guard BabyIntelligence.isAvailable, !feeds.isEmpty else { return }
         summaryLoading = true
         defer { summaryLoading = false }
-        summary = await MillerIntelligence.summary(digest: buildDigest(), babyName: babyName)
+        summary = await BabyIntelligence.summary(digest: buildDigest(), babyName: babyName)
     }
 
     /// Compact, model-friendly digest of the last week's numbers.

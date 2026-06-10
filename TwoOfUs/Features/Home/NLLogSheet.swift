@@ -2,10 +2,10 @@ import SwiftUI
 
 /// Natural-language quick-log sheet (iOS 26, on-device Foundation Models).
 /// The user types something like "4oz bottle 20 minutes ago" or "wet diaper";
-/// `MillerIntelligence` parses it and `onApply` performs the matching write.
+/// `BabyIntelligence` parses it and `onApply` performs the matching write.
 struct NLLogSheet: View {
     /// Performs the actual log; called once the text parses to a known event.
-    let onApply: (MillerIntelligence.ParsedLog) -> Void
+    let onApply: (BabyIntelligence.ParsedLog) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
@@ -50,7 +50,7 @@ struct NLLogSheet: View {
         working = true
         error = nil
         Task {
-            let parsed = await MillerIntelligence.parseLog(entry, now: .now)
+            let parsed = await BabyIntelligence.parseLog(entry, now: .now)
             working = false
             if let parsed {
                 onApply(parsed)

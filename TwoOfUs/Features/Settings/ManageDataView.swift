@@ -134,7 +134,7 @@ struct DeleteEverythingFlow: View {
     // Step 2 — consequences + export reminder.
     @ViewBuilder private var stageTwo: some View {
         Section {
-            Text("If you'd like to keep a record of Miller's log, cancel and use **Export log (CSV)** first — there's no way to recover this data afterward.")
+            Text("If you'd like to keep a record of your baby's log, cancel and use **Export log (CSV)** first — there's no way to recover this data afterward.")
         }
         Section {
             Text("Continuing will also remove the data from the other parent's device.")
