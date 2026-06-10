@@ -174,8 +174,8 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
 
         case .sentRecordZoneChanges(let e):
             for failed in e.failedRecordSaves {
-                if let ckError = failed.error as? CKError, ckError.code == .serverRecordChanged,
-                   let serverRecord = ckError.serverRecord {
+                if failed.error.code == .serverRecordChanged,
+                   let serverRecord = failed.error.serverRecord {
                     // Last-writer-wins: take the server's copy.
                     RecordMapping.apply(serverRecord, in: context)
                 }
@@ -207,8 +207,9 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
                 }
             }
         }
+        let builtRecords = records
         return await CKSyncEngine.RecordZoneChangeBatch(pendingChanges: pending) { recordID in
-            records[recordID]
+            builtRecords[recordID]
         }
     }
 

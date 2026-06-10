@@ -206,9 +206,8 @@ struct StatsView: View {
                         }
                     }
                     if let mvp = shares.first {
-                        Text("Night MVP this week: ")
+                        Text("Night MVP this week: \(Text("\(mvp.name) 👑").font(.caption.weight(.bold)).foregroundStyle(AppColor.text))")
                             .font(.caption).foregroundStyle(AppColor.text3)
-                        + Text("\(mvp.name) 👑").font(.caption.weight(.bold)).foregroundStyle(AppColor.text)
                     }
                 }
             }
@@ -246,9 +245,9 @@ struct StatsView: View {
     }
 
     private func label(_ title: String, detail: String) -> some View {
-        (Text(title + " ").font(.subheadline.weight(.semibold)).foregroundStyle(AppColor.text)
-         + Text("— " + detail).font(.subheadline).foregroundStyle(AppColor.text2))
-        .frame(maxWidth: .infinity, alignment: .leading)
+        Text("\(Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(AppColor.text)) — \(detail)")
+            .font(.subheadline).foregroundStyle(AppColor.text2)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: Formatting
