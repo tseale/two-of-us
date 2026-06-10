@@ -8,7 +8,9 @@ options:
 
 settings:
   base:
-    MARKETING_VERSION: "0.1.0"
+    # 1.0 matches the version train already uploaded to TestFlight (build 1 went
+    # up as 1.0); a lower train would sort as older than what's already there.
+    MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: Q58H65DQ64
@@ -25,6 +27,11 @@ targets:
       path: TwoOfUs/Info.plist
       properties:
         CFBundleDisplayName: Two of Us
+        # Wire versions to build settings — XcodeGen otherwise writes literal
+        # "1.0"/"1", which would make ci_post_clone.sh's CI_BUILD_NUMBER
+        # stamping a no-op and every TestFlight upload a duplicate 1.0 (1).
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         # Only standard HTTPS/CloudKit crypto — exempt. Without this, every
         # TestFlight build waits on a manual export-compliance answer in ASC.
         ITSAppUsesNonExemptEncryption: NO
@@ -95,6 +102,9 @@ targets:
       path: TwoOfUsWidgets/Info.plist
       properties:
         CFBundleDisplayName: TwoOfUsWidgets
+        # Keep extension versions in lockstep with the app (App Store requires it).
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
