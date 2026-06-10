@@ -1,13 +1,15 @@
 import SwiftUI
 
-/// The launch splash. It opens on solid black (matching the static launch screen,
-/// which is a plain black field) and flies the two parent circles in from opposite
-/// off-screen edges; as they meet, the stage brightens into the onboarding's
-/// night-stage ambient, the baby's light is born at their union, one gentle
-/// heartbeat plays, the wordmark fades in, and it dismisses via `onComplete`.
-/// Because the splash ends on the same `AmbientBackground(stop: .nightStage)` the
-/// welcome and join pages sit on, the host's crossfade dissolves between two
-/// identical backdrops. Honors Reduce Motion by skipping the motion and fading in.
+/// The launch splash. It opens on solid black (matching the static launch screen)
+/// and the two parent circles *materialize* like lights coming into focus: each
+/// begins large, soft, and faint, then gently contracts, drifts inward, and
+/// brightens into place — left first, the right a dreamy beat later. As they
+/// converge the stage dawns from black into the onboarding's night-stage ambient,
+/// the baby's light is born at their union and breathes once, and the "Two of Us"
+/// wordmark fades up. Because the splash ends on the same
+/// `AmbientBackground(stop: .nightStage)` the welcome and join pages sit on, the
+/// host's crossfade dissolves between two identical backdrops. Honors Reduce
+/// Motion by skipping the motion and just fading in.
 struct SplashView: View {
     /// Called once the splash has finished; the host fades it away.
     var onComplete: () -> Void
@@ -26,12 +28,15 @@ struct SplashView: View {
 
     private let markSize: CGFloat = 240
 
-    // Parent circles start off-screen on opposite edges; the baby core stays hidden
-    // until they meet. (glowOpacity already starts at 0, so the first frame is black.)
-    // ±384 ≈ 1.6× markSize, which clears any iPhone half-width so each circle begins
-    // fully off the black field (a literal, since @State defaults can't read members).
-    @State private var leftEntry: CGFloat = -384
-    @State private var rightEntry: CGFloat = 384
+    // The parents begin oversized, transparent, and drifted gently up-and-out (a
+    // little asymmetry so they swirl together rather than mirror); they ease to
+    // `.identity` (resting). The baby core stays hidden until they meet, and the
+    // stage stays black until the dawn begins. (glowOpacity starts at 0 too, so
+    // the first frame is genuinely black.)
+    @State private var leftEntry = CradleMark.ParentEntry(
+        offset: CGSize(width: -40, height: -44), scale: 1.55, opacity: 0)
+    @State private var rightEntry = CradleMark.ParentEntry(
+        offset: CGSize(width: 44, height: 30), scale: 1.55, opacity: 0)
     @State private var babyCore: Double = 0
     /// Lifts the black cover off the night-stage ambient as the parents converge,
     /// so the splash's backdrop becomes the welcome page's before the hand-off.
@@ -50,8 +55,8 @@ struct SplashView: View {
             CradleMark(size: markSize,
                        babyScale: babyScale,
                        glowOpacity: glowOpacity,
-                       leftEntryOffsetX: leftEntry,
-                       rightEntryOffsetX: rightEntry,
+                       leftEntry: leftEntry,
+                       rightEntry: rightEntry,
                        babyCoreOpacity: babyCore)
 
             Text("Two of Us")
@@ -65,10 +70,10 @@ struct SplashView: View {
 
     @MainActor private func run() async {
         if reduceMotion {
-            // No fly-in: settle the mark on the lit stage instantly, only fade
+            // No motion: settle the mark on the lit stage instantly, only fade
             // the wordmark.
-            leftEntry = 0
-            rightEntry = 0
+            leftEntry = .identity
+            rightEntry = .identity
             glowOpacity = 1
             babyCore = 1
             stageLit = true
@@ -76,31 +81,31 @@ struct SplashView: View {
                 wordmarkOpacity = 1
                 wordmarkOffset = 0
             }
-            try? await Task.sleep(for: .seconds(0.85))
+            try? await Task.sleep(for: .seconds(0.9))
             Self.completedAt = .now
             onComplete()
             return
         }
 
-        // The two parents glide in from opposite edges (slight stagger so it reads
-        // as a meeting, not a symmetric clap) while the stage gently dawns from
-        // black into the night ambient…
-        withAnimation(.spring(response: 0.6, dampingFraction: 0.78)) { leftEntry = 0 }
-        withAnimation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.08)) { rightEntry = 0 }
-        withAnimation(.easeInOut(duration: 1.0).delay(0.10)) { stageLit = true }
+        // Two lights drift home: each parent contracts, brightens, and settles on
+        // a long, soft ease — the right trailing the left so it feels like a
+        // gathering, not a clap — while the stage slowly dawns out of black.
+        withAnimation(.easeInOut(duration: 1.3).delay(0.05)) { leftEntry = .identity }
+        withAnimation(.easeInOut(duration: 1.3).delay(0.35)) { rightEntry = .identity }
+        withAnimation(.easeInOut(duration: 1.5).delay(0.15)) { stageLit = true }
 
-        // …and as they overlap, the baby's light is born: the glow blooms and the
-        // crisp core pops in, then one calm heartbeat and the wordmark fades up.
-        withAnimation(.easeInOut(duration: 0.6).delay(0.40)) { glowOpacity = 1 }
-        withAnimation(.easeOut(duration: 0.3).delay(0.45)) { babyCore = 1 }
-        withAnimation(.easeInOut(duration: 0.6).delay(0.55)) { babyScale = 1.07 }
-        withAnimation(.easeInOut(duration: 0.45).delay(1.15)) { babyScale = 1.0 }
-        withAnimation(.easeOut(duration: 0.45).delay(0.80)) {
+        // As they overlap, the baby's light is born — glow blooms, core fades in —
+        // then a single slow breath, and the wordmark rises softly.
+        withAnimation(.easeInOut(duration: 0.9).delay(0.95)) { glowOpacity = 1 }
+        withAnimation(.easeOut(duration: 0.6).delay(1.05)) { babyCore = 1 }
+        withAnimation(.easeInOut(duration: 0.95).delay(1.15)) { babyScale = 1.06 }
+        withAnimation(.easeInOut(duration: 0.7).delay(2.0)) { babyScale = 1.0 }
+        withAnimation(.easeOut(duration: 0.7).delay(1.35)) {
             wordmarkOpacity = 1
             wordmarkOffset = 0
         }
 
-        try? await Task.sleep(for: .seconds(1.5))
+        try? await Task.sleep(for: .seconds(2.3))
         Self.completedAt = .now
         onComplete()
     }

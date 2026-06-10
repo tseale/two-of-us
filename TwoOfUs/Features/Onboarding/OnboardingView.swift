@@ -353,7 +353,11 @@ struct OnboardingView: View {
             }
             settleDelay = max(0, 0.45 - elapsed)
         } else {
-            settleDelay = reduceMotion ? 1.3 : 1.95
+            // No splash timestamp yet (the usual cold launch — this task starts
+            // before the splash completes): wait out the splash's run so the mark
+            // glides up just as the splash fades. Mirrors SplashView's durations
+            // (~2.3s motion / ~0.9s reduce) plus the hand-off buffer.
+            settleDelay = reduceMotion ? 1.4 : 2.75
         }
         try? await Task.sleep(for: .seconds(settleDelay))
 
