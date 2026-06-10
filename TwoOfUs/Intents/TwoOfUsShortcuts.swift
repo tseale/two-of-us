@@ -49,8 +49,8 @@ struct TwoOfUsShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: LastFeedIntent(),
             phrases: [
-                "When did Miller last eat in \(.applicationName)",
-                "Miller's last feed in \(.applicationName)",
+                "When did the baby last eat in \(.applicationName)",
+                "The baby's last feed in \(.applicationName)",
                 "\(.applicationName) last feed"
             ],
             shortTitle: "Last Feed",
@@ -59,7 +59,7 @@ struct TwoOfUsShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: LastDiaperIntent(),
             phrases: [
-                "When was Miller's last diaper in \(.applicationName)",
+                "When was the baby's last diaper in \(.applicationName)",
                 "\(.applicationName) last diaper"
             ],
             shortTitle: "Last Diaper",
@@ -68,8 +68,8 @@ struct TwoOfUsShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: SleepStatusIntent(),
             phrases: [
-                "Is Miller asleep in \(.applicationName)",
-                "How long has Miller been sleeping in \(.applicationName)",
+                "Is the baby asleep in \(.applicationName)",
+                "How long has the baby been sleeping in \(.applicationName)",
                 "\(.applicationName) sleep status"
             ],
             shortTitle: "Sleep Status",
@@ -78,8 +78,8 @@ struct TwoOfUsShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: TodaySummaryIntent(),
             phrases: [
-                "How is Miller doing today in \(.applicationName)",
-                "Miller's day in \(.applicationName)",
+                "How is the baby doing today in \(.applicationName)",
+                "The baby's day in \(.applicationName)",
                 "\(.applicationName) today"
             ],
             shortTitle: "Today",

@@ -278,7 +278,7 @@ struct SettingsView: View {
                 Text(AppInfo.versionString)
                     .font(.caption)
                     .foregroundStyle(AppColor.text3)
-                Text("Made with love for Miller 🤍")
+                Text("Made with love for \(baby?.name ?? "your little one") 🤍")
                     .font(.footnote)
                     .foregroundStyle(AppColor.text2)
             }
@@ -298,7 +298,8 @@ struct SettingsView: View {
             prefs.feedReminderEnabled = false
             return
         }
-        await FeedAlarmManager.reschedule(lastFeed: lastFeedDate(),
+        await FeedAlarmManager.reschedule(babyName: baby?.name ?? "Baby",
+                                          lastFeed: lastFeedDate(),
                                           interval: settings?.targetFeedInterval ?? 0)
     }
 

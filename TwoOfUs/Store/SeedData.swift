@@ -14,7 +14,7 @@ enum SeedData {
         createBaby(
             name: babyName,
             dateOfBirth: Calendar.current.date(byAdding: .weekOfYear, value: -12, to: .now) ?? .now,
-            ownerName: "Taylor",
+            ownerName: "Alex",
             ownerColorHex: ParticipantColors.palette[0],
             in: context
         )

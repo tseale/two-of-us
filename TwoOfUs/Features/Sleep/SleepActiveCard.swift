@@ -11,10 +11,12 @@ struct SleepActiveCard: View {
         TimeFormatting.duration(from: sleep.startedAt, to: now)
     }
 
+    private var babyName: String { sleep.baby?.name ?? "Baby" }
+
     var body: some View {
         VStack(spacing: 6) {
             Text("💤").font(.system(size: 34))
-            Text("MILLER IS SLEEPING")
+            Text("\(babyName.uppercased()) IS SLEEPING")
                 .sectionLabelStyle(color: AppColor.accentSleep)
             Text(elapsed)
                 .font(AppFont.display(48, weight: .heavy))
@@ -42,6 +44,6 @@ struct SleepActiveCard: View {
         .padding(20)
         .background(AppColor.accentSleep.opacity(0.18), in: RoundedRectangle(cornerRadius: 22))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Miller is sleeping, \(elapsed), since \(TimeFormatting.clock(sleep.startedAt))")
+        .accessibilityLabel("\(babyName) is sleeping, \(elapsed), since \(TimeFormatting.clock(sleep.startedAt))")
     }
 }

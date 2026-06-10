@@ -4,7 +4,7 @@ import ActivityKit
 
 // MARK: - Lock Screen View
 
-/// Full live activity view shown on the lock screen while Miller sleeps.
+/// Full live activity view shown on the lock screen while the baby sleeps.
 /// A calm night scene: a glowing moon, an eyebrow, and a large rounded timer over
 /// a deep-indigo gradient — the same brand gradient as the in-app "record" hero.
 struct SleepLockScreenView: View {

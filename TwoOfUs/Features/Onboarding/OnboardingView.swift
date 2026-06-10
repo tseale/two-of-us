@@ -11,7 +11,7 @@ struct OnboardingView: View {
     @State private var page: Page = .welcome
 
     // Setup fields — lifted here so they survive paging back and forth.
-    @State private var babyName = "Miller"
+    @State private var babyName = ""
     @State private var dateOfBirth = Date()
     @State private var ownerName = ""
     @State private var ownerColorHex = ParticipantColors.palette[0]

@@ -33,15 +33,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             SyncManager.shared?.drainExtensionQueue()
         }
         guard let logger = QuickLogger.make() else { return }
+        let babyName = logger.babyName ?? "Baby"
         SleepActivityManager.reconcile(
-            babyName: logger.babyName ?? "Miller",
+            babyName: babyName,
             activeSleepStartedAt: logger.activeSleep?.startedAt
         )
         // Re-arm the feed alarm off whatever's in the store now — this catches
         // feeds logged via widget/Siri or synced from the co-parent's device.
         let lastFeed = logger.lastFeed?.timestamp
         let interval = logger.targetFeedInterval
-        Task { await FeedAlarmManager.reschedule(lastFeed: lastFeed, interval: interval) }
+        Task { await FeedAlarmManager.reschedule(babyName: babyName, lastFeed: lastFeed, interval: interval) }
     }
 
     /// The joining parent tapped the share invite — accept it and start syncing

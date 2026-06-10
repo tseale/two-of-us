@@ -8,7 +8,7 @@ struct MediumWidgetView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Miller")
+                Text(entry.babyName)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(AppColor.text2)
                 Spacer()

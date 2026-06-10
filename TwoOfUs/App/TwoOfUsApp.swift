@@ -20,7 +20,7 @@ struct TwoOfUsApp: App {
         // Dev-only: `-seedSampleData` populates a week of events for screenshots.
         if ProcessInfo.processInfo.arguments.contains("-seedSampleData") {
             let ctx = realContainer.mainContext
-            SeedData.seedIfNeeded(in: ctx, babyName: "Miller")
+            SeedData.seedIfNeeded(in: ctx, babyName: "Charlie")
             SeedData.seedSampleEvents(in: ctx)
         }
         #endif

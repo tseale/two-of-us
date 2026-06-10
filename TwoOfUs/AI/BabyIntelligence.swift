@@ -3,11 +3,11 @@ import FoundationModels
 
 /// On-device generative features via Apple's Foundation Models (iOS 26).
 ///
-/// Everything here runs locally — nothing about Miller ever leaves the device —
+/// Everything here runs locally — nothing about your baby ever leaves the device —
 /// and degrades gracefully: `isAvailable` is false on hardware without Apple
 /// Intelligence (or when the model is still downloading / disabled), and every
 /// call returns nil rather than throwing so callers can simply hide the UI.
-enum MillerIntelligence {
+enum BabyIntelligence {
     /// Whether the on-device model is ready to use right now.
     static var isAvailable: Bool {
         if case .available = SystemLanguageModel.default.availability { return true }
@@ -48,7 +48,7 @@ enum MillerIntelligence {
         var minutesAgo: Int
     }
 
-    /// Parses one log entry from text like "Miller had 4oz at 2am". Returns nil
+    /// Parses one log entry from text like "had 4oz at 2am". Returns nil
     /// when the model is unavailable, generation fails, or nothing was recognized.
     static func parseLog(_ text: String, now: Date) async -> ParsedLog? {
         guard isAvailable, !text.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }

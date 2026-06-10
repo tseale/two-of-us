@@ -6,6 +6,7 @@ struct FeedSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query private var settingsList: [SharedSettings]
+    @Query private var babies: [Baby]
 
     /// Reports the logged event back to the host for the "Logged · Undo" toast.
     let onLogged: (String, @escaping () -> Void) -> Void
@@ -23,7 +24,7 @@ struct FeedSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("How much did Miller take?") {
+                Section("How much did \(babies.first?.name ?? "Baby") take?") {
                     HStack(spacing: 10) {
                         ForEach(presets, id: \.self) { oz in
                             presetChip(oz)

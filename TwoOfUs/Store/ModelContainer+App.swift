@@ -33,7 +33,7 @@ enum AppModelContainer {
     /// In-memory container for SwiftUI previews and tests.
     @MainActor static let preview: ModelContainer = {
         let container = make(inMemory: true)
-        SeedData.seedIfNeeded(in: container.mainContext, babyName: "Miller")
+        SeedData.seedIfNeeded(in: container.mainContext, babyName: "Charlie")
         SeedData.seedSampleEvents(in: container.mainContext)
         return container
     }()

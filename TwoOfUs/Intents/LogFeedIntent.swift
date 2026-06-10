@@ -1,10 +1,10 @@
 import AppIntents
 
-/// Logs a bottle for Miller without opening the app. With no amount supplied
+/// Logs a bottle without opening the app. With no amount supplied
 /// (the widget button / "Hey Siri" case) it uses the default feed amount.
 struct LogFeedIntent: AppIntent {
     static var title: LocalizedStringResource = "Log a Feed"
-    static var description = IntentDescription("Logs a bottle for Miller using your default amount.")
+    static var description = IntentDescription("Logs a bottle for your baby using your default amount.")
     static var openAppWhenRun: Bool = false
 
     @Parameter(title: "Amount (oz)")
@@ -18,7 +18,7 @@ struct LogFeedIntent: AppIntent {
         guard let logger = QuickLogger.make() else {
             return .result(dialog: "Couldn't reach Two of Us.")
         }
-        let name = logger.babyName ?? "Miller"
+        let name = logger.babyName ?? "Baby"
         let event = logger.logFeed(amountOz: amountOz ?? logger.defaultFeedOz)
         let oz = OzFormat.string(event.amountOz)
         return .result(
