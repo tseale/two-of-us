@@ -285,7 +285,7 @@ struct InlineNoticeCard: View {
             ZStack {
                 AmbientBackground(stop: AmbientStop(subtle: true, top: AppColor.accentFeed, bottom: AppColor.accentSleep))
                 VStack(spacing: 18) {
-                    OnboardingStepHeader(eyebrow: "SET UP · 1 OF 5", title: "Who are we tracking?",
+                    OnboardingStepHeader(eyebrow: "SET UP · 1 OF 3", title: "Who are we tracking?",
                                          subtitle: "Just the essentials — everything is editable later.")
                     GlassField(label: "Name", prompt: "Your baby's name", text: $name)
                     PhotoPickCard(name: name, colorHex: ParticipantColors.babyHex, photoData: $photo)
@@ -295,7 +295,7 @@ struct InlineNoticeCard: View {
                     InlineNoticeCard(icon: "icloud.slash", message: "iCloud is off on this iPhone.")
                     Spacer()
                     OnboardingBottomBar(
-                        pageCount: 10, pageIndex: 5,
+                        pageCount: 4, pageIndex: 1,
                         primary: .init(title: "Continue", action: {}),
                         secondary: .init(title: "Set up later in Settings", action: {})
                     )

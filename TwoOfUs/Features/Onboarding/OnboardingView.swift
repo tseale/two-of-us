@@ -2,9 +2,12 @@ import SwiftUI
 import SwiftData
 import CloudKit
 
-/// First launch (owner): a story tour of the app (welcome → track → everywhere →
-/// rhythm → together), then a five-step setup chapter (baby → you → feeding
-/// rhythm → reminders → invite), then the celebration finale.
+/// First launch (owner): a deliberately tiny flow — welcome, then three setup
+/// steps (baby → you → invite), then the celebration finale. Everything else is
+/// deferred: the feeding rhythm and reminders become "Getting set up" quests on
+/// Home (`SetupChecklistCard`), and the old story pages play later as one-time
+/// contextual spotlights (`SpotlightSheet`) once there's real data to hang them
+/// on.
 ///
 /// One TabView holds every page; the ambient backdrop and the CTA bar live
 /// outside it in a ZStack, so nothing shifts between pages. All setup data stays
@@ -21,8 +24,7 @@ struct OnboardingView: View {
     // MARK: Paging
 
     private enum Page: Int, CaseIterable {
-        case welcome, track, everywhere, rhythm, together
-        case setupBaby, setupYou, setupRhythm, setupReminders, invite
+        case welcome, setupBaby, setupYou, invite
 
         var next: Page { Page(rawValue: rawValue + 1) ?? self }
     }
@@ -48,9 +50,6 @@ struct OnboardingView: View {
     @State private var ownerName = ""
     @State private var ownerColorHex = ParticipantColors.palette[0]
     @State private var ownerPhotoData: Data?
-    @State private var feedIntervalMinutes = 180
-    @State private var ozPresets: [Double] = [2, 3, 4]
-    @State private var remindersOn = LocalPrefs.shared.feedReminderEnabled
 
     // MARK: Invite state
 
@@ -66,8 +65,9 @@ struct OnboardingView: View {
         var played = Self.hasPlayedIntro
 
         #if DEBUG
-        // Dev-only: launch with `-onboardingPage N` (1-based Page rawValue) to
-        // open straight on a page — for design iteration and screenshots.
+        // Dev-only: launch with `-onboardingPage N` (Page rawValue: 1 baby,
+        // 2 you, 3 invite) to open straight on a page — for design iteration
+        // and screenshots.
         let jump = UserDefaults.standard.integer(forKey: "onboardingPage")
         if jump > 0, let target = Page(rawValue: jump) {
             Self.hasPlayedIntro = true
@@ -104,27 +104,15 @@ struct OnboardingView: View {
             TabView(selection: $page) {
                 OnboardingWelcomePage(markSettled: markSettled, revealed: chromeRevealed)
                     .tag(Page.welcome)
-                OnboardingTrackPage(revealed: revealed.contains(.track))
-                    .tag(Page.track)
-                OnboardingEverywherePage(revealed: revealed.contains(.everywhere))
-                    .tag(Page.everywhere)
-                OnboardingRhythmPage(revealed: revealed.contains(.rhythm))
-                    .tag(Page.rhythm)
-                OnboardingTogetherPage(revealed: revealed.contains(.together))
-                    .tag(Page.together)
                 BabyStep(name: $babyName, dateOfBirth: $dateOfBirth, photoData: $babyPhotoData,
                          revealed: revealed.contains(.setupBaby), active: page == .setupBaby)
                     .tag(Page.setupBaby)
                 YouStep(name: $ownerName, colorHex: $ownerColorHex, photoData: $ownerPhotoData,
                         revealed: revealed.contains(.setupYou), active: page == .setupYou)
                     .tag(Page.setupYou)
-                RhythmStep(intervalMinutes: $feedIntervalMinutes, ozPresets: $ozPresets,
-                           revealed: revealed.contains(.setupRhythm))
-                    .tag(Page.setupRhythm)
-                RemindersStep(on: $remindersOn, revealed: revealed.contains(.setupReminders))
-                    .tag(Page.setupReminders)
                 InviteStep(cloudAvailable: cloudAvailable, didOfferShare: didOfferShare,
-                           shareFailed: shareFailed, revealed: revealed.contains(.invite))
+                           shareFailed: shareFailed, revealed: revealed.contains(.invite),
+                           ownerName: trimmedOwnerName, ownerColorHex: ownerColorHex)
                     .tag(Page.invite)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
@@ -161,15 +149,9 @@ struct OnboardingView: View {
         switch page {
         case .welcome:
             .nightStage
-        case .track:
-            AmbientStop(top: AppColor.accentFeed, bottom: AppColor.accentDiaper)
-        case .everywhere:
-            AmbientStop(top: Color(hex: "7FB2FF"), bottom: AppColor.accentSleep)
-        case .rhythm:
-            AmbientStop(top: AppColor.accentDiaper, bottom: AppColor.accentFeed)
-        case .together, .invite:
+        case .invite:
             AmbientStop(top: AppColor.accentSleep, bottom: AppColor.accentFeed)
-        case .setupBaby, .setupYou, .setupRhythm, .setupReminders:
+        case .setupBaby, .setupYou:
             AmbientStop(subtle: true, top: AppColor.accentFeed, bottom: AppColor.accentSleep)
         }
     }
@@ -189,14 +171,10 @@ struct OnboardingView: View {
         switch page {
         case .welcome:
             .init(title: "Begin", action: advance)
-        case .track, .everywhere, .rhythm, .together, .setupRhythm:
-            .init(title: "Continue", action: advance)
         case .setupBaby:
             .init(title: "Continue", enabled: !trimmedBabyName.isEmpty, action: advance)
         case .setupYou:
             .init(title: "Continue", enabled: !trimmedOwnerName.isEmpty, action: advance)
-        case .setupReminders:
-            .init(title: "Continue", action: continueFromReminders)
         case .invite:
             if cloudAvailable == true && !didOfferShare && !shareFailed {
                 .init(title: "Invite my partner", loading: preparingShare, action: prepareShare)
@@ -211,10 +189,6 @@ struct OnboardingView: View {
         case .welcome:
             // A low-commitment way to look around before committing to setup.
             .init(title: "Explore with sample data", action: startDemo)
-        case .setupRhythm:
-            .init(title: "Use the defaults", action: useDefaultRhythm)
-        case .setupReminders:
-            .init(title: "Set up later in Settings", action: skipReminders)
         case .invite:
             if !canFinish {
                 // The flow is freely swipeable, so names can be missing here —
@@ -255,30 +229,6 @@ struct OnboardingView: View {
         }
     }
 
-    private func useDefaultRhythm() {
-        feedIntervalMinutes = 180
-        ozPresets = [2, 3, 4]
-        advance()
-    }
-
-    /// Secures alarm authorization at this calm moment instead of at the first
-    /// 3am feed log. Already-granted (the toggle asks on flip) resolves silently.
-    private func continueFromReminders() {
-        guard remindersOn else { skipReminders(); return }
-        Task {
-            let granted = await FeedAlarmManager.requestAuthorization()
-            LocalPrefs.shared.feedReminderEnabled = granted
-            if !granted { remindersOn = false }
-            advance()
-        }
-    }
-
-    private func skipReminders() {
-        remindersOn = false
-        LocalPrefs.shared.feedReminderEnabled = false
-        advance()
-    }
-
     private func refreshCloudStatus() {
         Task { cloudAvailable = await CloudAccount.isAvailable() }
     }
@@ -311,7 +261,11 @@ struct OnboardingView: View {
     /// store write — `RootView`'s gate flips to Home underneath the overlay.
     private func finish() {
         Haptics.success()
-        LocalPrefs.shared.feedReminderEnabled = remindersOn
+        // Reminders are now asked in their own moment (quest / after a feed).
+        // Must be off until then: the pref defaults to true, and logging a feed
+        // with it on would ambush the user with the AlarmKit dialog.
+        LocalPrefs.shared.feedReminderEnabled = false
+        SetupProgress.shared.markNewFlowComplete()
         onFinished(.owner(babyName: trimmedBabyName))
         SeedData.createBaby(
             name: trimmedBabyName,
@@ -320,8 +274,6 @@ struct OnboardingView: View {
             ownerName: trimmedOwnerName,
             ownerColorHex: ownerColorHex,
             ownerPhoto: ownerPhotoData,
-            targetFeedIntervalMinutes: feedIntervalMinutes,
-            ozPresets: ozPresets,
             in: context
         )
     }

@@ -10,7 +10,7 @@ struct CelebrationData: Equatable {
     static func owner(babyName: String) -> CelebrationData {
         CelebrationData(
             title: babyName.isEmpty ? "Welcome home" : "Welcome home, \(babyName)",
-            subtitle: "Logged moments start now."
+            subtitle: "Logged moments start now — we'll finish setting up as you go."
         )
     }
 

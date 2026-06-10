@@ -229,10 +229,18 @@ struct EventStore {
         reloadWidgets()
     }
 
-    /// Updates the shared feeding target and syncs it.
-    func updateSettings(targetFeedIntervalMinutes: Int) {
+    /// Updates the shared feeding rhythm and syncs it. Nil fields stay as-is.
+    func updateSettings(targetFeedIntervalMinutes: Int? = nil, ozPresets: [Double]? = nil) {
         guard let settings else { return }
-        settings.targetFeedIntervalMinutes = targetFeedIntervalMinutes
+        if let targetFeedIntervalMinutes {
+            settings.targetFeedIntervalMinutes = targetFeedIntervalMinutes
+        }
+        if let ozPresets {
+            settings.ozPresets = ozPresets.sorted()
+            // Keep the one-tap (widget/Siri) amount one of the presets — same
+            // rule as `SeedData.createBaby`.
+            settings.defaultFeedOz = settings.ozPresets.max() ?? settings.defaultFeedOz
+        }
         save()
         sync(save: [settings.id])
     }
