@@ -13,11 +13,13 @@ struct SettingsView: View {
     @Query private var settingsList: [SharedSettings]
     @Query private var participants: [Participant]
     @State private var prefs = LocalPrefs.shared
+    @State private var setup = SetupProgress.shared
     @State private var share: CKShare?
     @State private var showShareSheet = false
     @State private var preparingShare = false
     @State private var showBabyEdit = false
     @State private var showProfileEdit = false
+    @State private var questSheet: SetupQuest?
 
     private var baby: Baby? { babies.first }
     private var settings: SharedSettings? { settingsList.first }
@@ -39,6 +41,7 @@ struct SettingsView: View {
             Form {
                 babySection
                 youSection
+                setupSection
 
                 if let settings, canEditShared {
                     Section("Feeding") {
@@ -102,6 +105,38 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showProfileEdit) {
                 ProfileEditSheet()
+            }
+            .sheet(item: $questSheet) { quest in
+                switch quest {
+                case .rhythm: RhythmQuestSheet()
+                case .reminders: RemindersQuestSheet()
+                }
+            }
+        }
+    }
+
+    // MARK: Finish setting up
+
+    /// Quests deferred out of onboarding that haven't been done yet — the
+    /// persistent home for anything the Home checklist card was dismissed with.
+    @ViewBuilder private var setupSection: some View {
+        let pending = setup.incompleteQuests(role: prefs.syncRole, settings: settings)
+        if !prefs.demoModeEnabled && !pending.isEmpty {
+            Section("Finish setting up") {
+                ForEach(pending) { quest in
+                    Button { questSheet = quest } label: {
+                        HStack {
+                            SettingsIconLabel(title: quest.title, systemImage: quest.icon,
+                                              tint: quest.tint)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(AppColor.text3)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         }
     }

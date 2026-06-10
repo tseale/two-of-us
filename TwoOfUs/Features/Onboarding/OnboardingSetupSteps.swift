@@ -1,10 +1,11 @@
 import SwiftUI
 import PhotosUI
 
-/// The setup-chapter pages (baby → you → rhythm → reminders → invite). Pure
-/// presentation: every value binds up into the host flow, which commits once at
-/// Finish — nothing here touches the store. Shared between owner onboarding and
-/// (for the reminders step) the co-parent join flow.
+/// The setup-chapter pages. Owner onboarding runs baby → you → invite; the
+/// rhythm and reminders steps now live in the post-onboarding quest sheets
+/// (`QuestSheets.swift`) instead of the first-run flow. Pure presentation:
+/// every value binds up into the host, which commits — nothing here touches
+/// the store.
 
 // MARK: - Baby
 
@@ -21,7 +22,7 @@ struct BabyStep: View {
             VStack(spacing: 18) {
                 Spacer(minLength: 16)
                 OnboardingStepHeader(
-                    eyebrow: "Set up · 1 of 5",
+                    eyebrow: "Set up · 1 of 3",
                     title: "Who are we tracking?",
                     subtitle: "Just the essentials — everything is editable later."
                 )
@@ -67,7 +68,7 @@ struct YouStep: View {
             VStack(spacing: 18) {
                 Spacer(minLength: 16)
                 OnboardingStepHeader(
-                    eyebrow: "Set up · 2 of 5",
+                    eyebrow: "Set up · 2 of 3",
                     title: "And who's logging?",
                     subtitle: "Your name and color mark every entry you make."
                 )
@@ -103,6 +104,9 @@ struct RhythmStep: View {
     @Binding var intervalMinutes: Int
     @Binding var ozPresets: [Double]
     let revealed: Bool
+    var eyebrow: String? = nil
+    /// False when hosted in a sheet (no floating bottom bar to clear).
+    var barClearance = true
 
     @State private var selectedPreset = 1   // middle chip
 
@@ -111,7 +115,7 @@ struct RhythmStep: View {
             VStack(spacing: 22) {
                 Spacer(minLength: 16)
                 OnboardingStepHeader(
-                    eyebrow: "Set up · 3 of 5",
+                    eyebrow: eyebrow,
                     title: "Your feeding rhythm",
                     subtitle: "Drives the next-feed countdown and reminders. Change anytime in Settings."
                 )
@@ -123,7 +127,7 @@ struct RhythmStep: View {
             }
             .padding(.horizontal, 28)
         }
-        .contentMargins(.bottom, OnboardingLayout.barClearance, for: .scrollContent)
+        .contentMargins(.bottom, barClearance ? OnboardingLayout.barClearance : 0, for: .scrollContent)
         .scrollBounceBehavior(.basedOnSize)
     }
 
@@ -231,7 +235,12 @@ struct RhythmStep: View {
 struct RemindersStep: View {
     @Binding var on: Bool
     let revealed: Bool
-    var eyebrow = "Set up · 4 of 5"
+    var eyebrow: String? = nil
+    /// Just-in-time variant: what the reminder would say right now, e.g.
+    /// "Next bottle around 4:30 PM".
+    var contextLine: String? = nil
+    /// False when hosted in a sheet (no floating bottom bar to clear).
+    var barClearance = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var bellRing = false
@@ -243,7 +252,8 @@ struct RemindersStep: View {
                 Spacer(minLength: 16)
                 OnboardingStepHeader(
                     eyebrow: eyebrow,
-                    title: "A nudge when it's time"
+                    title: "A nudge when it's time",
+                    subtitle: contextLine
                 )
                 .onboardingEntrance(revealed)
 
@@ -278,7 +288,7 @@ struct RemindersStep: View {
             }
             .padding(.horizontal, 28)
         }
-        .contentMargins(.bottom, OnboardingLayout.barClearance, for: .scrollContent)
+        .contentMargins(.bottom, barClearance ? OnboardingLayout.barClearance : 0, for: .scrollContent)
         .scrollBounceBehavior(.basedOnSize)
         .onChange(of: on) { _, isOn in
             guard isOn else { return }
@@ -306,9 +316,11 @@ struct RemindersStep: View {
 
 // MARK: - Invite
 
-/// The co-parent invite. The CKShare is zone-wide, so it can be created before
-/// the baby record exists — the records land in the zone at commit. The host
-/// owns the share/iCloud state; this is just the page body.
+/// The co-parent invite — also the flow's "made for both of you" moment, so the
+/// two parent badges drift together as the page lands. The CKShare is zone-wide,
+/// so it can be created before the baby record exists — the records land in the
+/// zone at commit. The host owns the share/iCloud state; this is just the page
+/// body.
 struct InviteStep: View {
     /// nil while the account check is in flight.
     let cloudAvailable: Bool?
@@ -317,31 +329,46 @@ struct InviteStep: View {
     /// `makeShare()` threw — show a gentle notice, never block.
     let shareFailed: Bool
     let revealed: Bool
+    /// Personalizes the badge pair with the name/color picked two pages ago.
+    var ownerName = ""
+    var ownerColorHex = ParticipantColors.palette[0]
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
                 Spacer(minLength: 16)
-                OnboardingStepHeader(
-                    eyebrow: "Set up · 5 of 5",
-                    title: "Bring in your co-parent"
-                )
+                HStack(spacing: revealed || reduceMotion ? -16 : 24) {
+                    OnboardingInitialBadge(initial: ownerInitial, colorHex: ownerColorHex)
+                    OnboardingInitialBadge(initial: "+",
+                                           colorHex: ParticipantColors.next(avoiding: [ownerColorHex]))
+                }
+                .animation(reduceMotion ? nil : .spring(response: 0.6, dampingFraction: 0.75), value: revealed)
                 .onboardingEntrance(revealed)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("You and your co-parent")
+
+                OnboardingStepHeader(
+                    eyebrow: "Set up · 3 of 3",
+                    title: "Made for both of you"
+                )
+                .onboardingEntrance(revealed, index: 1)
 
                 PrimerCard(
                     icon: "person.badge.plus",
                     tint: AppColor.accentSleep,
                     title: "One link, two phones",
-                    message: "Send one link. They'll see every feed, sleep, and diaper seconds after you log it — private to the two of you via iCloud."
+                    message: "Send one link. Your co-parent sees every feed, sleep, and diaper seconds after you log it — synced over iCloud, private to the two of you. No account, no server."
                 )
-                .onboardingEntrance(revealed, index: 1)
+                .onboardingEntrance(revealed, index: 2)
 
                 if cloudAvailable == false {
                     InlineNoticeCard(
                         icon: "icloud.slash",
                         message: "iCloud is off on this iPhone — you can invite your partner later from Settings → People."
                     )
-                    .onboardingEntrance(revealed, index: 2)
+                    .onboardingEntrance(revealed, index: 3)
                 } else if shareFailed {
                     InlineNoticeCard(
                         icon: "wifi.exclamationmark",
@@ -366,6 +393,10 @@ struct InviteStep: View {
         }
         .contentMargins(.bottom, OnboardingLayout.barClearance, for: .scrollContent)
         .scrollBounceBehavior(.basedOnSize)
+    }
+
+    private var ownerInitial: String {
+        ownerName.trimmingCharacters(in: .whitespaces).first.map(String.init)?.uppercased() ?? "A"
     }
 }
 

@@ -34,7 +34,17 @@ struct TwoOfUsApp: App {
             LocalPrefs.shared.syncRole = .participant
             LocalPrefs.shared.myParticipantID = nil
         }
+        // Dev-only: `-resetSetup` reopens the quests/spotlights as if this device
+        // just finished the new flow — for iterating on the checklist with data.
+        if ProcessInfo.processInfo.arguments.contains("-resetSetup") {
+            SetupProgress.shared.resetForTesting()
+        }
         #endif
+
+        // Existing installs that onboarded before the quest system (which saw the
+        // old full-length flow) must never get quests/spotlights retriggered.
+        // Against the real store on purpose — demo data must not grandfather.
+        SetupProgress.shared.grandfatherIfNeeded(in: realContainer.mainContext)
 
         // Build the demo store up front when launching straight into demo mode,
         // so the first frame already shows sample data (no flash of real data).

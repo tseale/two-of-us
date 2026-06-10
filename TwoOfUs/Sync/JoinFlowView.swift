@@ -3,8 +3,9 @@ import SwiftData
 
 /// The co-parent's first-run, shown right after accepting the CloudKit share —
 /// even while the owner's records are still syncing down (the copy fills in live
-/// as they land). Three stops — hello → your profile → reminders — in the same
-/// visual language as owner onboarding, ending in the same celebration finale.
+/// as they land). Two stops — hello → your profile — in the same visual language
+/// as owner onboarding, ending in the same celebration finale. Reminders are
+/// offered afterwards, as a "Getting set up" quest on Home.
 struct JoinFlowView: View {
     /// Called right before the profile commit; `RootView` covers the screen with
     /// the celebration so the route flip underneath is never visible.
@@ -17,7 +18,7 @@ struct JoinFlowView: View {
     @Query(filter: #Predicate<Participant> { $0.isActive }) private var participants: [Participant]
 
     private enum Page: Int, CaseIterable {
-        case hello, profile, reminders
+        case hello, profile
         var next: Page { Page(rawValue: rawValue + 1) ?? self }
     }
 
@@ -27,7 +28,6 @@ struct JoinFlowView: View {
     @State private var colorHex = ParticipantColors.palette[1]
     @State private var userPickedColor = false
     @State private var photoData: Data?
-    @State private var remindersOn = LocalPrefs.shared.feedReminderEnabled
 
     private var baby: Baby? { babies.first }
     /// The inviting parent — the first full-access participant that synced in.
@@ -43,9 +43,6 @@ struct JoinFlowView: View {
                     .tag(Page.hello)
                 profilePage
                     .tag(Page.profile)
-                RemindersStep(on: $remindersOn, revealed: revealed.contains(.reminders),
-                              eyebrow: "Set up · 2 of 2")
-                    .tag(Page.reminders)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
 
@@ -67,7 +64,7 @@ struct JoinFlowView: View {
         switch page {
         case .hello:
             .nightStage
-        case .profile, .reminders:
+        case .profile:
             AmbientStop(subtle: true, top: AppColor.accentSleep, bottom: AppColor.accentFeed)
         }
     }
@@ -127,7 +124,6 @@ struct JoinFlowView: View {
             VStack(spacing: 18) {
                 Spacer(minLength: 16)
                 OnboardingStepHeader(
-                    eyebrow: "Set up · 1 of 2",
                     title: "And who are you?",
                     subtitle: "Your name and color mark every entry you make."
                 )
@@ -173,8 +169,7 @@ struct JoinFlowView: View {
         OnboardingBottomBar(
             pageCount: Page.allCases.count,
             pageIndex: page.rawValue,
-            primary: primaryConfig,
-            secondary: secondaryConfig
+            primary: primaryConfig
         )
     }
 
@@ -183,18 +178,8 @@ struct JoinFlowView: View {
         case .hello:
             .init(title: "Continue", action: advance)
         case .profile:
-            .init(title: "Continue", enabled: !trimmedName.isEmpty, action: advance)
-        case .reminders:
-            .init(title: "Finish", enabled: !trimmedName.isEmpty, action: finishTapped)
+            .init(title: "Finish", enabled: !trimmedName.isEmpty, action: finish)
         }
-    }
-
-    private var secondaryConfig: OnboardingBottomBar.Secondary? {
-        guard page == .reminders else { return nil }
-        if trimmedName.isEmpty {
-            return .init(title: "Add your name to finish", prominent: true, action: jumpToProfile)
-        }
-        return .init(title: "Set up reminders later", action: skipRemindersAndFinish)
     }
 
     // MARK: Actions
@@ -208,35 +193,13 @@ struct JoinFlowView: View {
         }
     }
 
-    private func jumpToProfile() {
-        Haptics.tap()
-        if reduceMotion {
-            page = .profile
-        } else {
-            withAnimation(.easeInOut) { page = .profile }
-        }
-    }
-
-    private func skipRemindersAndFinish() {
-        remindersOn = false
-        LocalPrefs.shared.feedReminderEnabled = false
-        finish()
-    }
-
-    /// Same calm-moment authorization as owner onboarding before finishing.
-    private func finishTapped() {
-        Task {
-            if remindersOn {
-                LocalPrefs.shared.feedReminderEnabled = await FeedAlarmManager.requestAuthorization()
-            } else {
-                LocalPrefs.shared.feedReminderEnabled = false
-            }
-            finish()
-        }
-    }
-
     private func finish() {
         Haptics.success()
+        // Reminders are offered later as a Home quest. Must be off until then:
+        // the pref defaults to true, and logging a feed with it on would ambush
+        // the user with the AlarmKit dialog.
+        LocalPrefs.shared.feedReminderEnabled = false
+        SetupProgress.shared.markNewFlowComplete()
         onFinished(.joiner(babyName: baby?.name ?? ""))
         // New joiners start as guests (least privilege); the owner can promote
         // them to co-parent from Settings → People.

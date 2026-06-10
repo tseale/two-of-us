@@ -18,6 +18,10 @@ struct HomeView: View {
     @State private var toast: ToastData?
     @State private var showSettings = false
     @State private var showNLLog = false
+    @State private var questSheet: SetupQuest?
+    @State private var spotlight: SetupSpotlight?
+    @State private var prefs = LocalPrefs.shared
+    @State private var setup = SetupProgress.shared
 
     private enum ActiveSheet: String, Identifiable { case feed, diaper; var id: String { rawValue } }
 
@@ -53,6 +57,22 @@ struct HomeView: View {
                 .listRowSeparator(.hidden)
                 .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
 
+                // The deferred-setup checklist sits where an empty timeline
+                // leaves dead space — the logging UI above stays untouched.
+                if showChecklist {
+                    Section {
+                        SetupChecklistCard(
+                            quests: setup.activeQuests(role: prefs.syncRole),
+                            isComplete: { setup.isComplete($0, settings: settingsList.first) },
+                            onQuest: { questSheet = $0 },
+                            onDismiss: { withAnimation(.easeInOut) { setup.dismissedChecklist = true } }
+                        )
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                }
+
                 timelineSection
             }
             .listStyle(.plain)
@@ -73,7 +93,10 @@ struct HomeView: View {
             }
             .sheet(item: $activeSheet) { sheet in
                 switch sheet {
-                case .feed: FeedSheet(onLogged: showToast)
+                case .feed: FeedSheet(onLogged: { message, undo in
+                    showToast(message, undo: undo)
+                    feedLogged()
+                })
                 case .diaper: DiaperSheet(onLogged: showToast)
                 }
             }
@@ -87,6 +110,29 @@ struct HomeView: View {
                 NLLogSheet(onApply: applyParsed)
                     .presentationDetents([.medium])
             }
+            .sheet(item: $questSheet) { quest in
+                switch quest {
+                case .rhythm: RhythmQuestSheet()
+                case .reminders: RemindersQuestSheet(contextLine: reminderContextLine)
+                }
+            }
+            .sheet(item: $spotlight) { s in
+                SpotlightSheet(
+                    spotlight: s,
+                    onTuneRhythm: setup.activeQuests(role: prefs.syncRole).contains(.rhythm)
+                        ? chainIntoRhythmQuest : nil
+                )
+            }
+            .task(id: totalEventCount) { await maybeShowEverywhereSpotlight() }
+            #if DEBUG
+            .onAppear {
+                // Dev-only: `-forceSpotlight rhythm|everywhere` presents one on launch.
+                if let raw = UserDefaults.standard.string(forKey: "forceSpotlight"),
+                   let forced = SetupSpotlight(rawValue: raw) {
+                    spotlight = forced
+                }
+            }
+            #endif
             .loggedToast($toast)
         }
     }
@@ -224,6 +270,65 @@ struct HomeView: View {
         toast = ToastData(message: message, undo: undo)
     }
 
+    // MARK: Deferred setup & spotlights
+
+    private var showChecklist: Bool {
+        !prefs.demoModeEnabled && !setup.dismissedChecklist
+    }
+
+    private var totalEventCount: Int {
+        feeds.count + sleeps.count + diapers.count
+    }
+
+    /// What the reminder would say right now, for the just-in-time offer.
+    private var reminderContextLine: String? {
+        guard let last = feeds.first?.timestamp else { return nil }
+        return "Next bottle around \(TimeFormatting.clock(last.addingTimeInterval(targetFeed)))"
+    }
+
+    /// The contextual moments that follow a feed log: the rhythm spotlight plays
+    /// after the very first feed; a later feed gets the one just-in-time
+    /// reminders offer. `requestPrompt` keeps it to one prompt per session and
+    /// none in demo mode; the guards keep it from landing over another sheet.
+    private func feedLogged() {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2.5))   // let the logged toast play out
+            guard !Task.isCancelled, noSheetUp else { return }
+            if !setup.hasShown(.rhythm) {
+                guard setup.requestPrompt() else { return }
+                spotlight = .rhythm
+            } else if !setup.reminderOfferShown,
+                      !setup.isComplete(.reminders, settings: settingsList.first) {
+                guard setup.requestPrompt() else { return }
+                setup.reminderOfferShown = true
+                questSheet = .reminders
+            }
+        }
+    }
+
+    /// The "everywhere you are" spotlight lands right after the third logged
+    /// event of any kind (the count change re-runs this task).
+    private func maybeShowEverywhereSpotlight() async {
+        guard totalEventCount >= 3, !setup.hasShown(.everywhere) else { return }
+        try? await Task.sleep(for: .seconds(2.5))
+        guard !Task.isCancelled, noSheetUp, setup.requestPrompt() else { return }
+        spotlight = .everywhere
+    }
+
+    private var noSheetUp: Bool {
+        activeSheet == nil && editing == nil && !showSettings && !showNLLog
+            && questSheet == nil && spotlight == nil
+    }
+
+    /// Rhythm spotlight → "Tune your rhythm": swap the spotlight for the quest.
+    private func chainIntoRhythmQuest() {
+        spotlight = nil
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.45))   // let the sheet dismiss settle
+            questSheet = .rhythm
+        }
+    }
+
     // MARK: Natural-language logging
 
     /// Turns a parsed entry into the matching store write, backdating by the
@@ -235,6 +340,7 @@ struct HomeView: View {
             let oz = p.amountOz ?? settingsList.first?.defaultFeedOz ?? 4
             let event = store.logFeed(amountOz: oz, at: date)
             showToast("Logged \(OzFormat.string(oz)) oz feed") { store.softDelete(event) }
+            feedLogged()
         case "diaper":
             let type = DiaperType(rawValue: p.diaperType ?? "wet") ?? .wet
             let event = store.logDiaper(type, at: date)
