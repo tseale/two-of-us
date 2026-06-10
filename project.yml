@@ -1,4 +1,4 @@
-name: MillerTime
+name: TwoOfUs
 options:
   bundleIdPrefix: com.taylorseale
   deploymentTarget:
@@ -15,16 +15,16 @@ settings:
     CODE_SIGN_STYLE: Automatic
 
 targets:
-  MillerTime:
+  TwoOfUs:
     type: application
     platform: iOS
     deploymentTarget: "26.0"
     sources:
-      - path: MillerTime
+      - path: TwoOfUs
     info:
-      path: MillerTime/Info.plist
+      path: TwoOfUs/Info.plist
       properties:
-        CFBundleDisplayName: Miller Time
+        CFBundleDisplayName: Two of Us
         UILaunchScreen:
           UIColorName: LaunchBackground
           UIImageName: LaunchLogo
@@ -37,81 +37,81 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         NSSupportsLiveActivities: YES
-        NSAlarmKitUsageDescription: Miller Time uses alarms to remind you when the next feed is due, even when your phone is silenced.
+        NSAlarmKitUsageDescription: Two of Us uses alarms to remind you when the next feed is due, even when your phone is silenced.
         UIBackgroundModes:
           - remote-notification
     entitlements:
-      path: MillerTime/MillerTime.entitlements
+      path: TwoOfUs/TwoOfUs.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.com.taylorseale.millertime
+          - group.com.taylorseale.twoofus
         com.apple.developer.icloud-container-identifiers:
-          - iCloud.com.taylorseale.millertime
+          - iCloud.com.taylorseale.twoofus
         com.apple.developer.icloud-services:
           - CloudKit
         aps-environment: development
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.taylorseale.millertime
+        PRODUCT_BUNDLE_IDENTIFIER: com.taylorseale.twoofus
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1,2"
         ENABLE_PREVIEWS: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     dependencies:
-      - target: MillerTimeWidgets
+      - target: TwoOfUsWidgets
 
-  MillerTimeWidgets:
+  TwoOfUsWidgets:
     type: app-extension
     platform: iOS
     deploymentTarget: "26.0"
     sources:
-      - path: MillerTimeWidgets
-      - path: MillerTime/Models/Baby.swift
-      - path: MillerTime/Models/FeedEvent.swift
-      - path: MillerTime/Models/SleepEvent.swift
-      - path: MillerTime/Models/DiaperEvent.swift
-      - path: MillerTime/Models/Participant.swift
-      - path: MillerTime/Models/SharedSettings.swift
-      - path: MillerTime/Models/Enums.swift
-      - path: MillerTime/Store/Schema.swift
-      - path: MillerTime/Support/AppGroup.swift
-      - path: MillerTime/DesignSystem/Colors.swift
-      - path: MillerTime/DesignSystem/Typography.swift
-      - path: MillerTime/DesignSystem/TimeFormatting.swift
-      - path: MillerTime/DesignSystem/Urgency.swift
-      - path: MillerTime/DesignSystem/DayRibbon.swift
-      - path: MillerTime/LiveActivities/SleepActivityAttributes.swift
+      - path: TwoOfUsWidgets
+      - path: TwoOfUs/Models/Baby.swift
+      - path: TwoOfUs/Models/FeedEvent.swift
+      - path: TwoOfUs/Models/SleepEvent.swift
+      - path: TwoOfUs/Models/DiaperEvent.swift
+      - path: TwoOfUs/Models/Participant.swift
+      - path: TwoOfUs/Models/SharedSettings.swift
+      - path: TwoOfUs/Models/Enums.swift
+      - path: TwoOfUs/Store/Schema.swift
+      - path: TwoOfUs/Support/AppGroup.swift
+      - path: TwoOfUs/DesignSystem/Colors.swift
+      - path: TwoOfUs/DesignSystem/Typography.swift
+      - path: TwoOfUs/DesignSystem/TimeFormatting.swift
+      - path: TwoOfUs/DesignSystem/Urgency.swift
+      - path: TwoOfUs/DesignSystem/DayRibbon.swift
+      - path: TwoOfUs/LiveActivities/SleepActivityAttributes.swift
       # Shared with the app target: interactive-widget / Siri App Intents + their writer.
-      - path: MillerTime/Intents/QuickLogger.swift
-      - path: MillerTime/Intents/LogFeedIntent.swift
-      - path: MillerTime/Intents/LogDiaperIntent.swift
-      - path: MillerTime/Intents/ToggleSleepIntent.swift
-      - path: MillerTime/Intents/ConfirmationSnippet.swift
+      - path: TwoOfUs/Intents/QuickLogger.swift
+      - path: TwoOfUs/Intents/LogFeedIntent.swift
+      - path: TwoOfUs/Intents/LogDiaperIntent.swift
+      - path: TwoOfUs/Intents/ToggleSleepIntent.swift
+      - path: TwoOfUs/Intents/ConfirmationSnippet.swift
     info:
-      path: MillerTimeWidgets/Info.plist
+      path: TwoOfUsWidgets/Info.plist
       properties:
-        CFBundleDisplayName: MillerTimeWidgets
+        CFBundleDisplayName: TwoOfUsWidgets
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
-      path: MillerTimeWidgets/MillerTimeWidgets.entitlements
+      path: TwoOfUsWidgets/TwoOfUsWidgets.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.com.taylorseale.millertime
+          - group.com.taylorseale.twoofus
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.taylorseale.millertime.widgets
+        PRODUCT_BUNDLE_IDENTIFIER: com.taylorseale.twoofus.widgets
         SKIP_INSTALL: YES
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"
         GENERATE_INFOPLIST_FILE: NO
 
 schemes:
-  MillerTime:
+  TwoOfUs:
     build:
       targets:
-        MillerTime: all
+        TwoOfUs: all
     run:
       config: Debug
     archive:

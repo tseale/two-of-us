@@ -1,18 +1,18 @@
-# MillerTime — common build tasks.
+# TwoOfUs — common build tasks.
 # The .xcodeproj is generated from project.yml by XcodeGen and is gitignored,
 # so `make project` is the canonical way to (re)create it.
 
-SCHEME      := MillerTime
+SCHEME      := TwoOfUs
 SIMULATOR   := iPhone 17
 DESTINATION := platform=iOS Simulator,name=$(SIMULATOR)
-PROJECT     := MillerTime.xcodeproj
-BUNDLE_ID   := com.taylorseale.millertime
+PROJECT     := TwoOfUs.xcodeproj
+BUNDLE_ID   := com.taylorseale.twoofus
 
 # This repo lives under ~/Documents, which is iCloud Drive-synced. The File
 # Provider attaches com.apple.FinderInfo / com.apple.provenance xattrs to build
 # products, and codesign rejects them ("resource fork ... detritus not allowed").
 # Keeping DerivedData OUTSIDE the synced folder avoids that entirely.
-DERIVED_DATA := $(HOME)/Library/Developer/Xcode/DerivedData/MillerTime-local
+DERIVED_DATA := $(HOME)/Library/Developer/Xcode/DerivedData/TwoOfUs-local
 
 .PHONY: help project build run clean hooks ensure-hooks bootstrap
 
@@ -29,7 +29,7 @@ ensure-hooks:
 		echo "✅ git hooks enabled — project.yml changes now auto-regenerate the .xcodeproj."; \
 	}
 
-project: ensure-hooks ## Regenerate MillerTime.xcodeproj from project.yml (and enable hooks)
+project: ensure-hooks ## Regenerate TwoOfUs.xcodeproj from project.yml (and enable hooks)
 	xcodegen generate
 
 build: project ## Regenerate, then build for the simulator
@@ -45,7 +45,7 @@ run: build ## Build, then install and launch on the simulator
 	xcrun simctl boot '$(SIMULATOR)'
 	open -a Simulator
 	xcrun simctl install '$(SIMULATOR)' \
-		'$(DERIVED_DATA)/Build/Products/Debug-iphonesimulator/MillerTime.app'
+		'$(DERIVED_DATA)/Build/Products/Debug-iphonesimulator/TwoOfUs.app'
 	# --terminate-running-process so a relaunch always loads the binary we just
 	# installed, not the copy already running from a previous build.
 	xcrun simctl launch --terminate-running-process '$(SIMULATOR)' '$(BUNDLE_ID)'

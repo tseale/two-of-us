@@ -1,4 +1,4 @@
-# Miller Time
+# Two of Us
 
 Native iOS baby tracking app for Taylor and his wife to track their newborn son Miller.  
 Distributed via TestFlight to 2 users (both parents).

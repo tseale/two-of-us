@@ -1,8 +1,8 @@
-# Native iOS vs Progressive Web App: Miller Time Build Decision
+# Native iOS vs Progressive Web App: Two of Us Build Decision
 
 **Decision:** Build **native iOS with SwiftUI + CloudKit**
 
-This document compares building Miller Time as a native iOS app (TestFlight distribution) vs a Progressive Web App across 15 critical dimensions. Each comparison is honest about tradeoffs—no dimension is universally "better," but the sum favors native iOS for this use case.
+This document compares building Two of Us as a native iOS app (TestFlight distribution) vs a Progressive Web App across 15 critical dimensions. Each comparison is honest about tradeoffs—no dimension is universally "better," but the sum favors native iOS for this use case.
 
 ---
 
@@ -215,7 +215,7 @@ The only real cost is 1–2 weeks slower initial launch (3–4 weeks for native 
 **Unlikely.** TestFlight is designed for exactly this: letting non-developers install beta apps. Link in email, one tap. If she can install an App Store app, she can install TestFlight.
 
 ### "CloudKit is Apple-only"
-**True.** If Taylor ever gets an Android phone, a CloudKit-only app breaks. But Miller Time is designed for two people: Taylor and his wife. Both on iOS? Go native. One on Android? Reconsider PWA or use a cross-platform backend (Firebase, Supabase).
+**True.** If Taylor ever gets an Android phone, a CloudKit-only app breaks. But Two of Us is designed for two people: Taylor and his wife. Both on iOS? Go native. One on Android? Reconsider PWA or use a cross-platform backend (Firebase, Supabase).
 
 ---
 

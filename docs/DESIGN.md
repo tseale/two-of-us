@@ -1,4 +1,4 @@
-# Miller Time — Design
+# Two of Us — Design
 
 **Status**: v1 design — locked June 5, 2026
 **Principle**: calm, not clinical. One-thumb operable. Readable at a glance, at 3am, holding a baby.

@@ -1,4 +1,4 @@
-# Miller Time 🍼
+# Two of Us 🍼
 
 A native iOS baby-tracking app for two parents to track their newborn — feeds,
 sleep, and diaper changes — with real-time sync between both of their iPhones.
@@ -93,7 +93,7 @@ gracefully on hardware/OS that doesn't support it:
   a warm Insights summary over `StatsEngine`, and `@Generable` natural-language
   parsing behind the ✨ quick-log sheet. Gated on model availability; UI hides when
   unavailable.
-- **Controls** — `MillerTimeWidgets/LogControls.swift` exposes Log Feed, Log
+- **Controls** — `TwoOfUsWidgets/LogControls.swift` exposes Log Feed, Log
   Diaper, and a stateful Sleep toggle to Control Center, the Lock Screen, and the
   Action Button, reusing the existing App Intents.
 
@@ -107,7 +107,7 @@ gracefully on hardware/OS that doesn't support it:
 ## Project structure
 
 ```
-MillerTime/                 # Main iOS app target
+TwoOfUs/                 # Main iOS app target
 ├── App/                    # Entry point & routing (RootView, AppDelegate)
 ├── Models/                 # SwiftData models (Baby, FeedEvent, SleepEvent, DiaperEvent, Participant, …)
 ├── Store/                  # ModelContainer, EventStore, StatsEngine, seed data
@@ -120,7 +120,7 @@ MillerTime/                 # Main iOS app target
 ├── Sync/                   # CloudKit sync, sharing & join flows
 └── Support/                # App Group, local prefs
 
-MillerTimeWidgets/          # WidgetKit extension (small/medium/large widgets + ribbon,
+TwoOfUsWidgets/          # WidgetKit extension (small/medium/large widgets + ribbon,
                             #   Live Activity views, and Control Center controls)
 docs/                       # Design & implementation documentation (see below)
 mockups/                    # UI mockups (PNG + interactive index.html)
@@ -135,7 +135,7 @@ The Xcode project is generated from `project.yml` with
 ```sh
 brew install xcodegen   # if needed
 xcodegen generate
-open MillerTime.xcodeproj
+open TwoOfUs.xcodeproj
 ```
 
 Then build & run on an iOS 26 simulator or device (Xcode 26 / iOS 26 SDK).

@@ -1,4 +1,4 @@
-# Miller Time — Build Plan
+# Two of Us — Build Plan
 
 **Baby**: Miller  
 **Users**: Taylor + wife  
@@ -128,12 +128,12 @@ Events are append-only in the MVP. Edits soft-delete the original and create a r
 ### Features
 
 #### Xcode Project Setup (Day 1, ~4 hrs)
-- New Xcode project: SwiftUI, SwiftData enabled, CloudKit container (`iCloud.com.taylorseale.millertime`)
+- New Xcode project: SwiftUI, SwiftData enabled, CloudKit container (`iCloud.com.taylorseale.twoofus`)
 - Target: iOS 17+ (Live Activities, Swift Charts, SwiftData all require it)
 - SwiftData stack wired up: `ModelContainer` with CloudKit sync enabled
 - Basic folder structure:
   ```
-  MillerTime/
+  TwoOfUs/
     Models/          # SwiftData @Model classes
     Views/
       Main/          # HomeView, TimelineView

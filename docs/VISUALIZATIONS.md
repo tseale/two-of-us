@@ -4,9 +4,9 @@
 > See [BUILD_PLAN.md](BUILD_PLAN.md) for where this lands in the roadmap.
 
 Today every surface shows **"time since last X"** — a single number per event
-([SmallEventWidget.swift](../MillerTimeWidgets/SmallEventWidget.swift),
-[MediumWidget.swift](../MillerTimeWidgets/MediumWidget.swift),
-[LargeWidget.swift](../MillerTimeWidgets/LargeWidget.swift)). This doc explores the
+([SmallEventWidget.swift](../TwoOfUsWidgets/SmallEventWidget.swift),
+[MediumWidget.swift](../TwoOfUsWidgets/MediumWidget.swift),
+[LargeWidget.swift](../TwoOfUsWidgets/LargeWidget.swift)). This doc explores the
 next axis: **distribution over time** ("*when* did things happen") and **history / trends**.
 
 ## Grounding constraints
@@ -15,8 +15,8 @@ next axis: **distribution over time** ("*when* did things happen") and **history
   diaper (instant + `type`: wet/dirty/both). **Sleep is the only span event** — it's the
   interesting rendering case in every visualization below.
 - **Palette:** feed `#5AC8B8` teal · sleep `#8E8EFF` periwinkle · diaper `#F5B971` amber ·
-  urgency green→amber→red ([Colors.swift](../MillerTime/DesignSystem/Colors.swift),
-  [Urgency.swift](../MillerTime/DesignSystem/Urgency.swift)).
+  urgency green→amber→red ([Colors.swift](../TwoOfUs/DesignSystem/Colors.swift),
+  [Urgency.swift](../TwoOfUs/DesignSystem/Urgency.swift)).
 - **Attribution is free:** every event carries `loggedByID` / `loggedByName` /
   `loggedByColorHex` → parent-split stats need no new data.
 - **Philosophy:** calm not clinical, dark from day 1, silent (haptics only), one-handed,
@@ -24,7 +24,7 @@ next axis: **distribution over time** ("*when* did things happen") and **history
 - **Lock-screen accessory widgets are monochrome-tinted** → encode by **shape/position,
   not color**. Home-screen widgets get full color.
 - Reuse `EventStore.timeline(since:)` and `lastEventDate(of:)`
-  ([EventStore.swift](../MillerTime/Store/EventStore.swift)); reads go through the App Group
+  ([EventStore.swift](../TwoOfUs/Store/EventStore.swift)); reads go through the App Group
   container, no app launch.
 
 ---
