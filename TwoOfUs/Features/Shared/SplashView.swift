@@ -15,7 +15,7 @@ struct CradleMark: View {
 
     // Geometry mirrors the generator constants (LEFT_C / RIGHT_C / BABY_C as
     // (x, y, r) fractions of the mark; +y is down). Deliberately not mirrored.
-    private var babyDiameter: CGFloat { size * 0.146 }
+    private var babyDiameter: CGFloat { size * 0.164 }
 
     private let babyLight = Color(red: 1.0, green: 0.957, blue: 0.910) // #FFF4E8
 
@@ -25,17 +25,17 @@ struct CradleMark: View {
             // bright blended lens where they overlap (same as the icon artwork).
             Circle()
                 .fill(AppColor.accentSleep)            // periwinkle — left parent
-                .frame(width: size * 0.492, height: size * 0.492)
-                .offset(x: -size * 0.118, y: size * 0.052)
+                .frame(width: size * 0.500, height: size * 0.500)
+                .offset(x: -size * 0.130, y: -size * 0.010)
                 .blendMode(.screen)
             Circle()
                 .fill(AppColor.accentFeed)             // teal — right parent
-                .frame(width: size * 0.442, height: size * 0.442)
-                .offset(x: size * 0.126, y: -size * 0.044)
+                .frame(width: size * 0.472, height: size * 0.472)
+                .offset(x: size * 0.118, y: size * 0.010)
                 .blendMode(.screen)
 
-            // The baby — a warm point of light nestled up where they meet, with a
-            // soft glow bloom; offset off dead-center to match the icon.
+            // The baby — a warm point of light cradled low in the overlap, with a
+            // soft glow bloom spilling down; offset to match the icon.
             ZStack {
                 Circle()
                     .fill(babyLight)
@@ -47,7 +47,7 @@ struct CradleMark: View {
                     .frame(width: babyDiameter, height: babyDiameter)
             }
             .scaleEffect(babyScale)
-            .offset(x: size * 0.052, y: -size * 0.070)
+            .offset(x: 0, y: size * 0.085)
         }
         .frame(width: size, height: size)
         .compositingGroup()

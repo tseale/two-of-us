@@ -210,9 +210,9 @@ def make_trinity(bg_mode="dark"):
 # Geometry as (x, y, r) fractions of the canvas S, relative to its center
 # (+y points down). Deliberately NOT mirrored: slightly different sizes and a
 # gentle vertical stagger keep the overlap from reading as a tidy symmetric almond.
-LEFT_C  = (-0.118,  0.052, 0.246)   # periwinkle parent — a little low and left, larger
-RIGHT_C = ( 0.126, -0.044, 0.221)   # teal parent — a little high and right, smaller
-BABY_C  = ( 0.052, -0.070, 0.073)   # baby — nestled up where they meet, off dead-center
+LEFT_C  = (-0.130, -0.010, 0.250)   # periwinkle parent — larger, slightly low-left
+RIGHT_C = ( 0.118,  0.010, 0.236)   # teal parent — slightly high-right (not mirrored)
+BABY_C  = ( 0.000,  0.085, 0.082)   # baby — cradled low in the overlap, glow spilling down
 
 BABY = (0xFF, 0xF4, 0xE8)   # warm near-white — a new little light (not amber)
 
