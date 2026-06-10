@@ -1,19 +1,28 @@
 #!/usr/bin/env python3
 """
-Two of Us — app icon concept generator.
+Two of Us — app icon + launch artwork generator.
 
-Renders two directions ("Bottle on teal" and "Three-dot trinity") as 1024x1024
-masters following Apple's app-icon guidelines: full-bleed square, no pre-applied
+The shipping mark is "Two of Us": two overlapping circles (the two parents) that
+screen-blend into a bright shared glow, with a warm point of light (the baby,
+Miller) at the heart. Earlier explorations ("Bottle on teal", "Three-dot trinity")
+are kept for the preview contact sheet.
+
+All masters follow Apple's app-icon guidelines: full-bleed square, no pre-applied
 corner rounding, no text, key content centered in the safe area, sRGB, flattened
 (no alpha). Everything is drawn at 4x supersample and downsampled for clean AA.
 
+From the single source geometry this writes, in one run:
+  - the AppIcon.appiconset PNG fallback (default / dark / tinted),
+  - the LaunchLogo imageset used by the static launch screen, and
+  - the layered PNGs for the Icon Composer `.icon` (design/icon/TwoOfUs.icon).
+
 Usage: python3 design/icon/generate_icons.py
-Output: design/icon/out/*.png
+Output: design/icon/out/*.png  (+ asset catalogs & the .icon scaffold)
 """
 
 import os
 import math
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageChops
 
 # ---- config -----------------------------------------------------------------
 SIZE = 1024
@@ -189,33 +198,172 @@ def make_trinity(bg_mode="dark"):
     return img
 
 
+# ---- concept 3: "two of us" — two parents overlapping, baby at the heart ----
+# Two soft circles (the parents) overlap like a Venn; where they meet the colors
+# screen-blend into a bright shared glow, and a warm point of light (Miller) rests
+# at the heart. No dark negative space, so it reads as togetherness — not an "eye".
+# The baby is a warm near-white, deliberately NOT amber (amber is the diaper color
+# in the app, so a warm-white point keeps the meaning "a new little light", not poop).
+# Drawn as separable layers so the same geometry feeds the flat PNG fallback and the
+# Icon Composer .icon export.
+
+# Geometry, all relative to the working canvas S. Centered in the safe area.
+CIRC_R = 0.235              # parent-circle radius
+CIRC_SHIFT = 0.108          # each circle's center offset left/right of canvas center
+DOT_RADIUS = 0.082          # Miller (baby) dot radius
+DOT_RISE = 0.000            # nudge the dot up/down (+ = up)
+
+BABY = (0xFF, 0xF4, 0xE8)   # warm near-white — a new little light (not amber)
+
+
+def _disk(center, r):
+    """A filled-circle alpha mask on the working canvas."""
+    m = Image.new("L", (S, S), 0)
+    cx, cy = center
+    ImageDraw.Draw(m).ellipse([cx - r, cy - r, cx + r, cy + r], fill=255)
+    return m
+
+
+def _colored(mask, color):
+    layer = Image.new("RGBA", (S, S), hexd(color))
+    layer.putalpha(mask)
+    return layer
+
+
+def _screen(a, b):
+    """Photographic 'screen' blend of two RGB colors -> brighter shared tone."""
+    return tuple(255 - (255 - a[i]) * (255 - b[i]) // 255 for i in range(3))
+
+
+def _gray(c):
+    l = int(round(0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]))
+    return (l, l, l)
+
+
+def _circle_centers():
+    cx, cy = S / 2, S / 2
+    return (cx - S * CIRC_SHIFT, cy), (cx + S * CIRC_SHIFT, cy)
+
+
+def _dot_center():
+    return (S / 2, S / 2 - S * DOT_RISE)
+
+
+def make_cradle_layers(tinted=False):
+    """Separable foreground layers for Icon Composer: (left_rgba, right_rgba,
+    dot_rgba) — two full parent circles plus the baby dot. Icon Composer blends
+    the overlapping circles with real glass on device; colors collapse to
+    luminance grays when tinted so the system tint reads cleanly."""
+    left_c, right_c = _circle_centers()
+    R = S * CIRC_R
+    lcol, rcol, dcol = (PERIWINKLE, TEAL, BABY) if not tinted else \
+        (_gray(PERIWINKLE), _gray(TEAL), _gray(BABY))
+    left = _colored(_disk(left_c, R), lcol)
+    right = _colored(_disk(right_c, R), rcol)
+    dot = _colored(_disk(_dot_center(), S * DOT_RADIUS), dcol)
+    return left, right, dot
+
+
+def cradle_background(bg_mode="dark"):
+    """Opaque background plate. 'dark' -> subtle radial lift on near-black so the
+    mark sits in depth (the .icon's glass layers add the real specular on device)."""
+    if bg_mode == "transparent":
+        return Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    if bg_mode == "flat":
+        return Image.new("RGBA", (S, S), hexd(DARK_CARD))
+    return radial_gradient((S, S), (0x18, 0x18, 0x20), BLACK,
+                           center=(S / 2, S * 0.44), radius=S * 0.72)
+
+
+def make_cradle(bg_mode="dark"):
+    """Composited master with a bright screen-blended overlap (no dark hole).
+    bg_mode: 'dark'/'flat' opaque bg; 'transparent' mark-only (launch logo);
+    'tinted' grayscale on transparent (iOS tinted variant)."""
+    tinted = bg_mode == "tinted"
+    transparent = bg_mode in ("transparent", "tinted")
+    img = cradle_background("transparent" if transparent else bg_mode)
+
+    left_c, right_c = _circle_centers()
+    R = S * CIRC_R
+    lmask, rmask = _disk(left_c, R), _disk(right_c, R)
+    overlap = ImageChops.darker(lmask, rmask)              # intersection (min)
+    left_only = ImageChops.subtract(lmask, overlap)
+    right_only = ImageChops.subtract(rmask, overlap)
+
+    lcol, rcol, dcol = PERIWINKLE, TEAL, BABY
+    blend = _screen(PERIWINKLE, TEAL)                      # bright shared glow
+    if tinted:
+        lcol, rcol, dcol, blend = _gray(lcol), _gray(rcol), _gray(dcol), _gray(blend)
+
+    def stamp(mask, col):
+        img.paste(Image.new("RGBA", (S, S), hexd(col)), (0, 0), mask)
+
+    stamp(left_only, lcol)
+    stamp(right_only, rcol)
+    stamp(overlap, blend)
+
+    # baby: a soft warm halo then the bright point of light at the heart
+    if not tinted:
+        halo = _disk(_dot_center(), S * DOT_RADIUS * 1.9)
+        halo = halo.point(lambda v: v * 95 // 255).filter(ImageFilter.GaussianBlur(S * 0.022))
+        img.alpha_composite(_colored(halo, BABY))
+    img.alpha_composite(_colored(_disk(_dot_center(), S * DOT_RADIUS), dcol))
+    return img
+
+
 # ---- build the shipping AppIcon variants into the asset catalog -------------
 def build_appicon():
     repo = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     icon_dir = os.path.join(repo, "TwoOfUs", "Assets.xcassets", "AppIcon.appiconset")
     os.makedirs(icon_dir, exist_ok=True)
 
-    # default + dark: trinity on solid black, flattened (no alpha)
-    finalize(make_trinity("dark"), os.path.join(icon_dir, "icon-1024.png"), BLACK)
-    finalize(make_trinity("dark"), os.path.join(icon_dir, "icon-1024-dark.png"), BLACK)
-    # tinted: grayscale dots on transparent (system applies the user's tint)
-    tint = make_trinity("tinted").resize((SIZE, SIZE), Image.LANCZOS)
+    # default + dark: cradle on the depth background, flattened (no alpha)
+    finalize(make_cradle("dark"), os.path.join(icon_dir, "icon-1024.png"), BLACK)
+    finalize(make_cradle("dark"), os.path.join(icon_dir, "icon-1024-dark.png"), BLACK)
+    # tinted: grayscale mark on transparent (system applies the user's tint)
+    tint = make_cradle("tinted").resize((SIZE, SIZE), Image.LANCZOS)
     tint.save(os.path.join(icon_dir, "icon-1024-tinted.png"), "PNG")
     print("wrote AppIcon variants ->", os.path.relpath(icon_dir, repo))
 
 
 def build_launch_logo():
-    """Centered trinity mark (transparent) for the launch screen, @1x/2x/3x."""
+    """Centered cradle mark (transparent) for the launch screen, @1x/2x/3x.
+    Matches the SwiftUI SplashView start state so the hand-off is seamless."""
     repo = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     logo_dir = os.path.join(repo, "TwoOfUs", "Assets.xcassets", "LaunchLogo.imageset")
     os.makedirs(logo_dir, exist_ok=True)
-    master = make_trinity("transparent").resize((SIZE, SIZE), Image.LANCZOS)
+    master = make_cradle("transparent").resize((SIZE, SIZE), Image.LANCZOS)
     pt = 240  # displayed point size
     for scale, suffix in ((1, ""), (2, "@2x"), (3, "@3x")):
         px = pt * scale
         master.resize((px, px), Image.LANCZOS).save(
             os.path.join(logo_dir, f"launch-logo{suffix}.png"), "PNG")
     print("wrote LaunchLogo ->", os.path.relpath(logo_dir, repo))
+
+
+def build_icon_layers():
+    """Export the separable layers for the Icon Composer `.icon` bundle: a
+    full-bleed opaque background plus three transparent foreground layers
+    (two parent circles + the baby). These feed design/icon/TwoOfUs.icon/Assets,
+    deliberately kept OUT of the compiled `TwoOfUs/` sources so an unfinished
+    bundle can't affect the build — open it in Icon Composer on a Mac to tune the
+    glass material / appearances, then wire it into the project (see docs)."""
+    here = os.path.dirname(__file__)
+    repo = os.path.abspath(os.path.join(here, "..", ".."))
+    assets = os.path.join(here, "TwoOfUs.icon", "Assets")
+    os.makedirs(assets, exist_ok=True)
+
+    def save(img, name):
+        img.resize((SIZE, SIZE), Image.LANCZOS).save(os.path.join(assets, name), "PNG")
+
+    bg = cradle_background("dark").convert("RGB").convert("RGBA")
+    left, right, dot = make_cradle_layers()
+    save(bg, "background.png")
+    save(left, "parent-left.png")
+    save(right, "parent-right.png")
+    save(dot, "baby.png")
+    print("wrote Icon Composer layers ->",
+          os.path.relpath(assets, repo))
 
 
 # ---- finalize: downsample + flatten ----------------------------------------
@@ -239,16 +387,16 @@ def rounded_thumb(rgb_img, px, radius_frac=0.225):
 # ---- run --------------------------------------------------------------------
 def main():
     masters = {}
-    masters["bottle-1024.png"] = finalize(make_bottle("teal"), "bottle-1024.png")[1]
-    masters["bottle-dark-1024.png"] = finalize(make_bottle("dark"), "bottle-dark-1024.png", BLACK)[1]
+    masters["cradle-1024.png"] = finalize(make_cradle("dark"), "cradle-1024.png", BLACK)[1]
+    masters["cradle-dark-1024.png"] = finalize(make_cradle("flat"), "cradle-dark-1024.png", BLACK)[1]
     masters["trinity-1024.png"] = finalize(make_trinity("dark"), "trinity-1024.png", BLACK)[1]
-    masters["trinity-dark-1024.png"] = finalize(make_trinity("flat"), "trinity-dark-1024.png", BLACK)[1]
+    masters["bottle-1024.png"] = finalize(make_bottle("teal"), "bottle-1024.png")[1]
 
     # contact sheet: large pair on top, small rounded thumbs below
     pad = 60
     big = 460
     small = 120
-    cols = [masters["bottle-1024.png"], masters["trinity-1024.png"]]
+    cols = [masters["cradle-1024.png"], masters["trinity-1024.png"]]
     sheet_w = pad * 3 + big * 2
     sheet_h = pad * 4 + big + small + 70
     sheet = Image.new("RGB", (sheet_w, sheet_h), (0x10, 0x10, 0x12))
@@ -266,8 +414,8 @@ def main():
         t = rounded_thumb(im, small)
         sheet.paste(t, (xx, row_y), t)
         xx += small + 30
-    # the two dark variants too
-    for im in [masters["bottle-dark-1024.png"], masters["trinity-dark-1024.png"]]:
+    # the dark-card variant + bottle alt too
+    for im in [masters["cradle-dark-1024.png"], masters["bottle-1024.png"]]:
         t = rounded_thumb(im, small)
         sheet.paste(t, (xx, row_y), t)
         xx += small + 30
@@ -275,6 +423,7 @@ def main():
 
     build_appicon()
     build_launch_logo()
+    build_icon_layers()
 
     print("wrote:")
     for f in sorted(os.listdir(OUT)):
