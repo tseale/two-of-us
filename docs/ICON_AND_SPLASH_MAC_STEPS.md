@@ -1,5 +1,15 @@
 # App icon + splash — finishing steps (run these on your Mac)
 
+> **Status: DONE (2026-06-10).** The Liquid Glass icon shipped without needing the
+> Icon Composer GUI — the manifest schema was validated empirically against Xcode
+> 26.4's `actool` (key discovery: **`groups` is ordered top-first**, and the parent
+> circles need `blend-mode: screen` for the glowing overlap). The finished bundle
+> lives at `TwoOfUs/TwoOfUs.icon` (schema notes in
+> `design/icon/TwoOfUs.icon/README.md`), `project.yml` points
+> `ASSETCATALOG_COMPILER_APPICON_NAME` at it, and it's verified on the simulator
+> (light + dark home screen, splash hand-off). The steps below are kept for
+> reference — e.g. if you later want to hand-tune materials in Icon Composer.
+
 This change shipped everything that can be done headlessly: the new **"Two of Us"**
 mark (two overlapping parent circles with a warm baby light at the heart), wired into
 the PNG `AppIcon.appiconset` (so the app already builds and shows the new icon), the
