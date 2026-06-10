@@ -15,44 +15,43 @@ enum OnboardingLayout {
 
 // MARK: - Welcome
 
-/// The hand-off from the launch splash: opens in "splash pose" — a black scrim
-/// with the mark dead-center, exactly matching `SplashView` — then settles: the
-/// scrim melts into the night-stage ambient, the mark glides up, and the copy
-/// fades in. `OnboardingView` drives the three booleans (see `runIntro`).
+/// The hand-off from the launch splash: opens in "splash pose" — the mark and
+/// its "Two of Us" wordmark dead-center on the night-stage ambient, exactly
+/// matching `SplashView`'s final frame — then settles: mark and wordmark glide
+/// up together to the hero pose and the tagline fades in. The wordmark *is* the
+/// page's heading (no separate "Welcome to…" title), so the splash's wordmark
+/// never fades out and back in. `OnboardingView` drives the two booleans (see
+/// `runIntro`).
 struct OnboardingWelcomePage: View {
     /// Mark in its settled (hero) pose vs. splash-center pose.
     let markSettled: Bool
-    /// Black scrim fully faded into the ambient.
-    let scrimGone: Bool
     /// Copy visible.
     let revealed: Bool
 
     var body: some View {
         ZStack {
-            Color.black
-                .opacity(scrimGone ? 0 : 1)
-                .ignoresSafeArea()
-
-            // Stays on a dark stage even after the scrim fades (the welcome
-            // ambient is near-black in both schemes), so the fixed-white copy
-            // and the `.screen`-blended mark always read correctly.
-            CradleMark(size: 240)
-                .scaleEffect(markSettled ? 0.7 : 1)
-                .offset(y: markSettled ? -96 : 0)
-
-            VStack(spacing: 10) {
-                Text("Welcome to Two of Us")
-                    .font(AppFont.hero(30))
+            // Sits directly on the dark night-stage ambient (near-black in both
+            // schemes), so the fixed-white copy and the `.screen`-blended mark
+            // always read correctly. Mark + wordmark transform as one group so
+            // their splash pose is pixel-identical to `SplashView`.
+            ZStack {
+                CradleMark(size: 240)
+                Text("Two of Us")
+                    .font(AppFont.hero(26, weight: .semibold))
                     .foregroundStyle(.white)
-                Text("A calm little log for your little one's feeds, sleeps, and diapers — made for one-handed 3am taps.")
-                    .font(.body)
-                    .foregroundStyle(.white.opacity(0.75))
-                    .fixedSize(horizontal: false, vertical: true)
+                    .offset(y: 240 / 2 + 34)
             }
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, 32)
-            .offset(y: 96)
-            .opacity(revealed ? 1 : 0)
+            .scaleEffect(markSettled ? 0.7 : 1)
+            .offset(y: markSettled ? -96 : 0)
+
+            Text("A calm little log for your little one's feeds, sleeps, and diapers — made for one-handed 3am taps.")
+                .font(.body)
+                .foregroundStyle(.white.opacity(0.75))
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+                .offset(y: 96)
+                .opacity(revealed ? 1 : 0)
         }
         // Non-scrolling pages must take the pager's size explicitly — the page
         // TabView otherwise sizes them to their ideal width and text overflows.

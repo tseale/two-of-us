@@ -8,8 +8,19 @@ import SwiftUI
 /// Shared by the launch splash, the onboarding welcome page, the join flow, and
 /// the post-setup celebration. The `.screen` blend is isolated by the trailing
 /// `compositingGroup`, but the artwork is designed for a dark backdrop — always
-/// place the mark on a dark stage (black scrim, ink ambient, or stage halo).
+/// place the mark on a dark stage (splash stage, ink ambient, or stage halo).
 struct CradleMark: View {
+    /// Per-parent entrance transform: a drift `offset` (added to the resting
+    /// offset), a `scale` (1 = resting), and an `opacity` (1 = present).
+    /// `.identity` leaves the parent fully formed, so non-splash callers get the
+    /// settled mark; the splash animates these to materialize the circles.
+    struct ParentEntry: Equatable {
+        var offset: CGSize = .zero
+        var scale: CGFloat = 1
+        var opacity: Double = 1
+        static let identity = ParentEntry()
+    }
+
     /// Overall mark size in points (the launch logo ships at 240pt — match it for a
     /// seamless hand-off from the static launch screen).
     var size: CGFloat = 240
@@ -17,12 +28,10 @@ struct CradleMark: View {
     var babyScale: CGFloat = 1
     /// 0…1 bloom on the baby's soft glow.
     var glowOpacity: Double = 1
-    /// Horizontal fly-in offset for the LEFT parent circle, in points, added on top
-    /// of its resting offset. 0 = resting (default → unchanged for all callers).
-    var leftEntryOffsetX: CGFloat = 0
-    /// Horizontal fly-in offset for the RIGHT parent circle, in points, added on top
-    /// of its resting offset. 0 = resting (default → unchanged for all callers).
-    var rightEntryOffsetX: CGFloat = 0
+    /// Entrance transform for the LEFT (periwinkle) parent. `.identity` = resting.
+    var leftEntry: ParentEntry = .identity
+    /// Entrance transform for the RIGHT (teal) parent. `.identity` = resting.
+    var rightEntry: ParentEntry = .identity
     /// Reveal of the baby crisp core (0…1 opacity). 1 = present (default → unchanged).
     /// Separate from `glowOpacity` so the core can pop after the circles meet.
     var babyCoreOpacity: Double = 1
@@ -37,15 +46,23 @@ struct CradleMark: View {
         ZStack {
             // The two parents. `.screen` over the black backdrop reproduces the
             // bright blended lens where they overlap (same as the icon artwork).
+            // Each scales/fades around its own resting center, then offsets into
+            // place — so they can drift in independently and converge.
             Circle()
                 .fill(AppColor.accentSleep)            // periwinkle — left parent
                 .frame(width: size * 0.500, height: size * 0.500)
-                .offset(x: -size * 0.130 + leftEntryOffsetX, y: -size * 0.010)
+                .scaleEffect(leftEntry.scale)
+                .opacity(leftEntry.opacity)
+                .offset(x: -size * 0.130 + leftEntry.offset.width,
+                        y: -size * 0.010 + leftEntry.offset.height)
                 .blendMode(.screen)
             Circle()
                 .fill(AppColor.accentFeed)             // teal — right parent
                 .frame(width: size * 0.472, height: size * 0.472)
-                .offset(x: size * 0.118 + rightEntryOffsetX, y: size * 0.010)
+                .scaleEffect(rightEntry.scale)
+                .opacity(rightEntry.opacity)
+                .offset(x: size * 0.118 + rightEntry.offset.width,
+                        y: size * 0.010 + rightEntry.offset.height)
                 .blendMode(.screen)
 
             // The baby — a warm point of light cradled low in the overlap, with a
