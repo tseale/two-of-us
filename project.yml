@@ -42,9 +42,10 @@ targets:
         # Only standard HTTPS/CloudKit crypto — exempt. Without this, every
         # TestFlight build waits on a manual export-compliance answer in ASC.
         ITSAppUsesNonExemptEncryption: NO
+        # Solid black launch field — SplashView opens on black and flies the mark
+        # in, so the static launch screen carries no logo (avoids a logo flash).
         UILaunchScreen:
           UIColorName: LaunchBackground
-          UIImageName: LaunchLogo
           UIImageRespectsSafeAreaInsets: false
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

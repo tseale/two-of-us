@@ -17,6 +17,15 @@ struct CradleMark: View {
     var babyScale: CGFloat = 1
     /// 0…1 bloom on the baby's soft glow.
     var glowOpacity: Double = 1
+    /// Horizontal fly-in offset for the LEFT parent circle, in points, added on top
+    /// of its resting offset. 0 = resting (default → unchanged for all callers).
+    var leftEntryOffsetX: CGFloat = 0
+    /// Horizontal fly-in offset for the RIGHT parent circle, in points, added on top
+    /// of its resting offset. 0 = resting (default → unchanged for all callers).
+    var rightEntryOffsetX: CGFloat = 0
+    /// Reveal of the baby crisp core (0…1 opacity). 1 = present (default → unchanged).
+    /// Separate from `glowOpacity` so the core can pop after the circles meet.
+    var babyCoreOpacity: Double = 1
 
     // Geometry mirrors the generator constants (LEFT_C / RIGHT_C / BABY_C as
     // (x, y, r) fractions of the mark; +y is down). Deliberately not mirrored.
@@ -31,12 +40,12 @@ struct CradleMark: View {
             Circle()
                 .fill(AppColor.accentSleep)            // periwinkle — left parent
                 .frame(width: size * 0.500, height: size * 0.500)
-                .offset(x: -size * 0.130, y: -size * 0.010)
+                .offset(x: -size * 0.130 + leftEntryOffsetX, y: -size * 0.010)
                 .blendMode(.screen)
             Circle()
                 .fill(AppColor.accentFeed)             // teal — right parent
                 .frame(width: size * 0.472, height: size * 0.472)
-                .offset(x: size * 0.118, y: size * 0.010)
+                .offset(x: size * 0.118 + rightEntryOffsetX, y: size * 0.010)
                 .blendMode(.screen)
 
             // The baby — a warm point of light cradled low in the overlap, with a
@@ -50,6 +59,7 @@ struct CradleMark: View {
                 Circle()
                     .fill(babyLight)
                     .frame(width: babyDiameter, height: babyDiameter)
+                    .opacity(babyCoreOpacity)
             }
             .scaleEffect(babyScale)
             .offset(x: 0, y: size * 0.085)
