@@ -8,7 +8,7 @@
 
 ## Goal & milestone
 
-A tappable Miller Time app, running on device, where one person can log feeds, sleep, and diapers, see them in a rolling timeline with time-since/urgency, and edit/backdate any entry — **all stored locally**. CloudKit is *configured in the model layer but not relied on* this increment. The **CloudKit sharing spike** is part of this increment's plan but **deferred until a second device/Apple ID is available** (see Task, below) — it must complete before Increment 2, and it does not block the local core.
+A tappable Two of Us app, running on device, where one person can log feeds, sleep, and diapers, see them in a rolling timeline with time-since/urgency, and edit/backdate any entry — **all stored locally**. CloudKit is *configured in the model layer but not relied on* this increment. The **CloudKit sharing spike** is part of this increment's plan but **deferred until a second device/Apple ID is available** (see Task, below) — it must complete before Increment 2, and it does not block the local core.
 
 **Done when**: you can install on your iPhone, complete first-run setup, log all three event types (with backdating), edit and delete entries, undo a just-logged event, and watch the home screen update. (The sharing spike is a separate gate before Increment 2.)
 
@@ -16,7 +16,7 @@ A tappable Miller Time app, running on device, where one person can log feeds, s
 1. **Local-first** — Increment 1 stores locally; real sync is Increment 2.
 2. **Execution** — Claude scaffolds all Swift source **and** the XcodeGen `project.yml`; Taylor runs `xcodegen generate`, opens, and runs on the Simulator. No hand-built Xcode project. No Apple account/signing for Increment 1 (local-first → Simulator).
 3. **Spike timing** — only one device available now, so the spike is deferred (not Task 0); runs before Increment 2.
-4. **Identifiers** — `com.taylorseale.millertime` / `iCloud.com.taylorseale.millertime` confirmed.
+4. **Identifiers** — `com.taylorseale.twoofus` / `iCloud.com.taylorseale.twoofus` confirmed.
 5. **Backdate control** — "Now / Pick" only (default Now; tap opens a full date-time picker).
 6. **Age string** — adaptive: days → weeks → months.
 7. **Notes** — model keeps the field, but **no notes UI this increment** (deferred).
@@ -61,28 +61,28 @@ A tappable Miller Time app, running on device, where one person can log feeds, s
 
 The project is **generated from an XcodeGen spec** (`project.yml`), not hand-built in Xcode's wizard. Claude writes the spec + all source; you run one command and open the result. Toolchain on this Mac is already present: XcodeGen 2.44.1, Xcode 26.4, Swift 6.3.
 
-- **Project**: `MillerTime`, SwiftUI lifecycle, SwiftData enabled
-- **Bundle ID**: `com.taylorseale.millertime`
+- **Project**: `TwoOfUs`, SwiftUI lifecycle, SwiftData enabled
+- **Bundle ID**: `com.taylorseale.twoofus`
 - **Deployment target**: iOS 17.0
 - **Capabilities — deferred, added per increment** (kept OFF in Increment 1 so it runs with **no Apple account and no signing, on the Simulator**):
-  - iCloud → CloudKit (container `iCloud.com.taylorseale.millertime`) → **Increment 2**
-  - App Group `group.com.taylorseale.millertime` (widget store sharing) → **Increment 3**
+  - iCloud → CloudKit (container `iCloud.com.taylorseale.twoofus`) → **Increment 2**
+  - App Group `group.com.taylorseale.twoofus` (widget store sharing) → **Increment 3**
   - Background Modes → Remote notifications → **Increment 2/4**
 - **Apple account**: not needed for Increment 1 (Simulator). A free personal team enables on-device runs; a paid Developer Program ($99/yr) is needed at Increment 4 (TestFlight) and for the CloudKit container.
 
 ### Bootstrapping runbook (one-time)
 1. Claude commits `project.yml`, entitlements/Info.plist, and all Swift source.
-2. You run: `xcodegen generate` (in the repo root) → produces `MillerTime.xcodeproj`.
-3. `open MillerTime.xcodeproj`, pick an iPhone Simulator, press Run. No signing needed.
+2. You run: `xcodegen generate` (in the repo root) → produces `TwoOfUs.xcodeproj`.
+3. `open TwoOfUs.xcodeproj`, pick an iPhone Simulator, press Run. No signing needed.
 4. (Optional) To run on your own iPhone: select your device, set Signing → your personal Apple ID team. Still no paid account.
 
-> `project.yml` is the source of truth and is committed; `MillerTime.xcodeproj` is generated and git-ignored (regenerate with `xcodegen generate`).
+> `project.yml` is the source of truth and is committed; `TwoOfUs.xcodeproj` is generated and git-ignored (regenerate with `xcodegen generate`).
 
 ### Folder structure
 ```
-MillerTime/
+TwoOfUs/
   App/
-    MillerTimeApp.swift          # @main, ModelContainer, root routing
+    TwoOfUsApp.swift          # @main, ModelContainer, root routing
     RootView.swift               # onboarding gate → HomeView
   Models/
     Baby.swift
@@ -189,7 +189,7 @@ Sleep/diaper use fixed default thresholds (documented constants). Urgency is ref
 ## Screens & components (build-ready)
 
 ### App entry + routing
-- `MillerTimeApp` installs the container. `RootView` shows `OnboardingView` if no `Baby` exists, else `HomeView`.
+- `TwoOfUsApp` installs the container. `RootView` shows `OnboardingView` if no `Baby` exists, else `HomeView`.
 
 ### OnboardingView
 TextField (name) → DatePicker (DOB) → name + color picker for the owner. On finish: seed data, route to Home.

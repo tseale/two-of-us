@@ -1,7 +1,7 @@
 # Baby App Landscape Research
 
 **Last Updated**: June 2026  
-**Purpose**: Competitive analysis and design research for Miller Time, a real-time baby tracking web app
+**Purpose**: Competitive analysis and design research for Two of Us, a real-time baby tracking web app
 
 ---
 
@@ -15,7 +15,7 @@ The baby tracking app market has matured significantly with feature-rich native 
 - Poor offline functionality on web platforms
 - Expensive partnerships and inflexible data structures
 
-Miller Time should focus on speed of entry, immediate synchronization, and a clean, calm interface that respects the frazzled state of new parents.
+Two of Us should focus on speed of entry, immediate synchronization, and a clean, calm interface that respects the frazzled state of new parents.
 
 ---
 
@@ -528,7 +528,7 @@ All major baby tracking apps include these baseline features:
 
 ---
 
-## Design Insights for Miller Time
+## Design Insights for Two of Us
 
 ### One-Handed Use is Essential
 - **Large tap targets**: Minimum 44x44pt, ideally 50x50pt or larger
@@ -670,7 +670,7 @@ All major baby tracking apps include these baseline features:
 
 ---
 
-## Competitive Positioning for Miller Time
+## Competitive Positioning for Two of Us
 
 **Target**: New parents (esp. first-time parents) who want to track baby metrics in real-time with their co-parent, without complexity or design clutter.
 
@@ -726,7 +726,7 @@ All major baby tracking apps include these baseline features:
 
 ## Conclusion
 
-The baby tracking market is mature with several solid competitors, but most fall short on real-time collaboration and design polish. Miller Time has an opportunity to win by:
+The baby tracking market is mature with several solid competitors, but most fall short on real-time collaboration and design polish. Two of Us has an opportunity to win by:
 
 1. **Nailing real-time sync** (the #1 complaint across all competitors)
 2. **Respecting parent's time** (minimize taps, maximize defaults)

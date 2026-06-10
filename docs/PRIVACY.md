@@ -1,8 +1,8 @@
-# Miller Time — Privacy
+# Two of Us — Privacy
 
 **Status**: v1 — June 5, 2026
 
-Miller Time records a baby's feeds, sleep, and diapers and shares them between a small, invited group of family/caregivers. The data is mundane but personal, and it's about a child — so the design is privacy-first by default.
+Two of Us records a baby's feeds, sleep, and diapers and shares them between a small, invited group of family/caregivers. The data is mundane but personal, and it's about a child — so the design is privacy-first by default.
 
 ---
 
@@ -17,8 +17,8 @@ No location, no contacts, no health-kit data, no photos in v1.
 
 ## Where it's stored
 
-- All shared data lives in **the owner's private iCloud** (Taylor's account), in a CloudKit container (`iCloud.com.taylorseale.millertime`), inside a shared record zone.
-- It is **end-to-end within Apple's iCloud** — there is **no Miller Time server**, no third-party backend, and the developers never see the data.
+- All shared data lives in **the owner's private iCloud** (Taylor's account), in a CloudKit container (`iCloud.com.taylorseale.twoofus`), inside a shared record zone.
+- It is **end-to-end within Apple's iCloud** — there is **no Two of Us server**, no third-party backend, and the developers never see the data.
 - Per-user settings stay in local device storage and never sync.
 
 ## Who can access it
@@ -41,7 +41,7 @@ No location, no contacts, no health-kit data, no photos in v1.
 
 ## Children's data note
 
-Miller Time is used **by parents to record their own child's care** — it does not collect data *from* a child, has no accounts for children, and is distributed privately via TestFlight to a handful of invited adults. It is not a service directed at children. If the app is ever submitted to the App Store, revisit the privacy nutrition label and applicable children's-privacy requirements before release.
+Two of Us is used **by parents to record their own child's care** — it does not collect data *from* a child, has no accounts for children, and is distributed privately via TestFlight to a handful of invited adults. It is not a service directed at children. If the app is ever submitted to the App Store, revisit the privacy nutrition label and applicable children's-privacy requirements before release.
 
 ## Distribution
 

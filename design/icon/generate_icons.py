@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Miller Time — app icon concept generator.
+Two of Us — app icon concept generator.
 
 Renders two directions ("Bottle on teal" and "Three-dot trinity") as 1024x1024
 masters following Apple's app-icon guidelines: full-bleed square, no pre-applied
@@ -192,7 +192,7 @@ def make_trinity(bg_mode="dark"):
 # ---- build the shipping AppIcon variants into the asset catalog -------------
 def build_appicon():
     repo = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    icon_dir = os.path.join(repo, "MillerTime", "Assets.xcassets", "AppIcon.appiconset")
+    icon_dir = os.path.join(repo, "TwoOfUs", "Assets.xcassets", "AppIcon.appiconset")
     os.makedirs(icon_dir, exist_ok=True)
 
     # default + dark: trinity on solid black, flattened (no alpha)
@@ -207,7 +207,7 @@ def build_appicon():
 def build_launch_logo():
     """Centered trinity mark (transparent) for the launch screen, @1x/2x/3x."""
     repo = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    logo_dir = os.path.join(repo, "MillerTime", "Assets.xcassets", "LaunchLogo.imageset")
+    logo_dir = os.path.join(repo, "TwoOfUs", "Assets.xcassets", "LaunchLogo.imageset")
     os.makedirs(logo_dir, exist_ok=True)
     master = make_trinity("transparent").resize((SIZE, SIZE), Image.LANCZOS)
     pt = 240  # displayed point size

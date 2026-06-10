@@ -1,4 +1,4 @@
-# Miller Time — Data Model
+# Two of Us — Data Model
 
 **Status**: v1 design — locked June 5, 2026
 **Persistence**: SwiftData (`@Model`) · **Sync**: CloudKit · **Min OS**: iOS 17+
@@ -9,7 +9,7 @@ This doc is the source of truth for the schema. Because SwiftData + CloudKit mak
 
 ## Storage tiers
 
-Miller Time has three distinct storage tiers. Putting data in the wrong tier is the most expensive mistake to undo later.
+Two of Us has three distinct storage tiers. Putting data in the wrong tier is the most expensive mistake to undo later.
 
 | Tier | What lives here | Backed by | Synced? | Shared between people? |
 |---|---|---|---|---|
@@ -117,7 +117,7 @@ Stored in `UserDefaults` (or a small local store), keyed per device/user. These 
 
 ## CloudKit layout
 
-- **Container**: `iCloud.com.taylorseale.millertime`
+- **Container**: `iCloud.com.taylorseale.twoofus`
 - **Owner**: Taylor's iCloud account holds the canonical data in a **shared record zone**.
 - **Sharing**: a single `CKShare` over the baby's record zone. Each invited person (wife, caregiver) is a `CKShare.Participant`. Both roles (`full`, `logger`) are **read-write at the CloudKit level** — the Full-vs-Logger distinction is enforced *in the app UI* (gate the settings/baby-edit screens), not by CloudKit permissions. No view-only tier means we never need a read-only participant path.
 - **Invite / revoke**: invites are CloudKit share links (`UICloudSharingController` or a custom share flow). Revoking removes the participant from the `CKShare`; their already-logged events remain (owned by the owner's zone).
