@@ -107,10 +107,31 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
 
     // MARK: Enqueue local changes
 
+    /// UserDefaults key holding saves made by a participant before the owner's
+    /// shared zone has been discovered (drained on first `fetchedDatabaseChanges`).
+    private static let pendingSharedSavesKey = "sync.pendingSharedSaves"
+
     func enqueueSave(_ ids: [UUID]) {
-        guard let engine = activeEngine, let zoneID = activeZoneID, !ids.isEmpty else { return }
+        guard !ids.isEmpty else { return }
+        // A participant can save before the shared engine has fetched the owner's
+        // zone (e.g. creating their profile right after accepting the share).
+        // `sharedZoneID` is nil until then — hold the ids instead of dropping them.
+        if LocalPrefs.shared.syncRole == .participant, sharedZoneID == nil {
+            let held = UserDefaults.standard.stringArray(forKey: Self.pendingSharedSavesKey) ?? []
+            UserDefaults.standard.set(held + ids.map(\.uuidString), forKey: Self.pendingSharedSavesKey)
+            return
+        }
+        guard let engine = activeEngine, let zoneID = activeZoneID else { return }
         let changes = ids.map { CKSyncEngine.PendingRecordZoneChange.saveRecord(CKRecord.ID(recordName: $0.uuidString, zoneID: zoneID)) }
         engine.state.add(pendingRecordZoneChanges: changes)
+    }
+
+    /// Re-enqueues saves held while the shared zone was still unknown.
+    private func drainPendingSharedSaves() {
+        guard let raw = UserDefaults.standard.stringArray(forKey: Self.pendingSharedSavesKey),
+              !raw.isEmpty else { return }
+        UserDefaults.standard.removeObject(forKey: Self.pendingSharedSavesKey)
+        enqueueSave(raw.compactMap(UUID.init))
     }
 
     func enqueueDelete(_ ids: [UUID]) {
@@ -155,11 +176,13 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             saveState(e.stateSerialization, scope: scope(for: syncEngine))
 
         case .fetchedDatabaseChanges(let e):
-            // Participant: capture the owner's shared zone the first time we see it.
+            // Participant: capture the owner's shared zone the first time we see it,
+            // then flush any saves that were held while the zone was unknown.
             if syncEngine === sharedEngine {
                 for change in e.modifications {
                     sharedZoneID = change.zoneID
                 }
+                if sharedZoneID != nil { drainPendingSharedSaves() }
             }
 
         case .fetchedRecordZoneChanges(let e):
@@ -296,6 +319,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         try? FileManager.default.removeItem(at: stateURL(.shared))
         UserDefaults.standard.removeObject(forKey: "sync.bootstrap.private")
         UserDefaults.standard.removeObject(forKey: "sync.bootstrap.shared")
+        UserDefaults.standard.removeObject(forKey: Self.pendingSharedSavesKey)
 
         wipeLocalModels()
 
@@ -326,6 +350,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         sharedZoneID = nil
         try? FileManager.default.removeItem(at: stateURL(.shared))
         UserDefaults.standard.removeObject(forKey: "sync.bootstrap.shared")
+        UserDefaults.standard.removeObject(forKey: Self.pendingSharedSavesKey)
         LocalPrefs.shared.syncRole = .solo
     }
 
