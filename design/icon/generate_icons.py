@@ -207,11 +207,12 @@ def make_trinity(bg_mode="dark"):
 # Drawn as separable layers so the same geometry feeds the flat PNG fallback and the
 # Icon Composer .icon export.
 
-# Geometry, all relative to the working canvas S. Centered in the safe area.
-CIRC_R = 0.235              # parent-circle radius
-CIRC_SHIFT = 0.108          # each circle's center offset left/right of canvas center
-DOT_RADIUS = 0.082          # Miller (baby) dot radius
-DOT_RISE = 0.000            # nudge the dot up/down (+ = up)
+# Geometry as (x, y, r) fractions of the canvas S, relative to its center
+# (+y points down). Deliberately NOT mirrored: slightly different sizes and a
+# gentle vertical stagger keep the overlap from reading as a tidy symmetric almond.
+LEFT_C  = (-0.118,  0.052, 0.246)   # periwinkle parent — a little low and left, larger
+RIGHT_C = ( 0.126, -0.044, 0.221)   # teal parent — a little high and right, smaller
+BABY_C  = ( 0.052, -0.070, 0.073)   # baby — nestled up where they meet, off dead-center
 
 BABY = (0xFF, 0xF4, 0xE8)   # warm near-white — a new little light (not amber)
 
@@ -240,13 +241,10 @@ def _gray(c):
     return (l, l, l)
 
 
-def _circle_centers():
-    cx, cy = S / 2, S / 2
-    return (cx - S * CIRC_SHIFT, cy), (cx + S * CIRC_SHIFT, cy)
-
-
-def _dot_center():
-    return (S / 2, S / 2 - S * DOT_RISE)
+def _circle(spec):
+    """(x, y, r) fractions of S, relative to center -> (center_px, radius_px)."""
+    x, y, r = spec
+    return (S / 2 + S * x, S / 2 + S * y), S * r
 
 
 def make_cradle_layers(tinted=False):
@@ -254,13 +252,12 @@ def make_cradle_layers(tinted=False):
     dot_rgba) — two full parent circles plus the baby dot. Icon Composer blends
     the overlapping circles with real glass on device; colors collapse to
     luminance grays when tinted so the system tint reads cleanly."""
-    left_c, right_c = _circle_centers()
-    R = S * CIRC_R
+    (lc, lr), (rc, rr), (bc, br) = _circle(LEFT_C), _circle(RIGHT_C), _circle(BABY_C)
     lcol, rcol, dcol = (PERIWINKLE, TEAL, BABY) if not tinted else \
         (_gray(PERIWINKLE), _gray(TEAL), _gray(BABY))
-    left = _colored(_disk(left_c, R), lcol)
-    right = _colored(_disk(right_c, R), rcol)
-    dot = _colored(_disk(_dot_center(), S * DOT_RADIUS), dcol)
+    left = _colored(_disk(lc, lr), lcol)
+    right = _colored(_disk(rc, rr), rcol)
+    dot = _colored(_disk(bc, br), dcol)
     return left, right, dot
 
 
@@ -283,9 +280,8 @@ def make_cradle(bg_mode="dark"):
     transparent = bg_mode in ("transparent", "tinted")
     img = cradle_background("transparent" if transparent else bg_mode)
 
-    left_c, right_c = _circle_centers()
-    R = S * CIRC_R
-    lmask, rmask = _disk(left_c, R), _disk(right_c, R)
+    (lc, lr), (rc, rr), (bc, br) = _circle(LEFT_C), _circle(RIGHT_C), _circle(BABY_C)
+    lmask, rmask = _disk(lc, lr), _disk(rc, rr)
     overlap = ImageChops.darker(lmask, rmask)              # intersection (min)
     left_only = ImageChops.subtract(lmask, overlap)
     right_only = ImageChops.subtract(rmask, overlap)
@@ -302,12 +298,12 @@ def make_cradle(bg_mode="dark"):
     stamp(right_only, rcol)
     stamp(overlap, blend)
 
-    # baby: a soft warm halo then the bright point of light at the heart
+    # baby: a soft warm halo then the bright point of light, nestled up off-center
     if not tinted:
-        halo = _disk(_dot_center(), S * DOT_RADIUS * 1.9)
+        halo = _disk(bc, br * 1.9)
         halo = halo.point(lambda v: v * 95 // 255).filter(ImageFilter.GaussianBlur(S * 0.022))
         img.alpha_composite(_colored(halo, BABY))
-    img.alpha_composite(_colored(_disk(_dot_center(), S * DOT_RADIUS), dcol))
+    img.alpha_composite(_colored(_disk(bc, br), dcol))
     return img
 
 

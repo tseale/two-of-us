@@ -13,10 +13,9 @@ struct CradleMark: View {
     /// 0…1 bloom on the baby's soft glow.
     var glowOpacity: Double = 1
 
-    // Geometry mirrors the generator constants (CIRC_R, CIRC_SHIFT, DOT_RADIUS).
-    private var circleDiameter: CGFloat { size * 0.47 }
-    private var circleOffset: CGFloat { size * 0.108 }
-    private var babyDiameter: CGFloat { size * 0.164 }
+    // Geometry mirrors the generator constants (LEFT_C / RIGHT_C / BABY_C as
+    // (x, y, r) fractions of the mark; +y is down). Deliberately not mirrored.
+    private var babyDiameter: CGFloat { size * 0.146 }
 
     private let babyLight = Color(red: 1.0, green: 0.957, blue: 0.910) // #FFF4E8
 
@@ -26,16 +25,17 @@ struct CradleMark: View {
             // bright blended lens where they overlap (same as the icon artwork).
             Circle()
                 .fill(AppColor.accentSleep)            // periwinkle — left parent
-                .frame(width: circleDiameter, height: circleDiameter)
-                .offset(x: -circleOffset)
+                .frame(width: size * 0.492, height: size * 0.492)
+                .offset(x: -size * 0.118, y: size * 0.052)
                 .blendMode(.screen)
             Circle()
                 .fill(AppColor.accentFeed)             // teal — right parent
-                .frame(width: circleDiameter, height: circleDiameter)
-                .offset(x: circleOffset)
+                .frame(width: size * 0.442, height: size * 0.442)
+                .offset(x: size * 0.126, y: -size * 0.044)
                 .blendMode(.screen)
 
-            // The baby — a warm point of light at the heart, with a soft glow bloom.
+            // The baby — a warm point of light nestled up where they meet, with a
+            // soft glow bloom; offset off dead-center to match the icon.
             ZStack {
                 Circle()
                     .fill(babyLight)
@@ -47,6 +47,7 @@ struct CradleMark: View {
                     .frame(width: babyDiameter, height: babyDiameter)
             }
             .scaleEffect(babyScale)
+            .offset(x: size * 0.052, y: -size * 0.070)
         }
         .frame(width: size, height: size)
         .compositingGroup()
