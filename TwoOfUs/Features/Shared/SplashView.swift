@@ -1,11 +1,13 @@
 import SwiftUI
 
 /// The launch splash. It opens on solid black (matching the static launch screen,
-/// which is now a plain black field) and flies the two parent circles in from
-/// opposite off-screen edges; they meet, the baby's light is born at their union,
-/// it gives one gentle heartbeat, fades in the wordmark, and dismisses via
-/// `onComplete` — settling into the centered mark the onboarding welcome inherits.
-/// Honors Reduce Motion by skipping the motion and just fading in.
+/// which is a plain black field) and flies the two parent circles in from opposite
+/// off-screen edges; as they meet, the stage brightens into the onboarding's
+/// night-stage ambient, the baby's light is born at their union, one gentle
+/// heartbeat plays, the wordmark fades in, and it dismisses via `onComplete`.
+/// Because the splash ends on the same `AmbientBackground(stop: .nightStage)` the
+/// welcome and join pages sit on, the host's crossfade dissolves between two
+/// identical backdrops. Honors Reduce Motion by skipping the motion and fading in.
 struct SplashView: View {
     /// Called once the splash has finished; the host fades it away.
     var onComplete: () -> Void
@@ -31,10 +33,19 @@ struct SplashView: View {
     @State private var leftEntry: CGFloat = -384
     @State private var rightEntry: CGFloat = 384
     @State private var babyCore: Double = 0
+    /// Lifts the black cover off the night-stage ambient as the parents converge,
+    /// so the splash's backdrop becomes the welcome page's before the hand-off.
+    @State private var stageLit = false
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AmbientBackground(stop: .nightStage)
+
+            // Solid black on the first frame (matching the static launch screen),
+            // then dissolves to reveal the ambient underneath.
+            Color.black
+                .opacity(stageLit ? 0 : 1)
+                .ignoresSafeArea()
 
             CradleMark(size: markSize,
                        babyScale: babyScale,
@@ -54,11 +65,13 @@ struct SplashView: View {
 
     @MainActor private func run() async {
         if reduceMotion {
-            // No fly-in: settle the mark instantly, only fade the wordmark.
+            // No fly-in: settle the mark on the lit stage instantly, only fade
+            // the wordmark.
             leftEntry = 0
             rightEntry = 0
             glowOpacity = 1
             babyCore = 1
+            stageLit = true
             withAnimation(.easeIn(duration: 0.3)) {
                 wordmarkOpacity = 1
                 wordmarkOffset = 0
@@ -70,9 +83,11 @@ struct SplashView: View {
         }
 
         // The two parents glide in from opposite edges (slight stagger so it reads
-        // as a meeting, not a symmetric clap)…
+        // as a meeting, not a symmetric clap) while the stage gently dawns from
+        // black into the night ambient…
         withAnimation(.spring(response: 0.6, dampingFraction: 0.78)) { leftEntry = 0 }
         withAnimation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.08)) { rightEntry = 0 }
+        withAnimation(.easeInOut(duration: 1.0).delay(0.10)) { stageLit = true }
 
         // …and as they overlap, the baby's light is born: the glow blooms and the
         // crisp core pops in, then one calm heartbeat and the wordmark fades up.

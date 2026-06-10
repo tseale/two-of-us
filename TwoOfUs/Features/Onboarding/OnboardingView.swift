@@ -38,7 +38,6 @@ struct OnboardingView: View {
     private static var hasPlayedIntro = false
 
     @State private var markSettled: Bool
-    @State private var scrimGone: Bool
     @State private var chromeRevealed: Bool
 
     // MARK: Setup state (committed once, at Finish)
@@ -89,7 +88,6 @@ struct OnboardingView: View {
         #endif
 
         _markSettled = State(initialValue: played)
-        _scrimGone = State(initialValue: played)
         _chromeRevealed = State(initialValue: played)
     }
 
@@ -104,8 +102,7 @@ struct OnboardingView: View {
             AmbientBackground(stop: ambientStop)
 
             TabView(selection: $page) {
-                OnboardingWelcomePage(markSettled: markSettled, scrimGone: scrimGone,
-                                      revealed: chromeRevealed)
+                OnboardingWelcomePage(markSettled: markSettled, revealed: chromeRevealed)
                     .tag(Page.welcome)
                 OnboardingTrackPage(revealed: revealed.contains(.track))
                     .tag(Page.track)
@@ -331,10 +328,11 @@ struct OnboardingView: View {
 
     // MARK: Welcome intro
 
-    /// The welcome page's first frame matches the splash above it exactly; once
-    /// the splash has faded, the scrim melts away, the mark glides to its hero
-    /// pose, and the copy + chrome fade in. Under Reduce Motion the mark never
-    /// moves — the splash crossfades straight to the settled pose.
+    /// The welcome page's first frame matches the splash's final frame exactly
+    /// (centered mark on the night-stage ambient); once the splash has faded, the
+    /// mark glides to its hero pose and the copy + chrome fade in. Under Reduce
+    /// Motion the mark never moves — the splash crossfades straight to the
+    /// settled pose.
     @MainActor private func runIntro() async {
         guard !Self.hasPlayedIntro else { return }
         Self.hasPlayedIntro = true
@@ -350,7 +348,6 @@ struct OnboardingView: View {
             let elapsed = Date().timeIntervalSince(done)
             if elapsed > 1.0 {
                 markSettled = true
-                scrimGone = true
                 chromeRevealed = true
                 return
             }
@@ -361,15 +358,11 @@ struct OnboardingView: View {
         try? await Task.sleep(for: .seconds(settleDelay))
 
         if reduceMotion {
-            withAnimation(.easeOut(duration: 0.4)) {
-                scrimGone = true
-                chromeRevealed = true
-            }
+            withAnimation(.easeOut(duration: 0.4)) { chromeRevealed = true }
             return
         }
 
         withAnimation(.spring(response: 0.7, dampingFraction: 0.85)) { markSettled = true }
-        withAnimation(.easeInOut(duration: 0.6)) { scrimGone = true }
         withAnimation(.easeOut(duration: 0.45).delay(0.25)) { chromeRevealed = true }
     }
 }

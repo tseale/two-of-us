@@ -15,27 +15,21 @@ enum OnboardingLayout {
 
 // MARK: - Welcome
 
-/// The hand-off from the launch splash: opens in "splash pose" — a black scrim
-/// with the mark dead-center, exactly matching `SplashView` — then settles: the
-/// scrim melts into the night-stage ambient, the mark glides up, and the copy
-/// fades in. `OnboardingView` drives the three booleans (see `runIntro`).
+/// The hand-off from the launch splash: opens in "splash pose" — the mark
+/// dead-center on the night-stage ambient, exactly matching `SplashView`'s final
+/// frame — then settles: the mark glides up and the copy fades in.
+/// `OnboardingView` drives the two booleans (see `runIntro`).
 struct OnboardingWelcomePage: View {
     /// Mark in its settled (hero) pose vs. splash-center pose.
     let markSettled: Bool
-    /// Black scrim fully faded into the ambient.
-    let scrimGone: Bool
     /// Copy visible.
     let revealed: Bool
 
     var body: some View {
         ZStack {
-            Color.black
-                .opacity(scrimGone ? 0 : 1)
-                .ignoresSafeArea()
-
-            // Stays on a dark stage even after the scrim fades (the welcome
-            // ambient is near-black in both schemes), so the fixed-white copy
-            // and the `.screen`-blended mark always read correctly.
+            // Sits directly on the dark night-stage ambient (near-black in both
+            // schemes), so the fixed-white copy and the `.screen`-blended mark
+            // always read correctly.
             CradleMark(size: 240)
                 .scaleEffect(markSettled ? 0.7 : 1)
                 .offset(y: markSettled ? -96 : 0)

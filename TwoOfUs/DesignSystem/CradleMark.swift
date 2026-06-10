@@ -8,7 +8,7 @@ import SwiftUI
 /// Shared by the launch splash, the onboarding welcome page, the join flow, and
 /// the post-setup celebration. The `.screen` blend is isolated by the trailing
 /// `compositingGroup`, but the artwork is designed for a dark backdrop — always
-/// place the mark on a dark stage (black scrim, ink ambient, or stage halo).
+/// place the mark on a dark stage (splash stage, ink ambient, or stage halo).
 struct CradleMark: View {
     /// Overall mark size in points (the launch logo ships at 240pt — match it for a
     /// seamless hand-off from the static launch screen).
