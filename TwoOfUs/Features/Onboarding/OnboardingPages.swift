@@ -61,82 +61,111 @@ struct OnboardingWelcomePage: View {
 
 // MARK: - Tour
 
-/// The whole story on one chaptered page: what you log, where the app lives
-/// (widgets, Dynamic Island, Siri, Control Center), what it learns, and a sync
-/// teaser — replacing the old five-page story block without losing its content.
+/// The whole story at one glance: what you log, where the app lives (widgets,
+/// Dynamic Island, Siri, Control Center), and a sync teaser — a fixed bento
+/// collage, not a scroll. The rhythm/stats story isn't duplicated here; it plays
+/// later as the post-first-feed spotlight, with real data behind it.
+///
+/// `ViewThatFits` keeps the no-scroll promise honest: the fixed layout wins
+/// whenever it fits (the pager centers it); very large Dynamic Type falls back
+/// to the scrolling variant so nothing ever clips.
 struct OnboardingTourPage: View {
     let revealed: Bool
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 26) {
-                Spacer(minLength: 24)
-                OnboardingStepHeader(
-                    title: "Three things, a tap away",
-                    subtitle: "Feeds, sleep, and diapers — logged in a tap or two, even with a baby in your other arm."
-                )
-                .onboardingEntrance(revealed)
+        ViewThatFits(in: .vertical) {
+            // Fixed variant — must stay *rigid* (no flexible spacers or
+            // container frames, or it would always report "fits" and the
+            // fallback below could never win). The pager centers it, and the
+            // bottom padding keeps the optical center clear of the CTA bar.
+            tourContent
+                .padding(.horizontal, 28)
+                .padding(.bottom, OnboardingLayout.barClearance)
 
-                GlassEffectContainer(spacing: 12) {
-                    HStack(spacing: 12) {
-                        TourLogTile(emoji: "🍼", title: "Feed", tint: AppColor.accentFeed)
-                        TourLogTile(emoji: "💤", title: "Sleep", tint: AppColor.accentSleep)
-                        TourLogTile(emoji: "💩", title: "Diaper", tint: AppColor.accentDiaper)
-                    }
+            // Very large Dynamic Type: nothing honest fits one screen — fall
+            // back to the standard scrolling page so content never clips.
+            ScrollView {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 24)
+                    tourContent
+                    Spacer(minLength: 16)
                 }
-                .onboardingEntrance(revealed, index: 1)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Log feeds, sleep, and diapers.")
-
-                tourSection("Everywhere you are", index: 2) {
-                    VStack(spacing: 14) {
-                        MockDynamicIsland()
-                            .rotationEffect(.degrees(-2))
-                        HStack(alignment: .center, spacing: 18) {
-                            MockSmallWidget()
-                                .rotationEffect(.degrees(1.5))
-                            MockControlToggle()
-                        }
-                        MockSiriChip()
-                            .rotationEffect(.degrees(-1))
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Lock screen widgets, a live sleep timer in the Dynamic Island, Siri phrases, and Control Center controls.")
-                }
-
-                tourSection("It learns your rhythm", index: 3) {
-                    MockTrendCard(progress: revealed ? 1 : 0)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("A rising longest-sleep trend.")
-                }
-
-                HStack(spacing: 10) {
-                    Image(systemName: "icloud")
-                        .foregroundStyle(AppColor.accentSleep)
-                    Text("Logs sync to your co-parent's iPhone in seconds — more on that in a minute.")
-                        .font(.footnote)
-                        .foregroundStyle(AppColor.text2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 4)
-                .onboardingEntrance(revealed, index: 4)
-
-                Spacer(minLength: 16)
+                .padding(.horizontal, 28)
             }
-            .padding(.horizontal, 28)
+            .contentMargins(.bottom, OnboardingLayout.barClearance, for: .scrollContent)
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .contentMargins(.bottom, OnboardingLayout.barClearance, for: .scrollContent)
-        .scrollBounceBehavior(.basedOnSize)
+        // Gives ViewThatFits the pager's concrete size to measure against —
+        // the page TabView otherwise proposes ideal sizes (see WelcomePage),
+        // which would break both text wrapping and the fit check.
+        .containerRelativeFrame([.horizontal, .vertical])
     }
 
-    private func tourSection(_ label: String, index: Int,
-                             @ViewBuilder content: () -> some View) -> some View {
-        VStack(spacing: 14) {
-            Text(label).sectionLabelStyle()
-            content()
+    @ViewBuilder private var tourContent: some View {
+        VStack(spacing: 20) {
+            OnboardingStepHeader(
+                title: "Three things, a tap away",
+                subtitle: "Feeds, sleep, and diapers — logged one-handed."
+            )
+            .onboardingEntrance(revealed)
+
+            GlassEffectContainer(spacing: 12) {
+                HStack(spacing: 12) {
+                    TourLogTile(emoji: "🍼", title: "Feed", tint: AppColor.accentFeed)
+                    TourLogTile(emoji: "💤", title: "Sleep", tint: AppColor.accentSleep)
+                    TourLogTile(emoji: "💩", title: "Diaper", tint: AppColor.accentDiaper)
+                }
+            }
+            .onboardingEntrance(revealed, index: 1)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Log feeds, sleep, and diapers.")
+
+            // The "everywhere" collage on a quiet stage card, so the miniatures
+            // read as one composed exhibit instead of loose floating pieces.
+            VStack(spacing: 14) {
+                Text("Without opening the app")
+                    .sectionLabelStyle(color: AppColor.text3)
+                MockDynamicIsland()
+                    .rotationEffect(.degrees(-2))
+                HStack(alignment: .top, spacing: 12) {
+                    MockSmallWidget()
+                        .rotationEffect(.degrees(1.5))
+                    // Fills the widget's height: Siri chip up top, the Control
+                    // Center toggle pinned to the bottom edge.
+                    VStack(spacing: 0) {
+                        MockSiriChip(phrase: "“Log a bottle”", fullWidth: true)
+                            .rotationEffect(.degrees(-1))
+                        Spacer(minLength: 0)
+                        MockControlToggle()
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 124)
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity)
+            .background(AppColor.card.opacity(0.5), in: .rect(cornerRadius: 24))
+            .overlay(
+                RoundedRectangle(cornerRadius: 24)
+                    .strokeBorder(AppColor.separator.opacity(0.4), lineWidth: 0.5)
+            )
+            .onboardingEntrance(revealed, index: 2)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Without opening the app: lock screen widgets, a live sleep timer in the Dynamic Island, Siri phrases, and Control Center controls.")
+
+            HStack(spacing: 10) {
+                Image(systemName: "icloud")
+                    .foregroundStyle(AppColor.accentSleep)
+                Text("Logs sync to your co-parent's iPhone in seconds — more on that in a minute.")
+                    .font(.footnote)
+                    .foregroundStyle(AppColor.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .surfaceCard(cornerRadius: 14)
+            .onboardingEntrance(revealed, index: 3)
         }
-        .onboardingEntrance(revealed, index: index)
     }
 }
 

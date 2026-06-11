@@ -46,6 +46,10 @@ struct MockSmallWidget: View {
 
 /// A Siri phrase chip.
 struct MockSiriChip: View {
+    var phrase = "“Log a four ounce bottle”"
+    /// Stretch the chip card to its container (bento column in the tour page).
+    var fullWidth = false
+
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "waveform")
@@ -54,10 +58,13 @@ struct MockSiriChip: View {
                     LinearGradient(colors: [AppColor.accentSleep, AppColor.accentFeed],
                                    startPoint: .leading, endPoint: .trailing)
                 )
-            Text("“Log a four ounce bottle”")
+            Text(phrase)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(AppColor.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
         }
+        .frame(maxWidth: fullWidth ? .infinity : nil)
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .surfaceCard(cornerRadius: 22)
