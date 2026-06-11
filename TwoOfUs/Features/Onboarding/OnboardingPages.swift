@@ -31,22 +31,22 @@ struct OnboardingWelcomePage: View {
     var body: some View {
         ZStack {
             // Sits directly on the dark night-stage ambient (near-black in both
-            // schemes), so the fixed-white copy and the `.screen`-blended mark
+            // schemes), so the fixed cream copy and the `.screen`-blended mark
             // always read correctly. Mark + wordmark transform as one group so
             // their splash pose is pixel-identical to `SplashView`.
             ZStack {
                 CradleMark(size: 240)
                 Text("Two of Us")
                     .font(AppFont.hero(26, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppColor.nightlightCream)
                     .offset(y: 240 / 2 + 34)
             }
             .scaleEffect(markSettled ? 0.7 : 1)
             .offset(y: markSettled ? -96 : 0)
 
             Text("A calm little log for your little one's feeds, sleeps, and diapers — made for one-handed 3am taps.")
-                .font(.body)
-                .foregroundStyle(.white.opacity(0.75))
+                .font(.system(.body, design: .rounded))
+                .foregroundStyle(AppColor.nightlightCream.opacity(0.78))
                 .fixedSize(horizontal: false, vertical: true)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)

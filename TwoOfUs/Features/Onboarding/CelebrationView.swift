@@ -41,7 +41,7 @@ struct CelebrationView: View {
 
     /// Near-black ink for the night-sky stage the mark sits on (see `CradleMark`:
     /// the artwork wants a dark backdrop in both color schemes).
-    private let ink = Color(hex: "070710")
+    private let ink = AppColor.nightInk
 
     var body: some View {
         ZStack {

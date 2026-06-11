@@ -83,7 +83,7 @@ struct JoinFlowView: View {
                     .foregroundStyle(.white)
                 Text(helloSubtitle)
                     .font(.body)
-                    .foregroundStyle(.white.opacity(0.75))
+                    .foregroundStyle(AppColor.nightlightCream.opacity(0.78))
                     .fixedSize(horizontal: false, vertical: true)
                 if baby == nil {
                     SyncingShimmer()
@@ -229,7 +229,7 @@ struct JoinSyncingView: View {
                         .foregroundStyle(.white)
                     Text("Your co-parent's log is syncing to this iPhone.")
                         .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.75))
+                        .foregroundStyle(AppColor.nightlightCream.opacity(0.78))
                     SyncingShimmer()
                         .padding(.top, 6)
                 }

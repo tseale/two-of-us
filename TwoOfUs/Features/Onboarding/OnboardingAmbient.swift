@@ -16,13 +16,15 @@ struct AmbientStop: Equatable {
 }
 
 extension AmbientStop {
-    /// The dark stage the `CradleMark` sits on, in both color schemes — periwinkle
-    /// up top, the baby light's warmth pooling low. Page transitions away from it
-    /// play as a gentle sunrise into the scheme palette.
+    /// The dark stage the `CradleMark` sits on, in both color schemes — lavender
+    /// night sky up top, the baby light's lamp-warmth pooling low. Page
+    /// transitions away from it play as a gentle sunrise into the scheme palette.
+    /// (Both colors are deliberately softer/warmer than the raw accents: this is
+    /// a nursery at night, not a brand hero.)
     static let nightStage = AmbientStop(
         darkStage: true,
-        top: AppColor.accentSleep,
-        bottom: Color(red: 1.0, green: 0.957, blue: 0.910) // #FFF4E8
+        top: Color(hex: "A99BEC"),    // accentSleep desaturated toward lavender
+        bottom: Color(hex: "FFE6C7")  // nightlight cream pushed toward lamp amber
     )
 }
 
@@ -34,8 +36,17 @@ struct AmbientBackground: View {
     let stop: AmbientStop
     @Environment(\.colorScheme) private var scheme
 
-    private var washOpacity: Double {
-        var base = stop.darkStage ? 0.16 : (scheme == .dark ? 0.18 : 0.12)
+    // On the dark stage the washes carry different weight on purpose: the warm
+    // bottom wash (the nightlight) pools visibly low while the cool top wash
+    // recedes. Everywhere else they stay symmetric.
+    private var topWashOpacity: Double {
+        var base = stop.darkStage ? 0.14 : (scheme == .dark ? 0.18 : 0.12)
+        if stop.subtle { base *= 0.6 }
+        return base
+    }
+
+    private var bottomWashOpacity: Double {
+        var base = stop.darkStage ? 0.30 : (scheme == .dark ? 0.18 : 0.12)
         if stop.subtle { base *= 0.6 }
         return base
     }
@@ -43,7 +54,7 @@ struct AmbientBackground: View {
     var body: some View {
         ZStack {
             AppColor.bg
-            Color(hex: "070710")
+            AppColor.nightInk
                 .opacity(stop.darkStage ? 1 : 0)
         }
         // The washes live in an overlay so their big blurred frames never
@@ -56,18 +67,74 @@ struct AmbientBackground: View {
                     .frame(width: 560, height: 560)
                     .blur(radius: 120)
                     .offset(x: -130, y: -280)
-                    .opacity(washOpacity)
+                    .opacity(topWashOpacity)
                 Circle()
                     .fill(stop.bottom)
                     .frame(width: 500, height: 500)
                     .blur(radius: 110)
                     .offset(x: 150, y: 320)
-                    .opacity(washOpacity)
+                    .opacity(bottomWashOpacity)
+                NightStars()
+                    .opacity(stop.darkStage ? 1 : 0)
             }
         }
         .ignoresSafeArea()
         .animation(.easeInOut(duration: 0.5), value: stop)
         .accessibilityHidden(true)
+    }
+}
+
+/// A sparse, static scatter of faint star points for the dark stage. Hand-placed
+/// in unit coordinates: denser in the upper "sky", clear of the mark's center
+/// and the warm pool low. Deliberately no twinkle — calm, Reduce Motion safe,
+/// and free at render time (the host fades the whole layer with `darkStage`).
+private struct NightStars: View {
+    private struct Star {
+        let x: CGFloat      // unit position
+        let y: CGFloat
+        let size: CGFloat   // point diameter
+        let opacity: Double
+        var halo: Bool { size >= 2.5 }
+    }
+
+    private static let stars: [Star] = [
+        Star(x: 0.12, y: 0.08, size: 2.0, opacity: 0.22),
+        Star(x: 0.30, y: 0.14, size: 1.5, opacity: 0.14),
+        Star(x: 0.55, y: 0.06, size: 2.5, opacity: 0.26),
+        Star(x: 0.78, y: 0.11, size: 1.5, opacity: 0.16),
+        Star(x: 0.90, y: 0.20, size: 2.0, opacity: 0.20),
+        Star(x: 0.07, y: 0.24, size: 1.5, opacity: 0.12),
+        Star(x: 0.42, y: 0.20, size: 1.5, opacity: 0.10),
+        Star(x: 0.68, y: 0.26, size: 2.0, opacity: 0.18),
+        Star(x: 0.16, y: 0.40, size: 2.5, opacity: 0.28),
+        Star(x: 0.88, y: 0.42, size: 1.5, opacity: 0.13),
+        Star(x: 0.06, y: 0.58, size: 2.0, opacity: 0.16),
+        Star(x: 0.93, y: 0.60, size: 2.5, opacity: 0.24),
+    ]
+
+    var body: some View {
+        GeometryReader { geo in
+            ForEach(Self.stars.indices, id: \.self) { i in
+                let star = Self.stars[i]
+                Circle()
+                    .fill(AppColor.nightlightCream)
+                    .frame(width: star.size, height: star.size)
+                    .background {
+                        // The few larger stars get a soft halo so one or two
+                        // points feel near, the rest far.
+                        if star.halo {
+                            Circle()
+                                .fill(AppColor.nightlightCream)
+                                .frame(width: star.size * 3, height: star.size * 3)
+                                .blur(radius: 2)
+                                .opacity(0.5)
+                        }
+                    }
+                    .opacity(star.opacity)
+                    .position(x: star.x * geo.size.width,
+                              y: star.y * geo.size.height)
+            }
+        }
     }
 }
 
