@@ -61,8 +61,8 @@ extension RibbonMark {
 }
 
 /// Render style for `DayRibbonView`.
-/// `.color` draws emoji marks (🍼 feed · 💧/💩/💧💩 diaper by type) above the baseline
-/// and an accent-purple sleep span with a 💤 riding its middle (in-app + home-screen widgets);
+/// `.color` draws small emoji marks (🍼 feed · 💧/💩/💧💩 diaper by type) above the baseline
+/// and sleep as a pale purple pill with "z z z" resting inside it (in-app + home-screen widgets);
 /// `.tinted` uses primary/secondary shapes so the lock-screen accessory tint can desaturate it,
 /// encoding type by shape instead (● feed · ○ diaper · — sleep).
 enum RibbonStyle { case color, tinted }
@@ -90,6 +90,8 @@ struct DayRibbonView: View {
             let markY = size.height * 0.34
             let baselineY = size.height * 0.66
             let dotR: CGFloat = max(2.6, size.height * 0.10)
+            let bandH: CGFloat = max(3, size.height * 0.26)
+            let emojiSize: CGFloat = max(8, size.height * 0.26)
 
             // Baseline
             var baseline = Path()
@@ -101,31 +103,57 @@ struct DayRibbonView: View {
             for mark in marks where mark.kind == .sleep {
                 let x0 = x(mark.start)
                 let x1 = max(x0 + 3, x(mark.end ?? day))
-                let rect = CGRect(x: x0, y: baselineY + 3, width: x1 - x0, height: max(3, dotR))
-                ctx.fill(
-                    Path(roundedRect: rect, cornerRadius: rect.height / 2),
-                    with: .color(color(for: .sleep))
-                )
                 if style == .color {
-                    let zzz = ctx.resolve(Text("💤").font(.system(size: max(8, size.height * 0.30))))
+                    // A pale pill with "z z z" resting inside it.
+                    let band = CGRect(x: x0, y: baselineY + 2, width: x1 - x0, height: bandH)
+                    ctx.fill(
+                        Path(roundedRect: band, cornerRadius: band.height / 2),
+                        with: .color(AppColor.accentSleep.opacity(0.35))
+                    )
+                    let zzz = ctx.resolve(
+                        Text("z z z")
+                            .font(.system(size: bandH * 0.62, weight: .bold, design: .rounded))
+                            .foregroundStyle(AppColor.accentSleep)
+                    )
                     let zzzSize = zzz.measure(in: size)
-                    // Short naps stay a clean line; slim ribbons (History lanes) skip it too.
-                    if zzzSize.width <= rect.width, rect.midY + zzzSize.height / 2 <= size.height {
-                        ctx.draw(zzz, at: CGPoint(x: rect.midX, y: rect.midY), anchor: .center)
+                    // Short naps and slim ribbons (History lanes) stay clean bands.
+                    if bandH >= 7, zzzSize.width <= band.width - 6 {
+                        ctx.draw(zzz, at: CGPoint(x: band.midX, y: band.midY), anchor: .center)
                     }
+                } else {
+                    let rect = CGRect(x: x0, y: baselineY + 3, width: x1 - x0, height: max(3, dotR))
+                    ctx.fill(
+                        Path(roundedRect: rect, cornerRadius: rect.height / 2),
+                        with: .color(color(for: .sleep))
+                    )
                 }
             }
 
             // Instantaneous marks (above baseline)
-            for mark in marks where mark.kind != .sleep {
-                if style == .color {
-                    let emoji = mark.kind == .feed ? "🍼" : (mark.diaperType?.emoji ?? "💩")
-                    ctx.draw(
-                        Text(emoji).font(.system(size: max(10, size.height * 0.38))),
-                        at: CGPoint(x: x(mark.start), y: markY),
-                        anchor: .center
-                    )
-                } else {
+            if style == .color {
+                // Resolve each emoji, then nudge near-simultaneous marks apart
+                // left-to-right so they sit side by side instead of stacking.
+                let stamps = marks
+                    .filter { $0.kind != .sleep }
+                    .sorted { $0.start < $1.start }
+                    .map { mark in
+                        let emoji = mark.kind == .feed ? "🍼" : (mark.diaperType?.emoji ?? "💩")
+                        let resolved = ctx.resolve(Text(emoji).font(.system(size: emojiSize)))
+                        return (text: resolved, width: resolved.measure(in: size).width, x: x(mark.start))
+                    }
+                var centers: [CGFloat] = []
+                for stamp in stamps {
+                    var cx = min(max(stamp.x, stamp.width / 2), size.width - stamp.width / 2)
+                    if let i = centers.indices.last {
+                        cx = max(cx, centers[i] + (stamps[i].width + stamp.width) / 2 + 1)
+                    }
+                    centers.append(cx)
+                }
+                for (stamp, cx) in zip(stamps, centers) {
+                    ctx.draw(stamp.text, at: CGPoint(x: cx, y: markY), anchor: .center)
+                }
+            } else {
+                for mark in marks where mark.kind != .sleep {
                     let rect = CGRect(x: x(mark.start) - dotR, y: markY - dotR, width: dotR * 2, height: dotR * 2)
                     let path = Path(ellipseIn: rect)
                     if mark.kind == .diaper {
@@ -139,9 +167,10 @@ struct DayRibbonView: View {
             // "Now" marker (only on today)
             if showNowMarker, calendar.isDate(day, inSameDayAs: .now) {
                 let nx = x(.now)
+                let bottomY = style == .color ? baselineY + bandH + 4 : baselineY + dotR + 3
                 var nowLine = Path()
                 nowLine.move(to: CGPoint(x: nx, y: markY - dotR - 3))
-                nowLine.addLine(to: CGPoint(x: nx, y: baselineY + dotR + 3))
+                nowLine.addLine(to: CGPoint(x: nx, y: bottomY))
                 ctx.stroke(nowLine, with: .color(nowColor.opacity(0.55)),
                            style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
             }
