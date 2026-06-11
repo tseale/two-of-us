@@ -123,7 +123,7 @@ struct OnboardingTourPage: View {
             // The "everywhere" collage on a quiet stage card, so the miniatures
             // read as one composed exhibit instead of loose floating pieces.
             VStack(spacing: 14) {
-                Text("Everywhere you are")
+                Text("Without opening the app")
                     .sectionLabelStyle(color: AppColor.text3)
                 MockDynamicIsland()
                     .rotationEffect(.degrees(-2))
@@ -151,7 +151,7 @@ struct OnboardingTourPage: View {
             )
             .onboardingEntrance(revealed, index: 2)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Everywhere you are: lock screen widgets, a live sleep timer in the Dynamic Island, Siri phrases, and Control Center controls.")
+            .accessibilityLabel("Without opening the app: lock screen widgets, a live sleep timer in the Dynamic Island, Siri phrases, and Control Center controls.")
 
             HStack(spacing: 10) {
                 Image(systemName: "icloud")
