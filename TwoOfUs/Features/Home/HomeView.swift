@@ -146,7 +146,9 @@ struct HomeView: View {
     // MARK: Header
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(spacing: 14) {
+            Avatar(photoData: baby?.photoData, name: baby?.name ?? "Baby",
+                   colorHex: ParticipantColors.babyHex, size: 60)
             VStack(alignment: .leading, spacing: 2) {
                 Text(baby?.name ?? "Baby")
                     .font(AppFont.hero())
