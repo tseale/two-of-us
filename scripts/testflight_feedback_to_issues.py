@@ -43,14 +43,31 @@ MARKER_SUFFIX = " -->"
 CRASH_LOG_MAX_CHARS = 50_000
 
 
+def env(name: str, default: str | None = None) -> str | None:
+    """Read an env var, stripping surrounding whitespace — secrets pasted into
+    GitHub's web form often carry a trailing newline, which corrupts URLs and
+    auth headers."""
+    value = os.environ.get(name)
+    if value is None or not value.strip():
+        return default
+    return value.strip()
+
+
+def require(name: str) -> str:
+    value = env(name)
+    if value is None:
+        sys.exit(f"Missing required environment variable: {name}")
+    return value
+
+
 def asc_token() -> str:
     now = int(time.time())
     return jwt.encode(
-        {"iss": os.environ["ASC_ISSUER_ID"], "iat": now, "exp": now + 15 * 60,
+        {"iss": require("ASC_ISSUER_ID"), "iat": now, "exp": now + 15 * 60,
          "aud": "appstoreconnect-v1"},
-        os.environ["ASC_PRIVATE_KEY"],
+        require("ASC_PRIVATE_KEY"),
         algorithm="ES256",
-        headers={"kid": os.environ["ASC_KEY_ID"], "typ": "JWT"},
+        headers={"kid": require("ASC_KEY_ID"), "typ": "JWT"},
     )
 
 
@@ -66,9 +83,9 @@ def asc_get(path: str, params: dict | None = None) -> dict:
 
 
 def resolve_app_id() -> str:
-    if os.environ.get("ASC_APP_ID"):
-        return os.environ["ASC_APP_ID"]
-    bundle_id = os.environ.get("ASC_BUNDLE_ID", "com.taylorseale.twoofus")
+    if env("ASC_APP_ID"):
+        return env("ASC_APP_ID")
+    bundle_id = env("ASC_BUNDLE_ID", "com.taylorseale.twoofus")
     data = asc_get("/v1/apps", {"filter[bundleId]": bundle_id})["data"]
     if not data:
         sys.exit(f"No App Store Connect app found for bundle ID {bundle_id}")
@@ -95,7 +112,7 @@ def gh(method: str, path: str, **kwargs) -> requests.Response:
         method,
         f"{GITHUB_API}{path}",
         headers={
-            "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+            "Authorization": f"Bearer {require('GITHUB_TOKEN')}",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
         },
@@ -207,7 +224,7 @@ def build_issue(kind: str, submission: dict) -> tuple[str, str]:
 
 
 def main() -> None:
-    repo = os.environ["GITHUB_REPOSITORY"]
+    repo = require("GITHUB_REPOSITORY")
     app_id = resolve_app_id()
     ensure_label(repo)
     seen = existing_feedback_ids(repo)
