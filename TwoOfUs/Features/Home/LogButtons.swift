@@ -32,19 +32,23 @@ struct LogButtons: View {
     let onDiaper: () -> Void
 
     var body: some View {
-        GlassEffectContainer(spacing: 12) {
-            VStack(spacing: 12) {
+        VStack(spacing: 12) {
+            GlassEffectContainer(spacing: 12) {
                 HStack(spacing: 12) {
                     tile(title: "Feed", hint: feedHint, emoji: "🍼", color: AppColor.accentFeed,
                          status: feedStatus, action: onFeed)
                     tile(title: "Diaper", hint: "wet · dirty · both", emoji: "💩", color: AppColor.accentDiaper,
                          status: diaperStatus, action: onDiaper)
                 }
-                if !sleepActive {
-                    wideTile(title: "Sleep", hint: "start timer", emoji: "💤", color: AppColor.accentSleep,
-                             status: sleepStatus, action: onSleep)
-                        .transition(.opacity.combined(with: .scale(0.96, anchor: .bottom)))
-                }
+            }
+            // Deliberately OUTSIDE the GlassEffectContainer: a glass view removed
+            // from a container morphs into its nearest glass sibling, which sent
+            // this tile's glass flying into the Feed tile on sleep start.
+            // Standalone glass just fades with the view transition.
+            if !sleepActive {
+                wideTile(title: "Sleep", hint: "start timer", emoji: "💤", color: AppColor.accentSleep,
+                         status: sleepStatus, action: onSleep)
+                    .transition(.opacity.combined(with: .scale(0.96, anchor: .bottom)))
             }
         }
     }
