@@ -61,7 +61,7 @@ extension RibbonMark {
 }
 
 /// Render style for `DayRibbonView`.
-/// `.color` draws small emoji marks (🍼 feed · 💧/💩/💧💩 diaper by type) above the baseline
+/// `.color` draws small emoji marks (🍼 feed · 💧 wet / 💩 dirty-or-both diaper) above the baseline
 /// and sleep as a pale purple pill with "z z z" resting inside it (in-app + home-screen widgets);
 /// `.tinted` uses primary/secondary shapes so the lock-screen accessory tint can desaturate it,
 /// encoding type by shape instead (● feed · ○ diaper · — sleep).
@@ -137,7 +137,8 @@ struct DayRibbonView: View {
                     .filter { $0.kind != .sleep }
                     .sorted { $0.start < $1.start }
                     .map { mark in
-                        let emoji = mark.kind == .feed ? "🍼" : (mark.diaperType?.emoji ?? "💩")
+                        // "Both" shows just 💩 on the ribbon; the full 💧💩 stays in the event list.
+                        let emoji = mark.kind == .feed ? "🍼" : (mark.diaperType == .wet ? "💧" : "💩")
                         let resolved = ctx.resolve(Text(emoji).font(.system(size: emojiSize)))
                         return (text: resolved, width: resolved.measure(in: size).width, x: x(mark.start))
                     }
