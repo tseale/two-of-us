@@ -1,8 +1,31 @@
 import SwiftUI
 
-/// The three primary log targets. Feed + Sleep on top, Diaper full-width below.
-/// When sleep is active, the caller replaces the Sleep tile with the active card.
+/// Live "time since last" state for a log tile: the formatted value plus its
+/// urgency. `nil` on a tile means no prior event — the tile renders without
+/// a since-line so the first-run screen stays clean.
+struct TileStatus {
+    let value: String      // "2h 31m" / "just now" — from TimeFormatting.since
+    let urgency: Urgency
+
+    /// "2h 31m ago", but "just now" stays as-is ("just now ago" reads wrong).
+    var sinceText: String {
+        value == "just now" ? value : "\(value) ago"
+    }
+}
+
+/// The three primary log targets. Feed + Diaper (the two highest-frequency
+/// logs) side by side, Sleep full-width below. Each tile carries its own
+/// time-since value, so the tiles double as the status row — quiet until it
+/// matters: the since-line stays calm gray at green and gains a tinted color
+/// + dot at amber/red. A ⊕ badge keeps the tiles reading as buttons now that
+/// they carry status. The wide Sleep row is also the slot the active timer
+/// card takes over — when sleep is active the caller swaps it in place, so
+/// Feed and Diaper never move.
 struct LogButtons: View {
+    let feedStatus: TileStatus?
+    let sleepStatus: TileStatus?
+    let diaperStatus: TileStatus?
+    let feedHint: String
     let sleepActive: Bool
     let onFeed: () -> Void
     let onSleep: () -> Void
@@ -12,49 +35,117 @@ struct LogButtons: View {
         GlassEffectContainer(spacing: 12) {
             VStack(spacing: 12) {
                 HStack(spacing: 12) {
-                    tile(title: "Feed", hint: "log a bottle", emoji: "🍼", color: AppColor.accentFeed, action: onFeed)
-                    if !sleepActive {
-                        tile(title: "Sleep", hint: "start timer", emoji: "💤", color: AppColor.accentSleep, action: onSleep)
-                    }
+                    tile(title: "Feed", hint: feedHint, emoji: "🍼", color: AppColor.accentFeed,
+                         status: feedStatus, action: onFeed)
+                    tile(title: "Diaper", hint: "wet · dirty · both", emoji: "💩", color: AppColor.accentDiaper,
+                         status: diaperStatus, action: onDiaper)
                 }
-                wideTile(title: "Diaper", hint: "wet · dirty · both", emoji: "💩", color: AppColor.accentDiaper, action: onDiaper)
+                if !sleepActive {
+                    wideTile(title: "Sleep", hint: "start timer", emoji: "💤", color: AppColor.accentSleep,
+                             status: sleepStatus, action: onSleep)
+                        .transition(.opacity.combined(with: .scale(0.96, anchor: .bottom)))
+                }
             }
         }
     }
 
-    private func tile(title: String, hint: String, emoji: String, color: Color, action: @escaping () -> Void) -> some View {
+    private func tile(title: String, hint: String, emoji: String, color: Color,
+                      status: TileStatus?, action: @escaping () -> Void) -> some View {
         Button(action: { action(); Haptics.tap() }) {
             VStack(alignment: .leading, spacing: 10) {
                 Text(emoji).font(.system(size: 30))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(title).font(.system(.title3, design: .rounded).weight(.bold))
-                    Text(hint).font(.caption).foregroundStyle(AppColor.text2)
+                    Text(title)
+                        .font(.system(.title3, design: .rounded).weight(.bold))
+                        .lineLimit(1)
+                    if let status {
+                        sinceLine(status)
+                    }
+                    Text(hint)
+                        .font(.caption)
+                        .foregroundStyle(AppColor.text2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
             .padding(18)
+            .overlay(alignment: .topTrailing) { plusBadge(color).padding(14) }
             .glassTile(cornerRadius: 20, tint: color)
             .foregroundStyle(AppColor.text)
         }
         .buttonStyle(PressableTileStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityText(title: title, hint: hint, status: status))
     }
 
-    private func wideTile(title: String, hint: String, emoji: String, color: Color, action: @escaping () -> Void) -> some View {
+    private func wideTile(title: String, hint: String, emoji: String, color: Color,
+                          status: TileStatus?, action: @escaping () -> Void) -> some View {
         Button(action: { action(); Haptics.tap() }) {
             HStack(spacing: 14) {
                 Text(emoji).font(.system(size: 28))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(title).font(.system(.title3, design: .rounded).weight(.bold))
-                    Text(hint).font(.caption).foregroundStyle(AppColor.text2)
+                    HStack(spacing: 5) {
+                        Text(title)
+                            .font(.system(.title3, design: .rounded).weight(.bold))
+                            .lineLimit(1)
+                        if let status {
+                            Text("·")
+                                .font(.subheadline)
+                                .foregroundStyle(AppColor.text2)
+                            sinceLine(status)
+                        }
+                    }
+                    Text(hint)
+                        .font(.caption)
+                        .foregroundStyle(AppColor.text2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
                 Spacer()
             }
             .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
             .padding(18)
+            .overlay(alignment: .topTrailing) { plusBadge(color).padding(14) }
             .glassTile(cornerRadius: 20, tint: color)
             .foregroundStyle(AppColor.text)
         }
         .buttonStyle(PressableTileStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityText(title: title, hint: hint, status: status))
+    }
+
+    /// Quiet until it matters: plain gray at green, tinted semibold text plus
+    /// an 8pt dot once the target interval is approached or passed.
+    private func sinceLine(_ status: TileStatus) -> some View {
+        HStack(spacing: 5) {
+            Text(status.sinceText)
+                .fontWeight(status.urgency.needsAttention ? .semibold : .regular)
+            if status.urgency.needsAttention {
+                Circle()
+                    .fill(status.urgency.color)
+                    .frame(width: 8, height: 8)
+            }
+        }
+        .font(.subheadline)
+        .foregroundStyle(status.urgency.sinceTextColor)
+        .lineLimit(1)
+        .minimumScaleFactor(0.75)
+    }
+
+    /// "Tap to add" affordance — the tiles carry status now, so the badge keeps
+    /// them reading as buttons at first glance.
+    private func plusBadge(_ color: Color) -> some View {
+        Image(systemName: "plus.circle.fill")
+            .font(.system(size: 22))
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(.white, color)
+            .accessibilityHidden(true)
+    }
+
+    private func accessibilityText(title: String, hint: String, status: TileStatus?) -> String {
+        guard let status else { return "\(title), \(hint)" }
+        return "\(title), \(status.value) since last, \(status.urgency.accessibilityWord), \(hint)"
     }
 }
 

@@ -3,6 +3,7 @@ import SwiftData
 
 struct HomeView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Query private var babies: [Baby]
     @Query private var settingsList: [SharedSettings]
@@ -44,13 +45,19 @@ struct HomeView: View {
                         diaperCount: todaySummary?.diaperCount ?? 0
                     )
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                        VStack(spacing: 18) {
-                            statusRow(now: ctx.date)
+                        // 12pt matches the tile grid spacing, so the active sleep
+                        // card reads as the Sleep row transformed in place.
+                        VStack(spacing: 12) {
+                            logButtons(now: ctx.date)
                             if let sleep = activeSleep {
                                 SleepActiveCard(sleep: sleep, now: ctx.date) { store.stopSleep(sleep) }
+                                    .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
                             }
-                            logButtons
                         }
+                        // Keyed to the sleep state (not withAnimation at the action
+                        // sites) so CloudKit- and Siri-initiated starts animate too.
+                        .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.8),
+                                   value: activeSleep != nil)
                     }
                 }
                 .listRowBackground(Color.clear)
@@ -153,33 +160,6 @@ struct HomeView: View {
         }
     }
 
-    // MARK: Status row
-
-    private func statusRow(now: Date) -> some View {
-        HStack(spacing: 8) {
-            StatusPill(
-                emoji: "🍼",
-                value: feeds.first.map { TimeFormatting.since($0.timestamp, now: now) } ?? "—",
-                label: "SINCE FEED",
-                urgency: .from(since: feeds.first?.timestamp, now: now, target: targetFeed)
-            )
-            if activeSleep == nil {
-                StatusPill(
-                    emoji: "💤",
-                    value: lastSleepEnd.map { TimeFormatting.since($0, now: now) } ?? "—",
-                    label: "SINCE SLEEP",
-                    urgency: .from(since: lastSleepEnd, now: now, target: UrgencyDefaults.sleep)
-                )
-            }
-            StatusPill(
-                emoji: "💩",
-                value: diapers.first.map { TimeFormatting.since($0.timestamp, now: now) } ?? "—",
-                label: "SINCE DIAPER",
-                urgency: .from(since: diapers.first?.timestamp, now: now, target: UrgencyDefaults.diaper)
-            )
-        }
-    }
-
     private var lastSleepEnd: Date? {
         sleeps.first(where: { $0.endedAt != nil })?.endedAt
     }
@@ -197,12 +177,35 @@ struct HomeView: View {
 
     // MARK: Log buttons
 
-    private var logButtons: some View {
+    private func logButtons(now: Date) -> some View {
         LogButtons(
+            feedStatus: tileStatus(since: feeds.first?.timestamp, now: now, target: targetFeed),
+            sleepStatus: activeSleep == nil
+                ? tileStatus(since: lastSleepEnd, now: now, target: UrgencyDefaults.sleep) : nil,
+            diaperStatus: tileStatus(since: diapers.first?.timestamp, now: now, target: UrgencyDefaults.diaper),
+            feedHint: feedHint(now: now),
             sleepActive: activeSleep != nil,
             onFeed: { activeSheet = .feed },
             onSleep: startSleep,
             onDiaper: { activeSheet = .diaper }
+        )
+    }
+
+    /// The Feed tile says what's next, not just what happened: the projected
+    /// next-bottle time, from the same target-interval math as the reminders.
+    private func feedHint(now: Date) -> String {
+        guard let last = feeds.first?.timestamp else { return "log a bottle" }
+        let next = last.addingTimeInterval(targetFeed)
+        return next < now
+            ? "bottle was due ~\(TimeFormatting.clock(next))"
+            : "next bottle ~\(TimeFormatting.clock(next))"
+    }
+
+    private func tileStatus(since date: Date?, now: Date, target: TimeInterval) -> TileStatus? {
+        guard let date else { return nil }
+        return TileStatus(
+            value: TimeFormatting.since(date, now: now),
+            urgency: .from(since: date, now: now, target: target)
         )
     }
 
