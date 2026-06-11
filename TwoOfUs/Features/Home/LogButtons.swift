@@ -55,72 +55,41 @@ struct LogButtons: View {
             // this tile's glass flying into the Feed tile on sleep start.
             // Standalone glass just fades with the view transition.
             if !sleepActive {
-                wideTile(title: "Sleep", hint: sleepHint, emoji: "💤", color: AppColor.accentSleep,
-                         status: sleepStatus, detail: sleepDetail, action: onSleep)
+                tile(title: "Sleep", hint: sleepHint, emoji: "💤", color: AppColor.accentSleep,
+                     status: sleepStatus, detail: sleepDetail, action: onSleep)
                     .transition(.opacity.combined(with: .scale(0.96, anchor: .bottom)))
             }
         }
     }
 
+    /// One builder for all three tiles, so the square pair and the wide Sleep
+    /// row share alignment and stacking exactly: emoji on top, then title /
+    /// since-line / hint, leading-aligned. `detail` is the wide row's width
+    /// bonus — a trailing stat the square tiles have no room for.
     private func tile(title: String, hint: String, emoji: String, color: Color,
-                      status: TileStatus?, action: @escaping () -> Void) -> some View {
-        Button(action: { action(); Haptics.tap() }) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(emoji).font(.system(size: 30))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.system(.title3, design: .rounded).weight(.bold))
-                        .lineLimit(1)
-                    if let status {
-                        sinceLine(status)
-                    }
-                    Text(hint)
-                        .font(.caption)
-                        .foregroundStyle(AppColor.text2)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                }
-            }
-            .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
-            .padding(18)
-            .overlay(alignment: .topTrailing) { plusBadge(color).padding(14) }
-            .glassTile(cornerRadius: 20, tint: color)
-            .contentShape(.rect(cornerRadius: 20))
-            .foregroundStyle(AppColor.text)
-        }
-        .buttonStyle(PressableTileStyle())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityText(title: title, hint: hint, status: status))
-    }
-
-    private func wideTile(title: String, hint: String, emoji: String, color: Color,
-                          status: TileStatus?, detail: TileDetail?,
-                          action: @escaping () -> Void) -> some View {
+                      status: TileStatus?, detail: TileDetail? = nil,
+                      action: @escaping () -> Void) -> some View {
         Button(action: { action(); Haptics.tap() }) {
             HStack(spacing: 14) {
-                Text(emoji).font(.system(size: 28))
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 5) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(emoji).font(.system(size: 30))
+                    VStack(alignment: .leading, spacing: 1) {
                         Text(title)
                             .font(.system(.title3, design: .rounded).weight(.bold))
                             .lineLimit(1)
                         if let status {
-                            Text("·")
-                                .font(.subheadline)
-                                .foregroundStyle(AppColor.text2)
                             sinceLine(status)
                         }
+                        Text(hint)
+                            .font(.caption)
+                            .foregroundStyle(AppColor.text2)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                     }
-                    Text(hint)
-                        .font(.caption)
-                        .foregroundStyle(AppColor.text2)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
                 }
-                Spacer(minLength: 12)
-                // The row's width bonus over the square tiles: a trailing stat.
-                // Vertically centered, so it stays clear of the topTrailing ⊕.
                 if let detail {
+                    Spacer(minLength: 12)
+                    // Vertically centered, so it stays clear of the topTrailing ⊕.
                     VStack(alignment: .trailing, spacing: 2) {
                         Text(detail.label).sectionLabelStyle(color: AppColor.text3)
                         Text(detail.value)
@@ -131,8 +100,6 @@ struct LogButtons: View {
                     }
                 }
             }
-            // Same minHeight + padding as the square tiles, so all three rows
-            // of the grid render at one height.
             .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
             .padding(18)
             .overlay(alignment: .topTrailing) { plusBadge(color).padding(14) }
