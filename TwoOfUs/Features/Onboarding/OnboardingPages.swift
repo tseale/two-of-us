@@ -102,7 +102,7 @@ struct OnboardingTourPage: View {
     }
 
     @ViewBuilder private var tourContent: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 20) {
             OnboardingStepHeader(
                 title: "Three things, a tap away",
                 subtitle: "Feeds, sleep, and diapers — logged one-handed."
@@ -120,26 +120,38 @@ struct OnboardingTourPage: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Log feeds, sleep, and diapers.")
 
-            // The "everywhere you are" bento: a slim Dynamic Island strip, then
-            // the widget beside a Siri-chip + Control-Center column.
-            VStack(spacing: 12) {
+            // The "everywhere" collage on a quiet stage card, so the miniatures
+            // read as one composed exhibit instead of loose floating pieces.
+            VStack(spacing: 14) {
+                Text("Everywhere you are")
+                    .sectionLabelStyle(color: AppColor.text3)
                 MockDynamicIsland()
                     .rotationEffect(.degrees(-2))
-                    .onboardingEntrance(revealed, index: 2)
-                HStack(alignment: .center, spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
                     MockSmallWidget()
                         .rotationEffect(.degrees(1.5))
-                    VStack(spacing: 12) {
-                        MockSiriChip(phrase: "“Log a bottle”")
+                    // Fills the widget's height: Siri chip up top, the Control
+                    // Center toggle pinned to the bottom edge.
+                    VStack(spacing: 0) {
+                        MockSiriChip(phrase: "“Log a bottle”", fullWidth: true)
                             .rotationEffect(.degrees(-1))
+                        Spacer(minLength: 0)
                         MockControlToggle()
                     }
                     .frame(maxWidth: .infinity)
+                    .frame(height: 124)
                 }
-                .onboardingEntrance(revealed, index: 3)
             }
+            .padding(16)
+            .frame(maxWidth: .infinity)
+            .background(AppColor.card.opacity(0.5), in: .rect(cornerRadius: 24))
+            .overlay(
+                RoundedRectangle(cornerRadius: 24)
+                    .strokeBorder(AppColor.separator.opacity(0.4), lineWidth: 0.5)
+            )
+            .onboardingEntrance(revealed, index: 2)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Lock screen widgets, a live sleep timer in the Dynamic Island, Siri phrases, and Control Center controls.")
+            .accessibilityLabel("Everywhere you are: lock screen widgets, a live sleep timer in the Dynamic Island, Siri phrases, and Control Center controls.")
 
             HStack(spacing: 10) {
                 Image(systemName: "icloud")
@@ -149,9 +161,10 @@ struct OnboardingTourPage: View {
                     .foregroundStyle(AppColor.text2)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 4)
-            .onboardingEntrance(revealed, index: 4)
+            .surfaceCard(cornerRadius: 14)
+            .onboardingEntrance(revealed, index: 3)
         }
     }
 }
