@@ -13,13 +13,12 @@ enum SetupQuest: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-/// A one-time feature moment shown in the main app instead of a front-loaded
-/// story page — each lands right when its feature becomes relevant.
+/// A one-time feature moment shown in the main app, landing right when its
+/// feature becomes relevant (the broad "what the app does" story lives on the
+/// onboarding tour page instead).
 enum SetupSpotlight: String, CaseIterable, Identifiable {
     /// "It learns your rhythm" — after the first logged feed.
     case rhythm
-    /// Widgets / Dynamic Island / Siri / Control Center — after ~3 logged events.
-    case everywhere
 
     var id: String { rawValue }
 }
