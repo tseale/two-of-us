@@ -44,6 +44,10 @@ enum AppColor {
     static let urgencyGreen = Color(hex: "5AD17E")
     static let urgencyAmber = Color(hex: "F5B971")
     static let urgencyRed   = Color(hex: "FF6B6B")
+    /// Darkened (light) / brightened (dark) urgency tints that stay readable as
+    /// body text on the tinted glass tiles — the raw dot hexes are too pale.
+    static let urgencyAmberText = dyn(light: "B87B1E", dark: "F0B05A")
+    static let urgencyRedText   = dyn(light: "D94F4F", dark: "FF8A8A")
 
     /// Deep warm plum-indigo: the night-stage base ("nursery at 3am", not blue-black).
     static let nightInk = Color(hex: "130E18")

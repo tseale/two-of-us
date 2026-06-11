@@ -15,14 +15,17 @@ struct TileStatus {
 
 /// The three primary log targets. Feed + Diaper (the two highest-frequency
 /// logs) side by side, Sleep full-width below. Each tile carries its own
-/// time-since value and urgency dot, so the tiles double as the status row.
-/// The wide Sleep row is also the slot the active timer card takes over —
-/// when sleep is active the caller swaps it in place, so Feed and Diaper
-/// never move.
+/// time-since value, so the tiles double as the status row — quiet until it
+/// matters: the since-line stays calm gray at green and gains a tinted color
+/// + dot at amber/red. A ⊕ badge keeps the tiles reading as buttons now that
+/// they carry status. The wide Sleep row is also the slot the active timer
+/// card takes over — when sleep is active the caller swaps it in place, so
+/// Feed and Diaper never move.
 struct LogButtons: View {
     let feedStatus: TileStatus?
     let sleepStatus: TileStatus?
     let diaperStatus: TileStatus?
+    let feedHint: String
     let sleepActive: Bool
     let onFeed: () -> Void
     let onSleep: () -> Void
@@ -32,7 +35,7 @@ struct LogButtons: View {
         GlassEffectContainer(spacing: 12) {
             VStack(spacing: 12) {
                 HStack(spacing: 12) {
-                    tile(title: "Feed", hint: "log a bottle", emoji: "🍼", color: AppColor.accentFeed,
+                    tile(title: "Feed", hint: feedHint, emoji: "🍼", color: AppColor.accentFeed,
                          status: feedStatus, action: onFeed)
                     tile(title: "Diaper", hint: "wet · dirty · both", emoji: "💩", color: AppColor.accentDiaper,
                          status: diaperStatus, action: onDiaper)
@@ -50,22 +53,13 @@ struct LogButtons: View {
                       status: TileStatus?, action: @escaping () -> Void) -> some View {
         Button(action: { action(); Haptics.tap() }) {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 5) {
-                    Text(emoji).font(.system(size: 30))
-                    if let status {
-                        urgencyDot(status.urgency)
-                    }
-                }
+                Text(emoji).font(.system(size: 30))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
                         .font(.system(.title3, design: .rounded).weight(.bold))
                         .lineLimit(1)
                     if let status {
-                        Text(status.sinceText)
-                            .font(.subheadline)
-                            .foregroundStyle(AppColor.text2)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
+                        sinceLine(status)
                     }
                     Text(hint)
                         .font(.caption)
@@ -76,6 +70,7 @@ struct LogButtons: View {
             }
             .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
             .padding(18)
+            .overlay(alignment: .topTrailing) { plusBadge(color).padding(14) }
             .glassTile(cornerRadius: 20, tint: color)
             .foregroundStyle(AppColor.text)
         }
@@ -88,23 +83,17 @@ struct LogButtons: View {
                           status: TileStatus?, action: @escaping () -> Void) -> some View {
         Button(action: { action(); Haptics.tap() }) {
             HStack(spacing: 14) {
-                HStack(spacing: 5) {
-                    Text(emoji).font(.system(size: 28))
-                    if let status {
-                        urgencyDot(status.urgency)
-                    }
-                }
+                Text(emoji).font(.system(size: 28))
                 VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 0) {
+                    HStack(spacing: 5) {
                         Text(title)
                             .font(.system(.title3, design: .rounded).weight(.bold))
                             .lineLimit(1)
                         if let status {
-                            Text(" · \(status.sinceText)")
+                            Text("·")
                                 .font(.subheadline)
                                 .foregroundStyle(AppColor.text2)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.75)
+                            sinceLine(status)
                         }
                     }
                     Text(hint)
@@ -117,6 +106,7 @@ struct LogButtons: View {
             }
             .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
             .padding(18)
+            .overlay(alignment: .topTrailing) { plusBadge(color).padding(14) }
             .glassTile(cornerRadius: 20, tint: color)
             .foregroundStyle(AppColor.text)
         }
@@ -125,10 +115,32 @@ struct LogButtons: View {
         .accessibilityLabel(accessibilityText(title: title, hint: hint, status: status))
     }
 
-    private func urgencyDot(_ urgency: Urgency) -> some View {
-        Circle()
-            .fill(urgency.color)
-            .frame(width: 6, height: 6)
+    /// Quiet until it matters: plain gray at green, tinted semibold text plus
+    /// an 8pt dot once the target interval is approached or passed.
+    private func sinceLine(_ status: TileStatus) -> some View {
+        HStack(spacing: 5) {
+            Text(status.sinceText)
+                .fontWeight(status.urgency.needsAttention ? .semibold : .regular)
+            if status.urgency.needsAttention {
+                Circle()
+                    .fill(status.urgency.color)
+                    .frame(width: 8, height: 8)
+            }
+        }
+        .font(.subheadline)
+        .foregroundStyle(status.urgency.sinceTextColor)
+        .lineLimit(1)
+        .minimumScaleFactor(0.75)
+    }
+
+    /// "Tap to add" affordance — the tiles carry status now, so the badge keeps
+    /// them reading as buttons at first glance.
+    private func plusBadge(_ color: Color) -> some View {
+        Image(systemName: "plus.circle.fill")
+            .font(.system(size: 22))
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(.white, color)
+            .accessibilityHidden(true)
     }
 
     private func accessibilityText(title: String, hint: String, status: TileStatus?) -> String {

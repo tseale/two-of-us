@@ -183,11 +183,22 @@ struct HomeView: View {
             sleepStatus: activeSleep == nil
                 ? tileStatus(since: lastSleepEnd, now: now, target: UrgencyDefaults.sleep) : nil,
             diaperStatus: tileStatus(since: diapers.first?.timestamp, now: now, target: UrgencyDefaults.diaper),
+            feedHint: feedHint(now: now),
             sleepActive: activeSleep != nil,
             onFeed: { activeSheet = .feed },
             onSleep: startSleep,
             onDiaper: { activeSheet = .diaper }
         )
+    }
+
+    /// The Feed tile says what's next, not just what happened: the projected
+    /// next-bottle time, from the same target-interval math as the reminders.
+    private func feedHint(now: Date) -> String {
+        guard let last = feeds.first?.timestamp else { return "log a bottle" }
+        let next = last.addingTimeInterval(targetFeed)
+        return next < now
+            ? "bottle was due ~\(TimeFormatting.clock(next))"
+            : "next bottle ~\(TimeFormatting.clock(next))"
     }
 
     private func tileStatus(since date: Date?, now: Date, target: TimeInterval) -> TileStatus? {
