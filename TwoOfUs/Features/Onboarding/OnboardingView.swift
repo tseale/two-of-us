@@ -2,12 +2,12 @@ import SwiftUI
 import SwiftData
 import CloudKit
 
-/// First launch (owner): a deliberately tiny flow — welcome, then three setup
-/// steps (baby → you → invite), then the celebration finale. Everything else is
-/// deferred: the feeding rhythm and reminders become "Getting set up" quests on
-/// Home (`SetupChecklistCard`), and the old story pages play later as one-time
-/// contextual spotlights (`SpotlightSheet`) once there's real data to hang them
-/// on.
+/// First launch (owner): a deliberately small flow — welcome, a one-page tour of
+/// what the app does, then three setup steps (baby → you → invite), then the
+/// celebration finale. Everything else is deferred: the feeding rhythm and
+/// reminders become "Getting set up" quests on Home (`SetupChecklistCard`), and
+/// the rhythm/stats story plays later as a one-time contextual spotlight
+/// (`SpotlightSheet`) once there's real data to hang it on.
 ///
 /// One TabView holds every page; the ambient backdrop and the CTA bar live
 /// outside it in a ZStack, so nothing shifts between pages. All setup data stays
@@ -24,7 +24,7 @@ struct OnboardingView: View {
     // MARK: Paging
 
     private enum Page: Int, CaseIterable {
-        case welcome, setupBaby, setupYou, invite
+        case welcome, tour, setupBaby, setupYou, invite
 
         var next: Page { Page(rawValue: rawValue + 1) ?? self }
     }
@@ -65,9 +65,9 @@ struct OnboardingView: View {
         var played = Self.hasPlayedIntro
 
         #if DEBUG
-        // Dev-only: launch with `-onboardingPage N` (Page rawValue: 1 baby,
-        // 2 you, 3 invite) to open straight on a page — for design iteration
-        // and screenshots.
+        // Dev-only: launch with `-onboardingPage N` (Page rawValue: 1 tour,
+        // 2 baby, 3 you, 4 invite) to open straight on a page — for design
+        // iteration and screenshots.
         let jump = UserDefaults.standard.integer(forKey: "onboardingPage")
         if jump > 0, let target = Page(rawValue: jump) {
             Self.hasPlayedIntro = true
@@ -104,6 +104,8 @@ struct OnboardingView: View {
             TabView(selection: $page) {
                 OnboardingWelcomePage(markSettled: markSettled, revealed: chromeRevealed)
                     .tag(Page.welcome)
+                OnboardingTourPage(revealed: revealed.contains(.tour))
+                    .tag(Page.tour)
                 BabyStep(name: $babyName, dateOfBirth: $dateOfBirth, photoData: $babyPhotoData,
                          revealed: revealed.contains(.setupBaby), active: page == .setupBaby)
                     .tag(Page.setupBaby)
@@ -149,6 +151,8 @@ struct OnboardingView: View {
         switch page {
         case .welcome:
             .nightStage
+        case .tour:
+            AmbientStop(top: AppColor.accentFeed, bottom: AppColor.accentDiaper)
         case .invite:
             AmbientStop(top: AppColor.accentSleep, bottom: AppColor.accentFeed)
         case .setupBaby, .setupYou:
@@ -171,6 +175,8 @@ struct OnboardingView: View {
         switch page {
         case .welcome:
             .init(title: "Begin", action: advance)
+        case .tour:
+            .init(title: "Continue", action: advance)
         case .setupBaby:
             .init(title: "Continue", enabled: !trimmedBabyName.isEmpty, action: advance)
         case .setupYou:

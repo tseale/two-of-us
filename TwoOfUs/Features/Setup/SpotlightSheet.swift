@@ -1,9 +1,8 @@
 import SwiftUI
 
-/// A one-time feature moment, shown in the main app where the old onboarding
-/// story pages used to front-load it: "it learns your rhythm" right after the
-/// first feed, "everywhere you are" once a few events exist. Same ambient +
-/// entrance language as onboarding, ending in a single "Got it".
+/// A one-time feature moment shown in the main app: "it learns your rhythm"
+/// right after the first feed, when there's real data to make it meaningful.
+/// Same ambient + entrance language as onboarding, ending in a single "Got it".
 struct SpotlightSheet: View {
     let spotlight: SetupSpotlight
     /// Rhythm spotlight only: chains into the rhythm quest sheet (the host
@@ -22,7 +21,6 @@ struct SpotlightSheet: View {
                     Spacer(minLength: 36)
                     switch spotlight {
                     case .rhythm: rhythmContent
-                    case .everywhere: everywhereContent
                     }
                     Spacer(minLength: 16)
                 }
@@ -48,8 +46,6 @@ struct SpotlightSheet: View {
         switch spotlight {
         case .rhythm:
             AmbientStop(top: AppColor.accentDiaper, bottom: AppColor.accentFeed)
-        case .everywhere:
-            AmbientStop(top: Color(hex: "7FB2FF"), bottom: AppColor.accentSleep)
         }
     }
 
@@ -85,34 +81,6 @@ struct SpotlightSheet: View {
             .padding(.horizontal, 4)
             .onboardingEntrance(revealed, index: 4)
         }
-    }
-
-    // MARK: Everywhere you are
-
-    @ViewBuilder private var everywhereContent: some View {
-        OnboardingStepHeader(
-            title: "Everywhere you are",
-            subtitle: "Widgets on your lock screen, a live timer in the Dynamic Island, Siri, and Control Center — log and glance without opening the app."
-        )
-        .onboardingEntrance(revealed)
-
-        VStack(spacing: 20) {
-            MockDynamicIsland()
-                .rotationEffect(.degrees(-2))
-                .onboardingEntrance(revealed, index: 1)
-            HStack(alignment: .center, spacing: 22) {
-                MockSmallWidget()
-                    .rotationEffect(.degrees(1.5))
-                    .onboardingEntrance(revealed, index: 2)
-                MockControlToggle()
-                    .onboardingEntrance(revealed, index: 3)
-            }
-            MockSiriChip()
-                .rotationEffect(.degrees(-1))
-                .onboardingEntrance(revealed, index: 4)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Lock screen widgets, a live sleep timer in the Dynamic Island, Siri phrases, and Control Center controls.")
     }
 
     // MARK: Bottom bar
@@ -153,7 +121,7 @@ struct SpotlightSheet: View {
     SpotlightSheet(spotlight: .rhythm, onTuneRhythm: {})
 }
 
-#Preview("Everywhere · dark") {
-    SpotlightSheet(spotlight: .everywhere)
+#Preview("Rhythm · dark") {
+    SpotlightSheet(spotlight: .rhythm)
         .preferredColorScheme(.dark)
 }

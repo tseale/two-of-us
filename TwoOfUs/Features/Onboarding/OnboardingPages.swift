@@ -1,9 +1,8 @@
 import SwiftUI
 
-/// The welcome stop of the first-launch flow, plus shared presentational
-/// helpers. `OnboardingView` owns paging, the ambient backdrop, and the CTA bar;
-/// setup-chapter pages live in `OnboardingSetupSteps.swift`. The old story pages
-/// now play as contextual spotlights inside the main app (`SpotlightSheet`).
+/// The welcome and tour stops of the first-launch flow, plus shared
+/// presentational helpers. `OnboardingView` owns paging, the ambient backdrop,
+/// and the CTA bar; setup-chapter pages live in `OnboardingSetupSteps.swift`.
 ///
 /// Every scrolling page reserves `OnboardingLayout.barClearance` at the bottom so
 /// content never sits under the floating bar, and uses `basedOnSize` bounce so
@@ -57,6 +56,105 @@ struct OnboardingWelcomePage: View {
         // Non-scrolling pages must take the pager's size explicitly — the page
         // TabView otherwise sizes them to their ideal width and text overflows.
         .containerRelativeFrame([.horizontal, .vertical])
+    }
+}
+
+// MARK: - Tour
+
+/// The whole story on one chaptered page: what you log, where the app lives
+/// (widgets, Dynamic Island, Siri, Control Center), what it learns, and a sync
+/// teaser — replacing the old five-page story block without losing its content.
+struct OnboardingTourPage: View {
+    let revealed: Bool
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 26) {
+                Spacer(minLength: 24)
+                OnboardingStepHeader(
+                    title: "Three things, a tap away",
+                    subtitle: "Feeds, sleep, and diapers — logged in a tap or two, even with a baby in your other arm."
+                )
+                .onboardingEntrance(revealed)
+
+                GlassEffectContainer(spacing: 12) {
+                    HStack(spacing: 12) {
+                        TourLogTile(emoji: "🍼", title: "Feed", tint: AppColor.accentFeed)
+                        TourLogTile(emoji: "💤", title: "Sleep", tint: AppColor.accentSleep)
+                        TourLogTile(emoji: "💩", title: "Diaper", tint: AppColor.accentDiaper)
+                    }
+                }
+                .onboardingEntrance(revealed, index: 1)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Log feeds, sleep, and diapers.")
+
+                tourSection("Everywhere you are", index: 2) {
+                    VStack(spacing: 14) {
+                        MockDynamicIsland()
+                            .rotationEffect(.degrees(-2))
+                        HStack(alignment: .center, spacing: 18) {
+                            MockSmallWidget()
+                                .rotationEffect(.degrees(1.5))
+                            MockControlToggle()
+                        }
+                        MockSiriChip()
+                            .rotationEffect(.degrees(-1))
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Lock screen widgets, a live sleep timer in the Dynamic Island, Siri phrases, and Control Center controls.")
+                }
+
+                tourSection("It learns your rhythm", index: 3) {
+                    MockTrendCard(progress: revealed ? 1 : 0)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("A rising longest-sleep trend.")
+                }
+
+                HStack(spacing: 10) {
+                    Image(systemName: "icloud")
+                        .foregroundStyle(AppColor.accentSleep)
+                    Text("Logs sync to your co-parent's iPhone in seconds — more on that in a minute.")
+                        .font(.footnote)
+                        .foregroundStyle(AppColor.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 4)
+                .onboardingEntrance(revealed, index: 4)
+
+                Spacer(minLength: 16)
+            }
+            .padding(.horizontal, 28)
+        }
+        .contentMargins(.bottom, OnboardingLayout.barClearance, for: .scrollContent)
+        .scrollBounceBehavior(.basedOnSize)
+    }
+
+    private func tourSection(_ label: String, index: Int,
+                             @ViewBuilder content: () -> some View) -> some View {
+        VStack(spacing: 14) {
+            Text(label).sectionLabelStyle()
+            content()
+        }
+        .onboardingEntrance(revealed, index: index)
+    }
+}
+
+/// A compact, non-interactive twin of the Home log tiles for the tour row.
+private struct TourLogTile: View {
+    let emoji: String
+    let title: String
+    let tint: Color
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text(emoji).font(.system(size: 26))
+            Text(title)
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .foregroundStyle(AppColor.text)
+        }
+        .frame(maxWidth: .infinity, minHeight: 78)
+        .glassTile(cornerRadius: 18, tint: tint)
     }
 }
 

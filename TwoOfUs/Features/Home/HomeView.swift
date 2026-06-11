@@ -123,10 +123,9 @@ struct HomeView: View {
                         ? chainIntoRhythmQuest : nil
                 )
             }
-            .task(id: totalEventCount) { await maybeShowEverywhereSpotlight() }
             #if DEBUG
             .onAppear {
-                // Dev-only: `-forceSpotlight rhythm|everywhere` presents one on launch.
+                // Dev-only: `-forceSpotlight rhythm` presents the spotlight on launch.
                 if let raw = UserDefaults.standard.string(forKey: "forceSpotlight"),
                    let forced = SetupSpotlight(rawValue: raw) {
                     spotlight = forced
@@ -276,10 +275,6 @@ struct HomeView: View {
         !prefs.demoModeEnabled && !setup.dismissedChecklist
     }
 
-    private var totalEventCount: Int {
-        feeds.count + sleeps.count + diapers.count
-    }
-
     /// What the reminder would say right now, for the just-in-time offer.
     private var reminderContextLine: String? {
         guard let last = feeds.first?.timestamp else { return nil }
@@ -304,15 +299,6 @@ struct HomeView: View {
                 questSheet = .reminders
             }
         }
-    }
-
-    /// The "everywhere you are" spotlight lands right after the third logged
-    /// event of any kind (the count change re-runs this task).
-    private func maybeShowEverywhereSpotlight() async {
-        guard totalEventCount >= 3, !setup.hasShown(.everywhere) else { return }
-        try? await Task.sleep(for: .seconds(2.5))
-        guard !Task.isCancelled, noSheetUp, setup.requestPrompt() else { return }
-        spotlight = .everywhere
     }
 
     private var noSheetUp: Bool {
