@@ -97,9 +97,9 @@ struct MockRibbonCard: View {
             DayRibbonView(marks: Self.sampleMarks, day: .now, showNowMarker: false)
                 .frame(height: 44)
             HStack(spacing: 14) {
-                legendDot(AppColor.accentFeed, "feeds")
-                legendDot(AppColor.accentSleep, "sleep")
-                legendDot(AppColor.accentDiaper, "diapers")
+                legendMark("🍼", "feeds")
+                legendMark("💤", "sleep")
+                legendMark("💧💩", "diapers")
             }
         }
         .padding(16)
@@ -107,9 +107,9 @@ struct MockRibbonCard: View {
         .surfaceCard()
     }
 
-    private func legendDot(_ color: Color, _ label: String) -> some View {
+    private func legendMark(_ emoji: String, _ label: String) -> some View {
         HStack(spacing: 5) {
-            Circle().fill(color).frame(width: 6, height: 6)
+            Text(emoji).font(.system(size: 9))
             Text(label).font(.caption2).foregroundStyle(AppColor.text3)
         }
     }
@@ -120,14 +120,14 @@ struct MockRibbonCard: View {
         return [
             RibbonMark(kind: .sleep, start: at(0), end: at(4.5)),
             RibbonMark(kind: .feed, start: at(4.6)),
-            RibbonMark(kind: .diaper, start: at(4.9)),
+            RibbonMark(kind: .diaper, start: at(4.9), diaperType: .wet),
             RibbonMark(kind: .sleep, start: at(5.3), end: at(7.4)),
             RibbonMark(kind: .feed, start: at(7.5)),
             RibbonMark(kind: .feed, start: at(10.4)),
-            RibbonMark(kind: .diaper, start: at(10.7)),
+            RibbonMark(kind: .diaper, start: at(10.7), diaperType: .dirty),
             RibbonMark(kind: .sleep, start: at(12.6), end: at(14.2)),
             RibbonMark(kind: .feed, start: at(14.3)),
-            RibbonMark(kind: .diaper, start: at(16.8)),
+            RibbonMark(kind: .diaper, start: at(16.8), diaperType: .both),
             RibbonMark(kind: .feed, start: at(17.2)),
             RibbonMark(kind: .sleep, start: at(19.4), end: at(20.6)),
             RibbonMark(kind: .feed, start: at(20.8)),

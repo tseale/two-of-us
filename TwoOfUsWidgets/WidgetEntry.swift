@@ -84,11 +84,11 @@ struct WidgetEntry: TimelineEntry {
         return [
             RibbonMark(kind: .sleep, start: at(1), end: at(4)),
             RibbonMark(kind: .feed, start: at(2)),
-            RibbonMark(kind: .diaper, start: at(3)),
+            RibbonMark(kind: .diaper, start: at(3), diaperType: .wet),
             RibbonMark(kind: .feed, start: at(6)),
             RibbonMark(kind: .sleep, start: at(8), end: at(9.5)),
             RibbonMark(kind: .feed, start: at(10)),
-            RibbonMark(kind: .diaper, start: at(11)),
+            RibbonMark(kind: .diaper, start: at(11), diaperType: .dirty),
         ]
     }
 }

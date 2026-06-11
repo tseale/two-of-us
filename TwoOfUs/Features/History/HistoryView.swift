@@ -50,8 +50,9 @@ struct HistoryView: View {
                     }
                 }
                 HStack(spacing: 16) {
-                    legend(color: AppColor.accentFeed, label: "feed", isBar: false)
-                    legend(color: AppColor.accentSleep, label: "sleep", isBar: true)
+                    legendEmoji("🍼", label: "feed")
+                    legendBar(AppColor.accentSleep, label: "sleep")
+                    legendEmoji("💧💩", label: "diaper")
                 }
                 .padding(.top, 2)
             }
@@ -168,13 +169,16 @@ struct HistoryView: View {
             .frame(maxWidth: .infinity, minHeight: 80)
     }
 
-    private func legend(color: Color, label: String, isBar: Bool) -> some View {
+    private func legendBar(_ color: Color, label: String) -> some View {
         HStack(spacing: 5) {
-            if isBar {
-                RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 12, height: 4)
-            } else {
-                Circle().fill(color).frame(width: 8, height: 8)
-            }
+            RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 12, height: 4)
+            Text(label).font(.caption2).foregroundStyle(AppColor.text2)
+        }
+    }
+
+    private func legendEmoji(_ emoji: String, label: String) -> some View {
+        HStack(spacing: 5) {
+            Text(emoji).font(.system(size: 9))
             Text(label).font(.caption2).foregroundStyle(AppColor.text2)
         }
     }
