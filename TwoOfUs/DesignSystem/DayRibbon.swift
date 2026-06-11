@@ -9,12 +9,14 @@ struct RibbonMark: Identifiable, Hashable {
     let kind: Kind
     let start: Date
     let end: Date?   // sleep only
+    let diaperType: DiaperType?   // diaper only
 
-    init(id: UUID = UUID(), kind: Kind, start: Date, end: Date? = nil) {
+    init(id: UUID = UUID(), kind: Kind, start: Date, end: Date? = nil, diaperType: DiaperType? = nil) {
         self.id = id
         self.kind = kind
         self.start = start
         self.end = end
+        self.diaperType = diaperType
     }
 }
 
@@ -40,7 +42,7 @@ extension RibbonMark {
 
         for diaper in diapers where diaper.deletedAt == nil {
             guard diaper.timestamp >= start, diaper.timestamp < end else { continue }
-            marks.append(RibbonMark(id: diaper.id, kind: .diaper, start: diaper.timestamp))
+            marks.append(RibbonMark(id: diaper.id, kind: .diaper, start: diaper.timestamp, diaperType: diaper.type))
         }
 
         for sleep in sleeps where sleep.deletedAt == nil {
@@ -59,12 +61,13 @@ extension RibbonMark {
 }
 
 /// Render style for `DayRibbonView`.
-/// `.color` uses the event accent palette (in-app + home-screen widgets);
-/// `.tinted` uses primary/secondary so the lock-screen accessory tint can desaturate it,
-/// encoding type by shape instead of color (● feed · ○ diaper · — sleep).
+/// `.color` draws emoji marks (🍼 feed · 💧/💩/💧💩 diaper by type) above the baseline
+/// and an accent-purple sleep span with a 💤 riding its middle (in-app + home-screen widgets);
+/// `.tinted` uses primary/secondary shapes so the lock-screen accessory tint can desaturate it,
+/// encoding type by shape instead (● feed · ○ diaper · — sleep).
 enum RibbonStyle { case color, tinted }
 
-/// A 24-hour strip showing when events happened: feed/diaper dots above a baseline,
+/// A 24-hour strip showing when events happened: feed/diaper marks above a baseline,
 /// sleep as a span below it, with an optional "now" marker. Reused on the Home tab,
 /// the History swimlane, and the widgets.
 struct DayRibbonView: View {
@@ -103,16 +106,33 @@ struct DayRibbonView: View {
                     Path(roundedRect: rect, cornerRadius: rect.height / 2),
                     with: .color(color(for: .sleep))
                 )
+                if style == .color {
+                    let zzz = ctx.resolve(Text("💤").font(.system(size: max(8, size.height * 0.30))))
+                    let zzzSize = zzz.measure(in: size)
+                    // Short naps stay a clean line; slim ribbons (History lanes) skip it too.
+                    if zzzSize.width <= rect.width, rect.midY + zzzSize.height / 2 <= size.height {
+                        ctx.draw(zzz, at: CGPoint(x: rect.midX, y: rect.midY), anchor: .center)
+                    }
+                }
             }
 
             // Instantaneous marks (above baseline)
             for mark in marks where mark.kind != .sleep {
-                let rect = CGRect(x: x(mark.start) - dotR, y: markY - dotR, width: dotR * 2, height: dotR * 2)
-                let path = Path(ellipseIn: rect)
-                if style == .tinted && mark.kind == .diaper {
-                    ctx.stroke(path, with: .color(color(for: .diaper)), lineWidth: 1.5)  // hollow ring
+                if style == .color {
+                    let emoji = mark.kind == .feed ? "🍼" : (mark.diaperType?.emoji ?? "💩")
+                    ctx.draw(
+                        Text(emoji).font(.system(size: max(10, size.height * 0.38))),
+                        at: CGPoint(x: x(mark.start), y: markY),
+                        anchor: .center
+                    )
                 } else {
-                    ctx.fill(path, with: .color(color(for: mark.kind)))
+                    let rect = CGRect(x: x(mark.start) - dotR, y: markY - dotR, width: dotR * 2, height: dotR * 2)
+                    let path = Path(ellipseIn: rect)
+                    if mark.kind == .diaper {
+                        ctx.stroke(path, with: .color(color(for: .diaper)), lineWidth: 1.5)  // hollow ring
+                    } else {
+                        ctx.fill(path, with: .color(color(for: mark.kind)))
+                    }
                 }
             }
 
