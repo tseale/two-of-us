@@ -13,6 +13,13 @@ struct TileStatus {
     }
 }
 
+/// A right-aligned eyebrow-label + value stat for the wide Sleep row — the
+/// horizontal slot the square tiles don't have room for.
+struct TileDetail {
+    let label: String      // "last nap"
+    let value: String      // "1h 20m"
+}
+
 /// The three primary log targets. Feed + Diaper (the two highest-frequency
 /// logs) side by side, Sleep full-width below. Each tile carries its own
 /// time-since value, so the tiles double as the status row — quiet until it
@@ -26,6 +33,8 @@ struct LogButtons: View {
     let sleepStatus: TileStatus?
     let diaperStatus: TileStatus?
     let feedHint: String
+    let sleepHint: String
+    let sleepDetail: TileDetail?
     let sleepActive: Bool
     let onFeed: () -> Void
     let onSleep: () -> Void
@@ -46,8 +55,8 @@ struct LogButtons: View {
             // this tile's glass flying into the Feed tile on sleep start.
             // Standalone glass just fades with the view transition.
             if !sleepActive {
-                wideTile(title: "Sleep", hint: "start timer", emoji: "💤", color: AppColor.accentSleep,
-                         status: sleepStatus, action: onSleep)
+                wideTile(title: "Sleep", hint: sleepHint, emoji: "💤", color: AppColor.accentSleep,
+                         status: sleepStatus, detail: sleepDetail, action: onSleep)
                     .transition(.opacity.combined(with: .scale(0.96, anchor: .bottom)))
             }
         }
@@ -85,7 +94,8 @@ struct LogButtons: View {
     }
 
     private func wideTile(title: String, hint: String, emoji: String, color: Color,
-                          status: TileStatus?, action: @escaping () -> Void) -> some View {
+                          status: TileStatus?, detail: TileDetail?,
+                          action: @escaping () -> Void) -> some View {
         Button(action: { action(); Haptics.tap() }) {
             HStack(spacing: 14) {
                 Text(emoji).font(.system(size: 28))
@@ -107,9 +117,23 @@ struct LogButtons: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
                 }
-                Spacer()
+                Spacer(minLength: 12)
+                // The row's width bonus over the square tiles: a trailing stat.
+                // Vertically centered, so it stays clear of the topTrailing ⊕.
+                if let detail {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(detail.label).sectionLabelStyle(color: AppColor.text3)
+                        Text(detail.value)
+                            .font(.system(.body, design: .rounded).weight(.semibold))
+                            .foregroundStyle(AppColor.text2)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                    }
+                }
             }
-            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+            // Same minHeight + padding as the square tiles, so all three rows
+            // of the grid render at one height.
+            .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
             .padding(18)
             .overlay(alignment: .topTrailing) { plusBadge(color).padding(14) }
             .glassTile(cornerRadius: 20, tint: color)
@@ -118,7 +142,7 @@ struct LogButtons: View {
         }
         .buttonStyle(PressableTileStyle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityText(title: title, hint: hint, status: status))
+        .accessibilityLabel(accessibilityText(title: title, hint: hint, status: status, detail: detail))
     }
 
     /// Quiet until it matters: plain gray at green, tinted semibold text plus
@@ -149,9 +173,16 @@ struct LogButtons: View {
             .accessibilityHidden(true)
     }
 
-    private func accessibilityText(title: String, hint: String, status: TileStatus?) -> String {
-        guard let status else { return "\(title), \(hint)" }
-        return "\(title), \(status.value) since last, \(status.urgency.accessibilityWord), \(hint)"
+    private func accessibilityText(title: String, hint: String, status: TileStatus?,
+                                   detail: TileDetail? = nil) -> String {
+        var text: String
+        if let status {
+            text = "\(title), \(status.value) since last, \(status.urgency.accessibilityWord), \(hint)"
+        } else {
+            text = "\(title), \(hint)"
+        }
+        if let detail { text += ", \(detail.label) \(detail.value)" }
+        return text
     }
 }
 
