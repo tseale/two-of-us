@@ -40,6 +40,7 @@ struct LogButtons: View {
                 if !sleepActive {
                     wideTile(title: "Sleep", hint: "start timer", emoji: "💤", color: AppColor.accentSleep,
                              status: sleepStatus, action: onSleep)
+                        .transition(.opacity.combined(with: .scale(0.96, anchor: .bottom)))
                 }
             }
         }
@@ -56,13 +57,21 @@ struct LogButtons: View {
                     }
                 }
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(title).font(.system(.title3, design: .rounded).weight(.bold))
+                    Text(title)
+                        .font(.system(.title3, design: .rounded).weight(.bold))
+                        .lineLimit(1)
                     if let status {
                         Text(status.sinceText)
                             .font(.subheadline)
                             .foregroundStyle(AppColor.text2)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                     }
-                    Text(hint).font(.caption).foregroundStyle(AppColor.text2)
+                    Text(hint)
+                        .font(.caption)
+                        .foregroundStyle(AppColor.text2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
@@ -87,14 +96,22 @@ struct LogButtons: View {
                 }
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 0) {
-                        Text(title).font(.system(.title3, design: .rounded).weight(.bold))
+                        Text(title)
+                            .font(.system(.title3, design: .rounded).weight(.bold))
+                            .lineLimit(1)
                         if let status {
                             Text(" · \(status.sinceText)")
                                 .font(.subheadline)
                                 .foregroundStyle(AppColor.text2)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
                         }
                     }
-                    Text(hint).font(.caption).foregroundStyle(AppColor.text2)
+                    Text(hint)
+                        .font(.caption)
+                        .foregroundStyle(AppColor.text2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
                 Spacer()
             }

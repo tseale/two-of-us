@@ -3,6 +3,7 @@ import SwiftData
 
 struct HomeView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Query private var babies: [Baby]
     @Query private var settingsList: [SharedSettings]
@@ -50,8 +51,13 @@ struct HomeView: View {
                             logButtons(now: ctx.date)
                             if let sleep = activeSleep {
                                 SleepActiveCard(sleep: sleep, now: ctx.date) { store.stopSleep(sleep) }
+                                    .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
                             }
                         }
+                        // Keyed to the sleep state (not withAnimation at the action
+                        // sites) so CloudKit- and Siri-initiated starts animate too.
+                        .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.8),
+                                   value: activeSleep != nil)
                     }
                 }
                 .listRowBackground(Color.clear)

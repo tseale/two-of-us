@@ -42,7 +42,7 @@ struct SleepActiveCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding(20)
-        .background(AppColor.accentSleep.opacity(0.18), in: RoundedRectangle(cornerRadius: 22))
+        .glassTile(cornerRadius: 22, tint: AppColor.accentSleep)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(babyName) is sleeping, \(elapsed), since \(TimeFormatting.clock(sleep.startedAt))")
     }

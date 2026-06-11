@@ -67,8 +67,8 @@ extension View {
     }
 
     /// A calm, *solid* content surface (no glass). Used for things you read but
-    /// don't tap — status pills, data cards, timeline rows — so that the glass
-    /// elements (log tiles, active sleep card, tab bar) read as the elevated,
+    /// don't tap — data cards, timeline rows — so that the glass elements
+    /// (log tiles, active sleep card, tab bar) read as the elevated,
     /// interactive layer. Hierarchy through depth: glass floats, surfaces sit.
     func surfaceCard(cornerRadius: CGFloat = 18, hairline: Bool = true) -> some View {
         self
