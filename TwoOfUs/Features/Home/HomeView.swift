@@ -184,6 +184,7 @@ struct HomeView: View {
                 ? tileStatus(since: lastSleepEnd, now: now, target: UrgencyDefaults.sleep) : nil,
             diaperStatus: tileStatus(since: diapers.first?.timestamp, now: now, target: UrgencyDefaults.diaper),
             feedHint: feedHint(now: now),
+            sleepHint: sleepHint(now: now),
             sleepActive: activeSleep != nil,
             onFeed: { activeSheet = .feed },
             onSleep: startSleep,
@@ -199,6 +200,16 @@ struct HomeView: View {
         return next < now
             ? "bottle was due ~\(TimeFormatting.clock(next))"
             : "next bottle ~\(TimeFormatting.clock(next))"
+    }
+
+    /// Same idea for Sleep: the projected next nap, from the last wake time
+    /// plus the sleep target that already drives the tile's urgency dot.
+    private func sleepHint(now: Date) -> String {
+        guard let lastEnd = lastSleepEnd else { return "start timer" }
+        let next = lastEnd.addingTimeInterval(UrgencyDefaults.sleep)
+        return next < now
+            ? "nap was due ~\(TimeFormatting.clock(next))"
+            : "next nap ~\(TimeFormatting.clock(next))"
     }
 
     private func tileStatus(since date: Date?, now: Date, target: TimeInterval) -> TileStatus? {

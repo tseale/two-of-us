@@ -26,6 +26,7 @@ struct LogButtons: View {
     let sleepStatus: TileStatus?
     let diaperStatus: TileStatus?
     let feedHint: String
+    let sleepHint: String
     let sleepActive: Bool
     let onFeed: () -> Void
     let onSleep: () -> Void
@@ -46,7 +47,7 @@ struct LogButtons: View {
             // this tile's glass flying into the Feed tile on sleep start.
             // Standalone glass just fades with the view transition.
             if !sleepActive {
-                wideTile(title: "Sleep", hint: "start timer", emoji: "💤", color: AppColor.accentSleep,
+                wideTile(title: "Sleep", hint: sleepHint, emoji: "💤", color: AppColor.accentSleep,
                          status: sleepStatus, action: onSleep)
                     .transition(.opacity.combined(with: .scale(0.96, anchor: .bottom)))
             }
