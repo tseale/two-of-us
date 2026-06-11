@@ -23,3 +23,4 @@ Distributed via TestFlight to 2 users (both parents).
 - Dark mode from day 1
 - TestFlight distribution — no App Store submission needed
 - CI/CD via Xcode Cloud — pushes to `main` archive and upload to TestFlight; `ci_scripts/ci_post_clone.sh` regenerates the gitignored .xcodeproj on the runner (see docs/XCODE_CLOUD.md)
+- TestFlight feedback automation — hourly GitHub Action polls App Store Connect for beta feedback/crashes and files them as issues labeled `testflight-feedback` (see docs/TESTFLIGHT_AUTOMATION.md)
