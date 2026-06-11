@@ -44,6 +44,11 @@ enum AppColor {
     static let urgencyGreen = Color(hex: "5AD17E")
     static let urgencyAmber = Color(hex: "F5B971")
     static let urgencyRed   = Color(hex: "FF6B6B")
+
+    /// Deep warm plum-indigo: the night-stage base ("nursery at 3am", not blue-black).
+    static let nightInk = Color(hex: "130E18")
+    /// Warm cream of the baby's light; text/glow color on the night stage.
+    static let nightlightCream = Color(hex: "FFF4E8")
 }
 
 // MARK: - Liquid Glass (iOS 26)

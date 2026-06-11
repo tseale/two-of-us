@@ -61,7 +61,7 @@ struct SplashView: View {
 
             Text("Two of Us")
                 .font(AppFont.hero(26, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(AppColor.nightlightCream)
                 .opacity(wordmarkOpacity)
                 .offset(y: markSize / 2 + 34 + wordmarkOffset)
         }
