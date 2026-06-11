@@ -18,10 +18,12 @@ Environment:
   ASC_PRIVATE_KEY  Contents of the .p8 private key
   ASC_APP_ID       Numeric Apple app ID (optional; resolved from bundle ID if unset)
   ASC_BUNDLE_ID    Bundle ID used for the lookup (default com.taylorseale.twoofus)
-  GITHUB_TOKEN     Token used to create issues. Must be a PAT or GitHub App token,
-                   NOT the workflow's default GITHUB_TOKEN, if you want the new
-                   issues to trigger the autofix workflow (events from the default
-                   token never start other workflows).
+  GITHUB_TOKEN     Token used to create issues (the workflow's default
+                   GITHUB_TOKEN with `issues: write` permission works).
+                   NOTE: if a downstream workflow should ever trigger off these
+                   issues (e.g. label-driven automation), this must become a PAT
+                   or GitHub App token — events created with the default token
+                   never start other workflows.
   GITHUB_REPOSITORY  owner/repo (set automatically on Actions runners)
 """
 
