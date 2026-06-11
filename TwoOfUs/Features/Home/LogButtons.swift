@@ -76,6 +76,7 @@ struct LogButtons: View {
             .padding(18)
             .overlay(alignment: .topTrailing) { plusBadge(color).padding(14) }
             .glassTile(cornerRadius: 20, tint: color)
+            .contentShape(.rect(cornerRadius: 20))
             .foregroundStyle(AppColor.text)
         }
         .buttonStyle(PressableTileStyle())
@@ -112,6 +113,7 @@ struct LogButtons: View {
             .padding(18)
             .overlay(alignment: .topTrailing) { plusBadge(color).padding(14) }
             .glassTile(cornerRadius: 20, tint: color)
+            .contentShape(.rect(cornerRadius: 20))
             .foregroundStyle(AppColor.text)
         }
         .buttonStyle(PressableTileStyle())
