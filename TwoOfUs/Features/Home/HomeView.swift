@@ -45,11 +45,10 @@ struct HomeView: View {
                     )
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         VStack(spacing: 18) {
-                            statusRow(now: ctx.date)
                             if let sleep = activeSleep {
                                 SleepActiveCard(sleep: sleep, now: ctx.date) { store.stopSleep(sleep) }
                             }
-                            logButtons
+                            logButtons(now: ctx.date)
                         }
                     }
                 }
@@ -153,33 +152,6 @@ struct HomeView: View {
         }
     }
 
-    // MARK: Status row
-
-    private func statusRow(now: Date) -> some View {
-        HStack(spacing: 8) {
-            StatusPill(
-                emoji: "🍼",
-                value: feeds.first.map { TimeFormatting.since($0.timestamp, now: now) } ?? "—",
-                label: "SINCE FEED",
-                urgency: .from(since: feeds.first?.timestamp, now: now, target: targetFeed)
-            )
-            if activeSleep == nil {
-                StatusPill(
-                    emoji: "💤",
-                    value: lastSleepEnd.map { TimeFormatting.since($0, now: now) } ?? "—",
-                    label: "SINCE SLEEP",
-                    urgency: .from(since: lastSleepEnd, now: now, target: UrgencyDefaults.sleep)
-                )
-            }
-            StatusPill(
-                emoji: "💩",
-                value: diapers.first.map { TimeFormatting.since($0.timestamp, now: now) } ?? "—",
-                label: "SINCE DIAPER",
-                urgency: .from(since: diapers.first?.timestamp, now: now, target: UrgencyDefaults.diaper)
-            )
-        }
-    }
-
     private var lastSleepEnd: Date? {
         sleeps.first(where: { $0.endedAt != nil })?.endedAt
     }
@@ -197,12 +169,24 @@ struct HomeView: View {
 
     // MARK: Log buttons
 
-    private var logButtons: some View {
+    private func logButtons(now: Date) -> some View {
         LogButtons(
+            feedStatus: tileStatus(since: feeds.first?.timestamp, now: now, target: targetFeed),
+            sleepStatus: activeSleep == nil
+                ? tileStatus(since: lastSleepEnd, now: now, target: UrgencyDefaults.sleep) : nil,
+            diaperStatus: tileStatus(since: diapers.first?.timestamp, now: now, target: UrgencyDefaults.diaper),
             sleepActive: activeSleep != nil,
             onFeed: { activeSheet = .feed },
             onSleep: startSleep,
             onDiaper: { activeSheet = .diaper }
+        )
+    }
+
+    private func tileStatus(since date: Date?, now: Date, target: TimeInterval) -> TileStatus? {
+        guard let date else { return nil }
+        return TileStatus(
+            value: TimeFormatting.since(date, now: now),
+            urgency: .from(since: date, now: now, target: target)
         )
     }
 

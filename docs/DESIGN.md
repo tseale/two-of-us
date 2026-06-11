@@ -45,7 +45,7 @@ Two type families, by role (helpers in `DesignSystem/Typography.swift`):
 ### Surfaces & depth (hierarchy through glass)
 Liquid Glass signals *elevation and interactivity*, not decoration. Reserve it for the floating/tappable layer:
 - **Glass** (`glassTile`/`glassCard`, `glassEffect`): the log tiles, the active-sleep card, the tab bar.
-- **Solid surface** (`surfaceCard()` — `card` fill + hairline): calm content you read but don't tap — status pills, data cards, timeline. This keeps the glass elements visually on top.
+- **Solid surface** (`surfaceCard()` — `card` fill + hairline): calm content you read but don't tap — data cards, timeline. This keeps the glass elements visually on top.
 Don't stack glass on glass. The Stats "record" hero keeps its indigo gradient as the one intentional delight surface.
 
 ### Spacing & shape
@@ -70,8 +70,7 @@ Every screen specifies its **empty**, **loading**, and **error** states — not 
 ### 1. Home
 - **Header**: baby name + age ("12 weeks old"), settings gear.
 - **Day arc (signature centerpiece)**: today drawn as a sunrise-to-night dome (`DayArcView`). A faint full-day track; a dawn→day gradient fills the elapsed portion, led by a glowing "now" orb that is **warm amber by day, cool periwinkle at night**. Feeds/diapers ride the arc as marks; sleep stretches render as soft periwinkle bands. Below it: the day's three glance numbers (feeds / sleep / changes) and a part-of-day greeting.
-- **Status row**: time-since pills (feed / sleep / diaper) with urgency color, on calm solid surfaces. When a sleep timer is active, the sleep pill is replaced by the live timer card and the row shows the remaining two.
-- **Actions**: Feed and Sleep as large side-by-side targets; Diaper full-width below. When sleep is active, the Sleep target becomes a running timer card with a "Wake up" action.
+- **Actions (with live status)**: Feed and Sleep as large side-by-side targets; Diaper full-width below. Each tile carries its own time-since value ("2h 31m ago") and urgency dot, so the tiles double as the status row — no separate pill row. When sleep is active, the Sleep target becomes a running timer card with a "Wake up" action (which shows elapsed time, so it carries no since-line).
 - **Timeline**: rolling recent window (~last 12–24h), continuous — *not* a "Today" list that resets at midnight. Each row: type icon, detail (3 oz / 1h 22m / Wet), local time, participant initial. Tap a row → edit. Swipe → delete (confirm).
 - **Empty**: "No events yet — tap 🍼 to log Miller's first feed."
 - **Loading**: initial CloudKit fetch shows a light skeleton, but local data renders immediately (offline-first).
