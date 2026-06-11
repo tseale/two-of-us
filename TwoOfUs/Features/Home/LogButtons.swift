@@ -13,10 +13,12 @@ struct TileStatus {
     }
 }
 
-/// The three primary log targets. Feed + Sleep on top, Diaper full-width below.
-/// Each tile carries its own time-since value and urgency dot, so the tiles
-/// double as the status row. When sleep is active, the caller replaces the
-/// Sleep tile with the active card.
+/// The three primary log targets. Feed + Diaper (the two highest-frequency
+/// logs) side by side, Sleep full-width below. Each tile carries its own
+/// time-since value and urgency dot, so the tiles double as the status row.
+/// The wide Sleep row is also the slot the active timer card takes over —
+/// when sleep is active the caller swaps it in place, so Feed and Diaper
+/// never move.
 struct LogButtons: View {
     let feedStatus: TileStatus?
     let sleepStatus: TileStatus?
@@ -32,13 +34,13 @@ struct LogButtons: View {
                 HStack(spacing: 12) {
                     tile(title: "Feed", hint: "log a bottle", emoji: "🍼", color: AppColor.accentFeed,
                          status: feedStatus, action: onFeed)
-                    if !sleepActive {
-                        tile(title: "Sleep", hint: "start timer", emoji: "💤", color: AppColor.accentSleep,
-                             status: sleepStatus, action: onSleep)
-                    }
-                }
-                wideTile(title: "Diaper", hint: "wet · dirty · both", emoji: "💩", color: AppColor.accentDiaper,
+                    tile(title: "Diaper", hint: "wet · dirty · both", emoji: "💩", color: AppColor.accentDiaper,
                          status: diaperStatus, action: onDiaper)
+                }
+                if !sleepActive {
+                    wideTile(title: "Sleep", hint: "start timer", emoji: "💤", color: AppColor.accentSleep,
+                             status: sleepStatus, action: onSleep)
+                }
             }
         }
     }

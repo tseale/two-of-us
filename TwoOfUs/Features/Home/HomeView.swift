@@ -44,11 +44,13 @@ struct HomeView: View {
                         diaperCount: todaySummary?.diaperCount ?? 0
                     )
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                        VStack(spacing: 18) {
+                        // 12pt matches the tile grid spacing, so the active sleep
+                        // card reads as the Sleep row transformed in place.
+                        VStack(spacing: 12) {
+                            logButtons(now: ctx.date)
                             if let sleep = activeSleep {
                                 SleepActiveCard(sleep: sleep, now: ctx.date) { store.stopSleep(sleep) }
                             }
-                            logButtons(now: ctx.date)
                         }
                     }
                 }
