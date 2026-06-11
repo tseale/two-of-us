@@ -154,6 +154,8 @@ Intelligence–capable hardware and hide themselves where unavailable.
 | [`docs/SIRI_AND_SHORTCUTS.md`](docs/SIRI_AND_SHORTCUTS.md) | Siri phrases, App Intents, Shortcuts & Control Center controls |
 | [`docs/PRIVACY.md`](docs/PRIVACY.md) | Privacy model, data storage, access & roles |
 | [`docs/VISUALIZATIONS.md`](docs/VISUALIZATIONS.md) | Future charts/stats design exploration |
+| [`docs/XCODE_CLOUD.md`](docs/XCODE_CLOUD.md) | CI/CD: push to `main` → Xcode Cloud → TestFlight |
+| [`docs/TESTFLIGHT_AUTOMATION.md`](docs/TESTFLIGHT_AUTOMATION.md) | TestFlight feedback → GitHub issue → Claude autofix PR pipeline |
 
 ## Roadmap
 

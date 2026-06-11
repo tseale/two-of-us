@@ -1,0 +1,46 @@
+# Polls App Store Connect for new TestFlight beta feedback (comments + crashes)
+# and files each submission as a GitHub issue labeled `testflight-feedback`.
+# Those issues then trigger the Claude autofix workflow (testflight-autofix.yml).
+#
+# NOTE: TESTFLIGHT_ISSUES_TOKEN must be a fine-grained PAT (Issues: read/write
+# on this repo). Issues created with the default GITHUB_TOKEN would NOT fire
+# the autofix workflow — GitHub suppresses workflow triggers from events the
+# default token creates. See docs/TESTFLIGHT_AUTOMATION.md.
+
+name: TestFlight feedback → issues
+
+on:
+  schedule:
+    - cron: "17 * * * *" # hourly; offset to dodge top-of-hour congestion
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight-feedback-poll
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install --quiet "pyjwt[crypto]" requests
+
+      - name: Fetch feedback and file issues
+        env:
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
+          ASC_BUNDLE_ID: com.taylorseale.twoofus
+          GITHUB_TOKEN: ${{ secrets.TESTFLIGHT_ISSUES_TOKEN }}
+        run: python scripts/testflight_feedback_to_issues.py
