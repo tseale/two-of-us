@@ -1,17 +1,17 @@
 # Two of Us — Design
 
-**Status**: v1 design — locked June 5, 2026
+**Status**: v1 design — locked June 5, 2026 · amended June 12, 2026 to match the implementation (day ribbon replaced the day-arc concept; HTML mockup retired in favor of the design-language spec)
 **Principle**: calm, not clinical. One-thumb operable. Readable at a glance, at 3am, holding a baby.
 **Platforms**: iPhone + iPad · **Appearance**: light + dark, follows the iOS system setting.
 
-A clickable reference mockup lives at [`mockups/index.html`](../mockups/index.html).
+The portable design-language spec — used for Claude Design collaboration and as the visual reference — lives at [`DESIGN.md`](../DESIGN.md) (repo root). It is extracted from the implementation; this document covers iOS screen flows and behavior.
 
 ---
 
 ## Design system
 
 ### Color
-Colors are defined as **semantic tokens** that resolve differently in light vs dark. Never hardcode a hex in a view — reference the token. Hex values below are the dark-mode reference (from the mockup); light-mode variants are derived to keep contrast.
+Colors are defined as **semantic tokens** that resolve differently in light vs dark. Never hardcode a hex in a view — reference the token. Hex values below are the dark-mode reference; both appearances' values live in `DesignSystem/Colors.swift` and [`DESIGN.md`](../DESIGN.md) §2.
 
 | Token | Role | Dark ref |
 |---|---|---|
@@ -69,7 +69,7 @@ Every screen specifies its **empty**, **loading**, and **error** states — not 
 
 ### 1. Home
 - **Header**: baby name + age ("12 weeks old"), settings gear.
-- **Day arc (signature centerpiece)**: today drawn as a sunrise-to-night dome (`DayArcView`). A faint full-day track; a dawn→day gradient fills the elapsed portion, led by a glowing "now" orb that is **warm amber by day, cool periwinkle at night**. Feeds/diapers ride the arc as marks; sleep stretches render as soft periwinkle bands. Below it: the day's three glance numbers (feeds / sleep / changes) and a part-of-day greeting.
+- **Today ribbon (signature centerpiece)**: today drawn as a 24-hour horizontal strip (`TodayRibbonCard` wrapping `DayRibbonView`), on a solid surface card titled "TODAY" with a part-of-day word on the right ("morning ☀️ … night 🌙"). Feed/diaper marks ride above a hairline baseline at their time-of-day position (🍼 · 💧 · 💩, near-simultaneous marks nudge apart); sleep renders below it as pale periwinkle pills with "z z z" resting inside; a dashed "now" line spans both lanes (today only). Below the ribbon: the day's three glance numbers (feeds / sleep / changes) in accent-colored metrics. The ribbon is reused on the History swimlanes and the widgets — a monochrome `tinted` variant (● feed · ○ diaper · — sleep) survives lock-screen desaturation.
 - **Actions (with live status)**: Feed and Diaper — the two highest-frequency logs — as large side-by-side targets; Sleep full-width below. Each tile carries its own time-since value, so the tiles double as the status row — no separate pill row. Urgency is *quiet until it matters*: at green the since-line is calm gray with no indicator; at amber/red it takes a darkened readable tint plus an 8pt dot, so the presence of color is the signal (works without red-vs-green discrimination). A per-accent ⊕ badge in each tile's corner keeps the status-bearing tiles reading as buttons. The Feed tile's hint is forward-looking — "next bottle ~10:45" from the target-interval math — instead of a static verb. The wide Sleep row is the slot the timer takes over: when sleep is active it morphs in place into the running timer card with a "Wake up" action (Feed and Diaper never move, and the Wake button sits in easy thumb reach).
 - **Timeline**: rolling recent window (~last 12–24h), continuous — *not* a "Today" list that resets at midnight. Each row: type icon, detail (3 oz / 1h 22m / Wet), local time, participant initial. Tap a row → edit. Swipe → delete (confirm).
 - **Empty**: "No events yet — tap 🍼 to log Miller's first feed."

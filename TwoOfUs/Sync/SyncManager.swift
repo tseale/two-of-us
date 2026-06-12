@@ -42,22 +42,25 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
 
     // MARK: Lifecycle
 
-    /// True only when the device can actually use CloudKit. Guards against
-    /// `CKContainer(identifier:)` fatal-trapping when the iCloud entitlement/
-    /// container isn't available (unsigned builds, or no iCloud account signed in).
-    private var cloudAvailable: Bool {
-        FileManager.default.ubiquityIdentityToken != nil
+    /// Gate for every CloudKit touchpoint: true when an iCloud account is signed
+    /// in (`CKAccountStatus.available`). iCloud Drive is intentionally NOT
+    /// required — CloudKit works without it, and the ubiquity-token shortcut this
+    /// replaced wrongly read Drive-off as iCloud-off and disabled sync.
+    private func cloudAvailable() async -> Bool {
+        await CloudAccount.isAvailable()
     }
 
     /// Starts the engine(s) appropriate to this device's role. Safe to call once
     /// at launch; no-ops without iCloud (the app still works fully offline/local).
     func start() {
-        guard cloudAvailable else { return }
-        switch LocalPrefs.shared.syncRole {
-        case .solo, .owner:
-            startPrivateEngine()
-        case .participant:
-            startSharedEngine()
+        Task {
+            guard await cloudAvailable() else { return }
+            switch LocalPrefs.shared.syncRole {
+            case .solo, .owner:
+                startPrivateEngine()
+            case .participant:
+                startSharedEngine()
+            }
         }
     }
 
@@ -97,12 +100,15 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     }
 
     /// Called after the user accepts a share — becomes a participant and starts
-    /// syncing the owner's shared zone.
+    /// syncing the owner's shared zone. The role flip is unconditional (accepting
+    /// a share proves an account exists); only the engine work awaits the check.
     func didAcceptShare() {
-        guard cloudAvailable else { return }
         Self.markShareAccepted()
-        startSharedEngine()
-        Task { try? await sharedEngine?.fetchChanges() }
+        Task {
+            guard await cloudAvailable() else { return }
+            startSharedEngine()
+            try? await sharedEngine?.fetchChanges()
+        }
     }
 
     /// Forward a received remote (silent push) notification so the engine pulls
@@ -271,12 +277,17 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
 
     /// Creates (or returns the existing) zone-wide CKShare so the owner can invite
     /// the co-parent. Marks this device the owner.
-    enum SyncError: Error { case iCloudUnavailable }
+    enum SyncError: LocalizedError {
+        case iCloudUnavailable
+        var errorDescription: String? {
+            "iCloud isn't available on this device — check that you're signed in and try again."
+        }
+    }
 
     func makeShare() async throws -> CKShare {
         // Demo mode runs against a throwaway store; never touch the real iCloud zone.
         guard !LocalPrefs.shared.demoModeEnabled else { throw SyncError.iCloudUnavailable }
-        guard cloudAvailable else { throw SyncError.iCloudUnavailable }
+        guard await cloudAvailable() else { throw SyncError.iCloudUnavailable }
         LocalPrefs.shared.syncRole = .owner
         startPrivateEngine()
         let db = SyncConstants.container.privateCloudDatabase
@@ -326,7 +337,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         // In demo the participant belongs to the in-memory store and there's no real
         // share to mutate — leave the seeded People list intact.
         guard !LocalPrefs.shared.demoModeEnabled else { return }
-        if cloudAvailable {
+        if await cloudAvailable() {
             let db = SyncConstants.container.privateCloudDatabase
             let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: privateZoneID)
             if let share = try? await db.record(for: shareID) as? CKShare {
@@ -352,7 +363,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     /// `LocalPrefs` reset — `RootView` then returns to onboarding.
     func deleteEverything() async {
         guard !LocalPrefs.shared.demoModeEnabled else { return }
-        if cloudAvailable, LocalPrefs.shared.syncRole != .participant {
+        if await cloudAvailable(), LocalPrefs.shared.syncRole != .participant {
             let db = SyncConstants.container.privateCloudDatabase
             _ = try? await db.modifyRecordZones(saving: [], deleting: [privateZoneID])
         }
@@ -394,8 +405,9 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     /// their profile — without it, removal only works while there's a single
     /// co-parent (the sole-non-owner fallback).
     func captureCloudUserID(for participantID: UUID) {
-        guard cloudAvailable, !LocalPrefs.shared.demoModeEnabled else { return }
+        guard !LocalPrefs.shared.demoModeEnabled else { return }
         Task {
+            guard await cloudAvailable() else { return }
             guard let recordName = (try? await SyncConstants.container.userRecordID())?.recordName else { return }
             var d = FetchDescriptor<Participant>(predicate: #Predicate { $0.id == participantID })
             d.fetchLimit = 1

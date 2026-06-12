@@ -17,11 +17,13 @@ TestFlight to the two parents.
 
 ## UI Preview
 
-> The images below are dark-mode UI design mockups that reflect the implemented
-> screens, updated for the iOS 26 look (Liquid Glass, on-device AI). Real device
-> captures require building in Xcode on macOS.
+> The images below are **early dark-mode concept mockups** — they predate several
+> redesigns (status now lives inside the log tiles, insights moved to Stats, the
+> day ribbon was added) and are kept for history. The current design language is
+> specified in [`DESIGN.md`](DESIGN.md), extracted from the implemented SwiftUI.
+> Real device captures require building in Xcode on macOS.
 
-**Core screens — Home · Feed · Sleep · Diaper** *(Liquid Glass cards, on-device insight strip, ✨ quick-log)*
+**Core screens — Home · Feed · Sleep · Diaper** *(concept: Liquid Glass cards, ✨ quick-log)*
 
 ![Home, Feed, Sleep, and Diaper screens](mockups/mockup.png)
 
@@ -122,8 +124,9 @@ TwoOfUs/                 # Main iOS app target
 
 TwoOfUsWidgets/          # WidgetKit extension (small/medium/large widgets + ribbon,
                             #   Live Activity views, and Control Center controls)
+DESIGN.md                   # Design-language spec (Claude Design ↔ Claude Code contract)
 docs/                       # Design & implementation documentation (see below)
-mockups/                    # UI mockups (PNG + interactive index.html)
+mockups/                    # Early concept mockups (PNG, historical)
 project.yml                 # XcodeGen project specification
 ```
 
