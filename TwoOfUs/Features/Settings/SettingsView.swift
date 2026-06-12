@@ -17,6 +17,9 @@ struct SettingsView: View {
     @State private var share: CKShare?
     @State private var showShareSheet = false
     @State private var preparingShare = false
+    /// The underlying error when preparing the invite fails — drives an alert
+    /// instead of the button silently doing nothing.
+    @State private var shareError: String?
     @State private var showBabyEdit = false
     @State private var showProfileEdit = false
     @State private var questSheet: SetupQuest?
@@ -99,6 +102,13 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showShareSheet) {
                 if let share { CloudShareView(share: share) }
+            }
+            .alert("Couldn't prepare the invite", isPresented: Binding(
+                get: { shareError != nil }, set: { if !$0 { shareError = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(shareError ?? "")
             }
             .sheet(isPresented: $showBabyEdit) {
                 if let baby { BabyEditSheet(baby: baby) }
@@ -216,7 +226,16 @@ struct SettingsView: View {
                 Button {
                     Task {
                         preparingShare = true
-                        share = try? await SyncManager.shared?.makeShare()
+                        do {
+                            if let manager = SyncManager.shared {
+                                share = try await manager.makeShare()
+                            } else {
+                                shareError = "Sync isn't running on this device."
+                            }
+                        } catch {
+                            share = nil
+                            shareError = (error as NSError).localizedDescription
+                        }
                         preparingShare = false
                         if share != nil { showShareSheet = true }
                     }

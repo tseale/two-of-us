@@ -277,7 +277,12 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
 
     /// Creates (or returns the existing) zone-wide CKShare so the owner can invite
     /// the co-parent. Marks this device the owner.
-    enum SyncError: Error { case iCloudUnavailable }
+    enum SyncError: LocalizedError {
+        case iCloudUnavailable
+        var errorDescription: String? {
+            "iCloud isn't available on this device — check that you're signed in and try again."
+        }
+    }
 
     func makeShare() async throws -> CKShare {
         // Demo mode runs against a throwaway store; never touch the real iCloud zone.
