@@ -42,6 +42,10 @@ targets:
         # Only standard HTTPS/CloudKit crypto — exempt. Without this, every
         # TestFlight build waits on a manual export-compliance answer in ASC.
         ITSAppUsesNonExemptEncryption: NO
+        # Required for CloudKit sharing: without it, iOS won't route a tapped
+        # invite link into the app (the scene/app delegate accept handlers
+        # never fire) and the co-parent can never join.
+        CKSharingSupported: YES
         # Plain launch field matching the app background in both schemes (the
         # LaunchBackground colorset), so cold launch lands directly on the first
         # screen with no flash. No animated splash — removed once onboarding
