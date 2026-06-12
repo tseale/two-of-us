@@ -202,4 +202,128 @@ final class RecordMappingTests: XCTestCase {
                                           recordID: recordID(UUID()), in: context)
         XCTAssertNil(record, "a stale pending change must produce no record (the engine drops it)")
     }
+
+    // MARK: System fields (the server change tag)
+
+    func testSystemFieldsArchiveRoundTrip() throws {
+        let id = CKRecord.ID(recordName: UUID().uuidString, zoneID: zoneID)
+        let record = CKRecord(recordType: SyncConstants.RecordType.feed, recordID: id)
+
+        let data = RecordMapping.archivedSystemFields(of: record)
+        let decoded = try XCTUnwrap(RecordMapping.decodeSystemFieldsRecord(data))
+
+        XCTAssertEqual(decoded.recordID, id)
+        XCTAssertEqual(decoded.recordType, SyncConstants.RecordType.feed)
+    }
+
+    func testBaseRecordRejectsArchiveFromAnotherZone() {
+        // A participant who left a share re-uploads into their OWN zone: the
+        // archived system fields still point at the old owner's zone and must
+        // be discarded, or the record would be stamped with the wrong identity.
+        let uuid = UUID()
+        let foreignZone = CKRecordZone.ID(zoneName: SyncConstants.zoneName, ownerName: "_someoneElse")
+        let foreignID = CKRecord.ID(recordName: uuid.uuidString, zoneID: foreignZone)
+        let archived = RecordMapping.archivedSystemFields(
+            of: CKRecord(recordType: SyncConstants.RecordType.feed, recordID: foreignID))
+
+        let requestedID = CKRecord.ID(recordName: uuid.uuidString, zoneID: zoneID)
+        let base = RecordMapping.baseRecord(type: SyncConstants.RecordType.feed,
+                                            recordID: requestedID, archived: archived)
+
+        XCTAssertEqual(base.recordID, requestedID,
+                       "a zone-mismatched archive must be replaced by a fresh record with the requested identity")
+    }
+
+    func testPersistAndClearSystemFields() throws {
+        let event = FeedEvent(baby: nil, amountOz: 2, timestamp: .now,
+                              loggedByID: UUID(), loggedByName: "T", loggedByColorHex: "#000000")
+        context.insert(event)
+        try context.save()
+
+        let server = CKRecord(recordType: SyncConstants.RecordType.feed, recordID: recordID(event.id))
+        RecordMapping.persistSystemFields(of: server, in: context)
+        XCTAssertNotNil(event.ckSystemFields,
+                        "fetched/saved server copies must leave their change tag on the model")
+
+        RecordMapping.clearSystemFields(forRecordName: event.id.uuidString, in: context)
+        XCTAssertNil(event.ckSystemFields)
+    }
+
+    func testOutboundRecordCarriesArchivedIdentity() throws {
+        let event = FeedEvent(baby: nil, amountOz: 2, timestamp: .now,
+                              loggedByID: UUID(), loggedByName: "T", loggedByColorHex: "#000000")
+        context.insert(event)
+        try context.save()
+        let id = recordID(event.id)
+        RecordMapping.persistSystemFields(
+            of: CKRecord(recordType: SyncConstants.RecordType.feed, recordID: id), in: context)
+
+        let outbound = try XCTUnwrap(
+            RecordMapping.record(forRecordName: event.id.uuidString, recordID: id, in: context))
+
+        XCTAssertEqual(outbound.recordID, id)
+        XCTAssertEqual(outbound["amountOz"] as? Double, 2,
+                       "user fields are re-populated on top of the archived base record")
+    }
+
+    // MARK: Conflict absorption
+
+    func testAbsorbConflictKeepsLocalContentButAdoptsTerminalFields() throws {
+        let event = FeedEvent(baby: nil, amountOz: 5, timestamp: .now,
+                              loggedByID: UUID(), loggedByName: "T", loggedByColorHex: "#000000")
+        context.insert(event)
+        try context.save()
+
+        // The other parent's copy: different amount AND a soft delete.
+        let server = CKRecord(recordType: SyncConstants.RecordType.feed, recordID: recordID(event.id))
+        server["amountOz"] = 3.0
+        let deletedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        server["deletedAt"] = deletedAt
+
+        RecordMapping.absorbConflict(server: server, in: context)
+
+        XCTAssertEqual(event.amountOz, 5, "local content wins the conflict (it re-uploads next)")
+        XCTAssertEqual(event.deletedAt, deletedAt,
+                       "but a concurrent delete must never be resurrected by the race loser")
+        XCTAssertNotNil(event.ckSystemFields, "the server change tag is adopted so the re-save succeeds")
+    }
+
+    func testAbsorbConflictAdoptsConcurrentSleepStop() throws {
+        let sleep = SleepEvent(baby: nil, startedAt: .now,
+                               loggedByID: UUID(), loggedByName: "T", loggedByColorHex: "#000000")
+        context.insert(sleep)
+        try context.save()
+
+        let server = CKRecord(recordType: SyncConstants.RecordType.sleep, recordID: recordID(sleep.id))
+        let endedAt = Date(timeIntervalSince1970: 1_700_000_100)
+        server["endedAt"] = endedAt
+
+        RecordMapping.absorbConflict(server: server, in: context)
+
+        XCTAssertEqual(sleep.endedAt, endedAt,
+                       "a sleep the other parent already stopped must not restart")
+    }
+
+    // MARK: Orphaned events (event records can land before their Baby)
+
+    func testRelinkAttachesEventsThatArrivedBeforeTheBaby() throws {
+        let baby = Baby(name: "Miller", dateOfBirth: .now)
+        context.insert(baby)
+        let feed = FeedEvent(baby: baby, amountOz: 3, timestamp: .now,
+                             loggedByID: UUID(), loggedByName: "T", loggedByColorHex: "#000000")
+        context.insert(feed)
+        try context.save()
+
+        let receiver = AppModelContainer.make(inMemory: true)
+        // Feed first — its babyID can't resolve yet, so it lands orphaned.
+        RecordMapping.apply(try outbound(feed.id), in: receiver.mainContext)
+        XCTAssertNil(try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<FeedEvent>()).first).baby)
+
+        RecordMapping.apply(try outbound(baby.id), in: receiver.mainContext)
+        RecordMapping.relinkOrphanEvents(in: receiver.mainContext)
+
+        let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<FeedEvent>()).first)
+        XCTAssertEqual(copy.baby?.id, baby.id,
+                       "events fetched before their Baby record must attach once it lands")
+    }
 }

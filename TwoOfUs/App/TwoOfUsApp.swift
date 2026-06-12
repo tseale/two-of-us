@@ -4,7 +4,7 @@ import SwiftData
 @main
 struct TwoOfUsApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    let realContainer = AppModelContainer.make()
+    let realContainer = AppModelContainer.shared
 
     @State private var prefs = LocalPrefs.shared
     /// Throwaway in-memory store used while demo mode is on. Built on entry,
@@ -71,11 +71,13 @@ struct TwoOfUsApp: App {
         }
     }
 
-    /// Builds/drops the demo store, applies the identity override, and starts sync
-    /// only outside demo mode. `SyncManager` stays bound to `realContainer` for the
-    /// app's lifetime — in demo it just goes quiet (EventStore gates its enqueues).
-    /// Only bumps `containerToken` when the active container actually changes, so a
-    /// token-driven rebuild doesn't re-trigger itself.
+    /// Builds/drops the demo store and applies the identity override. Sync runs
+    /// in BOTH modes: `SyncManager` is bound to the real container for the app's
+    /// lifetime (constructed at launch in `AppDelegate`, here only as a safety
+    /// net), so the co-parent's changes keep landing in the real store during
+    /// demo — `EventStore` gates demo writes from ever reaching the engine.
+    /// Only bumps `containerToken` when the active container actually changes,
+    /// so a token-driven rebuild doesn't re-trigger itself.
     @MainActor private func configure() {
         if prefs.demoModeEnabled {
             if demoContainer == nil {
@@ -91,10 +93,7 @@ struct TwoOfUsApp: App {
                 demoContainer = nil
                 withAnimation(.easeInOut(duration: 0.35)) { containerToken = UUID() }
             }
-            if SyncManager.shared == nil {
-                SyncManager.shared = SyncManager(modelContainer: realContainer)
-            }
-            SyncManager.shared?.start()
         }
+        SyncManager.bootstrap(container: realContainer)
     }
 }

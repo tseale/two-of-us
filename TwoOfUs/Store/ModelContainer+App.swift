@@ -2,6 +2,12 @@ import Foundation
 import SwiftData
 
 enum AppModelContainer {
+    /// The one real (on-disk) container for the app process. Both the SwiftUI
+    /// tree and `SyncManager` must use this instance — and it must be reachable
+    /// WITHOUT the UI existing, because a background launch for a CloudKit
+    /// silent push never connects a scene.
+    static let shared: ModelContainer = make()
+
     /// Main app container — stored in the App Group container so the widget
     /// extension can read the same data. CloudKit sync is driven by `SyncManager`
     /// (CKSyncEngine), NOT SwiftData's `.automatic`: shared-database / CKShare sync

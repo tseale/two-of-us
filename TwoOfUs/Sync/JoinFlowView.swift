@@ -140,6 +140,20 @@ struct JoinFlowView: View {
 
                 PhotoPickCard(name: name, colorHex: colorHex, photoData: $photoData)
                     .onboardingEntrance(revealed.contains(.profile), index: 3)
+
+                // Finish stays disabled until the inviting parent's profile has
+                // synced down (it decides this joiner's role) — say so instead
+                // of leaving a mysteriously dead button.
+                if !trimmedName.isEmpty && owner == nil {
+                    VStack(spacing: 8) {
+                        SyncingShimmer()
+                        Text("Connecting to your co-parent…")
+                            .font(.footnote)
+                            .foregroundStyle(AppColor.text3)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 4)
+                }
                 Spacer(minLength: 16)
             }
             .padding(.horizontal, 28)
@@ -173,12 +187,17 @@ struct JoinFlowView: View {
         )
     }
 
+    /// Finish also waits for the inviting parent's profile to sync down: the
+    /// joiner's role (co-parent vs guest) is decided by counting synced Full
+    /// participants, and finishing against a half-synced store used to hand
+    /// every guest full access — and could upload the profile before the
+    /// owner's zone was even known.
     private var primaryConfig: OnboardingBottomBar.Primary {
         switch page {
         case .hello:
             .init(title: "Continue", action: advance)
         case .profile:
-            .init(title: "Finish", enabled: !trimmedName.isEmpty, action: finish)
+            .init(title: "Finish", enabled: !trimmedName.isEmpty && owner != nil, action: finish)
         }
     }
 

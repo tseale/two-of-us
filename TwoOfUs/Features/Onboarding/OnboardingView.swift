@@ -141,7 +141,13 @@ struct OnboardingView: View {
         }
         #endif
         .sheet(isPresented: $showShareSheet, onDismiss: { didOfferShare = true }) {
-            if let share { CloudShareView(share: share) }
+            if let share {
+                CloudShareView(
+                    share: share,
+                    itemTitle: trimmedBabyName.isEmpty ? "Two of Us" : "\(trimmedBabyName) — Two of Us",
+                    itemThumbnail: babyPhotoData
+                )
+            }
         }
     }
 

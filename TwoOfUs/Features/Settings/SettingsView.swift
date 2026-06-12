@@ -101,9 +101,15 @@ struct SettingsView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
             .sheet(isPresented: $showShareSheet) {
-                if let share { CloudShareView(share: share) }
+                if let share {
+                    CloudShareView(
+                        share: share,
+                        itemTitle: (baby?.name.isEmpty == false) ? "\(baby!.name) — Two of Us" : "Two of Us",
+                        itemThumbnail: baby?.photoData
+                    )
+                }
             }
-            .alert("Couldn't prepare the invite", isPresented: Binding(
+            .alert("Couldn't update sharing", isPresented: Binding(
                 get: { shareError != nil }, set: { if !$0 { shareError = nil } }
             )) {
                 Button("OK", role: .cancel) {}
@@ -220,7 +226,10 @@ struct SettingsView: View {
 
             if prefs.syncRole == .participant {
                 Button("Leave shared baby", role: .destructive) {
-                    SyncManager.shared?.leaveShare()
+                    Task {
+                        do { try await SyncManager.shared?.leaveShare() }
+                        catch { shareError = (error as NSError).localizedDescription }
+                    }
                 }
             } else {
                 Button {
@@ -247,7 +256,10 @@ struct SettingsView: View {
 
                 if prefs.syncRole == .owner {
                     Button("Stop sharing", role: .destructive) {
-                        Task { await SyncManager.shared?.stopSharing() }
+                        Task {
+                            do { try await SyncManager.shared?.stopSharing() }
+                            catch { shareError = (error as NSError).localizedDescription }
+                        }
                     }
                 }
             }
@@ -286,7 +298,13 @@ struct SettingsView: View {
         .swipeActions {
             if canManage {
                 Button("Remove", role: .destructive) {
-                    Task { await SyncManager.shared?.removeParticipant(p) }
+                    Task {
+                        // Only flips the local row once the server actually
+                        // dropped them — a swallowed failure here used to hide
+                        // someone who still had full access.
+                        do { try await SyncManager.shared?.removeParticipant(p) }
+                        catch { shareError = (error as NSError).localizedDescription }
+                    }
                 }
             }
         }

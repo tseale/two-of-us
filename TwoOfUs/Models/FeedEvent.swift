@@ -14,6 +14,7 @@ final class FeedEvent {
     var loggedByColorHex: String = ""
     var deletedAt: Date?                // soft delete; nil == live
     var editOfID: UUID?                 // if this replaced an edited record, points to the original
+    var ckSystemFields: Data?           // archived CKRecord system fields (see Baby.ckSystemFields)
 
     init(
         id: UUID = UUID(),

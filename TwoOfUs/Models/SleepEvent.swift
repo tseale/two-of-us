@@ -15,6 +15,7 @@ final class SleepEvent {
     var loggedByColorHex: String = ""
     var deletedAt: Date?
     var editOfID: UUID?
+    var ckSystemFields: Data?           // archived CKRecord system fields (see Baby.ckSystemFields)
 
     init(
         id: UUID = UUID(),

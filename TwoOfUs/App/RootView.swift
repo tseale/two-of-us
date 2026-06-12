@@ -75,10 +75,26 @@ struct RootView: View {
         } message: {
             Text("Check that this iPhone is online and signed into iCloud, then try again — or tap the invite link once more.")
         }
+        // The link was tapped on a phone that already has its own log (solo
+        // onboarding happened here first). Joining silently would leave two
+        // babies in the store — make the replacement an explicit choice.
+        .alert("Join the shared log?", isPresented: confirmJoin) {
+            Button("Replace & Join", role: .destructive) {
+                shareAcceptance.confirmJoinReplacingLocalData()
+            }
+            Button("Cancel", role: .cancel) { shareAcceptance.cancelJoin() }
+        } message: {
+            Text("This iPhone already has its own log. Joining replaces everything on this phone — and its iCloud copy — with your co-parent's shared log. This can't be undone.")
+        }
     }
 
     private var acceptFailed: Binding<Bool> {
         Binding(get: { shareAcceptance.failed }, set: { shareAcceptance.failed = $0 })
+    }
+
+    private var confirmJoin: Binding<Bool> {
+        Binding(get: { shareAcceptance.confirmReplace != nil },
+                set: { if !$0 { shareAcceptance.cancelJoin() } })
     }
 
     /// Handed to the setup flows; they call it right before committing data.

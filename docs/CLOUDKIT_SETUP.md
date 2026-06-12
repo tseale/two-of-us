@@ -110,6 +110,31 @@ Production loop (the real one, needs both phones — coordinate with Taylor):
 
 **Checkpoint / done:** both phones syncing on TestFlight builds.
 
+## Sync-layer invariants (June 2026 overhaul)
+
+The sync layer was overhauled after a comprehensive audit (every finding
+verified against Apple's CKSyncEngine sample + WWDC23 10188). The invariants
+below are load-bearing; the troubleshooting map assumes them.
+
+1. **Change tags are persisted.** Every synced model carries `ckSystemFields`
+   (archived CKRecord system fields, local-only — NOT a CloudKit schema field).
+   Outbound saves rebuild on top of it; without it CloudKit rejects every
+   update as `serverRecordChanged` and edits silently revert. Tags are captured
+   from successful saves, fetched records, and conflict errors
+   (`RecordMapping.persistSystemFields` / `absorbConflict`).
+2. **Conflicts re-enqueue, local content wins, terminal fields stick.** A
+   concurrent `deletedAt` / sleep `endedAt` from the other parent is adopted;
+   everything else keeps the local value and re-uploads.
+3. **The shared zone ID is persisted** (`sync.sharedZone.*`), captured from the
+   share metadata at accept. The engine never re-announces an already-fetched
+   zone, so without this every participant write after a relaunch parks forever.
+4. **Writes park, never drop.** Hold queues exist for both scopes
+   (`sync.pendingShared*`, `sync.pendingPrivate*`) and drain when the engine
+   and zone are available.
+5. **SyncManager exists from `didFinishLaunching`** (background pushes work
+   without a scene), observes `CKAccountChanged`, and restarts engines after
+   role transitions (leave/revoke/delete-everything).
+
 ## Troubleshooting map
 
 | Symptom | Likely cause | Where |
@@ -120,3 +145,7 @@ Production loop (the real one, needs both phones — coordinate with Taylor):
 | "Unknown field" / "Did not find record type" in Console logs | A JIT-created field missed the deploy | Phase 1 table |
 | Owner's TestFlight build can't find a share created from Xcode | Shares don't cross environments | Recreate from TestFlight build |
 | Joiner stuck on "Bringing everything over…" | Owner's records not in the shared zone — check owner upload first | Phase 3 step 2 |
+| Edits/deletes/sleep-stops revert or never reach the other phone | `ckSystemFields` not being captured (invariant 1 broken) | `RecordMapping`, `SyncManager.handleSentRecordZoneChanges` |
+| Participant's logs stop syncing after they relaunch the app | Persisted shared zone missing (invariant 3) — check `sync.sharedZone.*` defaults | `SyncManager.markShareAccepted(zoneID:)` |
+| Joiner's Finish button stays disabled | Owner's Participant record hasn't synced down yet (by design — it decides the joiner's role); check owner upload | `JoinFlowView.primaryConfig` |
+| Invite accepted on a phone that already had its own log | Expected: a "Join the shared log?" replace confirmation appears first | `ShareAcceptance` / `RootView` |
