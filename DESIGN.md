@@ -6,11 +6,17 @@
 > implementation). Upload it to Claude Design to scaffold a faithful UI kit; hand exported
 > designs back to Claude Code with this file as the reference.
 >
-> **Source of truth.** The values below are extracted from the implementation —
-> `TwoOfUs/DesignSystem/` (tokens) and `TwoOfUs/Features/` (components). The iOS screen-by-screen
-> spec lives in [`docs/DESIGN.md`](docs/DESIGN.md); a clickable HTML mockup lives at
-> [`mockups/index.html`](mockups/index.html). If this file and the Swift code disagree, the
-> Swift code wins — update this file to match (see §10, Agent Guide).
+> **Source of truth.** The values below are extracted directly from the implementation —
+> `TwoOfUs/DesignSystem/` (tokens) and `TwoOfUs/Features/` (components) — as of commit
+> `c05d891` (June 12, 2026). If this file and the Swift code disagree, the Swift code wins —
+> update this file to match (see §10, Agent Guide).
+>
+> **Stale artifacts — do not design from these.** `mockups/index.html` predates the current
+> Home design (it shows a separate status-pill row, an on-Home insight strip, a Feed+Sleep
+> tile pair, and no day ribbon — all since redesigned) and is dark-only. The screen spec in
+> [`docs/DESIGN.md`](docs/DESIGN.md) is mostly current but its Home section describes a
+> "day arc" dome (`DayArcView`) that shipped as the **day ribbon** (§4). When in conflict:
+> Swift code → this file → docs/DESIGN.md → mockups, in that order.
 
 ---
 
