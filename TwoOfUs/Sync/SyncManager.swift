@@ -290,8 +290,22 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         }
         let share = CKShare(recordZoneID: privateZoneID)
         share[CKShare.SystemFieldKey.title] = "Two of Us" as CKRecordValue
-        _ = try await db.modifyRecords(saving: [share], deleting: [])
-        return share
+        let results = try await db.modifyRecords(saving: [share], deleting: [])
+        // Return the SERVER's copy: only it carries the share URL that the share
+        // sheet's Messages bubble resolves (the local instance's `.url` stays
+        // nil, which left the invite spinning forever). `get()` also surfaces
+        // per-record failures that `modifyRecords` itself doesn't throw for, so
+        // a failed save shows as an error instead of hanging.
+        if let result = results.saveResults[share.recordID],
+           let saved = try result.get() as? CKShare {
+            return saved
+        }
+        // Save reported success without returning our record (or another device
+        // created the share concurrently) — fetch the canonical copy.
+        if let fetched = try? await db.record(for: shareID) as? CKShare {
+            return fetched
+        }
+        throw SyncError.iCloudUnavailable
     }
 
     /// Owner stops sharing: deletes the share (co-parent loses access).

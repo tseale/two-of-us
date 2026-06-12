@@ -16,7 +16,7 @@ enum OnboardingLayout {
 // MARK: - Tour
 
 /// The opening page — the whole story at one glance: a brand eyebrow (the only
-/// place onboarding names the app after the splash fades), what you log, where
+/// place onboarding names the app), what you log, where
 /// the app lives (widgets, Dynamic Island, Siri, Control Center), a sync +
 /// privacy teaser, and a quiet escape hatch for an invited co-parent who opened
 /// the app before their invite link — a fixed bento collage, not a scroll. The

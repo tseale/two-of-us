@@ -34,10 +34,10 @@ struct OnboardingView: View {
     /// Pages whose entrance has played. Grows only — back-swipes don't replay.
     @State private var revealed: Set<Page>
 
-    // MARK: Intro (splash hand-off)
+    // MARK: Intro
 
-    /// Once per process: the tour's entrance and the CTA bar hold until the
-    /// launch splash above has fully faded. Demo-exit rebuilds skip the wait.
+    /// Once per process: the tour's staggered entrance plays on first
+    /// appearance. Demo-exit rebuilds skip it (content shows settled).
     private static var hasPlayedIntro = false
 
     @State private var chromeRevealed: Bool
@@ -87,8 +87,8 @@ struct OnboardingView: View {
         #endif
 
         _page = State(initialValue: initialPage)
-        // On a cold launch the first page's entrance waits for the splash
-        // (`runIntro` reveals it); on rebuilds it's visible immediately.
+        // On a cold launch the first page's entrance plays via `runIntro`;
+        // on rebuilds it's visible immediately.
         _revealed = State(initialValue: played ? [initialPage] : [])
         _chromeRevealed = State(initialValue: played)
     }
@@ -136,7 +136,7 @@ struct OnboardingView: View {
         #if DEBUG
         .task {
             guard UserDefaults.standard.bool(forKey: "autoFinish") else { return }
-            try? await Task.sleep(for: .seconds(3.0))   // let the splash finish first
+            try? await Task.sleep(for: .seconds(1.0))   // let the intro settle first
             finish()
         }
         #endif
@@ -281,27 +281,14 @@ struct OnboardingView: View {
 
     // MARK: Intro
 
-    /// Times the tour's staggered entrance off the launch splash: it starts
-    /// midway through the splash's 0.35s fade-out, so the content rises as the
-    /// splash dissolves — one continuous motion, not fade-out-then-fade-in.
+    /// Plays the tour's staggered entrance once, on first appearance — one
+    /// short beat after launch so the build-in animates against a settled
+    /// first frame instead of racing the launch transition.
     @MainActor private func runIntro() async {
         guard !Self.hasPlayedIntro else { return }
         Self.hasPlayedIntro = true
 
-        let delay: TimeInterval
-        if let done = SplashView.completedAt {
-            let elapsed = Date().timeIntervalSince(done)
-            // The splash finished a while ago (e.g. exiting a demo that
-            // launched cold): no hand-off to wait for.
-            delay = elapsed > 1.0 ? 0 : max(0, 0.2 - elapsed)
-        } else {
-            // No splash timestamp yet (the usual cold launch — this task starts
-            // before the splash completes): wait out the splash's run, then the
-            // mid-fade beat.
-            delay = SplashView.runDuration(reduceMotion: reduceMotion) + 0.2
-        }
-        if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
-
+        try? await Task.sleep(for: .seconds(0.15))
         revealed.insert(.tour)
         withAnimation(.easeOut(duration: 0.45).delay(reduceMotion ? 0 : 0.15)) {
             chromeRevealed = true
