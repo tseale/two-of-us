@@ -5,6 +5,7 @@
 **Platforms**: iPhone + iPad · **Appearance**: light + dark, follows the iOS system setting.
 
 A clickable reference mockup lives at [`mockups/index.html`](../mockups/index.html).
+The portable design-language spec for Claude Design collaboration lives at [`DESIGN.md`](../DESIGN.md) (repo root).
 
 ---
 
