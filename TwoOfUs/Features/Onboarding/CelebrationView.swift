@@ -23,10 +23,10 @@ struct CelebrationData: Equatable {
     }
 }
 
-/// The closing bookend to the launch splash: an opaque full-screen moment hosted
-/// by `RootView` *above* the route swap, so onboarding → main never hard-cuts.
-/// The mark blooms, the baby light gives one heartbeat, the welcome line fades up,
-/// then the host fades the whole overlay away to reveal Home already settled.
+/// The setup finale: an opaque full-screen moment hosted by `RootView` *above*
+/// the route swap, so onboarding → main never hard-cuts. The mark blooms, the
+/// baby light gives one heartbeat, the welcome line fades up, then the host
+/// fades the whole overlay away to reveal Home already settled.
 struct CelebrationView: View {
     let data: CelebrationData
     /// Called when the moment has played; the host fades the overlay out.
@@ -98,7 +98,7 @@ struct CelebrationView: View {
             return
         }
 
-        // Mirror the splash: glow bloom, one calm heartbeat, text fades up.
+        // Glow bloom, one calm heartbeat, text fades up.
         withAnimation(.easeInOut(duration: 0.6)) { glowOpacity = 1 }
         withAnimation(.easeInOut(duration: 0.7).delay(0.15)) { babyScale = 1.07 }
         withAnimation(.easeInOut(duration: 0.5).delay(0.85)) { babyScale = 1.0 }
