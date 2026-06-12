@@ -296,10 +296,9 @@ struct OnboardingView: View {
             delay = elapsed > 1.0 ? 0 : max(0, 0.45 - elapsed)
         } else {
             // No splash timestamp yet (the usual cold launch — this task starts
-            // before the splash completes): wait out the splash's run so the
-            // entrance plays just as it fades. Mirrors SplashView's durations
-            // (~2.3s motion / ~0.9s reduce) plus the hand-off buffer.
-            delay = reduceMotion ? 1.4 : 2.75
+            // before the splash completes): wait out the splash's run plus the
+            // hand-off buffer so the entrance plays just as it fades.
+            delay = SplashView.runDuration(reduceMotion: reduceMotion) + 0.45
         }
         if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
 
