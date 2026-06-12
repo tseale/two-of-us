@@ -96,7 +96,7 @@ Reached by tapping any timeline row. Edit time, amount/type, notes. Save creates
 List of participants with name, colored initial, role. Actions: invite (share link), change role (Full ↔ Logger), revoke. Revoking marks `isActive = false` and removes from the `CKShare`; their past events stay. Owner cannot be removed.
 
 ### 8. Onboarding (first launch, owner)
-Deliberately small: welcome → a one-page tour (log tiles, widgets/Dynamic Island/Siri/Control Center collage, rhythm trend, sync teaser) → baby (name/DOB/photo) → you (name/color/photo) → invite your co-parent. Then straight to Home. Tuning is deferred:
+Deliberately small: a one-page tour that doubles as the welcome (log tiles, widgets/Dynamic Island/Siri/Control Center collage, sync teaser, plus the "Explore with sample data" demo entry) → baby (name/DOB/photo) → you (name/color/photo) → invite your co-parent. Then straight to Home. Tuning is deferred:
 - **"Getting set up" quests** — a dismissible checklist card on Home (feeding rhythm, feed reminders), each a self-contained 30-second sheet; sensible defaults apply until tuned. Dismissed or not, unfinished quests live on under Settings → "Finish setting up". The reminders quest is also offered once, just-in-time, right after a feed log (the calm moment for the AlarmKit permission ask).
 - **Spotlight** — "it learns your rhythm" plays once, contextually, after the first logged feed (when there's real data to show).
 

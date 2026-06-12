@@ -6,17 +6,18 @@ import SwiftUI
 /// brightens into place — left first, the right a dreamy beat later. As they
 /// converge the stage dawns from black into the onboarding's night-stage ambient,
 /// the baby's light is born at their union and breathes once, and the "Two of Us"
-/// wordmark fades up. Because the splash ends on the same
-/// `AmbientBackground(stop: .nightStage)` the welcome and join pages sit on, the
-/// host's crossfade dissolves between two identical backdrops. Honors Reduce
-/// Motion by skipping the motion and just fading in.
+/// wordmark fades up. The splash ends on the same
+/// `AmbientBackground(stop: .nightStage)` the join pages sit on, so that
+/// hand-off dissolves between two identical backdrops; owner onboarding
+/// crossfades from the night stage into the tour's tinted ambient. Honors
+/// Reduce Motion by skipping the motion and just fading in.
 struct SplashView: View {
     /// Called once the splash has finished; the host fades it away.
     var onComplete: () -> Void
 
-    /// When the splash finished (fade-out start), if it has. The onboarding
-    /// welcome page times its splash-pose settle off this, so exactly one mark
-    /// is ever on screen during the hand-off.
+    /// When the splash finished (fade-out start), if it has. Onboarding times
+    /// its opening entrance off this, so the tour builds in just as the splash
+    /// fades.
     static var completedAt: Date?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -39,7 +40,7 @@ struct SplashView: View {
         offset: CGSize(width: 44, height: 30), scale: 1.55, opacity: 0)
     @State private var babyCore: Double = 0
     /// Lifts the black cover off the night-stage ambient as the parents converge,
-    /// so the splash's backdrop becomes the welcome page's before the hand-off.
+    /// so the backdrop is fully lit before the hand-off.
     @State private var stageLit = false
 
     var body: some View {

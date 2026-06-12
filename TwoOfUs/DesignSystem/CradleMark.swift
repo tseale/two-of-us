@@ -7,8 +7,7 @@ import SwiftUI
 /// the in-app rendering is deliberately softer — feathered rims and pastel tints,
 /// glowing lights rather than the icon's crisp vector discs.
 ///
-/// Shared by the launch splash, the onboarding welcome page, the join flow, and
-/// the post-setup celebration. The `.screen` blend is isolated by the trailing
+/// Shared by the launch splash, the join flow, and the post-setup celebration. The `.screen` blend is isolated by the trailing
 /// `compositingGroup`, but the artwork is designed for a dark backdrop — always
 /// place the mark on a dark stage (splash stage, ink ambient, or stage halo).
 struct CradleMark: View {
