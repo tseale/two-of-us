@@ -1,13 +1,11 @@
 import SwiftUI
 
 /// The launch splash. It opens on solid black (matching the static launch screen)
-/// and the two parent circles *materialize* like lights coming into focus: each
-/// begins large, soft, and faint, then gently contracts, drifts inward, and
-/// brightens into place — left first, the right a dreamy beat later. As they
-/// converge the stage dawns from black into the onboarding's night-stage ambient,
-/// the baby's light is born at their union and breathes once, and the "Two of Us"
-/// wordmark fades up. The splash ends on the same
-/// `AmbientBackground(stop: .nightStage)` the join pages sit on, so that
+/// and the two parent circles materialize like lights coming into focus — each
+/// contracts, drifts inward, and brightens into place, left first — while the
+/// stage dawns from black into the night-stage ambient. The baby's light is born
+/// at their union and the "Two of Us" wordmark fades up. The splash ends on the
+/// same `AmbientBackground(stop: .nightStage)` the join pages sit on, so that
 /// hand-off dissolves between two identical backdrops; owner onboarding
 /// crossfades from the night stage into the tour's tinted ambient. Honors
 /// Reduce Motion by skipping the motion and just fading in.
@@ -20,9 +18,15 @@ struct SplashView: View {
     /// fades.
     static var completedAt: Date?
 
+    /// How long `run()` takes before calling `onComplete` — the single source
+    /// of truth for anyone (see `OnboardingView.runIntro`) that must wait out
+    /// a splash still in flight.
+    static func runDuration(reduceMotion: Bool) -> TimeInterval {
+        reduceMotion ? 0.7 : 1.1
+    }
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var babyScale: CGFloat = 1
     @State private var glowOpacity: Double = 0
     @State private var wordmarkOpacity: Double = 0
     @State private var wordmarkOffset: CGFloat = 6
@@ -54,7 +58,6 @@ struct SplashView: View {
                 .ignoresSafeArea()
 
             CradleMark(size: markSize,
-                       babyScale: babyScale,
                        glowOpacity: glowOpacity,
                        leftEntry: leftEntry,
                        rightEntry: rightEntry,
@@ -82,31 +85,24 @@ struct SplashView: View {
                 wordmarkOpacity = 1
                 wordmarkOffset = 0
             }
-            try? await Task.sleep(for: .seconds(0.9))
-            Self.completedAt = .now
-            onComplete()
-            return
+        } else {
+            // Two lights drift home — each contracts, brightens, and settles,
+            // the right trailing the left so it feels like a gathering — while
+            // the stage dawns out of black. As they overlap, the baby's light
+            // is born and the wordmark rises softly. Brisk timings, soft eases:
+            // the pace is snappy but nothing ever snaps.
+            withAnimation(.easeInOut(duration: 0.65)) { leftEntry = .identity }
+            withAnimation(.easeInOut(duration: 0.65).delay(0.15)) { rightEntry = .identity }
+            withAnimation(.easeInOut(duration: 0.7).delay(0.05)) { stageLit = true }
+            withAnimation(.easeInOut(duration: 0.5).delay(0.4)) { glowOpacity = 1 }
+            withAnimation(.easeOut(duration: 0.4).delay(0.5)) { babyCore = 1 }
+            withAnimation(.easeOut(duration: 0.45).delay(0.55)) {
+                wordmarkOpacity = 1
+                wordmarkOffset = 0
+            }
         }
 
-        // Two lights drift home: each parent contracts, brightens, and settles on
-        // a long, soft ease — the right trailing the left so it feels like a
-        // gathering, not a clap — while the stage slowly dawns out of black.
-        withAnimation(.easeInOut(duration: 1.3).delay(0.05)) { leftEntry = .identity }
-        withAnimation(.easeInOut(duration: 1.3).delay(0.35)) { rightEntry = .identity }
-        withAnimation(.easeInOut(duration: 1.5).delay(0.15)) { stageLit = true }
-
-        // As they overlap, the baby's light is born — glow blooms, core fades in —
-        // then a single slow breath, and the wordmark rises softly.
-        withAnimation(.easeInOut(duration: 0.9).delay(0.95)) { glowOpacity = 1 }
-        withAnimation(.easeOut(duration: 0.6).delay(1.05)) { babyCore = 1 }
-        withAnimation(.easeInOut(duration: 0.95).delay(1.15)) { babyScale = 1.06 }
-        withAnimation(.easeInOut(duration: 0.7).delay(2.0)) { babyScale = 1.0 }
-        withAnimation(.easeOut(duration: 0.7).delay(1.35)) {
-            wordmarkOpacity = 1
-            wordmarkOffset = 0
-        }
-
-        try? await Task.sleep(for: .seconds(2.3))
+        try? await Task.sleep(for: .seconds(Self.runDuration(reduceMotion: reduceMotion)))
         Self.completedAt = .now
         onComplete()
     }
