@@ -1,0 +1,93 @@
+// CloudKit schema for iCloud.com.taylorseale.twoofus — generated from
+// TwoOfUs/Sync/RecordMapping.swift (the authoritative field list).
+// Import via CloudKit Console → Import Schema, or:
+//   xcrun cktool import-schema --team-id Q58H65DQ64 \
+//     --container-id iCloud.com.taylorseale.twoofus \
+//     --environment development --file docs/cloudkit-schema.ckdb
+//
+// "___recordID" QUERYABLE lets the Console query records by type (sync itself
+// never queries — CKSyncEngine uses zone deltas). No other indexes on purpose.
+DEFINE SCHEMA
+
+    RECORD TYPE Baby (
+        "___recordID" REFERENCE QUERYABLE,
+        createdAt TIMESTAMP,
+        dateOfBirth TIMESTAMP,
+        name STRING,
+        photoData ASSET,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE DiaperEvent (
+        "___recordID" REFERENCE QUERYABLE,
+        babyID STRING,
+        deletedAt TIMESTAMP,
+        editOfID STRING,
+        loggedByColorHex STRING,
+        loggedByID STRING,
+        loggedByName STRING,
+        notes STRING,
+        timestamp TIMESTAMP,
+        typeRaw STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE FeedEvent (
+        "___recordID" REFERENCE QUERYABLE,
+        amountOz DOUBLE,
+        babyID STRING,
+        deletedAt TIMESTAMP,
+        editOfID STRING,
+        loggedByColorHex STRING,
+        loggedByID STRING,
+        loggedByName STRING,
+        notes STRING,
+        timestamp TIMESTAMP,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE Participant (
+        "___recordID" REFERENCE QUERYABLE,
+        cloudUserID STRING,
+        colorHex STRING,
+        displayName STRING,
+        invitedAt TIMESTAMP,
+        isActive INT64,
+        photoData ASSET,
+        roleRaw STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE SharedSettings (
+        "___recordID" REFERENCE QUERYABLE,
+        defaultFeedOz DOUBLE,
+        ozPresets LIST<DOUBLE>,
+        targetFeedIntervalMinutes INT64,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE SleepEvent (
+        "___recordID" REFERENCE QUERYABLE,
+        babyID STRING,
+        deletedAt TIMESTAMP,
+        editOfID STRING,
+        endedAt TIMESTAMP,
+        loggedByColorHex STRING,
+        loggedByID STRING,
+        loggedByName STRING,
+        notes STRING,
+        startedAt TIMESTAMP,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
