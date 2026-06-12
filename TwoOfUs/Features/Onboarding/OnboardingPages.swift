@@ -15,11 +15,13 @@ enum OnboardingLayout {
 
 // MARK: - Tour
 
-/// The opening page — the whole story at one glance: what you log, where the
-/// app lives (widgets, Dynamic Island, Siri, Control Center), and a sync teaser
-/// — a fixed bento collage, not a scroll. The rhythm/stats story isn't
-/// duplicated here; it plays later as the post-first-feed spotlight, with real
-/// data behind it.
+/// The opening page — the whole story at one glance: a brand eyebrow (the only
+/// place onboarding names the app after the splash fades), what you log, where
+/// the app lives (widgets, Dynamic Island, Siri, Control Center), a sync +
+/// privacy teaser, and a quiet escape hatch for an invited co-parent who opened
+/// the app before their invite link — a fixed bento collage, not a scroll. The
+/// rhythm/stats story isn't duplicated here; it plays later as the
+/// post-first-feed spotlight, with real data behind it.
 ///
 /// `ViewThatFits` keeps the no-scroll promise honest: the fixed layout wins
 /// whenever it fits (the pager centers it); very large Dynamic Type falls back
@@ -59,6 +61,7 @@ struct OnboardingTourPage: View {
     @ViewBuilder private var tourContent: some View {
         VStack(spacing: 20) {
             OnboardingStepHeader(
+                eyebrow: "Two of Us",
                 title: "Three things, a tap away",
                 subtitle: "Feeds, sleep, and diapers — logged one-handed."
             )
@@ -111,7 +114,7 @@ struct OnboardingTourPage: View {
             HStack(spacing: 10) {
                 Image(systemName: "icloud")
                     .foregroundStyle(AppColor.accentSleep)
-                Text("Logs sync to your co-parent's iPhone in seconds — more on that in a minute.")
+                Text("Logs sync to your co-parent's iPhone in seconds — through your own iCloud, no accounts or servers.")
                     .font(.footnote)
                     .foregroundStyle(AppColor.text2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -120,6 +123,17 @@ struct OnboardingTourPage: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .surfaceCard(cornerRadius: 14)
             .onboardingEntrance(revealed, index: 3)
+
+            // Escape hatch for the invited co-parent who installed from
+            // TestFlight and opened the app before tapping the invite link —
+            // walking through this setup instead would create a duplicate baby.
+            Text("Invited by your partner? Open the link they sent you instead — everything's already set up.")
+                .font(.caption)
+                .foregroundStyle(AppColor.text3)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 12)
+                .onboardingEntrance(revealed, index: 4)
         }
     }
 }
