@@ -7,14 +7,15 @@ import SwiftUI
 /// the in-app rendering is deliberately softer — feathered rims and pastel tints,
 /// glowing lights rather than the icon's crisp vector discs.
 ///
-/// Shared by the launch splash, the join flow, and the post-setup celebration. The `.screen` blend is isolated by the trailing
-/// `compositingGroup`, but the artwork is designed for a dark backdrop — always
-/// place the mark on a dark stage (splash stage, ink ambient, or stage halo).
+/// Shared by the join flow and the post-setup celebration. The `.screen` blend
+/// is isolated by the trailing `compositingGroup`, but the artwork is designed
+/// for a dark backdrop — always place the mark on a dark stage (ink ambient or
+/// stage halo).
 struct CradleMark: View {
     /// Per-parent entrance transform: a drift `offset` (added to the resting
     /// offset), a `scale` (1 = resting), and an `opacity` (1 = present).
-    /// `.identity` leaves the parent fully formed, so non-splash callers get the
-    /// settled mark; the splash animates these to materialize the circles.
+    /// `.identity` (the default) leaves the parent fully formed — animate these
+    /// to materialize the circles.
     struct ParentEntry: Equatable {
         var offset: CGSize = .zero
         var scale: CGFloat = 1

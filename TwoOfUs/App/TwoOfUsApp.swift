@@ -14,10 +14,6 @@ struct TwoOfUsApp: App {
     /// and rebuilds the whole tree in lockstep with the container swap — no view
     /// keeps a model object from the previous store.
     @State private var containerToken = UUID()
-    /// Drives the launch splash. True only at cold launch; set false once when the
-    /// splash finishes. Lives above the container `.id` rebuild below, so a demo-mode
-    /// container swap never replays it.
-    @State private var showSplash = true
 
     init() {
         #if DEBUG
@@ -63,25 +59,15 @@ struct TwoOfUsApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ZStack {
-                RootView()
-                    .modelContainer(activeContainer)
-                    // Teardown is keyed to the container instance, so the swap and the
-                    // tree rebuild always happen together. The transition pairs with
-                    // the `withAnimation` around token bumps in `configure()` so demo
-                    // enter/exit crossfades instead of hard-cutting.
-                    .id(containerToken)
-                    .transition(.opacity)
-                    .task(id: prefs.demoModeEnabled) { configure() }
-
-                // Hosted above the `.id` rebuild so it plays once per cold launch and
-                // survives demo-mode container swaps.
-                if showSplash {
-                    SplashView { withAnimation(.easeOut(duration: 0.35)) { showSplash = false } }
-                        .transition(.opacity)
-                        .zIndex(1)
-                }
-            }
+            RootView()
+                .modelContainer(activeContainer)
+                // Teardown is keyed to the container instance, so the swap and the
+                // tree rebuild always happen together. The transition pairs with
+                // the `withAnimation` around token bumps in `configure()` so demo
+                // enter/exit crossfades instead of hard-cutting.
+                .id(containerToken)
+                .transition(.opacity)
+                .task(id: prefs.demoModeEnabled) { configure() }
         }
     }
 
