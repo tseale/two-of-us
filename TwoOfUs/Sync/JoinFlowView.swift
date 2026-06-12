@@ -216,6 +216,9 @@ struct JoinFlowView: View {
         // Held in SyncManager's pending queue if the owner's shared zone hasn't
         // been discovered yet — it uploads the moment the zone is known.
         SyncManager.shared?.enqueueSave([me.id])
+        // Record which iCloud user this profile belongs to, so the owner can
+        // later remove exactly this person from the share (Settings → People).
+        SyncManager.shared?.captureCloudUserID(for: me.id)
     }
 }
 

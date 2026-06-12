@@ -128,12 +128,34 @@ targets:
         SWIFT_VERSION: "5.0"
         GENERATE_INFOPLIST_FILE: NO
 
+  # Unit tests, hosted in the app so they can exercise the real targets'
+  # internals (@testable). Pure store/sync-logic tests — no CloudKit server,
+  # no iCloud account needed; `make test` runs them on the simulator.
+  TwoOfUsTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: TwoOfUsTests
+    dependencies:
+      - target: TwoOfUs
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.taylorseale.twoofus.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"
+
 schemes:
   TwoOfUs:
     build:
       targets:
         TwoOfUs: all
+        TwoOfUsTests: [test]
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - TwoOfUsTests
     archive:
       config: Release
