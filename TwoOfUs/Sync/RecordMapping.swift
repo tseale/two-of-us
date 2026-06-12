@@ -8,6 +8,13 @@ import CloudKit
 /// the share participant, whose zone IDs differ). Relationships are stored as
 /// UUID strings and resolved locally — no `CKReference`, so there's no
 /// cross-zone ordering/integrity problem.
+///
+/// Every synced model carries `ckSystemFields` — the archived system fields of
+/// the record's last known server copy. Outbound records MUST be rebuilt on top
+/// of that archive: CloudKit saves with if-server-record-unchanged semantics, so
+/// an update sent without the server's change tag is rejected as a conflict
+/// (`serverRecordChanged`) every single time. Creates are the only saves that
+/// succeed from a fresh `CKRecord`.
 enum RecordMapping {
 
     // MARK: Outbound (local model → CKRecord)
@@ -17,8 +24,8 @@ enum RecordMapping {
     static func record(forRecordName name: String, recordID: CKRecord.ID, in context: ModelContext) -> CKRecord? {
         guard let uuid = UUID(uuidString: name) else { return nil }
 
-        if let m = fetchOne(FeedEvent.self, id: uuid, in: context) {
-            let r = CKRecord(recordType: SyncConstants.RecordType.feed, recordID: recordID)
+        if let m = FeedEvent.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.feed, recordID: recordID, archived: m.ckSystemFields)
             r["amountOz"] = m.amountOz
             r["timestamp"] = m.timestamp
             r["notes"] = m.notes
@@ -26,8 +33,8 @@ enum RecordMapping {
                       deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
             return r
         }
-        if let m = fetchOne(SleepEvent.self, id: uuid, in: context) {
-            let r = CKRecord(recordType: SyncConstants.RecordType.sleep, recordID: recordID)
+        if let m = SleepEvent.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.sleep, recordID: recordID, archived: m.ckSystemFields)
             r["startedAt"] = m.startedAt
             r["endedAt"] = m.endedAt
             r["notes"] = m.notes
@@ -35,8 +42,8 @@ enum RecordMapping {
                       deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
             return r
         }
-        if let m = fetchOne(DiaperEvent.self, id: uuid, in: context) {
-            let r = CKRecord(recordType: SyncConstants.RecordType.diaper, recordID: recordID)
+        if let m = DiaperEvent.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.diaper, recordID: recordID, archived: m.ckSystemFields)
             r["typeRaw"] = m.typeRaw
             r["timestamp"] = m.timestamp
             r["notes"] = m.notes
@@ -44,16 +51,16 @@ enum RecordMapping {
                       deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
             return r
         }
-        if let m = fetchOne(Baby.self, id: uuid, in: context) {
-            let r = CKRecord(recordType: SyncConstants.RecordType.baby, recordID: recordID)
+        if let m = Baby.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.baby, recordID: recordID, archived: m.ckSystemFields)
             r["name"] = m.name
             r["dateOfBirth"] = m.dateOfBirth
             r["createdAt"] = m.createdAt
             r["photoData"] = asset(from: m.photoData)
             return r
         }
-        if let m = fetchOne(Participant.self, id: uuid, in: context) {
-            let r = CKRecord(recordType: SyncConstants.RecordType.participant, recordID: recordID)
+        if let m = Participant.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.participant, recordID: recordID, archived: m.ckSystemFields)
             r["displayName"] = m.displayName
             r["colorHex"] = m.colorHex
             r["roleRaw"] = m.roleRaw
@@ -63,8 +70,8 @@ enum RecordMapping {
             r["photoData"] = asset(from: m.photoData)
             return r
         }
-        if let m = fetchOne(SharedSettings.self, id: uuid, in: context) {
-            let r = CKRecord(recordType: SyncConstants.RecordType.settings, recordID: recordID)
+        if let m = SharedSettings.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.settings, recordID: recordID, archived: m.ckSystemFields)
             r["targetFeedIntervalMinutes"] = m.targetFeedIntervalMinutes
             r["ozPresets"] = m.ozPresets
             r["defaultFeedOz"] = m.defaultFeedOz
@@ -81,6 +88,93 @@ enum RecordMapping {
         r["deletedAt"] = deletedAt
         r["editOfID"] = editOfID?.uuidString
         r["babyID"] = babyID?.uuidString
+    }
+
+    // MARK: System fields (the server change tag)
+
+    /// The base record to populate for an outbound save: the archived last-known
+    /// server copy when it matches the requested identity, else a fresh record.
+    /// The identity check matters after role transitions — e.g. a participant who
+    /// left a share and now syncs the same models into their OWN private zone must
+    /// not upload records stamped with the old owner's zone.
+    static func baseRecord(type: String, recordID: CKRecord.ID, archived: Data?) -> CKRecord {
+        if let archived, let decoded = decodeSystemFieldsRecord(archived),
+           decoded.recordID == recordID, decoded.recordType == type {
+            return decoded
+        }
+        return CKRecord(recordType: type, recordID: recordID)
+    }
+
+    static func archivedSystemFields(of record: CKRecord) -> Data {
+        let archiver = NSKeyedArchiver(requiringSecureCoding: true)
+        record.encodeSystemFields(with: archiver)
+        archiver.finishEncoding()
+        return archiver.encodedData
+    }
+
+    static func decodeSystemFieldsRecord(_ data: Data) -> CKRecord? {
+        guard let unarchiver = try? NSKeyedUnarchiver(forReadingFrom: data) else { return nil }
+        unarchiver.requiresSecureCoding = true
+        return CKRecord(coder: unarchiver)
+    }
+
+    /// Stores `record`'s system fields onto its local model so the next outbound
+    /// save carries the server's current change tag. Guarded "if newer": an
+    /// out-of-order older server copy must not clobber a fresher cached tag.
+    static func persistSystemFields(of record: CKRecord, in context: ModelContext) {
+        guard let uuid = UUID(uuidString: record.recordID.recordName),
+              let model = model(ofType: record.recordType, id: uuid, in: context) else { return }
+        if let existing = model.ckSystemFields,
+           let cachedDate = decodeSystemFieldsRecord(existing)?.modificationDate,
+           let newDate = record.modificationDate,
+           cachedDate > newDate {
+            return
+        }
+        model.ckSystemFields = archivedSystemFields(of: record)
+    }
+
+    /// Drops the cached change tag for one record (server no longer knows it —
+    /// the next save must go out as a fresh create).
+    static func clearSystemFields(forRecordName name: String, in context: ModelContext) {
+        guard let uuid = UUID(uuidString: name) else { return }
+        anyModel(id: uuid, in: context)?.ckSystemFields = nil
+    }
+
+    /// Drops every cached change tag (the zone was deleted/recreated server-side,
+    /// so all cached tags are stale and everything re-uploads as creates).
+    static func clearAllSystemFields(in context: ModelContext) {
+        func clear<T: PersistentModel & HasSyncID>(_ type: T.Type) {
+            for m in (try? context.fetch(FetchDescriptor<T>())) ?? [] { m.ckSystemFields = nil }
+        }
+        clear(FeedEvent.self); clear(SleepEvent.self); clear(DiaperEvent.self)
+        clear(Baby.self); clear(Participant.self); clear(SharedSettings.self)
+    }
+
+    // MARK: Conflict resolution
+
+    /// Merge policy when our save lost a race with the server: adopt the server's
+    /// change tag (so the re-save succeeds), keep the local model's content (it's
+    /// about to be re-uploaded) — EXCEPT terminal fields the other parent may have
+    /// set concurrently: a soft-delete or a sleep-stop must never be resurrected
+    /// by the race loser re-saving. Returns false when no local model exists
+    /// anymore (caller should fall back to applying the server copy).
+    @discardableResult
+    static func absorbConflict(server: CKRecord, in context: ModelContext) -> Bool {
+        guard let uuid = UUID(uuidString: server.recordID.recordName),
+              let model = model(ofType: server.recordType, id: uuid, in: context) else {
+            apply(server, in: context)
+            return false
+        }
+        if let event = model as? AnyEventModel, event.deletedAt == nil,
+           let serverDeleted = server["deletedAt"] as? Date {
+            event.deletedAt = serverDeleted
+        }
+        if let sleep = model as? SleepEvent, sleep.endedAt == nil,
+           let serverEnded = server["endedAt"] as? Date {
+            sleep.endedAt = serverEnded
+        }
+        model.ckSystemFields = archivedSystemFields(of: server)
+        return true
     }
 
     // MARK: Inbound (CKRecord → local model, upsert by id)
@@ -102,18 +196,31 @@ enum RecordMapping {
     /// deletions; routine removals travel as `deletedAt` updates).
     static func delete(recordName: String, in context: ModelContext) {
         guard let uuid = UUID(uuidString: recordName) else { return }
-        if let m = fetchOne(FeedEvent.self, id: uuid, in: context) { context.delete(m); return }
-        if let m = fetchOne(SleepEvent.self, id: uuid, in: context) { context.delete(m); return }
-        if let m = fetchOne(DiaperEvent.self, id: uuid, in: context) { context.delete(m); return }
-        if let m = fetchOne(Participant.self, id: uuid, in: context) { context.delete(m); return }
-        if let m = fetchOne(Baby.self, id: uuid, in: context) { context.delete(m); return }
-        if let m = fetchOne(SharedSettings.self, id: uuid, in: context) { context.delete(m); return }
+        if let m = FeedEvent.fetchByID(uuid, in: context) { context.delete(m); return }
+        if let m = SleepEvent.fetchByID(uuid, in: context) { context.delete(m); return }
+        if let m = DiaperEvent.fetchByID(uuid, in: context) { context.delete(m); return }
+        if let m = Participant.fetchByID(uuid, in: context) { context.delete(m); return }
+        if let m = Baby.fetchByID(uuid, in: context) { context.delete(m); return }
+        if let m = SharedSettings.fetchByID(uuid, in: context) { context.delete(m); return }
+    }
+
+    /// Attaches the baby to any events that synced in before the Baby record
+    /// landed locally (fetch batches carry no ordering guarantee, and `apply`
+    /// resolves the relationship only at apply time). Single-baby by design.
+    static func relinkOrphanEvents(in context: ModelContext) {
+        guard let baby = (try? context.fetch(FetchDescriptor<Baby>()))?.first else { return }
+        for e in (try? context.fetch(FetchDescriptor<FeedEvent>(
+            predicate: #Predicate { $0.baby == nil }))) ?? [] { e.baby = baby }
+        for e in (try? context.fetch(FetchDescriptor<SleepEvent>(
+            predicate: #Predicate { $0.baby == nil }))) ?? [] { e.baby = baby }
+        for e in (try? context.fetch(FetchDescriptor<DiaperEvent>(
+            predicate: #Predicate { $0.baby == nil }))) ?? [] { e.baby = baby }
     }
 
     // MARK: Inbound per-type
 
     private static func applyFeed(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
-        let m = fetchOne(FeedEvent.self, id: uuid, in: context)
+        let m = FeedEvent.fetchByID(uuid, in: context)
             ?? insert(FeedEvent(baby: nil, amountOz: 0, timestamp: .now,
                                 loggedByID: UUID(), loggedByName: "", loggedByColorHex: ""), id: uuid, in: context)
         m.amountOz = r["amountOz"] as? Double ?? m.amountOz
@@ -123,7 +230,7 @@ enum RecordMapping {
     }
 
     private static func applySleep(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
-        let m = fetchOne(SleepEvent.self, id: uuid, in: context)
+        let m = SleepEvent.fetchByID(uuid, in: context)
             ?? insert(SleepEvent(baby: nil, startedAt: .now,
                                  loggedByID: UUID(), loggedByName: "", loggedByColorHex: ""), id: uuid, in: context)
         m.startedAt = r["startedAt"] as? Date ?? m.startedAt
@@ -133,7 +240,7 @@ enum RecordMapping {
     }
 
     private static func applyDiaper(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
-        let m = fetchOne(DiaperEvent.self, id: uuid, in: context)
+        let m = DiaperEvent.fetchByID(uuid, in: context)
             ?? insert(DiaperEvent(baby: nil, type: .wet, timestamp: .now,
                                   loggedByID: UUID(), loggedByName: "", loggedByColorHex: ""), id: uuid, in: context)
         m.typeRaw = r["typeRaw"] as? String ?? m.typeRaw
@@ -143,7 +250,7 @@ enum RecordMapping {
     }
 
     private static func applyBaby(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
-        let m = fetchOne(Baby.self, id: uuid, in: context)
+        let m = Baby.fetchByID(uuid, in: context)
             ?? insert(Baby(name: "", dateOfBirth: .now), id: uuid, in: context)
         m.name = r["name"] as? String ?? m.name
         m.dateOfBirth = r["dateOfBirth"] as? Date ?? m.dateOfBirth
@@ -152,7 +259,7 @@ enum RecordMapping {
     }
 
     private static func applyParticipant(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
-        let m = fetchOne(Participant.self, id: uuid, in: context)
+        let m = Participant.fetchByID(uuid, in: context)
             ?? insert(Participant(displayName: "", colorHex: ""), id: uuid, in: context)
         m.displayName = r["displayName"] as? String ?? m.displayName
         m.colorHex = r["colorHex"] as? String ?? m.colorHex
@@ -164,7 +271,7 @@ enum RecordMapping {
     }
 
     private static func applySettings(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
-        let m = fetchOne(SharedSettings.self, id: uuid, in: context)
+        let m = SharedSettings.fetchByID(uuid, in: context)
             ?? insert(SharedSettings(), id: uuid, in: context)
         m.targetFeedIntervalMinutes = r["targetFeedIntervalMinutes"] as? Int ?? m.targetFeedIntervalMinutes
         m.ozPresets = r["ozPresets"] as? [Double] ?? m.ozPresets
@@ -179,7 +286,7 @@ enum RecordMapping {
         m.deletedAt = r["deletedAt"] as? Date
         if let s = r["editOfID"] as? String { m.editOfID = UUID(uuidString: s) } else { m.editOfID = nil }
         if let s = r["babyID"] as? String, let bid = UUID(uuidString: s) {
-            m.babyRef = fetchOne(Baby.self, id: bid, in: context)
+            m.babyRef = Baby.fetchByID(bid, in: context)
         }
     }
 
@@ -202,11 +309,28 @@ enum RecordMapping {
         return try? Data(contentsOf: url)
     }
 
-    private static func fetchOne<T: PersistentModel & HasSyncID>(_ type: T.Type, id: UUID, in context: ModelContext) -> T? {
-        // In-memory filter avoids #Predicate key-path issues on the shared `id`
-        // and is cheap at this app's scale (only runs while applying sync changes).
-        let all = (try? context.fetch(FetchDescriptor<T>())) ?? []
-        return all.first { $0.id == id }
+    /// Resolves the local model for a CKRecord type + id (the type avoids probing
+    /// every table when the record tells us where to look).
+    private static func model(ofType recordType: String, id: UUID, in context: ModelContext) -> (any HasSyncID)? {
+        switch recordType {
+        case SyncConstants.RecordType.feed:        FeedEvent.fetchByID(id, in: context)
+        case SyncConstants.RecordType.sleep:       SleepEvent.fetchByID(id, in: context)
+        case SyncConstants.RecordType.diaper:      DiaperEvent.fetchByID(id, in: context)
+        case SyncConstants.RecordType.baby:        Baby.fetchByID(id, in: context)
+        case SyncConstants.RecordType.participant: Participant.fetchByID(id, in: context)
+        case SyncConstants.RecordType.settings:    SharedSettings.fetchByID(id, in: context)
+        default: nil
+        }
+    }
+
+    /// Probes every model type for an id (used when only the id is known).
+    private static func anyModel(id: UUID, in context: ModelContext) -> (any HasSyncID)? {
+        FeedEvent.fetchByID(id, in: context)
+            ?? SleepEvent.fetchByID(id, in: context)
+            ?? DiaperEvent.fetchByID(id, in: context)
+            ?? Participant.fetchByID(id, in: context) as (any HasSyncID)?
+            ?? Baby.fetchByID(id, in: context)
+            ?? SharedSettings.fetchByID(id, in: context)
     }
 
     @discardableResult
@@ -217,14 +341,58 @@ enum RecordMapping {
     }
 }
 
-/// Lets RecordMapping set the id on a freshly-inserted synced model.
-protocol HasSyncID: AnyObject { var id: UUID { get set } }
-extension Baby: HasSyncID {}
-extension FeedEvent: HasSyncID {}
-extension SleepEvent: HasSyncID {}
-extension DiaperEvent: HasSyncID {}
-extension Participant: HasSyncID {}
-extension SharedSettings: HasSyncID {}
+/// Lets RecordMapping set the id and cached server system fields on synced models.
+protocol HasSyncID: AnyObject {
+    var id: UUID { get set }
+    var ckSystemFields: Data? { get set }
+    static func fetchByID(_ id: UUID, in context: ModelContext) -> Self?
+}
+
+// Each conformance hand-rolls the predicate fetch: #Predicate needs the concrete
+// type (a protocol-generic key path won't compile), and an indexed fetchLimit-1
+// lookup replaces the old load-the-whole-table scan.
+extension Baby: HasSyncID {
+    static func fetchByID(_ id: UUID, in context: ModelContext) -> Baby? {
+        var d = FetchDescriptor<Baby>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try? context.fetch(d).first
+    }
+}
+extension FeedEvent: HasSyncID {
+    static func fetchByID(_ id: UUID, in context: ModelContext) -> FeedEvent? {
+        var d = FetchDescriptor<FeedEvent>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try? context.fetch(d).first
+    }
+}
+extension SleepEvent: HasSyncID {
+    static func fetchByID(_ id: UUID, in context: ModelContext) -> SleepEvent? {
+        var d = FetchDescriptor<SleepEvent>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try? context.fetch(d).first
+    }
+}
+extension DiaperEvent: HasSyncID {
+    static func fetchByID(_ id: UUID, in context: ModelContext) -> DiaperEvent? {
+        var d = FetchDescriptor<DiaperEvent>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try? context.fetch(d).first
+    }
+}
+extension Participant: HasSyncID {
+    static func fetchByID(_ id: UUID, in context: ModelContext) -> Participant? {
+        var d = FetchDescriptor<Participant>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try? context.fetch(d).first
+    }
+}
+extension SharedSettings: HasSyncID {
+    static func fetchByID(_ id: UUID, in context: ModelContext) -> SharedSettings? {
+        var d = FetchDescriptor<SharedSettings>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try? context.fetch(d).first
+    }
+}
 
 /// Common event surface so `applyCommon` can write to any event type.
 protocol AnyEventModel: AnyObject {

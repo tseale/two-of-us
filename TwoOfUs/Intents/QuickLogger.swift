@@ -38,9 +38,16 @@ struct QuickLogger {
     private var settings: SharedSettings? { try? context.fetch(FetchDescriptor<SharedSettings>()).first }
 
     /// The local user ("me"), resolved via the App Group-shared participant id so
-    /// the extension stamps the same identity the app does. Falls back to first.
+    /// the extension stamps the same identity the app does. While demo mode is
+    /// active the shared id is overridden with a demo-store id that matches
+    /// nothing here — the real identity lives in the demo backup. Falls back to
+    /// the first participant.
     private var owner: Participant? {
-        if let s = AppGroup.userDefaults?.string(forKey: "sync.myParticipantID"), let myID = UUID(uuidString: s) {
+        let group = AppGroup.userDefaults
+        let storedID = group?.bool(forKey: "demo.overrideActive") == true
+            ? group?.string(forKey: "demo.bak.participantID")
+            : group?.string(forKey: "sync.myParticipantID")
+        if let s = storedID, let myID = UUID(uuidString: s) {
             var d = FetchDescriptor<Participant>(predicate: #Predicate { $0.id == myID })
             d.fetchLimit = 1
             if let me = try? context.fetch(d).first { return me }

@@ -14,6 +14,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         application.registerForRemoteNotifications()
+        // Sync must exist from the very first moment of ANY launch — including
+        // a background relaunch for a silent push, where no SwiftUI scene ever
+        // connects and `TwoOfUsApp.configure()` never runs.
+        MainActor.assumeIsolated {
+            SyncManager.bootstrap(container: AppModelContainer.shared)
+        }
         return true
     }
 
@@ -22,15 +28,25 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
-        SyncManager.shared?.handleRemoteNotification()
-        // Reload after a brief moment so a just-imported change is reflected.
-        WidgetCenter.shared.reloadAllTimelines()
-        completionHandler(.newData)
+        // Complete only after the engines actually fetched, so iOS keeps the
+        // process alive long enough for the changes to land — and the widgets
+        // reload with the co-parent's data actually in the store. Reporting
+        // .noData when nothing could run keeps iOS's push budget honest.
+        Task { @MainActor in
+            let fetched = await SyncManager.shared?.handleRemoteNotification() ?? false
+            WidgetCenter.shared.reloadAllTimelines()
+            completionHandler(fetched ? .newData : .noData)
+        }
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
         WidgetCenter.shared.reloadAllTimelines()
         MainActor.assumeIsolated {
+            // Silent pushes are heavily throttled/coalesced by iOS — a manual
+            // fetch on every foreground keeps "within ~10 seconds" honest. Also
+            // restarts engines if iCloud was signed into while we were inactive.
+            SyncManager.shared?.start()
+            Task { await SyncManager.shared?.handleRemoteNotification() }
             SyncManager.shared?.drainExtensionQueue()
         }
         guard let logger = QuickLogger.make() else { return }

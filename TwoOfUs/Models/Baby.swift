@@ -16,6 +16,12 @@ final class Baby {
     /// which does not support external-storage attributes.
     var photoData: Data?
 
+    /// Archived CKRecord system fields from the last server save/fetch of this
+    /// record (`encodeSystemFields`). Local-only — never uploaded. CloudKit
+    /// rejects updates that don't carry the server's change tag, so outbound
+    /// records must be rebuilt on top of this archive (see `RecordMapping`).
+    var ckSystemFields: Data?
+
     // Inverse relationships — required for CloudKit (NSPersistentCloudKitContainer
     // mandates that every relationship has an inverse). Optional arrays to satisfy
     // CloudKit's all-optional rule.

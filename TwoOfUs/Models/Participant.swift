@@ -16,6 +16,7 @@ final class Participant {
     /// Optional avatar (downscaled JPEG, synced as a CKAsset; stored inline for
     /// CloudKit-mirroring compatibility). See `ImageDownscale`.
     var photoData: Data?
+    var ckSystemFields: Data?           // archived CKRecord system fields (see Baby.ckSystemFields)
 
     var role: ParticipantRole {
         get { ParticipantRole(rawValue: roleRaw) ?? .full }

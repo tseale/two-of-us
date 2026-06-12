@@ -139,6 +139,12 @@ enum DemoSession {
             defaults.set(prefs.syncRole.rawValue, forKey: Key.bakRole)
             defaults.set(prefs.myParticipantID?.uuidString, forKey: Key.bakParticipant)
             defaults.set(true, forKey: Key.active)
+            // Mirror to the App Group: the widget/Siri extension reads the
+            // (now overridden) shared participant id against the REAL store, so
+            // during demo it must resolve identity from this backup instead —
+            // otherwise widget logs get stamped with an arbitrary participant.
+            AppGroup.userDefaults?.set(prefs.myParticipantID?.uuidString, forKey: Key.bakParticipant)
+            AppGroup.userDefaults?.set(true, forKey: Key.active)
         }
         prefs.syncRole = .owner
         prefs.myParticipantID = DemoData.ownerID
@@ -153,5 +159,36 @@ enum DemoSession {
         defaults.removeObject(forKey: Key.active)
         defaults.removeObject(forKey: Key.bakRole)
         defaults.removeObject(forKey: Key.bakParticipant)
+        AppGroup.userDefaults?.removeObject(forKey: Key.active)
+        AppGroup.userDefaults?.removeObject(forKey: Key.bakParticipant)
+    }
+
+    /// The device's REAL sync role while the demo override is active (demo
+    /// forces `LocalPrefs.syncRole` to `.owner` so the People controls render).
+    /// nil when demo isn't overriding anything. The sync layer must route by
+    /// this, never by the overridden value — a participant's writes would
+    /// otherwise land in the wrong engine's queue during demo.
+    @MainActor
+    static var realSyncRole: SyncRole? {
+        guard defaults.bool(forKey: Key.active) else { return nil }
+        return SyncRole(rawValue: defaults.string(forKey: Key.bakRole) ?? "") ?? .solo
+    }
+
+    /// Records a REAL role change that happens while the demo override is active
+    /// (e.g. a share invite accepted mid-demo), so `deactivate()` restores the
+    /// new truth instead of the stale pre-demo backup — which used to clobber
+    /// the accept and strand the joiner on owner onboarding. No-op outside demo.
+    @MainActor
+    static func noteRealRole(_ role: SyncRole) {
+        guard defaults.bool(forKey: Key.active) else { return }
+        defaults.set(role.rawValue, forKey: Key.bakRole)
+    }
+
+    /// Same as `noteRealRole`, for the real participant identity.
+    @MainActor
+    static func noteRealParticipantID(_ id: UUID?) {
+        guard defaults.bool(forKey: Key.active) else { return }
+        defaults.set(id?.uuidString, forKey: Key.bakParticipant)
+        AppGroup.userDefaults?.set(id?.uuidString, forKey: Key.bakParticipant)
     }
 }

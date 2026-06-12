@@ -14,6 +14,7 @@ final class DiaperEvent {
     var loggedByColorHex: String = ""
     var deletedAt: Date?
     var editOfID: UUID?
+    var ckSystemFields: Data?           // archived CKRecord system fields (see Baby.ckSystemFields)
 
     /// Stored as a raw string for CloudKit friendliness; accessed as the enum.
     var type: DiaperType {
