@@ -17,6 +17,7 @@ struct RootView: View {
     @Query private var babies: [Baby]
     @State private var prefs = LocalPrefs.shared
     @State private var celebration: CelebrationData?
+    @State private var shareAcceptance = ShareAcceptance.shared
 
     private var needsJoinProfile: Bool {
         prefs.syncRole == .participant && prefs.myParticipantID == nil
@@ -66,6 +67,18 @@ struct RootView: View {
                     .zIndex(2)
             }
         }
+        // A failed share accept otherwise strands the joining parent on owner
+        // onboarding with no clue the link did anything at all.
+        .alert("Couldn't accept the invite", isPresented: acceptFailed) {
+            Button("Try Again") { shareAcceptance.retry() }
+            Button("Not Now", role: .cancel) {}
+        } message: {
+            Text("Check that this iPhone is online and signed into iCloud, then try again — or tap the invite link once more.")
+        }
+    }
+
+    private var acceptFailed: Binding<Bool> {
+        Binding(get: { shareAcceptance.failed }, set: { shareAcceptance.failed = $0 })
     }
 
     /// Handed to the setup flows; they call it right before committing data.

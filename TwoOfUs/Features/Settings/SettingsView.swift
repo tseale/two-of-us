@@ -203,7 +203,7 @@ struct SettingsView: View {
     // MARK: People (co-parent sharing)
 
     @ViewBuilder private var coParentSection: some View {
-        Section("People") {
+        Section {
             ForEach(participants.filter { $0.isActive }) { p in
                 participantRow(p)
             }
@@ -231,6 +231,12 @@ struct SettingsView: View {
                         Task { await SyncManager.shared?.stopSharing() }
                     }
                 }
+            }
+        } header: {
+            Text("People")
+        } footer: {
+            if prefs.syncRole != .participant {
+                Text("Inviting someone? Have them install Two of Us first — the invite link only works once the app is on their iPhone.")
             }
         }
     }

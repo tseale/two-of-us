@@ -100,7 +100,7 @@ Deliberately small: a one-page tour that doubles as the welcome (log tiles, widg
 - **"Getting set up" quests** — a dismissible checklist card on Home (feeding rhythm, feed reminders), each a self-contained 30-second sheet; sensible defaults apply until tuned. Dismissed or not, unfinished quests live on under Settings → "Finish setting up". The reminders quest is also offered once, just-in-time, right after a feed log (the calm moment for the AlarmKit permission ask).
 - **Spotlight** — "it learns your rhythm" plays once, contextually, after the first logged feed (when there's real data to show).
 
-Second/third person joins by accepting an invite link — hello → name/color, then Home (their quest list is reminders only).
+Second/third person joins by accepting an invite link — hello → name/color, then Home (their quest list is reminders only). The first joiner is assumed to be the co-parent and gets Full access; later joiners start as Loggers (the owner changes roles in Settings → People).
 
 ### 9. iCloud gate
 If not signed into iCloud: a full-screen explainer ("Sign into iCloud to sync with your partner") with a button to Settings. The app still logs locally; data back-fills to CloudKit once signed in.
