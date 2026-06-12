@@ -11,12 +11,10 @@
 > `c05d891` (June 12, 2026). If this file and the Swift code disagree, the Swift code wins —
 > update this file to match (see §10, Agent Guide).
 >
-> **Stale artifacts — do not design from these.** `mockups/index.html` predates the current
-> Home design (it shows a separate status-pill row, an on-Home insight strip, a Feed+Sleep
-> tile pair, and no day ribbon — all since redesigned) and is dark-only. The screen spec in
-> [`docs/DESIGN.md`](docs/DESIGN.md) is mostly current but its Home section describes a
-> "day arc" dome (`DayArcView`) that shipped as the **day ribbon** (§4). When in conflict:
-> Swift code → this file → docs/DESIGN.md → mockups, in that order.
+> **Companion docs.** [`docs/DESIGN.md`](docs/DESIGN.md) covers iOS screen flows and behavior
+> (states, onboarding, roles, accessibility); this file owns the visual language. The PNGs in
+> `mockups/` are early concepts kept for history — don't design from them. Precedence when in
+> conflict: Swift code → this file → docs/DESIGN.md.
 
 ---
 
