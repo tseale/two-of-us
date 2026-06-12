@@ -28,8 +28,18 @@ final class ShareAcceptance {
             do {
                 try await SyncConstants.container.accept(metadata)
                 pending = nil
-                // Flips this device to the participant role and starts pulling
-                // the owner's shared zone — RootView routes to the join flow.
+                // Flip device state directly, NOT only via `SyncManager.shared`:
+                // the manager doesn't exist yet on a cold-launch link tap, and
+                // never exists while demo mode is on (`configure()` skips it) —
+                // optional-chaining alone silently dropped the accept and
+                // stranded the joiner on owner onboarding.
+                SyncManager.markShareAccepted()
+                // Leave demo: the join flow must run against the real store, and
+                // exiting demo makes `configure()` build and start the manager,
+                // which picks the shared engine up from the role set above.
+                LocalPrefs.shared.demoModeEnabled = false
+                // Started immediately when the manager already exists —
+                // RootView routes to the join flow either way.
                 SyncManager.shared?.didAcceptShare()
             } catch {
                 print("Failed to accept CloudKit share: \(error)")
