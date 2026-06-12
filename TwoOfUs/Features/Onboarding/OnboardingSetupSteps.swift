@@ -363,12 +363,21 @@ struct InviteStep: View {
                 )
                 .onboardingEntrance(revealed, index: 2)
 
+                // The app is TestFlight-only, so the link has no App Store page
+                // to fall back to — install order is forced, and nothing else
+                // in the flow says so.
+                InlineNoticeCard(
+                    icon: "arrow.down.app",
+                    message: "Have your partner install Two of Us first — the invite link only works once the app is on their iPhone."
+                )
+                .onboardingEntrance(revealed, index: 3)
+
                 if cloudAvailable == false {
                     InlineNoticeCard(
                         icon: "icloud.slash",
                         message: "iCloud is off on this iPhone — you can invite your partner later from Settings → People."
                     )
-                    .onboardingEntrance(revealed, index: 3)
+                    .onboardingEntrance(revealed, index: 4)
                 } else if shareFailed {
                     InlineNoticeCard(
                         icon: "wifi.exclamationmark",

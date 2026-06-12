@@ -201,9 +201,14 @@ struct JoinFlowView: View {
         LocalPrefs.shared.feedReminderEnabled = false
         SetupProgress.shared.markNewFlowComplete()
         onFinished(.joiner(babyName: baby?.name ?? ""))
-        // New joiners start as guests (least privilege); the owner can promote
-        // them to co-parent from Settings → People.
-        let me = Participant(displayName: trimmedName, colorHex: colorHex, role: .logger)
+        // The first joiner is the co-parent — full access from the start
+        // (promoting your partner by hand is a step nobody remembers; counts
+        // ≤ 1 because the owner may not have synced down yet). Later joiners
+        // (grandparents, sitters) start as guests; roles change in
+        // Settings → People.
+        let isCoParent = participants.filter { $0.role == .full }.count <= 1
+        let me = Participant(displayName: trimmedName, colorHex: colorHex,
+                             role: isCoParent ? .full : .logger)
         me.photoData = photoData
         context.insert(me)
         try? context.save()

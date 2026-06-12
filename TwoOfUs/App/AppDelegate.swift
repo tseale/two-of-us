@@ -46,18 +46,24 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         Task { await FeedAlarmManager.reschedule(babyName: babyName, lastFeed: lastFeed, interval: interval) }
     }
 
-    /// The joining parent tapped the share invite — accept it and start syncing
-    /// the owner's shared zone.
+    /// Scene-based apps (every SwiftUI-lifecycle app) receive CloudKit share
+    /// acceptance on the *scene* delegate, not the app delegate — without
+    /// vending our own delegate class here, the joining parent's link tap would
+    /// be silently dropped. SwiftUI still owns the window; `SceneDelegate`
+    /// deliberately creates none.
+    func application(_ application: UIApplication,
+                     configurationForConnecting connectingSceneSession: UISceneSession,
+                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        let config = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
+        config.delegateClass = SceneDelegate.self
+        return config
+    }
+
+    /// Safety net for non-scene delivery; on iOS the scene-delegate variant in
+    /// `SceneDelegate` is the path that actually fires.
     func application(_ application: UIApplication,
                      userDidAcceptCloudKitShareWith metadata: CKShare.Metadata) {
-        Task {
-            do {
-                try await SyncConstants.container.accept(metadata)
-                await MainActor.run { SyncManager.shared?.didAcceptShare() }
-            } catch {
-                print("Failed to accept CloudKit share: \(error)")
-            }
-        }
+        ShareAcceptance.shared.accept(metadata)
     }
 
     // Silent-push registration callbacks (CKSyncEngine manages the token/subscriptions).
@@ -66,5 +72,22 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFailToRegisterForRemoteNotificationsWithError error: Error) {
         print("Remote notification registration failed: \(error)")
+    }
+}
+
+/// Receives the joining parent's share-link tap in both launch shapes: warm
+/// (app already running → `userDidAcceptCloudKitShareWith`) and cold (the link
+/// launches the app → the metadata rides in on the connection options).
+final class SceneDelegate: NSObject, UIWindowSceneDelegate {
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession,
+               options connectionOptions: UIScene.ConnectionOptions) {
+        if let metadata = connectionOptions.cloudKitShareMetadata {
+            ShareAcceptance.shared.accept(metadata)
+        }
+    }
+
+    func windowScene(_ windowScene: UIWindowScene,
+                     userDidAcceptCloudKitShareWith metadata: CKShare.Metadata) {
+        ShareAcceptance.shared.accept(metadata)
     }
 }

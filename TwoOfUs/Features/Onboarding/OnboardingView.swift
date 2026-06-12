@@ -2,12 +2,13 @@ import SwiftUI
 import SwiftData
 import CloudKit
 
-/// First launch (owner): a deliberately small flow — welcome, a one-page tour of
-/// what the app does, then three setup steps (baby → you → invite), then the
-/// celebration finale. Everything else is deferred: the feeding rhythm and
-/// reminders become "Getting set up" quests on Home (`SetupChecklistCard`), and
-/// the rhythm/stats story plays later as a one-time contextual spotlight
-/// (`SpotlightSheet`) once there's real data to hang it on.
+/// First launch (owner): a deliberately small flow — a one-page tour of what
+/// the app does (which doubles as the welcome), then three setup steps
+/// (baby → you → invite), then the celebration finale. Everything else is
+/// deferred: the feeding rhythm and reminders become "Getting set up" quests on
+/// Home (`SetupChecklistCard`), and the rhythm/stats story plays later as a
+/// one-time contextual spotlight (`SpotlightSheet`) once there's real data to
+/// hang it on.
 ///
 /// One TabView holds every page; the ambient backdrop and the CTA bar live
 /// outside it in a ZStack, so nothing shifts between pages. All setup data stays
@@ -24,22 +25,21 @@ struct OnboardingView: View {
     // MARK: Paging
 
     private enum Page: Int, CaseIterable {
-        case welcome, tour, setupBaby, setupYou, invite
+        case tour, setupBaby, setupYou, invite
 
         var next: Page { Page(rawValue: rawValue + 1) ?? self }
     }
 
-    @State private var page: Page = .welcome
+    @State private var page: Page = .tour
     /// Pages whose entrance has played. Grows only — back-swipes don't replay.
-    @State private var revealed: Set<Page> = []
+    @State private var revealed: Set<Page>
 
-    // MARK: Welcome intro (splash continuity)
+    // MARK: Intro (splash hand-off)
 
-    /// Once per process: the welcome page opens in splash pose and settles after
-    /// the launch splash above has fully faded. Demo-exit rebuilds skip it.
+    /// Once per process: the tour's entrance and the CTA bar hold until the
+    /// launch splash above has fully faded. Demo-exit rebuilds skip the wait.
     private static var hasPlayedIntro = false
 
-    @State private var markSettled: Bool
     @State private var chromeRevealed: Bool
 
     // MARK: Setup state (committed once, at Finish)
@@ -63,31 +63,33 @@ struct OnboardingView: View {
     init(onFinished: @escaping (CelebrationData) -> Void) {
         self.onFinished = onFinished
         var played = Self.hasPlayedIntro
+        var initialPage: Page = .tour
 
         #if DEBUG
-        // Dev-only: launch with `-onboardingPage N` (Page rawValue: 1 tour,
-        // 2 baby, 3 you, 4 invite) to open straight on a page — for design
-        // iteration and screenshots.
+        // Dev-only: launch with `-onboardingPage N` (Page rawValue: 1 baby,
+        // 2 you, 3 invite) to open straight on a page — for design iteration
+        // and screenshots.
         let jump = UserDefaults.standard.integer(forKey: "onboardingPage")
         if jump > 0, let target = Page(rawValue: jump) {
             Self.hasPlayedIntro = true
             played = true
-            _page = State(initialValue: target)
-            _revealed = State(initialValue: [target])
+            initialPage = target
         }
         // Dev-only: `-autoFinish 1` prefills the setup and commits shortly after
         // launch — exercises the celebration → Home hand-off without taps.
         if UserDefaults.standard.bool(forKey: "autoFinish") {
             Self.hasPlayedIntro = true
             played = true
-            _page = State(initialValue: .invite)
-            _revealed = State(initialValue: [.invite])
+            initialPage = .invite
             _babyName = State(initialValue: "Miller")
             _ownerName = State(initialValue: "Taylor")
         }
         #endif
 
-        _markSettled = State(initialValue: played)
+        _page = State(initialValue: initialPage)
+        // On a cold launch the first page's entrance waits for the splash
+        // (`runIntro` reveals it); on rebuilds it's visible immediately.
+        _revealed = State(initialValue: played ? [initialPage] : [])
         _chromeRevealed = State(initialValue: played)
     }
 
@@ -102,8 +104,6 @@ struct OnboardingView: View {
             AmbientBackground(stop: ambientStop)
 
             TabView(selection: $page) {
-                OnboardingWelcomePage(markSettled: markSettled, revealed: chromeRevealed)
-                    .tag(Page.welcome)
                 OnboardingTourPage(revealed: revealed.contains(.tour))
                     .tag(Page.tour)
                 BabyStep(name: $babyName, dateOfBirth: $dateOfBirth, photoData: $babyPhotoData,
@@ -145,12 +145,9 @@ struct OnboardingView: View {
         }
     }
 
-    /// Each page tints the shared ambient toward its accent; the welcome page
-    /// keeps the dark night stage the mark needs.
+    /// Each page tints the shared ambient toward its accent.
     private var ambientStop: AmbientStop {
         switch page {
-        case .welcome:
-            .nightStage
         case .tour:
             AmbientStop(top: AppColor.accentFeed, bottom: AppColor.accentDiaper)
         case .invite:
@@ -173,8 +170,6 @@ struct OnboardingView: View {
 
     private var primaryConfig: OnboardingBottomBar.Primary {
         switch page {
-        case .welcome:
-            .init(title: "Begin", action: advance)
         case .tour:
             .init(title: "Continue", action: advance)
         case .setupBaby:
@@ -192,7 +187,7 @@ struct OnboardingView: View {
 
     private var secondaryConfig: OnboardingBottomBar.Secondary? {
         switch page {
-        case .welcome:
+        case .tour:
             // A low-commitment way to look around before committing to setup.
             .init(title: "Explore with sample data", action: startDemo)
         case .invite:
@@ -284,48 +279,34 @@ struct OnboardingView: View {
         )
     }
 
-    // MARK: Welcome intro
+    // MARK: Intro
 
-    /// The welcome page's first frame matches the splash's final frame exactly
-    /// (centered mark on the night-stage ambient); once the splash has faded, the
-    /// mark glides to its hero pose and the copy + chrome fade in. Under Reduce
-    /// Motion the mark never moves — the splash crossfades straight to the
-    /// settled pose.
+    /// Holds the tour's staggered entrance and the CTA bar until the launch
+    /// splash above has fully faded, so the page builds itself on a settled
+    /// stage instead of popping in mid-crossfade.
     @MainActor private func runIntro() async {
         guard !Self.hasPlayedIntro else { return }
         Self.hasPlayedIntro = true
 
-        if reduceMotion { markSettled = true }
-
-        // Settle just after the splash overlay is fully gone (it fades for 0.35s
-        // once it completes), so there is exactly one mark on screen. If the
-        // splash finished a while ago (e.g. exiting a demo that launched cold),
-        // skip the splash pose entirely.
-        let settleDelay: TimeInterval
+        let delay: TimeInterval
         if let done = SplashView.completedAt {
             let elapsed = Date().timeIntervalSince(done)
-            if elapsed > 1.0 {
-                markSettled = true
-                chromeRevealed = true
-                return
-            }
-            settleDelay = max(0, 0.45 - elapsed)
+            // The splash finished a while ago (e.g. exiting a demo that
+            // launched cold): no hand-off to wait for.
+            delay = elapsed > 1.0 ? 0 : max(0, 0.45 - elapsed)
         } else {
             // No splash timestamp yet (the usual cold launch — this task starts
-            // before the splash completes): wait out the splash's run so the mark
-            // glides up just as the splash fades. Mirrors SplashView's durations
+            // before the splash completes): wait out the splash's run so the
+            // entrance plays just as it fades. Mirrors SplashView's durations
             // (~2.3s motion / ~0.9s reduce) plus the hand-off buffer.
-            settleDelay = reduceMotion ? 1.4 : 2.75
+            delay = reduceMotion ? 1.4 : 2.75
         }
-        try? await Task.sleep(for: .seconds(settleDelay))
+        if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
 
-        if reduceMotion {
-            withAnimation(.easeOut(duration: 0.4)) { chromeRevealed = true }
-            return
+        revealed.insert(.tour)
+        withAnimation(.easeOut(duration: 0.45).delay(reduceMotion ? 0 : 0.25)) {
+            chromeRevealed = true
         }
-
-        withAnimation(.spring(response: 0.7, dampingFraction: 0.85)) { markSettled = true }
-        withAnimation(.easeOut(duration: 0.45).delay(0.25)) { chromeRevealed = true }
     }
 }
 
