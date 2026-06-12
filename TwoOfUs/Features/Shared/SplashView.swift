@@ -22,7 +22,7 @@ struct SplashView: View {
     /// of truth for anyone (see `OnboardingView.runIntro`) that must wait out
     /// a splash still in flight.
     static func runDuration(reduceMotion: Bool) -> TimeInterval {
-        reduceMotion ? 0.9 : 1.5
+        reduceMotion ? 0.7 : 1.1
     }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -89,13 +89,14 @@ struct SplashView: View {
             // Two lights drift home — each contracts, brightens, and settles,
             // the right trailing the left so it feels like a gathering — while
             // the stage dawns out of black. As they overlap, the baby's light
-            // is born and the wordmark rises softly.
-            withAnimation(.easeInOut(duration: 0.9).delay(0.05)) { leftEntry = .identity }
-            withAnimation(.easeInOut(duration: 0.9).delay(0.25)) { rightEntry = .identity }
-            withAnimation(.easeInOut(duration: 1.0).delay(0.1)) { stageLit = true }
-            withAnimation(.easeInOut(duration: 0.7).delay(0.6)) { glowOpacity = 1 }
-            withAnimation(.easeOut(duration: 0.5).delay(0.7)) { babyCore = 1 }
-            withAnimation(.easeOut(duration: 0.6).delay(0.8)) {
+            // is born and the wordmark rises softly. Brisk timings, soft eases:
+            // the pace is snappy but nothing ever snaps.
+            withAnimation(.easeInOut(duration: 0.65)) { leftEntry = .identity }
+            withAnimation(.easeInOut(duration: 0.65).delay(0.15)) { rightEntry = .identity }
+            withAnimation(.easeInOut(duration: 0.7).delay(0.05)) { stageLit = true }
+            withAnimation(.easeInOut(duration: 0.5).delay(0.4)) { glowOpacity = 1 }
+            withAnimation(.easeOut(duration: 0.4).delay(0.5)) { babyCore = 1 }
+            withAnimation(.easeOut(duration: 0.45).delay(0.55)) {
                 wordmarkOpacity = 1
                 wordmarkOffset = 0
             }

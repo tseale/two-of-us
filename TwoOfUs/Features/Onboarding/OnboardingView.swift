@@ -281,9 +281,9 @@ struct OnboardingView: View {
 
     // MARK: Intro
 
-    /// Holds the tour's staggered entrance and the CTA bar until the launch
-    /// splash above has fully faded, so the page builds itself on a settled
-    /// stage instead of popping in mid-crossfade.
+    /// Times the tour's staggered entrance off the launch splash: it starts
+    /// midway through the splash's 0.35s fade-out, so the content rises as the
+    /// splash dissolves — one continuous motion, not fade-out-then-fade-in.
     @MainActor private func runIntro() async {
         guard !Self.hasPlayedIntro else { return }
         Self.hasPlayedIntro = true
@@ -293,17 +293,17 @@ struct OnboardingView: View {
             let elapsed = Date().timeIntervalSince(done)
             // The splash finished a while ago (e.g. exiting a demo that
             // launched cold): no hand-off to wait for.
-            delay = elapsed > 1.0 ? 0 : max(0, 0.45 - elapsed)
+            delay = elapsed > 1.0 ? 0 : max(0, 0.2 - elapsed)
         } else {
             // No splash timestamp yet (the usual cold launch — this task starts
-            // before the splash completes): wait out the splash's run plus the
-            // hand-off buffer so the entrance plays just as it fades.
-            delay = SplashView.runDuration(reduceMotion: reduceMotion) + 0.45
+            // before the splash completes): wait out the splash's run, then the
+            // mid-fade beat.
+            delay = SplashView.runDuration(reduceMotion: reduceMotion) + 0.2
         }
         if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
 
         revealed.insert(.tour)
-        withAnimation(.easeOut(duration: 0.45).delay(reduceMotion ? 0 : 0.25)) {
+        withAnimation(.easeOut(duration: 0.45).delay(reduceMotion ? 0 : 0.15)) {
             chromeRevealed = true
         }
     }
