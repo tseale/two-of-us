@@ -17,60 +17,63 @@ struct SmallEventWidgetView: View {
         }
     }
 
-    // Lock screen: "🍼 2h 15m / last feed"
+    // Lock screen: MetricStack ordering — eyebrow above a rounded mono value.
     private var lockScreenBody: some View {
         HStack(spacing: 6) {
             Text(kind.emoji)
                 .font(.title3)
             VStack(alignment: .leading, spacing: 1) {
-                valueText
-                    .font(.headline.monospacedDigit())
-                    .foregroundStyle(.primary)
                 Text(captionLabel)
-                    .font(.caption2)
+                    .font(.caption2.weight(.semibold))
+                    .textCase(.uppercase)
+                    .tracking(0.6)
                     .foregroundStyle(.secondary)
+                valueText
+                    .font(.system(.headline, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.primary)
             }
         }
         .containerBackground(.fill.tertiary, for: .widget)
     }
 
-    // Small home screen tile
+    // Small home screen tile — a mini log tile: accent-tinted ground, emoji,
+    // eyebrow above the display value, urgency only when it's earned.
     private var homeSmallBody: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(kind.emoji)
-                    .font(.title2)
-                Spacer()
-                if !showingActiveSleep {
-                    urgencyDot
-                }
+            Text(kind.emoji)
+                .font(.system(size: 28))
+            Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(captionLabel)
+                    .sectionLabelStyle(color: showingActiveSleep ? AppColor.accentSleep : AppColor.text2)
+                WidgetSinceLine(value: valueText,
+                                urgency: showingActiveSleep ? .green : urgency,
+                                font: AppFont.display(26, relativeTo: .title2))
             }
-            Spacer()
-            valueText
-                .font(.title2.bold().monospacedDigit())
-                .foregroundStyle(accentColor)
-                .minimumScaleFactor(0.65)
-            Text(captionLabel)
-                .font(.caption)
-                .foregroundStyle(AppColor.text2)
             quickLogButton
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .containerBackground(AppColor.card, for: .widget)
+        .containerBackground(for: .widget) {
+            ZStack {
+                AppColor.card
+                accentColor.opacity(0.18)
+            }
+        }
     }
 
     /// One-tap logging straight from the home-screen tile (no app launch).
     @ViewBuilder private var quickLogButton: some View {
         switch kind {
         case .feed:
-            WidgetActionButton(title: "Log feed", systemImage: "plus", tint: accentColor,
+            WidgetActionButton(title: "Log feed", emoji: "🍼", tint: accentColor,
                                intent: LogFeedIntent())
         case .diaper:
-            WidgetActionButton(title: "Log diaper", systemImage: "plus", tint: accentColor,
+            WidgetActionButton(title: "Log diaper", emoji: "💩", tint: accentColor,
                                intent: LogDiaperIntent())
         case .sleep:
             WidgetActionButton(title: showingActiveSleep ? "Wake up" : "Start sleep",
-                               systemImage: showingActiveSleep ? "sun.max.fill" : "moon.fill",
+                               emoji: showingActiveSleep ? "☀️" : "💤",
                                tint: accentColor, intent: ToggleSleepIntent())
         }
     }
@@ -93,12 +96,13 @@ struct SmallEventWidgetView: View {
         return Text("–")
     }
 
+    /// Eyebrow above the value (rendered uppercase by the label styles).
     private var captionLabel: String {
         if showingActiveSleep { return "sleeping now" }
         switch kind {
-        case .feed:   return "since last feed"
-        case .sleep:  return "since last sleep"
-        case .diaper: return "since last diaper"
+        case .feed:   return "last feed"
+        case .sleep:  return "last sleep"
+        case .diaper: return "last diaper"
         }
     }
 
@@ -126,9 +130,8 @@ struct SmallEventWidgetView: View {
         }
     }
 
-    private var urgencyDot: some View {
-        let u = Urgency.from(since: sinceDate, target: targetInterval)
-        return Circle().fill(u.color).frame(width: 8, height: 8)
+    private var urgency: Urgency {
+        Urgency.from(since: sinceDate, target: targetInterval)
     }
 }
 

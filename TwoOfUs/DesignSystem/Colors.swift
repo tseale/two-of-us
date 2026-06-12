@@ -53,6 +53,13 @@ enum AppColor {
     static let nightInk = Color(hex: "130E18")
     /// Warm cream of the baby's light; text/glow color on the night stage.
     static let nightlightCream = Color(hex: "FFF4E8")
+
+    /// The ONE intentional gradient (Stats record hero, sleep Live Activity).
+    /// Always `indigoHi → indigoLo`; the Live Activity runs the deeper
+    /// `indigoHi → indigoNight` so it holds up over lock-screen wallpapers.
+    static let indigoHi    = Color(hex: "2A2A4D")
+    static let indigoLo    = Color(hex: "1C1C2E")
+    static let indigoNight = Color(hex: "15151F")
 }
 
 // MARK: - Liquid Glass (iOS 26)

@@ -34,7 +34,7 @@ struct DayRibbonWidgetView: View {
     private var homeBody: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Today").font(.caption.weight(.semibold)).foregroundStyle(AppColor.text2)
+                Text("TODAY").sectionLabelStyle()
                 Spacer()
                 Text(tally).font(.caption2).foregroundStyle(AppColor.text3)
             }
