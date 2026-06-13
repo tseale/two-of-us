@@ -36,7 +36,7 @@ struct LargeWidgetView: View {
                     .padding(.top, 4)
             } else {
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(entry.recentItems.prefix(5), id: \.date) { item in
+                    ForEach(entry.recentItems.prefix(5), id: \.self) { item in
                         recentRow(item: item)
                     }
                 }

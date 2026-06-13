@@ -17,22 +17,26 @@ struct SmallEventWidgetView: View {
         }
     }
 
-    // Lock screen: MetricStack ordering — eyebrow above a rounded mono value.
+    // Lock screen: monochrome per DESIGN.md §9 — eyebrow above a rounded mono
+    // value, no emoji. In the accessory's vibrant rendering a color emoji
+    // desaturates to a gray blob and it would also steal width from the value
+    // in the narrow rectangular slot; the eyebrow ("LAST FEED") names the kind.
+    // The value shrinks before it truncates, per §9's "shrink to 0.7" rule, so
+    // a two-component relative string ("2 hr, 5 min ago") still fits.
     private var lockScreenBody: some View {
-        HStack(spacing: 6) {
-            Text(kind.emoji)
-                .font(.title3)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(captionLabel)
-                    .font(.caption2.weight(.semibold))
-                    .textCase(.uppercase)
-                    .tracking(0.6)
-                    .foregroundStyle(.secondary)
-                valueText
-                    .font(.system(.headline, design: .rounded).monospacedDigit())
-                    .foregroundStyle(.primary)
-            }
+        VStack(alignment: .leading, spacing: 1) {
+            Text(captionLabel)
+                .font(.caption2.weight(.semibold))
+                .textCase(.uppercase)
+                .tracking(0.6)
+                .foregroundStyle(.secondary)
+            valueText
+                .font(.system(.headline, design: .rounded).monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .foregroundStyle(.primary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .containerBackground(.fill.tertiary, for: .widget)
     }
 

@@ -120,12 +120,16 @@ struct SleepLiveActivity: Widget {
                     .padding(.bottom, 4)
                 }
             } compactLeading: {
-                // DESIGN.md §9: the compact island reads "💤 23:47".
+                // DESIGN.md §9: the compact island reads "💤 23:47". Sized down
+                // from the default body so the emoji fits the short compact slot
+                // without clipping at the capsule edge and sits level with the
+                // trailing timer.
                 Text("💤")
+                    .font(.system(size: 15))
                     .padding(.leading, 4)
             } compactTrailing: {
                 Text(context.state.startedAt, style: .timer)
-                    .monospacedDigit()
+                    .font(.system(size: 15, design: .rounded).monospacedDigit())
                     .foregroundStyle(AppColor.accentSleep)
                     .padding(.trailing, 4)
             } minimal: {

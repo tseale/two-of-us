@@ -93,7 +93,7 @@ struct WidgetEntry: TimelineEntry {
     }
 }
 
-struct WidgetItem {
+struct WidgetItem: Hashable {
     let kind: EventKind
     let date: Date
     let detail: String
