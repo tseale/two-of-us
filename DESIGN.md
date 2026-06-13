@@ -69,9 +69,11 @@ per appearance; accents and urgency hues are fixed across both.
   --nightlight-cream: #FFF4E8;  /* warm cream — text & glow on the night stage */
 
   /* Indigo gradient — the ONE intentional delight surface
-     (Stats record hero, sleep Live Activity background) */
+     (Stats record hero, sleep Live Activity background).
+     Ratified as AppColor.indigoHi / indigoLo / indigoNight. */
   --indigo-hi: #2A2A4D;
-  --indigo-lo: #1C1C2E;  /* Live Activity runs it deeper: #2A2A4D → #15151F */
+  --indigo-lo: #1C1C2E;  /* Live Activity runs it deeper: indigo-hi → indigo-night */
+  --indigo-night: #15151F;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -324,7 +326,9 @@ Subtle and quick. Nothing bounces for attention.
 - **Dark/light follow the system**; both must hold AA contrast.
 - **Glanceable companions** share the language at tiny sizes: lock-screen widgets use the
   monochrome ribbon variant; the Dynamic Island sleep timer is `💤 23:47` compact /
-  moon + timer + wake hint expanded, over the deep indigo gradient.
+  moon + timer + an interactive **Wake up ☀️** button expanded, over the deep indigo
+  gradient. The lock-screen Live Activity carries the same Wake button (solid periwinkle,
+  radius 16), mirroring the in-app active-sleep card.
 - Touch targets ≥44px; no hover-dependent affordances (it's a touch product).
 
 ---

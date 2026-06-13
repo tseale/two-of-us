@@ -125,7 +125,7 @@ struct StatsView: View {
         .padding(16)
         .background(
             LinearGradient(
-                colors: [Color(hex: "2A2A4D"), Color(hex: "1C1C2E")],
+                colors: [AppColor.indigoHi, AppColor.indigoLo],
                 startPoint: .topLeading, endPoint: .bottomTrailing
             ),
             in: RoundedRectangle(cornerRadius: 18)
