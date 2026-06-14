@@ -16,14 +16,18 @@ struct StatsView: View {
         StatsEngine(feeds: feeds, sleeps: sleeps, diapers: diapers)
     }
     private var babyName: String { babies.first?.name ?? "Baby" }
+    private var ageText: String? { babies.first.map { TimeFormatting.age(from: $0.dateOfBirth) } }
+    private var hasAnyData: Bool { !feeds.isEmpty || !sleeps.isEmpty || !diapers.isEmpty }
 
     @State private var summary: String?
     @State private var summaryLoading = false
+    @State private var showWrapped = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
+                    if hasAnyData { wrappedButton }
                     if BabyIntelligence.isAvailable {
                         insightsCard
                     }
@@ -39,7 +43,40 @@ struct StatsView: View {
             }
             .background(AppColor.bg)
             .navigationTitle("Stats")
+            .sheet(isPresented: $showWrapped) {
+                WrappedShareView(recap: engine.weekRecap(), babyName: babyName, ageText: ageText)
+            }
         }
+    }
+
+    // MARK: Wrapped (shareable weekly recap)
+
+    private var wrappedButton: some View {
+        Button { showWrapped = true } label: {
+            HStack(spacing: 12) {
+                Text("✨")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(babyName)'s week")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                    Text("Tap to share a recap")
+                        .font(.caption)
+                        .foregroundStyle(AppColor.nightlightCream.opacity(0.8))
+                }
+                Spacer()
+                Image(systemName: "square.and.arrow.up")
+                    .foregroundStyle(.white)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity)
+            .background(
+                LinearGradient(colors: [AppColor.indigoHi, AppColor.indigoLo],
+                               startPoint: .topLeading, endPoint: .bottomTrailing),
+                in: RoundedRectangle(cornerRadius: 18)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Share \(babyName)'s week")
     }
 
     // MARK: Insights (on-device AI)

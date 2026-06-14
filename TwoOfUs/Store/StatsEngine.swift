@@ -80,6 +80,21 @@ struct CaregiverContribution: Identifiable {
     let count: Int
 }
 
+/// A week's worth of shareable totals + highlights, for the "Wrapped" recap card.
+struct WeekRecap {
+    let start: Date
+    let end: Date
+    let feedCount: Int
+    let totalOz: Double
+    let totalSleep: TimeInterval
+    let diaperCount: Int
+    let longestStretch: TimeInterval
+    let hungriestHour: Int?
+    let nightMVP: String?
+    /// Whether anything at all was logged in the window (drives the empty case).
+    var hasData: Bool { feedCount > 0 || totalSleep > 0 || diaperCount > 0 }
+}
+
 /// Today's totals alongside the trailing-average "typical" day.
 struct TodayComparison {
     let feedsToday: Int
@@ -389,6 +404,27 @@ struct StatsEngine {
             sleepToday: today.sleepSeconds, sleepAvg: avg { $0.sleepSeconds },
             diapersToday: today.diaperCount, diapersAvg: avg { Double($0.diaperCount) },
             hasHistory: hasHistory
+        )
+    }
+
+    // MARK: Weekly recap ("Wrapped")
+
+    /// Rolls up the last `days` into the shareable recap: totals, the week's
+    /// longest sleep, busiest feeding hour, and the night MVP. Reuses the same
+    /// aggregations the Stats/History cards do, so the numbers always agree.
+    func weekRecap(days: Int = 7) -> WeekRecap {
+        let summaries = dailySummaries(days: days)
+        let longest = summaries.map(\.longestStretch).max() ?? 0
+        return WeekRecap(
+            start: summaries.first?.day ?? startOfDay(now),
+            end: summaries.last?.day ?? startOfDay(now),
+            feedCount: summaries.reduce(0) { $0 + $1.feedCount },
+            totalOz: summaries.reduce(0) { $0 + $1.feedOz },
+            totalSleep: summaries.reduce(0) { $0 + $1.sleepSeconds },
+            diaperCount: summaries.reduce(0) { $0 + $1.diaperCount },
+            longestStretch: longest,
+            hungriestHour: hungriestHour(days: days),
+            nightMVP: nightShift(days: days).first?.name
         )
     }
 
