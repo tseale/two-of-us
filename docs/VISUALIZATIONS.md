@@ -58,17 +58,23 @@ Deep multi-day charts stay in History/Stats — Home keeps a single glance + the
 
 ## 3. In-app history — trends over days/weeks (Swift Charts)
 
-- **Day-in-the-life swimlane (Gantt)** — *the* core chart. 24h axis, one row per day
-  (last 7/14). Sleep = bars, feeds/diapers = marks. Watch the rhythm form: naps
+Status: ✅ = implemented in `Features/History/HistoryView.swift` (aggregations in
+`Store/StatsEngine.swift`).
+
+- ✅ **Day-in-the-life swimlane (Gantt)** — *the* core chart. 24h axis, one row per day
+  (last 7). Sleep = bars, feeds/diapers = marks. Watch the rhythm form: naps
   consolidating, night stretch lengthening.
-- **Sleep consolidation line** — longest continuous night stretch over time. Emotionally
+- ✅ **Sleep consolidation line** — longest continuous night stretch over time. Emotionally
   rewarding: the line climbs as Miller starts sleeping through.
-- **Feed cadence & volume** — daily total oz (bars + trend), avg interval between feeds
-  over time, oz-per-feed distribution.
-- **24h feed heatmap** — 7×24 grid or polar clock; reveals his natural feeding schedule.
-- **Diaper trend** — wet vs dirty stacked per day (doubles as a health signal
-  pediatricians ask about).
-- **Today summary card** — totals vs rolling average ("3 oz above yesterday").
+- ✅ **Total sleep per day** — daily total-sleep bars with a weekly-average rule
+  (complements the consolidation line: stretch vs. total).
+- ✅ **Feed volume** — daily total oz bars + dashed average rule. *(Remaining: avg-interval
+  trend line, oz-per-feed distribution.)*
+- ✅ **24h feed heatmap** — day × 24h grid (opacity ramps with feeds-per-hour); reveals
+  his natural feeding schedule.
+- ✅ **Diaper trend** — wet / dirty / both stacked bars per day (monochrome-amber shades;
+  doubles as a health signal pediatricians ask about).
+- **Today summary card** — totals vs rolling average ("3 oz above yesterday"). *(Not built.)*
 
 Keep calm: soft fills, rounded bars, existing accents, gentle gridlines.
 

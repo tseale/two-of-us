@@ -21,6 +21,27 @@ struct DayMarks: Identifiable {
     let marks: [RibbonMark]
 }
 
+/// One day's diaper counts split by type, for the diaper-trend chart.
+struct DiaperDay: Identifiable {
+    let id = UUID()
+    let day: Date
+    let wet: Int
+    let dirty: Int
+    let both: Int
+    var total: Int { wet + dirty + both }
+}
+
+/// One cell of the feed-time heatmap: how many feeds fell in `hour` (0–23) on `day`.
+/// `dayIndex` is 0 for the oldest day in the window, so the chart can lay out rows
+/// by number instead of relying on categorical-axis ordering.
+struct FeedHeatCell: Identifiable {
+    let id = UUID()
+    let day: Date
+    let dayIndex: Int
+    let hour: Int
+    let count: Int
+}
+
 /// Lifetime running totals.
 struct LifetimeTotals {
     let totalOz: Double
@@ -113,6 +134,46 @@ struct StatsEngine {
             DayMarks(day: day, marks: RibbonMark.forDay(
                 day, feeds: feeds, sleeps: sleeps, diapers: diapers, calendar: calendar
             ))
+        }
+    }
+
+    // MARK: Diaper trend
+
+    /// Per-day wet / dirty / both counts over the last `days` (oldest → newest).
+    func diaperDays(days: Int = 7) -> [DiaperDay] {
+        recentDays(days).map { dayStart in
+            let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
+            var wet = 0, dirty = 0, both = 0
+            for d in diapers where d.deletedAt == nil {
+                guard d.timestamp >= dayStart && d.timestamp < dayEnd else { continue }
+                switch d.type {
+                case .wet:   wet += 1
+                case .dirty: dirty += 1
+                case .both:  both += 1
+                }
+            }
+            return DiaperDay(day: dayStart, wet: wet, dirty: dirty, both: both)
+        }
+    }
+
+    // MARK: Feed-time heatmap
+
+    /// Feed counts bucketed by (day, hour-of-day) over the last `days`. Returns a
+    /// full grid — every day × 24 hours, zeros included — so the chart renders a
+    /// complete heatmap rather than only the cells that happen to have feeds.
+    func feedHeatmap(days: Int = 7) -> [FeedHeatCell] {
+        let dayStarts = recentDays(days)
+        var counts: [Date: [Int]] = [:]
+        for d in dayStarts { counts[d] = [Int](repeating: 0, count: 24) }
+        for f in feeds where f.deletedAt == nil {
+            let dayStart = startOfDay(f.timestamp)
+            guard counts[dayStart] != nil else { continue }
+            counts[dayStart]?[calendar.component(.hour, from: f.timestamp)] += 1
+        }
+        return dayStarts.enumerated().flatMap { index, day in
+            (0..<24).map { hour in
+                FeedHeatCell(day: day, dayIndex: index, hour: hour, count: counts[day]?[hour] ?? 0)
+            }
         }
     }
 
