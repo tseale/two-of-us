@@ -57,6 +57,15 @@ enum TimelineEntry: Identifiable {
         }
     }
 
+    /// Optional free-text note the parent attached to this event.
+    var notes: String? {
+        switch self {
+        case .feed(let e): return e.notes
+        case .sleep(let e): return e.notes
+        case .diaper(let e): return e.notes
+        }
+    }
+
     /// Short detail string for the row, e.g. "3 oz", "1h 22m", "Wet".
     var detail: String {
         switch self {

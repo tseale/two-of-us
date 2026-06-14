@@ -189,7 +189,8 @@ A 24-hour horizontal strip, reused on Home, History swimlanes, and widgets:
 Left-to-right: **time gutter** (64px, right-aligned, mono caption, `--text3`) → **rail**
 (2px vertical line, `--separator` @ 60%, with an 11px accent node per event; sleep nodes are
 capsules whose height scales with duration, 14–30px; nodes carry a 2px `--card` ring so the
-rail passes behind) → emoji + title (15px semibold) → **participant badge** right.
+rail passes behind) → emoji + title (15px semibold), with an optional **note** line beneath
+(caption, `--text2`, ≤2 lines) → **participant badge** right.
 Min height 46px. A "NOW" eyebrow cap with a hollow ring sits at the top.
 Tap → edit sheet; swipe-left → delete (confirm + warning haptic).
 
@@ -209,6 +210,9 @@ Bottom sheets, medium detent (Feed also large), visible drag indicator, title wi
   explicit "Log ‹type›" confirm logs-and-dismisses (success haptic) — so a stray tap can't mislog.
 - **Time control**: every log sheet defaults to "now" with a compact date picker + a teal
   "Now" reset button. Backdating is one tap away, never required.
+- **Note field** (Feed/Diaper log sheets + all Edit sheets): an optional multi-line
+  "Add a note (optional)" field in its own section — trimmed, capped, blanks dropped. Kept
+  out of the way so fast logging stays fast.
 
 ### Toast (undo)
 Bottom-floating `--card2` capsule, padding 18×14, message left + bold teal "Undo" right;

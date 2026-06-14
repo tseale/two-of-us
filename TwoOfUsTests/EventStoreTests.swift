@@ -49,7 +49,7 @@ final class EventStoreTests: XCTestCase {
 
     func testEditFeedIsAppendOnly() {
         let original = store.logFeed(amountOz: 2)
-        let replacement = store.editFeed(original, amountOz: 4, timestamp: original.timestamp)
+        let replacement = store.editFeed(original, amountOz: 4, timestamp: original.timestamp, notes: nil)
 
         XCTAssertNotNil(original.deletedAt, "the edited original is soft-deleted, not mutated")
         XCTAssertEqual(replacement.editOfID, original.id)

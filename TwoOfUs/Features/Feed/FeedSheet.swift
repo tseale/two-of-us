@@ -15,6 +15,7 @@ struct FeedSheet: View {
     @State private var customText = ""
     @State private var usingCustom = false
     @State private var date = Date()
+    @State private var note = ""
 
     private var presets: [Double] { settingsList.first?.ozPresets ?? [2, 3, 4] }
     private var targetMinutes: Int { settingsList.first?.targetFeedIntervalMinutes ?? 180 }
@@ -55,6 +56,11 @@ struct FeedSheet: View {
 
                 Section("Time") {
                     TimeControl(date: $date)
+                }
+
+                Section("Note") {
+                    TextField("Add a note (optional)", text: $note, axis: .vertical)
+                        .lineLimit(1...3)
                 }
 
                 Section {
@@ -104,7 +110,7 @@ struct FeedSheet: View {
 
     private func log() {
         let store = EventStore(context: context)
-        let event = store.logFeed(amountOz: amount, at: date)
+        let event = store.logFeed(amountOz: amount, at: date, notes: note)
         Haptics.success()
         onLogged("Logged feed · \(OzFormat.string(amount)) oz") {
             store.softDelete(event)

@@ -10,6 +10,7 @@ struct DiaperSheet: View {
 
     @State private var date = Date()
     @State private var selected: DiaperType = .wet
+    @State private var note = ""
 
     var body: some View {
         NavigationStack {
@@ -23,6 +24,10 @@ struct DiaperSheet: View {
                 }
                 Section("Time") {
                     TimeControl(date: $date, tint: AppColor.accentDiaper)
+                }
+                Section("Note") {
+                    TextField("Add a note (optional)", text: $note, axis: .vertical)
+                        .lineLimit(1...3)
                 }
             }
             .navigationTitle("Log a diaper 💩")
@@ -69,7 +74,7 @@ struct DiaperSheet: View {
 
     private func log(_ type: DiaperType) {
         let store = EventStore(context: context)
-        let event = store.logDiaper(type, at: date)
+        let event = store.logDiaper(type, at: date, notes: note)
         Haptics.success()
         onLogged("Logged diaper · \(type.label)") {
             store.softDelete(event)

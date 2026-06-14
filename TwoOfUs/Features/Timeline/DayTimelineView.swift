@@ -25,9 +25,17 @@ struct DayTimelineRow: View {
 
             HStack(spacing: 8) {
                 Text(entry.kind.emoji).font(.callout)
-                Text(entry.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppColor.text)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(entry.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppColor.text)
+                    if let note = entry.notes, !note.isEmpty {
+                        Text(note)
+                            .font(.caption)
+                            .foregroundStyle(AppColor.text2)
+                            .lineLimit(2)
+                    }
+                }
                 Spacer(minLength: 8)
                 // Shows the parent's profile photo when they have one, else the
                 // colored initial — same monogram fallback as `ParticipantBadge`.
@@ -37,7 +45,7 @@ struct DayTimelineRow: View {
         }
         .frame(minHeight: 46)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(entry.title), \(TimeFormatting.clock(entry.sortDate)), logged by \(entry.loggedByName)")
+        .accessibilityLabel(accessibilityLabel)
     }
 
     private var accent: Color {
@@ -46,6 +54,12 @@ struct DayTimelineRow: View {
         case .sleep:  return AppColor.accentSleep
         case .diaper: return AppColor.accentDiaper
         }
+    }
+
+    private var accessibilityLabel: String {
+        var label = "\(entry.title), \(TimeFormatting.clock(entry.sortDate)), logged by \(entry.loggedByName)"
+        if let note = entry.notes, !note.isEmpty { label += ", note: \(note)" }
+        return label
     }
 
     /// The continuous rail line plus this row's node, centered over it. The node

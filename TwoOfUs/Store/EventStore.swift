@@ -55,11 +55,12 @@ struct EventStore {
     // MARK: Logging
 
     @discardableResult
-    func logFeed(amountOz: Double, at date: Date = .now) -> FeedEvent {
+    func logFeed(amountOz: Double, at date: Date = .now, notes: String? = nil) -> FeedEvent {
         let amountOz = EventBounds.clampOz(amountOz)
         let date = EventBounds.clampPast(date)
         let event = FeedEvent(
             baby: baby, amountOz: amountOz, timestamp: date,
+            notes: EventBounds.cleanNote(notes),
             loggedByID: owner?.id ?? UUID(),
             loggedByName: owner?.displayName ?? "",
             loggedByColorHex: owner?.colorHex ?? ""
@@ -74,10 +75,11 @@ struct EventStore {
     }
 
     @discardableResult
-    func logDiaper(_ type: DiaperType, at date: Date = .now) -> DiaperEvent {
+    func logDiaper(_ type: DiaperType, at date: Date = .now, notes: String? = nil) -> DiaperEvent {
         let date = EventBounds.clampPast(date)
         let event = DiaperEvent(
             baby: baby, type: type, timestamp: date,
+            notes: EventBounds.cleanNote(notes),
             loggedByID: owner?.id ?? UUID(),
             loggedByName: owner?.displayName ?? "",
             loggedByColorHex: owner?.colorHex ?? ""
@@ -131,12 +133,12 @@ struct EventStore {
     // MARK: Edit (append-only: soft-delete original, insert replacement)
 
     @discardableResult
-    func editFeed(_ original: FeedEvent, amountOz: Double, timestamp: Date) -> FeedEvent {
+    func editFeed(_ original: FeedEvent, amountOz: Double, timestamp: Date, notes: String?) -> FeedEvent {
         let amountOz = EventBounds.clampOz(amountOz)
         let timestamp = EventBounds.clampPast(timestamp)
         let replacement = FeedEvent(
             baby: original.baby, amountOz: amountOz, timestamp: timestamp,
-            notes: original.notes,
+            notes: EventBounds.cleanNote(notes),
             loggedByID: original.loggedByID,
             loggedByName: original.loggedByName,
             loggedByColorHex: original.loggedByColorHex,
@@ -152,10 +154,10 @@ struct EventStore {
     }
 
     @discardableResult
-    func editSleep(_ original: SleepEvent, startedAt: Date, endedAt: Date?) -> SleepEvent {
+    func editSleep(_ original: SleepEvent, startedAt: Date, endedAt: Date?, notes: String?) -> SleepEvent {
         let replacement = SleepEvent(
             baby: original.baby, startedAt: startedAt, endedAt: endedAt,
-            notes: original.notes,
+            notes: EventBounds.cleanNote(notes),
             loggedByID: original.loggedByID,
             loggedByName: original.loggedByName,
             loggedByColorHex: original.loggedByColorHex,
@@ -170,10 +172,10 @@ struct EventStore {
     }
 
     @discardableResult
-    func editDiaper(_ original: DiaperEvent, type: DiaperType, timestamp: Date) -> DiaperEvent {
+    func editDiaper(_ original: DiaperEvent, type: DiaperType, timestamp: Date, notes: String?) -> DiaperEvent {
         let replacement = DiaperEvent(
             baby: original.baby, type: type, timestamp: timestamp,
-            notes: original.notes,
+            notes: EventBounds.cleanNote(notes),
             loggedByID: original.loggedByID,
             loggedByName: original.loggedByName,
             loggedByColorHex: original.loggedByColorHex,
@@ -406,5 +408,17 @@ enum EventBounds {
     /// bad parse) is pinned to now so it can't sort ahead of reality.
     static func clampPast(_ date: Date, now: Date = .now) -> Date {
         min(date, now)
+    }
+
+    /// Longest note we keep — generous for "spit up, fussy, left side" jottings
+    /// while still bounding a paste-bomb from Siri/Shortcuts.
+    static let noteMaxLength = 280
+
+    /// Trims a free-text note; blank/whitespace-only becomes nil so empty notes
+    /// never persist, and over-long input is capped.
+    static func cleanNote(_ note: String?) -> String? {
+        guard let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else { return nil }
+        return String(trimmed.prefix(noteMaxLength))
     }
 }

@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 /// Edit any logged event. Saving creates a replacement record and soft-deletes
-/// the original (append-only history). No notes UI this increment.
+/// the original (append-only history), including an optional free-text note.
 struct EditEventSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -14,6 +14,7 @@ struct EditEventSheet: View {
     @State private var diaperType: DiaperType
     @State private var sleepStart: Date
     @State private var sleepEnd: Date
+    @State private var notes: String
 
     init(entry: TimelineEntry) {
         self.entry = entry
@@ -24,18 +25,21 @@ struct EditEventSheet: View {
             _diaperType = State(initialValue: .wet)
             _sleepStart = State(initialValue: e.timestamp)
             _sleepEnd = State(initialValue: e.timestamp)
+            _notes = State(initialValue: e.notes ?? "")
         case .diaper(let e):
             _date = State(initialValue: e.timestamp)
             _amount = State(initialValue: 0)
             _diaperType = State(initialValue: e.type)
             _sleepStart = State(initialValue: e.timestamp)
             _sleepEnd = State(initialValue: e.timestamp)
+            _notes = State(initialValue: e.notes ?? "")
         case .sleep(let e):
             _date = State(initialValue: e.startedAt)
             _amount = State(initialValue: 0)
             _diaperType = State(initialValue: .wet)
             _sleepStart = State(initialValue: e.startedAt)
             _sleepEnd = State(initialValue: e.endedAt ?? e.startedAt)
+            _notes = State(initialValue: e.notes ?? "")
         }
     }
 
@@ -70,6 +74,11 @@ struct EditEventSheet: View {
                                 .foregroundStyle(AppColor.urgencyRed)
                         }
                     }
+                }
+
+                Section("Note") {
+                    TextField("Add a note (optional)", text: $notes, axis: .vertical)
+                        .lineLimit(1...4)
                 }
 
                 Section {
@@ -112,9 +121,9 @@ struct EditEventSheet: View {
     private func save() {
         let store = EventStore(context: context)
         switch entry {
-        case .feed(let e): store.editFeed(e, amountOz: amount, timestamp: date)
-        case .diaper(let e): store.editDiaper(e, type: diaperType, timestamp: date)
-        case .sleep(let e): store.editSleep(e, startedAt: sleepStart, endedAt: sleepEnd)
+        case .feed(let e): store.editFeed(e, amountOz: amount, timestamp: date, notes: notes)
+        case .diaper(let e): store.editDiaper(e, type: diaperType, timestamp: date, notes: notes)
+        case .sleep(let e): store.editSleep(e, startedAt: sleepStart, endedAt: sleepEnd, notes: notes)
         }
         Haptics.success()
         dismiss()
