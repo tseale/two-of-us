@@ -23,6 +23,7 @@ struct HomeView: View {
     @State private var spotlight: SetupSpotlight?
     @State private var prefs = LocalPrefs.shared
     @State private var setup = SetupProgress.shared
+    @State private var router = DeepLinkRouter.shared
 
     private enum ActiveSheet: String, Identifiable { case feed, diaper; var id: String { rawValue } }
 
@@ -140,7 +141,26 @@ struct HomeView: View {
             }
             #endif
             .loggedToast($toast)
+            // Run a widget-tap action staged by DeepLinkRouter: present the
+            // matching log sheet, or start the sleep timer. Handled both on
+            // change (app already open) and on appear (cold launch from a tap).
+            .onChange(of: router.pending) { _, action in
+                if let action { perform(action) }
+            }
+            .onAppear {
+                if let action = router.pending { perform(action) }
+            }
         }
+    }
+
+    /// Carries out a deep-link action from a widget, mirroring the log-tile taps.
+    private func perform(_ action: DeepLinkRouter.Action) {
+        switch action {
+        case .feed:   activeSheet = .feed
+        case .diaper: activeSheet = .diaper
+        case .sleep:  if activeSleep == nil { startSleep() }
+        }
+        router.pending = nil
     }
 
     // MARK: Header

@@ -55,6 +55,9 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.35), value: route)
         .tint(AppColor.accentFeed)
         .preferredColorScheme(prefs.appearance.colorScheme)
+        // Widget / lock-screen taps: twoofus://log/<kind>. Staged here and run
+        // by HomeView once the main UI is on screen.
+        .onOpenURL { DeepLinkRouter.shared.handle($0) }
         .overlay(alignment: .top) {
             if prefs.demoModeEnabled { demoBanner }
         }

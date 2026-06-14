@@ -46,6 +46,13 @@ targets:
         # invite link into the app (the scene/app delegate accept handlers
         # never fire) and the co-parent can never join.
         CKSharingSupported: YES
+        # Custom URL scheme for widget / lock-screen deep links
+        # (twoofus://log/feed|diaper|sleep, twoofus://home). Without it iOS
+        # won't route a widget tap into the app.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.taylorseale.twoofus
+            CFBundleURLSchemes:
+              - twoofus
         # Plain launch field matching the app background in both schemes (the
         # LaunchBackground colorset), so cold launch lands directly on the first
         # screen with no flash. No animated splash — removed once onboarding

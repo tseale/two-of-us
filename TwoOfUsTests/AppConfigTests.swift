@@ -20,4 +20,13 @@ final class AppConfigTests: XCTestCase {
         let modes = info["UIBackgroundModes"] as? [String] ?? []
         XCTAssertTrue(modes.contains("remote-notification"))
     }
+
+    func testAppRegistersTwoOfUsURLScheme() {
+        // Widget / lock-screen taps deep-link via twoofus://log/<kind>. Without
+        // the scheme registered here, iOS won't route the tap into the app and
+        // the widgets become inert — nothing else fails loudly.
+        let types = info["CFBundleURLTypes"] as? [[String: Any]] ?? []
+        let schemes = types.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
+        XCTAssertTrue(schemes.contains("twoofus"))
+    }
 }
