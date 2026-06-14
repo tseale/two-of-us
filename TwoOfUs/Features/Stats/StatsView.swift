@@ -156,14 +156,14 @@ struct StatsView: View {
             if let record {
                 Text(durationLong(record.duration))
                     .font(AppFont.display(38, weight: .heavy))
-                    .foregroundStyle(AppColor.text)
+                    .foregroundStyle(.white)
                 Text(Self.monthDay(record.date))
                     .font(.subheadline)
                     .foregroundStyle(AppColor.text2)
             } else {
                 Text("—")
                     .font(AppFont.display(38, weight: .heavy))
-                    .foregroundStyle(AppColor.text)
+                    .foregroundStyle(.white)
                 Text("No completed sleeps yet")
                     .font(.subheadline)
                     .foregroundStyle(AppColor.text2)
