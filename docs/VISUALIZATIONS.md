@@ -74,22 +74,28 @@ Status: ✅ = implemented in `Features/History/HistoryView.swift` (aggregations 
   his natural feeding schedule.
 - ✅ **Diaper trend** — wet / dirty / both stacked bars per day (monochrome-amber shades;
   doubles as a health signal pediatricians ask about).
-- **Today summary card** — totals vs rolling average ("3 oz above yesterday"). *(Not built.)*
+- ✅ **Today summary card** — "Today so far" on Stats: today's feeds/oz/sleep/diapers vs the
+  trailing 7-day average ("+3 oz vs avg").
 
 Keep calm: soft fills, rounded bars, existing accents, gentle gridlines.
 
 ## 4. Fun / delightful stats (the emotional layer)
 
-- **Records** — "Longest sleep: 6h 12m on May 28."
-- **Lifetime in fun units** — "412 oz ≈ 3.2 gallons 🥛"; "1,130 hours slept";
+Status: ✅ = implemented in `Features/Stats/StatsView.swift`.
+
+- ✅ **Records** — "Longest sleep: 6h 12m on May 28."
+- ✅ **Lifetime in fun units** — "412 oz ≈ 3.2 gallons 🥛"; "1,130 hours slept";
   "847 diapers changed."
-- **Night-shift split** — "Night MVP this week: Mom, 7 of 9 feeds" (uses `loggedByID`;
+- ✅ **Night-shift split** — "Night MVP this week: Mom, 7 of 9 feeds" (uses `loggedByID`;
   light, not competitive).
-- **Streaks & milestones** — "First 5-hour stretch!", "100th bottle," "First full night."
-- **"On this day"** — "A week ago, every 2h; now every 3h."
-- **Hungriest hour** — "He's hungriest around 6pm."
+- ✅ **Streaks & milestones** — first 4/5/6/8-hour sleep, 50/100/250/500th bottle,
+  100/250/500th diaper, current logging streak, and the next bottle milestone.
+- ✅ **Both-parents contribution** — "🤝 Teamwork": all-time split of who logged what
+  (non-competitive companion to the night-shift card).
+- ✅ **"On this day"** — "A week ago, every 2h; now every 3h."
+- ✅ **Hungriest hour** — "He's hungriest around 6pm."
 - **Weekly/monthly recap card ("Miller Wrapped")** — auto-generated **shareable image**
-  to text grandparents.
+  to text grandparents. *(Not built — the one remaining delight feature.)*
 
 ## Notes for the future build phase
 

@@ -27,9 +27,12 @@ struct StatsView: View {
                     if BabyIntelligence.isAvailable {
                         insightsCard
                     }
+                    todayCard
                     recordHero
+                    milestonesCard
                     lifetimeTiles
                     nightShiftCard
+                    contributionCard
                     cadenceCard
                 }
                 .padding(16)
@@ -255,6 +258,136 @@ struct StatsView: View {
         Text("\(Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(AppColor.text)) — \(detail)")
             .font(.subheadline).foregroundStyle(AppColor.text2)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: Today vs typical
+
+    private var todayCard: some View {
+        let t = engine.todayVsTypical()
+        let empty = t.feedsToday == 0 && t.diapersToday == 0 && t.sleepToday == 0
+        return Card(title: "Today so far") {
+            if empty {
+                Text("Log today's first event to see how it's going.")
+                    .font(.subheadline).foregroundStyle(AppColor.text3)
+                    .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    todayRow("🍼", "\(t.feedsToday) feeds · \(OzFormat.string(t.ozToday.rounded())) oz",
+                             t.hasHistory ? ozDelta(t.ozToday - t.ozAvg) : nil)
+                    todayRow("💤", t.sleepToday > 0 ? durationLong(t.sleepToday) : "none yet",
+                             t.hasHistory ? sleepDelta(t.sleepToday - t.sleepAvg) : nil)
+                    todayRow("💩", "\(t.diapersToday) diapers",
+                             t.hasHistory ? countDelta(Double(t.diapersToday) - t.diapersAvg) : nil)
+                }
+            }
+        }
+    }
+
+    private func todayRow(_ emoji: String, _ value: String, _ delta: String?) -> some View {
+        HStack(spacing: 8) {
+            Text(emoji)
+            Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(AppColor.text)
+            Spacer(minLength: 8)
+            if let delta {
+                Text(delta).font(.caption).foregroundStyle(AppColor.text3)
+            }
+        }
+    }
+
+    // MARK: Milestones
+
+    private var milestonesCard: some View {
+        let achieved = engine.milestones()
+        let streak = engine.loggingStreak()
+        let next = engine.nextMilestone()
+        return Card(title: "Milestones") {
+            if achieved.isEmpty && streak < 2 && next == nil {
+                Text("Keep logging — moments like the first 5-hour sleep show up here.")
+                    .font(.subheadline).foregroundStyle(AppColor.text3)
+                    .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    if streak >= 2 {
+                        label("🔥 \(streak)-day logging streak", detail: "keep it going")
+                    }
+                    ForEach(achieved.prefix(3)) { m in
+                        label("\(m.emoji) \(m.title)", detail: Self.monthDay(m.date))
+                    }
+                    if let next {
+                        label("🎯 Next: \(next.title)", detail: "\(next.remaining) to go")
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Teamwork (both-parents contribution)
+
+    private var contributionCard: some View {
+        let shares = engine.contributions()
+        let total = shares.reduce(0) { $0 + $1.count }
+        return Card(title: "🤝 Teamwork · all time") {
+            if total == 0 {
+                Text("Events you both log will split here.")
+                    .font(.subheadline).foregroundStyle(AppColor.text3)
+                    .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    GeometryReader { geo in
+                        HStack(spacing: 2) {
+                            ForEach(shares) { s in
+                                Rectangle()
+                                    .fill(swatch(s.colorHex))
+                                    .frame(width: geo.size.width * CGFloat(s.count) / CGFloat(total))
+                            }
+                        }
+                    }
+                    .frame(height: 14)
+                    .clipShape(Capsule())
+
+                    HStack {
+                        ForEach(shares) { s in
+                            HStack(spacing: 5) {
+                                Circle().fill(swatch(s.colorHex)).frame(width: 8, height: 8)
+                                Text("\(s.name) — \(s.count)")
+                                    .font(.caption).foregroundStyle(AppColor.text2)
+                            }
+                            if s.id != shares.last?.id { Spacer() }
+                        }
+                    }
+                    Text("\(total) events logged together")
+                        .font(.caption).foregroundStyle(AppColor.text3)
+                }
+            }
+        }
+    }
+
+    private func swatch(_ hex: String) -> Color {
+        hex.isEmpty ? AppColor.accentFeed : Color(hex: hex)
+    }
+
+    /// "+3 oz vs avg" / "about average" for an ounce delta.
+    private func ozDelta(_ diff: Double) -> String {
+        let r = diff.rounded()
+        if abs(r) < 1 { return "about average" }
+        return "\(r > 0 ? "+" : "−")\(Int(abs(r))) oz vs avg"
+    }
+
+    /// Whole-count delta ("+2 vs avg").
+    private func countDelta(_ diff: Double) -> String {
+        let r = diff.rounded()
+        if abs(r) < 1 { return "about average" }
+        return "\(r > 0 ? "+" : "−")\(Int(abs(r))) vs avg"
+    }
+
+    /// Sleep delta in hours/minutes; within 15 min reads as "about average".
+    private func sleepDelta(_ diffSeconds: Double) -> String {
+        let mins = (diffSeconds / 60).rounded()
+        if abs(mins) < 15 { return "about average" }
+        let total = Int(abs(mins))
+        let h = total / 60, m = total % 60
+        let magnitude = h > 0 ? (m > 0 ? "\(h)h \(m)m" : "\(h)h") : "\(m)m"
+        return "\(mins > 0 ? "+" : "−")\(magnitude) vs avg"
     }
 
     // MARK: Formatting

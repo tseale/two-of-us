@@ -64,6 +64,35 @@ struct SleepRecord {
     let date: Date
 }
 
+/// A reached milestone (first N-hour sleep, Nth bottle, …) and when it happened.
+struct Milestone: Identifiable {
+    let id = UUID()
+    let emoji: String
+    let title: String
+    let date: Date
+}
+
+/// All-time share of logged events for one caregiver.
+struct CaregiverContribution: Identifiable {
+    let id = UUID()
+    let name: String
+    let colorHex: String
+    let count: Int
+}
+
+/// Today's totals alongside the trailing-average "typical" day.
+struct TodayComparison {
+    let feedsToday: Int
+    let ozToday: Double
+    let ozAvg: Double
+    let sleepToday: TimeInterval
+    let sleepAvg: TimeInterval
+    let diapersToday: Int
+    let diapersAvg: Double
+    /// False when there aren't enough prior days to show a meaningful "vs avg".
+    let hasHistory: Bool
+}
+
 // MARK: - Engine
 
 /// Pure aggregations over live events. Views pass their `@Query` results in.
@@ -268,5 +297,117 @@ struct StatsEngine {
         var total: TimeInterval = 0
         for i in 1..<times.count { total += times[i].timeIntervalSince(times[i - 1]) }
         return total / Double(times.count - 1)
+    }
+
+    // MARK: Milestones & streaks
+
+    /// Reached milestones (first 4/5/6/8-hour sleep, 50/100/250/500th bottle,
+    /// 100/250/500th diaper), newest first. All derived from existing events.
+    func milestones() -> [Milestone] {
+        var result: [Milestone] = []
+
+        let completed = sleeps.filter { $0.deletedAt == nil }
+            .compactMap { s -> (start: Date, dur: TimeInterval)? in
+                guard let end = s.endedAt else { return nil }
+                return (s.startedAt, end.timeIntervalSince(s.startedAt))
+            }
+            .sorted { $0.start < $1.start }
+        for hours in [4, 5, 6, 8] {
+            let target = TimeInterval(hours) * 3600
+            if let first = completed.first(where: { $0.dur >= target }) {
+                result.append(Milestone(emoji: "🌙", title: "First \(hours)-hour sleep", date: first.start))
+            }
+        }
+
+        let feedTimes = feeds.filter { $0.deletedAt == nil }.map(\.timestamp).sorted()
+        for n in [50, 100, 250, 500] where feedTimes.count >= n {
+            result.append(Milestone(emoji: "🍼", title: "\(n)th bottle", date: feedTimes[n - 1]))
+        }
+
+        let diaperTimes = diapers.filter { $0.deletedAt == nil }.map(\.timestamp).sorted()
+        for n in [100, 250, 500] where diaperTimes.count >= n {
+            result.append(Milestone(emoji: "💩", title: "\(n)th diaper", date: diaperTimes[n - 1]))
+        }
+
+        return result.sorted { $0.date > $1.date }
+    }
+
+    /// The next bottle-count milestone and how many feeds remain, or nil once the
+    /// biggest tracked target is passed.
+    func nextMilestone() -> (title: String, remaining: Int)? {
+        let feedCount = feeds.reduce(into: 0) { acc, f in if f.deletedAt == nil { acc += 1 } }
+        for n in [50, 100, 250, 500, 1000] where feedCount < n {
+            return ("\(n)th bottle", n - feedCount)
+        }
+        return nil
+    }
+
+    /// Consecutive days (ending today, or yesterday if today's still blank) with
+    /// at least one logged event.
+    func loggingStreak() -> Int {
+        var days = Set<Date>()
+        for f in feeds where f.deletedAt == nil { days.insert(startOfDay(f.timestamp)) }
+        for s in sleeps where s.deletedAt == nil { days.insert(startOfDay(s.startedAt)) }
+        for d in diapers where d.deletedAt == nil { days.insert(startOfDay(d.timestamp)) }
+        guard !days.isEmpty else { return 0 }
+
+        var day = startOfDay(now)
+        if !days.contains(day) {
+            // A not-yet-logged morning shouldn't read as a broken streak.
+            guard let yesterday = calendar.date(byAdding: .day, value: -1, to: day),
+                  days.contains(yesterday) else { return 0 }
+            day = yesterday
+        }
+        var streak = 0
+        while days.contains(day) {
+            streak += 1
+            guard let prev = calendar.date(byAdding: .day, value: -1, to: day) else { break }
+            day = prev
+        }
+        return streak
+    }
+
+    // MARK: Today vs typical
+
+    func todayVsTypical(priorDays: Int = 7) -> TodayComparison {
+        let summaries = dailySummaries(days: priorDays + 1)   // prior days + today
+        guard let today = summaries.last else {
+            return TodayComparison(feedsToday: 0, ozToday: 0, ozAvg: 0, sleepToday: 0,
+                                   sleepAvg: 0, diapersToday: 0, diapersAvg: 0, hasHistory: false)
+        }
+        let prior = summaries.dropLast()
+        let divisor = Double(max(prior.count, 1))
+        func avg(_ value: (DaySummary) -> Double) -> Double {
+            prior.reduce(0) { $0 + value($1) } / divisor
+        }
+        let hasHistory = prior.contains {
+            $0.feedCount > 0 || $0.sleepSeconds > 0 || $0.diaperCount > 0
+        }
+        return TodayComparison(
+            feedsToday: today.feedCount,
+            ozToday: today.feedOz, ozAvg: avg { $0.feedOz },
+            sleepToday: today.sleepSeconds, sleepAvg: avg { $0.sleepSeconds },
+            diapersToday: today.diaperCount, diapersAvg: avg { Double($0.diaperCount) },
+            hasHistory: hasHistory
+        )
+    }
+
+    // MARK: Contributions (all-time, both parents)
+
+    /// Every caregiver's all-time count of logged events, most first. Light and
+    /// non-competitive — shows the shared load.
+    func contributions() -> [CaregiverContribution] {
+        var map: [String: (color: String, count: Int)] = [:]
+        func tally(_ name: String, _ color: String) {
+            let key = name.isEmpty ? "Unknown" : name
+            let existing = map[key]
+            map[key] = (existing?.color ?? color, (existing?.count ?? 0) + 1)
+        }
+        for f in feeds where f.deletedAt == nil { tally(f.loggedByName, f.loggedByColorHex) }
+        for s in sleeps where s.deletedAt == nil { tally(s.loggedByName, s.loggedByColorHex) }
+        for d in diapers where d.deletedAt == nil { tally(d.loggedByName, d.loggedByColorHex) }
+        return map
+            .map { CaregiverContribution(name: $0.key, colorHex: $0.value.color, count: $0.value.count) }
+            .sorted { $0.count > $1.count }
     }
 }
