@@ -239,45 +239,38 @@ struct HistoryView: View {
                 VStack(spacing: 10) {
                     Chart {
                         ForEach(trend) { d in
-                            ForEach(Self.diaperSegments, id: \.label) { seg in
-                                BarMark(
-                                    x: .value("Day", d.day, unit: .day),
-                                    y: .value("Count", Double(seg.count(d))),
-                                    width: .ratio(0.58)
-                                )
-                                .foregroundStyle(by: .value("Type", seg.label))
+                            BarMark(x: .value("Day", d.day, unit: .day),
+                                    y: .value("Count", Double(d.wet)), width: .ratio(0.58))
+                                .foregroundStyle(by: .value("Type", "Wet"))
                                 .cornerRadius(3)
-                            }
+                            BarMark(x: .value("Day", d.day, unit: .day),
+                                    y: .value("Count", Double(d.dirty)), width: .ratio(0.58))
+                                .foregroundStyle(by: .value("Type", "Dirty"))
+                                .cornerRadius(3)
+                            BarMark(x: .value("Day", d.day, unit: .day),
+                                    y: .value("Count", Double(d.both)), width: .ratio(0.58))
+                                .foregroundStyle(by: .value("Type", "Both"))
+                                .cornerRadius(3)
                         }
                     }
-                    .chartForegroundStyleScale(Self.diaperColorScale)
+                    .chartForegroundStyleScale([
+                        "Wet": AppColor.accentDiaper.opacity(0.45),
+                        "Dirty": AppColor.accentDiaper.opacity(0.72),
+                        "Both": AppColor.accentDiaper,
+                    ])
                     .chartXAxis { weekdayAxis() }
                     .chartYAxis { softYAxis(unit: "") }
                     .chartLegend(.hidden)
                     .frame(height: 120)
 
                     HStack(spacing: 16) {
-                        ForEach(Self.diaperSegments, id: \.label) { seg in
-                            legendBar(seg.color, label: seg.label.lowercased())
-                        }
+                        legendBar(AppColor.accentDiaper.opacity(0.45), label: "wet")
+                        legendBar(AppColor.accentDiaper.opacity(0.72), label: "dirty")
+                        legendBar(AppColor.accentDiaper, label: "both")
                     }
                 }
             }
         }
-    }
-
-    /// The three diaper segments, in stack order (wet → dirty → both), each with a
-    /// shade of the diaper accent so the card stays monochrome-amber per §2.
-    private static let diaperSegments: [(label: String, color: Color, count: (DiaperDay) -> Int)] = [
-        ("Wet",   AppColor.accentDiaper.opacity(0.45), { $0.wet }),
-        ("Dirty", AppColor.accentDiaper.opacity(0.72), { $0.dirty }),
-        ("Both",  AppColor.accentDiaper,               { $0.both }),
-    ]
-
-    private static var diaperColorScale: KeyValuePairs<String, Color> {
-        ["Wet": AppColor.accentDiaper.opacity(0.45),
-         "Dirty": AppColor.accentDiaper.opacity(0.72),
-         "Both": AppColor.accentDiaper]
     }
 
     /// Compact hour label for the heatmap axis (0/6/12/18/24 → 12a/6a/12p/6p/12a).

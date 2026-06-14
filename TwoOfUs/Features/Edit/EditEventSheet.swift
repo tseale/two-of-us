@@ -65,9 +65,13 @@ struct EditEventSheet: View {
                     }
                     Section("Time") { TimeControl(date: $date, tint: AppColor.accentDiaper) }
                 case .sleep:
-                    Section("Asleep") {
+                    // Section can't take a String title *and* a footer in one
+                    // initializer — use the header closure so both coexist.
+                    Section {
                         DatePicker("Start", selection: $sleepStart, in: ...Date())
                         DatePicker("End", selection: $sleepEnd, in: sleepStart...Date())
+                    } header: {
+                        Text("Asleep")
                     } footer: {
                         if !sleepDurationValid {
                             Text("A sleep needs to last at least a minute.")
