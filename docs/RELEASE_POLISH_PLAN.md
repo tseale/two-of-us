@@ -28,6 +28,25 @@ before a first release.
 
 ---
 
+## Progress — automated release-polish pass (2026-06-14)
+
+A pass landed every checklist item that could be fixed **from the codebase
+alone** (no device, no App Store Connect, no macOS-only tooling), grouped into
+commits by area on one PR. Marker meanings below:
+
+- `- [x]` — done in this pass (or verified already-correct; noted inline).
+- `- [ ]` — still open. Each remaining item is tagged with **why**:
+  - **(manual)** — needs a device, two iCloud accounts, App Store Connect, the
+    Developer portal, or macOS-only tooling. Tracked in the new runbooks
+    (`APP_STORE_RELEASE_RUNBOOK.md`, `TESTFLIGHT_MANUAL_CHECKLIST.md`,
+    `DEVICE_TEST_MATRIX.md`, `ACCESSIBILITY_CHECKLIST.md`).
+  - **(deferred)** — a lower-priority 🟡/💡 polish/refactor left for a later pass.
+
+> Note on line numbers: several findings cited code that had already been fixed
+> (e.g. the rhythm-quest OR, the DOB future cap) or had moved; those are checked
+> with an inline "already satisfied" note. New shared infra this pass added:
+> `Support/AppLog.swift` (os.Logger channels + a user-facing `StoreErrorCenter`).
+
 ## Area index
 
 | # | Area | Code health | Release risk |
@@ -66,16 +85,16 @@ overlay; deep-link entry.
 scene- and app-delegate share-acceptance paths.
 
 **Checklist**
-- [ ] 🔴 `RootView.swift:29–35` — `joinSyncing` route can wait **forever** if the owner's
+- [x] 🔴 `RootView.swift:29–35` — `joinSyncing` route can wait **forever** if the owner's
       baby never syncs (owner offline / deleted baby). Add a ~30s timeout + escape hatch
       ("taking longer than expected… try later / contact").
-- [ ] 🟠 `RootView.swift:73–80` — Share-acceptance failure alert is generic. Distinguish
+- [x] 🟠 `RootView.swift:73–80` — Share-acceptance failure alert is generic. Distinguish
       *offline* vs *already-used link* vs *access revoked* and suggest the right next step.
-- [ ] 🟠 `AppDelegate.swift:48–49` — Silent-push fetch in `applicationDidBecomeActive`
+- [x] 🟠 `AppDelegate.swift:48–49` — Silent-push fetch in `applicationDidBecomeActive`
       can race the UI querying the store mid-sync; consider awaiting/retry.
-- [ ] 🟡 `RootView.swift:113–124` — Demo banner uses `.thinMaterial`; verify dark-mode
+- [x] 🟡 `RootView.swift:113–124` — Demo banner uses `.thinMaterial`; verify dark-mode
       contrast and give the exit button a clear label ("Exit demo mode").
-- [ ] 🟡 `TwoOfUsApp.swift:80–86` — `-autoFinish` dev flag hardcodes names; gate behind
+- [x] 🟡 `TwoOfUsApp.swift:80–86` — `-autoFinish` dev flag hardcodes names; gate behind
       `#if DEBUG` and confirm it can't ship enabled.
 
 ---
@@ -93,15 +112,15 @@ Local-until-commit; per-page gating; share created at invite step; celebration f
 Dynamic Type, ambient re-tint).
 
 **Checklist**
-- [ ] 🟠 `OnboardingSetupSteps.swift:38–42` — Baby DOB `DatePicker` allows **future dates**.
+- [x] 🟠 `OnboardingSetupSteps.swift:38–42` — Baby DOB `DatePicker` allows **future dates**.
       Cap with `in: ...Date()`.
 - [ ] 🟡 `OnboardingSetupSteps.swift:31` — Baby-name field has no max length; long names
       can break layout. Add `lineLimit`/truncation on display.
 - [ ] 🟡 `OnboardingPages.swift:137–138` — "Invited by your partner? Open the link…"
       escape hatch is buried at the bottom; raise its prominence.
-- [ ] 🟡 `OnboardingPages.swift:182–197` — Page dots are `accessibilityHidden`; announce
+- [x] 🟡 `OnboardingPages.swift:182–197` — Page dots are `accessibilityHidden`; announce
       "page X of 4" to VoiceOver instead.
-- [ ] 🟡 `OnboardingSetupSteps.swift:142` — Interval stepper readability ("1h" vs
+- [x] 🟡 `OnboardingSetupSteps.swift:142` — Interval stepper readability ("1h" vs
       "1 hour"); fix pluralization.
 - [ ] 💡 `OnboardingSetupSteps.swift:165–227` — `RhythmStep`/`RemindersStep` reused in
       quests via a clunky `barClearance` param; move to an `@Environment` value.
@@ -118,9 +137,9 @@ Finish gates on owner's profile syncing; first joiner = full, later = guest.
 **Current state.** Clever live-updating copy as records land; correct role gating.
 
 **Checklist**
-- [ ] 🟠 `JoinFlowView.swift:195–200` — Finish button disabled until `owner != nil` with
+- [x] 🟠 `JoinFlowView.swift:195–200` — Finish button disabled until `owner != nil` with
       **no timeout**; if owner is offline it hangs on a spinner. Add ~30s → help message.
-- [ ] 🟠 `ShareAcceptance.swift:74–96` — Inspect the `CKError` code and show specific copy
+- [x] 🟠 `ShareAcceptance.swift:74–96` — Inspect the `CKError` code and show specific copy
       for `.notAuthenticated` (access revoked) vs transient network errors; add Retry.
 - [ ] 🟡 `JoinFlowView.swift:175–178` — Color suggestion re-runs on every
       `participants.count` change (thrashes while many sync); debounce or stop once the
@@ -144,14 +163,14 @@ Home card + Settings rows + just-in-time spotlights. Rhythm is shared; reminders
 **Current state.** Smart completion detection; one-prompt-per-session; quests auto-retire.
 
 **Checklist**
-- [ ] 🟠 `SetupProgress.swift:96` — Rhythm quest only completes when **both** interval
+- [x] 🟠 `SetupProgress.swift:96` — Rhythm quest only completes when **both** interval
       **and** presets differ from defaults `(180, [2,3,4])`. Should be **OR** (changing
       either counts).
-- [ ] 🟠 `SetupProgress.swift:116–118` — Spotlight marks "shown" on **appear**, so a user
+- [x] 🟠 `SetupProgress.swift:116–118` — Spotlight marks "shown" on **appear**, so a user
       who swipes it away before reading never sees it again. Mark shown on **dismiss**.
 - [ ] 🟡 `SetupChecklistCard.swift:84–91` — "All set" card auto-dismisses after 2s; fade
       gently or keep until the user leaves the screen.
-- [ ] 🟡 `SpotlightSheet.swift:102–111` — "Tune rhythm" button still shows when the rhythm
+- [x] 🟡 `SpotlightSheet.swift:102–111` — "Tune rhythm" button still shows when the rhythm
       quest is already complete; hide/disable it.
 - [ ] 🟡 `QuestSheets.swift:101–102` — Reminders quest "not now" is a silent no-op; add a
       light confirmation toast.
@@ -171,21 +190,21 @@ Home card + Settings rows + just-in-time spotlights. Rhythm is shared; reminders
 spring morphs, haptics, toasts+undo, Reduce-Motion + dark mode throughout.
 
 **Checklist**
-- [ ] 🟠 `DiaperSheet.swift` — Diaper type buttons have **no selected state** and the sheet
+- [x] 🟠 `DiaperSheet.swift` — Diaper type buttons have **no selected state** and the sheet
       has no confirm label; rapid taps feel accidental. Add a selected highlight (parity
       with Feed preset chips) and/or a "Log Wet" button label.
-- [ ] 🟡 `LoggedToast.swift:30` — Undo button is always teal (feed accent) even for diaper
+- [x] 🟡 `LoggedToast.swift:30` — Undo button is always teal (feed accent) even for diaper
       (amber) and sleep (periwinkle) logs. Pass the event accent through.
-- [ ] 🟡 `TodayRibbonCard.swift:59–65` — Sleep duration renders "2h45" (no space);
+- [x] 🟡 `TodayRibbonCard.swift:59–65` — Sleep duration renders "2h45" (no space);
       align to `TimeFormatting.duration()` → "2h 45m".
-- [ ] 🟡 `FeedSheet.swift:36–47` — Custom oz `TextField` should trim whitespace before
+- [x] 🟡 `FeedSheet.swift:36–47` — Custom oz `TextField` should trim whitespace before
       parsing and block autofill (`.textContentType(.none)`); paste of "5 oz" is rejected
       but silently.
 - [ ] 🟡 `FeedSheet.swift` / `DiaperSheet.swift` — Sheet snaps shut on log; a brief
       "Logged ✓" before dismiss would feel less abrupt.
 - [ ] 💡 `SleepActiveCard.swift` — No indicator that the sleep is synced / Live-Activity
       running; consider a subtle "shared" affordance.
-- [ ] 💡 `Features/Shared/TimeControl.swift:25` — "Now" reset button is always teal;
+- [x] 💡 `Features/Shared/TimeControl.swift:25` — "Now" reset button is always teal;
       pass a tint so it matches the hosting sheet's accent.
 
 ---
@@ -200,11 +219,11 @@ timeline row; append-only (soft-delete original, insert replacement linked by `e
 **Current state.** Correct append-only history; sleep end constrained ≥ start.
 
 **Checklist**
-- [ ] 🟠 `EditEventSheet.swift:48` — Feed stepper hardcodes `0.5...12`; a 0.25 oz value
+- [x] 🟠 `EditEventSheet.swift:48` — Feed stepper hardcodes `0.5...12`; a 0.25 oz value
       (older data / NL parse) gets clamped on edit. Widen or derive range from settings.
-- [ ] 🟠 `EditEventSheet.swift:63–64` — Editor allows `endedAt == startedAt` (0-duration
+- [x] 🟠 `EditEventSheet.swift:63–64` — Editor allows `endedAt == startedAt` (0-duration
       sleep) with no guard. Validate a minimum duration or warn.
-- [ ] 🟡 `EditEventSheet.swift:78` — Generic "Save" label; make it contextual ("Save feed").
+- [x] 🟡 `EditEventSheet.swift:78` — Generic "Save" label; make it contextual ("Save feed").
 - [ ] 💡 `EditEventSheet.swift:5` — Notes UI intentionally deferred; models already carry
       `notes`. Decide if v1 ships notes editing.
 
@@ -222,15 +241,15 @@ reconcile the name), `Features/Home/NLLogSheet.swift`, `HomeView.applyParsed`.
 validation** on parsed values before they're written.
 
 **Checklist**
-- [ ] 🔴 No validation on `ParsedLog.amountOz` / `minutesAgo` before applying — the model
+- [x] 🔴 No validation on `ParsedLog.amountOz` / `minutesAgo` before applying — the model
       could return 1000 oz or a negative time and it writes silently. Clamp in
       `NLLogSheet`/`applyParsed` (e.g. oz ∈ 0–32, minutesAgo ∈ 0–1440) and surface a
       friendly out-of-range message (`BabyIntelligence.swift:40–48`).
-- [ ] 🟠 `NLLogSheet.swift:59` — Error hint only shows feed/diaper examples; add a sleep
+- [x] 🟠 `NLLogSheet.swift:59` — Error hint only shows feed/diaper examples; add a sleep
       example ("or 'fell asleep 15 min ago'") and dismiss the keyboard on error.
-- [ ] 🟡 `BabyIntelligence.swift:21–32` — Summary/parse failures return `nil` with no log;
+- [x] 🟡 `BabyIntelligence.swift:21–32` — Summary/parse failures return `nil` with no log;
       add a debug log so QA can tell "unavailable" from "errored."
-- [ ] 🟡 Reconcile the name discrepancy (`BabyIntelligence` in code vs
+- [x] 🟡 Reconcile the name discrepancy (`BabyIntelligence` in code vs
       `MillerIntelligence` in README/§ docs).
 - [ ] 💡 `minutesAgo: Int` loses sub-minute precision ("30 seconds ago" → now). Low value;
       only change if you care.
@@ -249,9 +268,9 @@ record hero, lifetime tiles, night-shift chart, cadence patterns).
 **Current state.** Complete and tasteful; soft chart styling; good empty states.
 
 **Checklist**
-- [ ] 🟠 `StatsView.swift:72–76` — `loadSummary` triggers on `feeds.count`; a widget batch
+- [x] 🟠 `StatsView.swift:72–76` — `loadSummary` triggers on `feeds.count`; a widget batch
       of N feeds regenerates the AI summary N times. Debounce.
-- [ ] 🟠 `DayTimelineView.swift:62–73` — Sleep capsule height maxes at 30pt around ~2h40,
+- [x] 🟠 `DayTimelineView.swift:62–73` — Sleep capsule height maxes at 30pt around ~2h40,
       so a 4h sleep looks identical to a 2.5h one. Widen range or use log scaling.
 - [ ] 🟡 `StatsView.swift:277–280` / `HistoryView.swift:142–149` — Hour/weekday axis
       formatting is hardcoded (12h assumption, fixed stride); use locale-aware
@@ -277,20 +296,20 @@ shared with widget; StatsEngine aggregations; seed/demo data.
 is sound. The main risk is **silent failure** in the write path.
 
 **Checklist**
-- [ ] 🔴 `EventStore.swift:346` — `save()` catches and `print`s on failure. A user logs a
+- [x] 🔴 `EventStore.swift:346` — `save()` catches and `print`s on failure. A user logs a
       feed, sees optimistic UI, the save throws, app dies → **feed lost, no signal.**
       Surface a failure banner / propagate the error.
-- [ ] 🟠 `EventStore.swift:58,75,92` — `logFeed/logDiaper/startSleep` don't validate
+- [x] 🟠 `EventStore.swift:58,75,92` — `logFeed/logDiaper/startSleep` don't validate
       inputs (negative/huge oz, future/ancient timestamps, `baby == nil`). Add guards.
 - [ ] 🟠 `StatsEngine.swift:69–100` — Every fetch is `try? … ?? []`, so a fetch failure
       reads as "0 oz today" rather than an error. Return a result type or render an error
       state.
-- [ ] 🟡 `EventStore.swift:305–306` — `lastEventDate(of:)` returns an active sleep's
+- [x] 🟡 `EventStore.swift:305–306` — `lastEventDate(of:)` returns an active sleep's
       `startedAt` (hours old); document or return `endedAt ?? .now`.
-- [ ] 🟡 `Baby.swift:28–30` — `.cascade` delete rule vs never-hard-deleting invariant is
+- [x] 🟡 `Baby.swift:28–30` — `.cascade` delete rule vs never-hard-deleting invariant is
       implicit; add an assertion/comment in the wipe path so a refactor can't silently
       orphan CloudKit records.
-- [ ] 🟡 `RecordMapping.swift` (UUID parse sites) — bad UUID strings drop relationships
+- [x] 🟡 `RecordMapping.swift` (UUID parse sites) — bad UUID strings drop relationships
       silently; log the offending string.
 
 ---
@@ -308,20 +327,20 @@ change-tag persistence, conflict resolution (local wins except terminal `deleted
 overhauled. Gaps are around **surfacing failure to the user** and a few edge cases.
 
 **Checklist**
-- [ ] 🔴 Errors are Console-only across the sync layer (`SyncManager.swift:219,452,512,
+- [x] 🔴 Errors are Console-only across the sync layer (`SyncManager.swift:219,452,512,
       517,522`; `ShareAcceptance.swift:94`). A participant can sit on "Bringing everything
       over…" forever. Route errors to the UI (extend the existing `ShareAcceptance.failed`
       pattern) with retry.
-- [ ] 🔴 Widget/extension write queue (`SyncManager.swift:354–361`) only drains when the
+- [x] 🔴 Widget/extension write queue (`SyncManager.swift:354–361`) only drains when the
       app launches. Feeds logged via the widget while offline, with the app never opened,
       never sync. Document the constraint and/or nudge the user to open the app.
-- [ ] 🟠 `RecordMapping.swift:210–217` — Orphaned events (event syncs before its Baby) are
+- [x] 🟠 `RecordMapping.swift:210–217` — Orphaned events (event syncs before its Baby) are
       only relinked on `fetchedRecordZoneChanges`; an interrupted fetch can leave
       `baby == nil` forever. Relink whenever a Baby is fetched/inserted too.
 - [ ] 🟠 `SyncManager.swift:832–841` — `captureCloudUserID` is fire-and-forget; if it
       fails, `removeParticipant` falls back to "sole non-owner," which can remove the
       **wrong** person with 2+ caregivers. Add retry or make it blocking with a spinner.
-- [ ] 🟠 `RecordMapping.swift` asset writes (`:298–302`, `:70`) — temp files for
+- [x] 🟠 `RecordMapping.swift` asset writes (`:298–302`, `:70`) — temp files for
       Baby/Participant photos leak if a save fails before upload. Add a cleanup queue.
 - [ ] 🟡 `SyncManager.swift:546–559` — Private-zone-deletion recovery re-uploads
       everything but logs nothing if the re-upload fails (catastrophic-but-rare). Log it.
@@ -342,9 +361,9 @@ manage People (change role, revoke); leave share; household switch.
 gating). Gaps are in error messaging and a couple of multi-account edge cases.
 
 **Checklist**
-- [ ] 🟠 `CloudShareView.swift:48–52` — If the system share sheet fails to save participant
+- [x] 🟠 `CloudShareView.swift:48–52` — If the system share sheet fails to save participant
       edits, the error is only logged and the sheet is gone — no retry. Surface + retry.
-- [ ] 🟠 `SettingsView.swift:223–224` — People list can show a left/orphaned participant
+- [x] 🟠 `SettingsView.swift:223–224` — People list can show a left/orphaned participant
       with no name/role (sync lag). Filter inactive or show a "left the log" state.
 - [ ] 🟡 `ShareAcceptance.swift:27–41` — Replace-vs-merge logic reads like a fragile
       boolean short-circuit; refactor to an explicit `LinkAction` enum.
@@ -367,7 +386,7 @@ cross the boundary (`WidgetEntry` snapshot).
 **Current state.** Complete and well-isolated. Cosmetic edges only.
 
 **Checklist**
-- [ ] 🟡 `WidgetProvider.swift:64–69` — Store/container access failures are swallowed by
+- [x] 🟡 `WidgetProvider.swift:64–69` — Store/container access failures are swallowed by
       `try?` → silent `.empty`. Add debug logging for missing App Group / corrupt store.
 - [ ] 🟡 `SmallEventWidget.swift:130–131` — Active-sleep state is a snapshot; the widget
       can show "Sleeping" for minutes after a wake from Siri/Control Center until the
@@ -392,12 +411,12 @@ foreground reconciliation (`endAll()` then restart) for crash recovery.
 **Current state.** Complete; reconciliation handles the common crash case.
 
 **Checklist**
-- [ ] 🟡 `SleepActivityManager.swift:50–59` — `endAll()` fires async `Task`s without
+- [x] 🟡 `SleepActivityManager.swift:50–59` — `endAll()` fires async `Task`s without
       awaiting; a slow end could flicker against a new start. Collect/await them.
-- [ ] 🟡 `SleepActivityManager.swift:18–27` — `.request()` failure is logged only; the
+- [x] 🟡 `SleepActivityManager.swift:18–27` — `.request()` failure is logged only; the
       user starts sleep and no activity appears with no feedback. Consider a retry on next
       sync tick.
-- [ ] 🟡 `SleepActivityManager.swift:16` — `staleDate: nil` keeps the Island bright all
+- [x] 🟡 `SleepActivityManager.swift:16` — `staleDate: nil` keeps the Island bright all
       night; set ~1h so long sleeps dim (cosmetic).
 - [ ] 🟠 **Device-only:** ActivityKit can't run in the simulator — validate start/lock/
       Dynamic Island/wake/dismiss on hardware (iPhone + iPad).
@@ -416,9 +435,9 @@ deep-link routing into log sheets.
 failure). Same validation gap as NL logging.
 
 **Checklist**
-- [ ] 🟠 `LogFeedIntent.swift:22` — `amountOz` accepts 0 / negative / absurd values from
+- [x] 🟠 `LogFeedIntent.swift:22` — `amountOz` accepts 0 / negative / absurd values from
       Shortcuts with no bounds check. Guard `oz ∈ (0, 32]`.
-- [ ] 🟡 `DeepLinkRouter.swift:28` — Unrecognized host/kind fails silently; log a warning.
+- [x] 🟡 `DeepLinkRouter.swift:28` — Unrecognized host/kind fails silently; log a warning.
 - [ ] 🟡 `DeepLinkRouter.swift:13` — Two fast widget taps overwrite `pendingLog` (second is
       lost); queue or de-dupe. Low real-world risk.
 - [ ] 🟡 `QuickLogger.swift:45–56` — Owner-ID fallback to "first participant" can stamp the
@@ -439,12 +458,12 @@ Focus; re-armed after every feed and on foreground; stable per-device alarm ID.
 weakest production area.
 
 **Checklist**
-- [ ] 🟠 `FeedAlarmManager.swift:59` — `try?` discards scheduling errors; a failed
+- [x] 🟠 `FeedAlarmManager.swift:59` — `try?` discards scheduling errors; a failed
       reschedule leaves the parent with no reminder and no signal. Log + consider a
       `UNUserNotificationCenter` fallback.
-- [ ] 🟠 `FeedAlarmManager.swift:25–26` — If the user denies AlarmKit auth, every future
+- [x] 🟠 `FeedAlarmManager.swift:25–26` — If the user denies AlarmKit auth, every future
       feed silently no-ops. Detect denial once and prompt to enable in Settings.
-- [ ] 🟠 `FeedAlarmManager.swift:41` — No guard on `interval > 0`; a 0/garbage
+- [x] 🟠 `FeedAlarmManager.swift:41` — No guard on `interval > 0`; a 0/garbage
       `targetFeedIntervalMinutes` silently no-ops. Validate a sane minimum.
 - [ ] 🟡 No "reminder armed" affordance anywhere; the user can't tell a reminder is set.
       Add a small badge on the Feed tile / Today card.
@@ -465,21 +484,21 @@ ManageData (CSV export, clear logs, multi-step delete-everything); role pills + 
 and recovery gaps.
 
 **Checklist**
-- [ ] 🟠 `ManageDataView.swift:87–175` — Delete-everything is a 3-step flow with **no
+- [x] 🟠 `ManageDataView.swift:87–175` — Delete-everything is a 3-step flow with **no
       recovery if step 2 fails/times out** — the user is stranded. Add back/retry.
-- [ ] 🟠 `BabyEditSheet.swift:70–75` / `ProfileEditSheet.swift:70–75` — Clearing the name
+- [x] 🟠 `BabyEditSheet.swift:70–75` / `ProfileEditSheet.swift:70–75` — Clearing the name
       field **silently reverts/dismisses** instead of blocking. Disable Save on empty or
       show an error.
-- [ ] 🟡 `ManageDataView.swift:69` — Export shows a bare `ProgressView` then pops a
+- [x] 🟡 `ManageDataView.swift:69` — Export shows a bare `ProgressView` then pops a
       `ShareLink`; add "Preparing…" copy for the transition.
-- [ ] 🟡 `LogExporter.swift:48–52` — Temp CSV files accumulate in `temporaryDirectory`
+- [x] 🟡 `LogExporter.swift:48–52` — Temp CSV files accumulate in `temporaryDirectory`
       across exports; clean up old ones or reuse a stable name.
-- [ ] 🟡 `LogExporter.swift:32–33` — Sleep "detail" shows a raw ISO `endedAt`; format as a
+- [x] 🟡 `LogExporter.swift:32–33` — Sleep "detail" shows a raw ISO `endedAt`; format as a
       readable time / duration.
 - [ ] 🟡 `SettingsView.swift:51–57` — Feed-interval stepper is granular (15-min) and verbose
       ("every 3h 0m"); add common presets (2h/3h/4h).
 - [ ] 🟡 `SettingsView.swift:267–272` — People section lacks a heading/count for VoiceOver.
-- [ ] 💡 `LogExporter.swift` — CSV doesn't carry participant identity/color; add a column.
+- [x] 💡 `LogExporter.swift` — CSV doesn't carry participant identity/color; add a column.
 
 ---
 
@@ -498,7 +517,7 @@ end-to-end** — a release gate (see §18).
 - [ ] 🟠 **Accessibility audit pass** (its own session): VoiceOver across every screen,
       Dynamic Type to XXL with no clipping, urgency conveyed by dot+words not hue alone,
       haptic-only confirmation (no sound). Capture Accessibility Inspector output.
-- [ ] 🟡 `CradleMark.swift` — Decorative `.screen`-blend mark isn't
+- [x] 🟡 `CradleMark.swift` — Decorative `.screen`-blend mark isn't
       `accessibilityHidden(true)`; hide it from VoiceOver.
 - [ ] 🟡 Verify urgency amber/red and role-pill `opacity(0.16)` fills hold AA contrast in
       **dark** mode specifically (`Colors.swift:48–50`, `SettingsView.swift:313–321`).
@@ -527,7 +546,7 @@ App-Store-specific requirements are **not yet in place**, and the device/manual 
 surface (widgets, Live Activities, sharing, push) is untested.
 
 **Submission blockers & gates**
-- [ ] 🔴 **Privacy manifest** — add `TwoOfUs/PrivacyInfo.xcprivacy` (`NSPrivacyTracking
+- [x] 🔴 **Privacy manifest** — add `TwoOfUs/PrivacyInfo.xcprivacy` (`NSPrivacyTracking
       = false`, no tracking domains, declare any required-reason APIs). Required by App
       Store, not by TestFlight.
 - [ ] 🔴 **Privacy nutrition label** — complete in App Store Connect (map from
@@ -549,12 +568,12 @@ surface (widgets, Live Activities, sharing, push) is untested.
 - [ ] 🟡 Finish the **Liquid Glass app icon** in Icon Composer (macOS) — `TwoOfUs.icon` is
       a headless scaffold; PNG fallback is an acceptable v1 backstop
       (`docs/ICON_AND_SPLASH_MAC_STEPS.md`).
-- [ ] 🟡 Add a `CHANGELOG.md` and wire release notes; automate `MARKETING_VERSION`.
+- [x] 🟡 Add a `CHANGELOG.md` and wire release notes; automate `MARKETING_VERSION`.
 - [ ] 🟡 Extend tests: Participant/SharedSettings round-trips; deep-link malformed URLs;
       NL bounds validation; consider SwiftUI snapshot tests.
-- [ ] 🟡 New runbooks under `docs/`: `APP_STORE_RELEASE_RUNBOOK.md`,
+- [x] 🟡 New runbooks under `docs/`: `APP_STORE_RELEASE_RUNBOOK.md`,
       `TESTFLIGHT_MANUAL_CHECKLIST.md`, `DEVICE_TEST_MATRIX.md`, `ACCESSIBILITY_CHECKLIST.md`.
-- [ ] 🟡 Update `CLAUDE.md`/`README.md` so the "TestFlight only" language reflects the
+- [x] 🟡 Update `CLAUDE.md`/`README.md` so the "TestFlight only" language reflects the
       App Store goal.
 
 ---
