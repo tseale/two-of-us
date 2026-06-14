@@ -31,6 +31,16 @@ enum TimelineEntry: Identifiable {
         }
     }
 
+    /// The logger's participant id, so a row can resolve their current avatar
+    /// photo (name/color are denormalized on the event; the photo is not).
+    var loggedByID: UUID {
+        switch self {
+        case .feed(let e): return e.loggedByID
+        case .sleep(let e): return e.loggedByID
+        case .diaper(let e): return e.loggedByID
+        }
+    }
+
     var loggedByName: String {
         switch self {
         case .feed(let e): return e.loggedByName

@@ -194,8 +194,10 @@ Min height 46px. A "NOW" eyebrow cap with a hollow ring sits at the top.
 Tap → edit sheet; swipe-left → delete (confirm + warning haptic).
 
 ### Participant badge
-24px filled circle in the participant's identity color, white bold initial. Larger avatar
-variant (36–64px) uses photo or monogram-on-color fallback (initial at 44% of the size).
+24px avatar: the participant's **profile photo** when they've set one, otherwise a filled circle
+in their identity color with their white bold initial. Larger avatar variants (36–64px) use the
+same photo-or-monogram-on-color fallback (initial at 44% of the size). Timeline rows and the
+People list share this `Avatar` component.
 
 ### Sheets (Feed / Diaper / Edit / quick-log)
 Bottom sheets, medium detent (Feed also large), visible drag indicator, title with emoji

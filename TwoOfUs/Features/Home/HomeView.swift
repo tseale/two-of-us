@@ -6,6 +6,7 @@ struct HomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Query private var babies: [Baby]
+    @Query private var participants: [Participant]
     @Query private var settingsList: [SharedSettings]
     @Query(filter: #Predicate<FeedEvent> { $0.deletedAt == nil }, sort: \FeedEvent.timestamp, order: .reverse)
     private var feeds: [FeedEvent]
@@ -275,7 +276,7 @@ struct HomeView: View {
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                 ForEach(timelineEntries) { entry in
-                    DayTimelineRow(entry: entry)
+                    DayTimelineRow(entry: entry, loggedByPhoto: loggerPhoto[entry.loggedByID])
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                         .contentShape(Rectangle())
@@ -288,8 +289,16 @@ struct HomeView: View {
                 }
             }
         } header: {
-            Text("Recent").foregroundStyle(AppColor.text3)
+            Text("Recent · last 24 hours").foregroundStyle(AppColor.text3)
         }
+    }
+
+    /// Logger id → avatar photo, for participants who set one. Absent keys fall
+    /// back to the colored-initial badge in the row.
+    private var loggerPhoto: [UUID: Data] {
+        Dictionary(uniqueKeysWithValues: participants.compactMap { p in
+            p.photoData.map { (p.id, $0) }
+        })
     }
 
     private var timelineEntries: [TimelineEntry] {

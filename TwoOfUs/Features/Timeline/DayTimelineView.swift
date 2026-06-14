@@ -10,6 +10,9 @@ import SwiftUI
 /// caller that wants the plain icon + title + time layout.
 struct DayTimelineRow: View {
     let entry: TimelineEntry
+    /// The logger's avatar photo, resolved by the caller from `entry.loggedByID`.
+    /// Nil falls back to the colored-monogram badge (same look as before).
+    var loggedByPhoto: Data? = nil
 
     var body: some View {
         HStack(spacing: 10) {
@@ -26,7 +29,10 @@ struct DayTimelineRow: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppColor.text)
                 Spacer(minLength: 8)
-                ParticipantBadge(name: entry.loggedByName, colorHex: entry.loggedByColorHex)
+                // Shows the parent's profile photo when they have one, else the
+                // colored initial — same monogram fallback as `ParticipantBadge`.
+                Avatar(photoData: loggedByPhoto, name: entry.loggedByName,
+                       colorHex: entry.loggedByColorHex, size: 24)
             }
         }
         .frame(minHeight: 46)
