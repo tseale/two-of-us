@@ -20,4 +20,12 @@ final class AppConfigTests: XCTestCase {
         let modes = info["UIBackgroundModes"] as? [String] ?? []
         XCTAssertTrue(modes.contains("remote-notification"))
     }
+
+    func testAppRegistersWidgetDeepLinkScheme() {
+        // The Feed/Diaper home widgets open the app on twoofus://log/… — without
+        // the registered URL scheme iOS never routes the tap and the tile dead-ends.
+        let types = info["CFBundleURLTypes"] as? [[String: Any]] ?? []
+        let schemes = types.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
+        XCTAssertTrue(schemes.contains("twoofus"))
+    }
 }

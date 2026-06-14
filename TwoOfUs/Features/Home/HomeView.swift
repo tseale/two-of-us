@@ -23,6 +23,7 @@ struct HomeView: View {
     @State private var spotlight: SetupSpotlight?
     @State private var prefs = LocalPrefs.shared
     @State private var setup = SetupProgress.shared
+    @State private var router = DeepLinkRouter.shared
 
     private enum ActiveSheet: String, Identifiable { case feed, diaper; var id: String { rawValue } }
 
@@ -140,7 +141,22 @@ struct HomeView: View {
             }
             #endif
             .loggedToast($toast)
+            // A tapped Feed/Diaper widget stages a sheet here: onChange catches a
+            // warm launch (Home already up), onAppear a cold launch / tab switch.
+            .onChange(of: router.pendingLog) { _, _ in consumeDeepLink() }
+            .onAppear { consumeDeepLink() }
         }
+    }
+
+    /// Opens the log sheet a tapped widget asked for, then clears the request so
+    /// it doesn't re-fire on the next appear.
+    private func consumeDeepLink() {
+        guard let target = router.pendingLog else { return }
+        switch target {
+        case .feed:   activeSheet = .feed
+        case .diaper: activeSheet = .diaper
+        }
+        router.pendingLog = nil
     }
 
     // MARK: Header

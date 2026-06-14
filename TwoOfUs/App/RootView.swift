@@ -55,6 +55,9 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.35), value: route)
         .tint(AppColor.accentFeed)
         .preferredColorScheme(prefs.appearance.colorScheme)
+        // A tapped Feed/Diaper home-screen widget opens the app on this URL;
+        // the router stages the sheet for HomeView to present.
+        .onOpenURL { DeepLinkRouter.shared.handle($0) }
         .overlay(alignment: .top) {
             if prefs.demoModeEnabled { demoBanner }
         }
@@ -123,17 +126,29 @@ struct RootView: View {
 
 /// Home (glance + log), History (trends), Stats (records & fun numbers).
 struct MainTabView: View {
+    enum Tab: Hashable { case home, history, stats }
+    @State private var selection: Tab = .home
+    @State private var router = DeepLinkRouter.shared
+
     var body: some View {
-        TabView {
+        TabView(selection: $selection) {
             HomeView()
+                .tag(Tab.home)
                 .tabItem { Label("Home", systemImage: "house.fill") }
             HistoryView()
+                .tag(Tab.history)
                 .tabItem { Label("History", systemImage: "chart.bar.xaxis") }
             StatsView()
+                .tag(Tab.stats)
                 .tabItem { Label("Stats", systemImage: "sparkles") }
         }
         // Collapse the glass tab bar while scrolling so content leads (iOS 26).
         .tabBarMinimizeBehavior(.onScrollDown)
+        // A tapped Feed/Diaper widget routes to a log sheet HomeView owns — pull
+        // Home on screen first so it's mounted to present it.
+        .onChange(of: router.pendingLog) { _, pending in
+            if pending != nil { selection = .home }
+        }
     }
 }
 

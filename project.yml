@@ -46,6 +46,12 @@ targets:
         # invite link into the app (the scene/app delegate accept handlers
         # never fire) and the co-parent can never join.
         CKSharingSupported: YES
+        # Custom URL scheme the Feed/Diaper home widgets tap into
+        # (twoofus://log/feed · twoofus://log/diaper) to open their log sheet.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.taylorseale.twoofus.deeplink
+            CFBundleURLSchemes:
+              - twoofus
         # Plain launch field matching the app background in both schemes (the
         # LaunchBackground colorset), so cold launch lands directly on the first
         # screen with no flash. No animated splash — removed once onboarding
