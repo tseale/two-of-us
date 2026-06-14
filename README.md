@@ -3,7 +3,8 @@
 A native iOS baby-tracking app for two parents to track their newborn — feeds,
 sleep, and diaper changes — with real-time sync between both of their iPhones.
 Built for speed of entry (you're holding a baby) and a calm, dark-mode-first
-interface for 3 AM use. Distributed privately via TestFlight.
+interface for 3 AM use. Distributed via TestFlight today, with a first **App
+Store** release in preparation (see [`docs/APP_STORE_RELEASE_RUNBOOK.md`](docs/APP_STORE_RELEASE_RUNBOOK.md)).
 
 ## Status
 
@@ -12,8 +13,12 @@ Live Activity), Siri/Shortcuts intents, and stats are implemented in SwiftUI wit
 local SwiftData persistence; CloudKit cross-parent sharing is wired up. The app now
 targets **iOS 26** and adopts its headline frameworks — Liquid Glass, AlarmKit
 feed reminders, on-device Foundation Models, and Control Center controls (see
-[iOS 26 features](#ios-26-features)). No App Store submission — distributed via
-TestFlight to the two parents.
+[iOS 26 features](#ios-26-features)). Distributed via TestFlight to the two
+parents, and now being prepared for a first **App Store** release — the
+submission-only requirements (privacy manifest, nutrition label, screenshots, a
+second Xcode Cloud workflow) are tracked in
+[`docs/APP_STORE_RELEASE_RUNBOOK.md`](docs/APP_STORE_RELEASE_RUNBOOK.md) and
+[`docs/RELEASE_POLISH_PLAN.md`](docs/RELEASE_POLISH_PLAN.md) §18.
 
 ## UI Preview
 
@@ -91,7 +96,7 @@ gracefully on hardware/OS that doesn't support it:
 - **AlarmKit feed reminders** — `Alarms/FeedAlarmManager.swift` schedules a single
   "next feed due" countdown that pierces Silent/Focus. Device-local and opt-in
   (`LocalPrefs.feedReminderEnabled`), re-armed on each feed and on app foreground.
-- **Foundation Models** — `AI/MillerIntelligence.swift` runs everything on-device:
+- **Foundation Models** — `AI/BabyIntelligence.swift` runs everything on-device:
   a warm Insights summary over `StatsEngine`, and `@Generable` natural-language
   parsing behind the ✨ quick-log sheet. Gated on model availability; UI hides when
   unavailable.
@@ -116,7 +121,7 @@ TwoOfUs/                 # Main iOS app target
 ├── DesignSystem/           # Colors + Liquid Glass, Urgency, Haptics, TimeFormatting, DayRibbon
 ├── Features/               # Home, Feed, Sleep, Diaper, Edit, History, Stats, Settings, Onboarding, Timeline
 ├── Intents/                # Siri App Intents (LogFeed, LogDiaper, ToggleSleep) + QuickLogger
-├── AI/                     # MillerIntelligence — on-device Foundation Models (insights + NL logging)
+├── AI/                     # BabyIntelligence — on-device Foundation Models (insights + NL logging)
 ├── Alarms/                 # FeedAlarmManager — AlarmKit "next feed due" reminder
 ├── LiveActivities/         # Sleep Live Activity (ActivityKit)
 ├── Sync/                   # CloudKit sync, sharing & join flows

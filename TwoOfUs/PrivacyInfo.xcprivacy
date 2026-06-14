@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Privacy manifest — required for App Store submission (not enforced by
+  TestFlight). Two of Us does no tracking and ships no third-party SDKs; all
+  baby/event data lives in the user's own iCloud and never reaches the
+  developer, so no collected-data types are declared here. The two
+  required-reason API entries cover the only such APIs the app touches:
+    * UserDefaults (1C8F.1): App Group defaults shared between the app and its
+      widget/Siri extension.
+    * File timestamp (DDA9.1): modification dates of files inside the app's own
+      temporary/App-Group containers (CKAsset outbox cleanup, CSV export).
+  Keep this in sync with the App Store Connect nutrition label (docs/PRIVACY.md).
+-->
+<plist version="1.0">
+<dict>
+    <key>NSPrivacyTracking</key>
+    <false/>
+    <key>NSPrivacyTrackingDomains</key>
+    <array/>
+    <key>NSPrivacyCollectedDataTypes</key>
+    <array/>
+    <key>NSPrivacyAccessedAPITypes</key>
+    <array>
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>1C8F.1</string>
+            </array>
+        </dict>
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>DDA9.1</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>
