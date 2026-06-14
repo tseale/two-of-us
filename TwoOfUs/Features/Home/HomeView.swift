@@ -39,8 +39,9 @@ struct HomeView: View {
             List {
                 Section {
                     header
-                        // Sits a touch higher now the top-left ✨ button is gone.
-                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 2, trailing: 16))
+                        // Small top inset keeps the profile/settings row off the
+                        // status bar now the nav bar is hidden.
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 2, trailing: 16))
                     TodayRibbonCard(
                         marks: todayMarks,
                         feedCount: todaySummary?.feedCount ?? 0,
@@ -87,13 +88,9 @@ struct HomeView: View {
             }
             .listStyle(.plain)
             .background(AppColor.bg)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showSettings = true } label: { Image(systemName: "gearshape") }
-                        .tint(AppColor.text3)
-                }
-            }
+            // Settings now lives in the header row (top-aligned with the profile),
+            // so the empty inline nav bar would just add dead space above it.
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $activeSheet) { sheet in
                 switch sheet {
                 case .feed: FeedSheet(onLogged: { message, undo in
@@ -157,7 +154,8 @@ struct HomeView: View {
     // MARK: Header
 
     private var header: some View {
-        HStack(spacing: 14) {
+        // .top aligns the avatar, name, and the settings button along one line.
+        HStack(alignment: .top, spacing: 14) {
             Avatar(photoData: baby?.photoData, name: baby?.name ?? "Baby",
                    colorHex: ParticipantColors.babyHex, size: 60)
             VStack(alignment: .leading, spacing: 2) {
@@ -170,7 +168,21 @@ struct HomeView: View {
                 }
             }
             Spacer()
+            settingsButton
         }
+    }
+
+    private var settingsButton: some View {
+        Button { showSettings = true } label: {
+            Image(systemName: "gearshape")
+                .font(.title3)
+                .foregroundStyle(AppColor.text3)
+                .frame(width: 40, height: 40)
+                .background(AppColor.card, in: Circle())
+                .overlay(Circle().strokeBorder(AppColor.separator.opacity(0.5), lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Settings")
     }
 
     private var lastSleepEnd: Date? {
