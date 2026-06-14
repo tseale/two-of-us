@@ -81,7 +81,7 @@ struct RootView: View {
             Button("Try Again") { shareAcceptance.retry() }
             Button("Not Now", role: .cancel) {}
         } message: {
-            Text("Check that this iPhone is online and signed into iCloud, then try again — or tap the invite link once more.")
+            Text(shareAcceptance.failureMessage)
         }
         // The link was tapped on a phone that already has its own log (solo
         // onboarding happened here first). Joining silently would leave two
@@ -144,11 +144,13 @@ struct RootView: View {
                 .font(.caption2.weight(.semibold))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 5)
-                .background(.thinMaterial, in: Capsule())
+                .background(.regularMaterial, in: Capsule())
                 .overlay(Capsule().strokeBorder(AppColor.accentFeed.opacity(0.5)))
         }
         .tint(AppColor.accentFeed)
         .padding(.top, 4)
+        .accessibilityLabel("Exit demo mode")
+        .accessibilityHint("You're viewing sample data")
     }
 }
 

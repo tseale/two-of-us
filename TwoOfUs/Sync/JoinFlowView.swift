@@ -28,6 +28,9 @@ struct JoinFlowView: View {
     @State private var colorHex = ParticipantColors.palette[1]
     @State private var userPickedColor = false
     @State private var photoData: Data?
+    /// Set after ~30s still waiting on the owner's profile, so the disabled Finish
+    /// button explains itself instead of hanging on a silent spinner.
+    @State private var slowConnect = false
 
     private var baby: Baby? { babies.first }
     /// The inviting parent — the first full-access participant that synced in.
@@ -147,12 +150,22 @@ struct JoinFlowView: View {
                 if !trimmedName.isEmpty && owner == nil {
                     VStack(spacing: 8) {
                         SyncingShimmer()
-                        Text("Connecting to your co-parent…")
+                        Text(slowConnect
+                             ? "Still connecting. Make sure both phones are online and signed into iCloud — your co-parent may need to open Two of Us."
+                             : "Connecting to your co-parent…")
                             .font(.footnote)
                             .foregroundStyle(AppColor.text3)
+                            .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.top, 4)
+                    .task(id: owner == nil) {
+                        slowConnect = false
+                        guard owner == nil else { return }
+                        try? await Task.sleep(for: .seconds(30))
+                        guard !Task.isCancelled else { return }
+                        withAnimation { slowConnect = true }
+                    }
                 }
                 Spacer(minLength: 16)
             }
@@ -245,6 +258,11 @@ struct JoinFlowView: View {
 /// synced down yet (rare: slow first fetch). Self-heals — `RootView` re-routes
 /// to the main UI the moment the owner's records land.
 struct JoinSyncingView: View {
+    /// After this long with nothing synced, stop pretending it's normal and offer
+    /// a way out (owner offline, deleted baby, or a dropped fetch).
+    private static let patienceWindow: Duration = .seconds(30)
+    @State private var tookTooLong = false
+
     var body: some View {
         ZStack {
             AmbientBackground(stop: .nightStage)
@@ -262,8 +280,42 @@ struct JoinSyncingView: View {
                 }
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
+
+                if tookTooLong { escapeHatch }
             }
         }
+        // Keyed on the flag so tapping "Try again" (which resets it) restarts the
+        // patience window for the re-kicked fetch.
+        .task(id: tookTooLong) {
+            guard !tookTooLong else { return }
+            try? await Task.sleep(for: Self.patienceWindow)
+            guard !Task.isCancelled else { return }
+            withAnimation { tookTooLong = true }
+        }
+    }
+
+    /// Shown once the wait runs long: explain and let the user re-kick the fetch
+    /// rather than stare at a spinner forever.
+    private var escapeHatch: some View {
+        VStack(spacing: 12) {
+            Text("This is taking longer than usual.")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.white)
+            Text("Make sure both phones are online and signed into iCloud, and ask your co-parent to open Two of Us. Then try again.")
+                .font(.footnote)
+                .foregroundStyle(AppColor.nightlightCream.opacity(0.78))
+                .multilineTextAlignment(.center)
+            Button("Try again") {
+                tookTooLong = false
+                SyncManager.shared?.didAcceptShare()
+            }
+            .font(.subheadline.weight(.semibold))
+            .buttonStyle(.borderedProminent)
+            .tint(AppColor.accentFeed)
+        }
+        .padding(.horizontal, 32)
+        .padding(.top, 8)
+        .transition(.opacity)
     }
 }
 

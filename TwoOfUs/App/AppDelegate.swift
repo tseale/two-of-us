@@ -46,7 +46,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             // fetch on every foreground keeps "within ~10 seconds" honest. Also
             // restarts engines if iCloud was signed into while we were inactive.
             SyncManager.shared?.start()
-            Task { await SyncManager.shared?.handleRemoteNotification() }
+            // Reload widgets again once the foreground fetch actually lands, so a
+            // glance reflects the co-parent's just-synced changes rather than the
+            // pre-fetch snapshot. (The in-app UI self-heals via reactive @Query.)
+            Task {
+                await SyncManager.shared?.handleRemoteNotification()
+                WidgetCenter.shared.reloadAllTimelines()
+            }
             SyncManager.shared?.drainExtensionQueue()
         }
         guard let logger = QuickLogger.make() else { return }
@@ -87,7 +93,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
                      didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {}
     func application(_ application: UIApplication,
                      didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        print("Remote notification registration failed: \(error)")
+        AppLog.sync.error("Remote notification registration failed: \(error.localizedDescription, privacy: .public)")
     }
 }
 
