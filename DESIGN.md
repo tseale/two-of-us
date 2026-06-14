@@ -189,23 +189,30 @@ A 24-hour horizontal strip, reused on Home, History swimlanes, and widgets:
 Left-to-right: **time gutter** (64px, right-aligned, mono caption, `--text3`) → **rail**
 (2px vertical line, `--separator` @ 60%, with an 11px accent node per event; sleep nodes are
 capsules whose height scales with duration, 14–30px; nodes carry a 2px `--card` ring so the
-rail passes behind) → emoji + title (15px semibold) → **participant badge** right.
+rail passes behind) → emoji + title (15px semibold), with an optional **note** line beneath
+(caption, `--text2`, ≤2 lines) → **participant badge** right.
 Min height 46px. A "NOW" eyebrow cap with a hollow ring sits at the top.
 Tap → edit sheet; swipe-left → delete (confirm + warning haptic).
 
 ### Participant badge
-24px filled circle in the participant's identity color, white bold initial. Larger avatar
-variant (36–64px) uses photo or monogram-on-color fallback (initial at 44% of the size).
+24px avatar: the participant's **profile photo** when they've set one, otherwise a filled circle
+in their identity color with their white bold initial. Larger avatar variants (36–64px) use the
+same photo-or-monogram-on-color fallback (initial at 44% of the size). Timeline rows and the
+People list share this `Avatar` component.
 
-### Sheets (Feed / Diaper / Edit / quick-log)
+### Sheets (Feed / Diaper / Edit)
 Bottom sheets, medium detent (Feed also large), visible drag indicator, title with emoji
 ("Log a feed 🍼"). Content patterns:
 - **Preset chips** (Feed oz: 2/3/4): equal-width, radius 14, stacked value+unit; selected =
   accent stroke 2px + accent fill @ 25%.
 - **Choice buttons** (Diaper Wet/Dirty/Both): equal-width `--card2` tiles, radius 16, emoji over
-  label, one tap logs-and-dismisses (success haptic).
+  label; tap selects (medium haptic + accent stroke 2px, matching the Feed preset chips), then an
+  explicit "Log ‹type›" confirm logs-and-dismisses (success haptic) — so a stray tap can't mislog.
 - **Time control**: every log sheet defaults to "now" with a compact date picker + a teal
   "Now" reset button. Backdating is one tap away, never required.
+- **Note field** (Feed/Diaper log sheets + all Edit sheets): an optional multi-line
+  "Add a note (optional)" field in its own section — trimmed, capped, blanks dropped. Kept
+  out of the way so fast logging stays fast.
 
 ### Toast (undo)
 Bottom-floating `--card2` capsule, padding 18×14, message left + bold teal "Undo" right;
@@ -228,8 +235,9 @@ radius 6, ~58% width, optional dashed average rule. Axes whisper: narrow weekday
 
 ### Empty states
 Centered: a gently bobbing emoji (46px, ±5px, 1.9s ease loop, disabled under reduced motion) →
-headline (rounded) → one supportive sentence (`--text2`). Always name the next action:
-"tap 🍼 to log Miller's first feed."
+headline (rounded) → one supportive sentence (`--text2`). Always name the next action — and
+where several are equally valid, name them all rather than picking one: the Home timeline reads
+"🍼💤💩 · Tap a button above to log Miller's first feed, sleep, or diaper."
 
 ### Settings
 Standard grouped iOS form. Custom row icons: 20×20 rounded-square (radius 7) accent fill with
@@ -326,9 +334,10 @@ Subtle and quick. Nothing bounces for attention.
 - **Dark/light follow the system**; both must hold AA contrast.
 - **Glanceable companions** share the language at tiny sizes: lock-screen widgets use the
   monochrome ribbon variant; the Dynamic Island sleep timer is `💤 23:47` compact /
-  moon + timer + an interactive **Wake up ☀️** button expanded, over the deep indigo
-  gradient. The lock-screen Live Activity carries the same Wake button (solid periwinkle,
-  radius 16), mirroring the in-app active-sleep card.
+  moon + "{baby} is sleeping" + timer expanded — **a calm glance, no action button**.
+  Waking happens on the **lock-screen Live Activity**, which carries the **Wake up ☀️**
+  button (solid periwinkle, radius 16) over the deep indigo gradient, mirroring the in-app
+  active-sleep card.
 - Touch targets ≥44px; no hover-dependent affordances (it's a touch product).
 
 ---

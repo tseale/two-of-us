@@ -57,7 +57,7 @@ commits by area on one PR. Marker meanings below:
 | 4 | Setup checklist / quests / spotlights | ✅ Solid | 🟡 |
 | 5 | Home & quick-logging (Feed / Diaper / Sleep) | ✅ Strong | 🟠 |
 | 6 | Edit & backdate events | ✅ Good | 🟠 |
-| 7 | Natural-language quick-log (Foundation Models) | ⚠️ Needs validation | 🟠 |
+| 7 | ~~Natural-language quick-log (Foundation Models)~~ | ➖ Removed (superseded by Siri) | — |
 | 8 | Timeline & history & stats | ✅ Good | 🟡 |
 | 9 | Data model & local store (SwiftData) | ✅ Strong | 🔴 |
 | 10 | CloudKit sync engine | ✅ Strong arch | 🔴 |
@@ -180,7 +180,7 @@ Home card + Settings rows + just-in-time spotlights. Rhythm is shared; reminders
 ## 5. Home & quick-logging (Feed / Diaper / Sleep)
 
 **Scope.** Primary screen: header, Today ribbon + daily metrics, three log tiles with
-"time since," active-sleep card morph, 24h timeline, ✨ NL quick-log entry.
+"time since," active-sleep card morph, 24h timeline.
 
 **Key files:** `Features/Home/*` (`HomeView`, `LogButtons`, `TodayRibbonCard`,
 `LoggedToast`), `Features/Feed/FeedSheet.swift`, `Features/Diaper/DiaperSheet.swift`,
@@ -220,7 +220,7 @@ timeline row; append-only (soft-delete original, insert replacement linked by `e
 
 **Checklist**
 - [x] 🟠 `EditEventSheet.swift:48` — Feed stepper hardcodes `0.5...12`; a 0.25 oz value
-      (older data / NL parse) gets clamped on edit. Widen or derive range from settings.
+      (older data / Siri or widget input) gets clamped on edit. Widen or derive from settings.
 - [x] 🟠 `EditEventSheet.swift:63–64` — Editor allows `endedAt == startedAt` (0-duration
       sleep) with no guard. Validate a minimum duration or warn.
 - [x] 🟡 `EditEventSheet.swift:78` — Generic "Save" label; make it contextual ("Save feed").
@@ -229,30 +229,13 @@ timeline row; append-only (soft-delete original, insert replacement linked by `e
 
 ---
 
-## 7. Natural-language quick-log (Foundation Models)
+## 7. Natural-language quick-log — REMOVED (2026-06-14)
 
-**Scope.** ✨ sheet → on-device `@Generable` parse of "4 oz 20 min ago" / "wet diaper" /
-"fell asleep 15 min ago" → applies a Feed/Diaper/Sleep event. Gated on model availability.
-
-**Key files:** `AI/BabyIntelligence.swift` (note: README calls it `MillerIntelligence` —
-reconcile the name), `Features/Home/NLLogSheet.swift`, `HomeView.applyParsed`.
-
-**Current state.** Functional and gracefully hidden when unavailable, but **no bounds
-validation** on parsed values before they're written.
-
-**Checklist**
-- [x] 🔴 No validation on `ParsedLog.amountOz` / `minutesAgo` before applying — the model
-      could return 1000 oz or a negative time and it writes silently. Clamp in
-      `NLLogSheet`/`applyParsed` (e.g. oz ∈ 0–32, minutesAgo ∈ 0–1440) and surface a
-      friendly out-of-range message (`BabyIntelligence.swift:40–48`).
-- [x] 🟠 `NLLogSheet.swift:59` — Error hint only shows feed/diaper examples; add a sleep
-      example ("or 'fell asleep 15 min ago'") and dismiss the keyboard on error.
-- [x] 🟡 `BabyIntelligence.swift:21–32` — Summary/parse failures return `nil` with no log;
-      add a debug log so QA can tell "unavailable" from "errored."
-- [x] 🟡 Reconcile the name discrepancy (`BabyIntelligence` in code vs
-      `MillerIntelligence` in README/§ docs).
-- [ ] 💡 `minutesAgo: Int` loses sub-minute precision ("30 seconds ago" → now). Low value;
-      only change if you care.
+The on-device ✨ NL quick-log sheet was **removed**: hands-free logging is fully covered by
+Siri / App Intents (§13 / runbook below), so the feature was redundant. Deleted
+`Features/Home/NLLogSheet.swift`, the Home top-left ✨ button + `HomeView.applyParsed`, and the
+`parseLog` / `ParsedLog` / `outOfRangeMessage` / `Bounds` members of `BabyIntelligence`. The
+on-device **Insights summary** (`BabyIntelligence.summary`, Stats tab) is retained — see §8.
 
 ---
 
@@ -432,7 +415,7 @@ deep-link routing into log sheets.
 **Key files:** `Intents/*`, `App/DeepLinkRouter.swift`, `docs/SIRI_AND_SHORTCUTS.md`.
 
 **Current state.** Complete and well-guarded (every intent handles `QuickLogger.make()`
-failure). Same validation gap as NL logging.
+failure). `QuickLogger.logFeed` clamps ounces at the write boundary.
 
 **Checklist**
 - [x] 🟠 `LogFeedIntent.swift:22` — `amountOz` accepts 0 / negative / absurd values from
@@ -584,7 +567,7 @@ A sensible path to a clean 1.0:
 
 1. **§9 + §10 + §15** (data integrity & reliability) — fix the 🔴 silent-failure paths
    first; everything else rides on writes/sync being trustworthy.
-2. **§5 + §6 + §7 + §14** (logging surfaces & validation) — the daily-use core.
+2. **§5 + §6 + §14** (logging surfaces & validation) — the daily-use core.
 3. **§1 + §3 + §11** (routing & sharing edges) — the timeout/escape-hatch gaps.
 4. **§2 + §4 + §8 + §16** (onboarding, setup, stats, settings polish).
 5. **§12 + §13** (glanceable layer — pair with on-device QA).

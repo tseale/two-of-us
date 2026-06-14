@@ -17,8 +17,7 @@ or both. Run before promoting a build to the App Store. Pair with
 - [ ] Feed/diaper/sleep quick-log; backdate via the time control; toast + Undo.
 - [ ] Diaper select-then-confirm logs the highlighted type, not a stray tap.
 - [ ] Active-sleep card morph; stop sleep; edit/backdate an event.
-- [ ] Natural-language log ("4oz 20 min ago", "wet diaper", "fell asleep 15 min
-      ago"); out-of-range values show a friendly message and don't write.
+- [ ] Add a note on a feed/diaper (log + edit); it shows on the timeline row.
 
 ## Sync (two devices)
 - [ ] A log on phone A appears on phone B within ~10s (foreground and via push

@@ -106,19 +106,9 @@ struct SleepLiveActivity: Widget {
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
                 }
-                DynamicIslandExpandedRegion(.bottom) {
-                    Button(intent: wakeIntent()) {
-                        Text("Wake up ☀️")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.white)
-                    .background(AppColor.accentSleep,
-                                in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .padding(.bottom, 4)
-                }
+                // No action button in the Island — it stays a calm glance (zzz +
+                // running timer). Waking happens from the lock-screen Live Activity
+                // or the in-app card.
             } compactLeading: {
                 // DESIGN.md §9: the compact island reads "💤 23:47".
                 Text("💤")

@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// A one-time feature moment shown in the main app: "it learns your rhythm"
-/// right after the first feed, when there's real data to make it meaningful.
+/// A one-time feature moment shown in the main app: "The story builds with
+/// every log" — right after the first feed, when there's real data to make it
+/// meaningful. (The `.rhythm` enum case keeps its raw value for persistence.)
 /// Same ambient + entrance language as onboarding, ending in a single "Got it".
 struct SpotlightSheet: View {
     let spotlight: SetupSpotlight
@@ -44,12 +45,12 @@ struct SpotlightSheet: View {
         }
     }
 
-    // MARK: It learns your rhythm
+    // MARK: The story builds with every log
 
     @ViewBuilder private var rhythmContent: some View {
         OnboardingStepHeader(
-            title: "It learns your rhythm",
-            subtitle: "Today as a 24-hour ribbon, week-over-week trends, records and patterns — they build with every log."
+            title: "The story builds with every log",
+            subtitle: "Today as a 24-hour ribbon, week-over-week trends, records, milestones and a both-of-you split — they grow with every log."
         )
         .onboardingEntrance(revealed)
 
@@ -64,18 +65,26 @@ struct SpotlightSheet: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("A 24-hour ribbon of the day, a rising longest-sleep trend, and a weekly Night MVP.")
 
+        // Tease the shareable recap — the new delight payoff of all that logging.
+        teaser(icon: "square.and.arrow.up", tint: AppColor.accentSleep, index: 4,
+               text: "Share a weekly recap — a card made for the grandparents.")
+
         if BabyIntelligence.isAvailable {
-            HStack(spacing: 10) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(AppColor.accentFeed)
-                Text("Plus a weekly digest, written on your phone — nothing leaves it.")
-                    .font(.footnote)
-                    .foregroundStyle(AppColor.text2)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 4)
-            .onboardingEntrance(revealed, index: 4)
+            teaser(icon: "sparkles", tint: AppColor.accentFeed, index: 5,
+                   text: "Plus a weekly digest, written on your phone — nothing leaves it.")
         }
+    }
+
+    private func teaser(icon: String, tint: Color, index: Int, text: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).foregroundStyle(tint)
+            Text(text)
+                .font(.footnote)
+                .foregroundStyle(AppColor.text2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 4)
+        .onboardingEntrance(revealed, index: index)
     }
 
     // MARK: Bottom bar
