@@ -103,6 +103,8 @@ struct CradleMark: View {
         }
         .frame(width: size, height: size)
         .compositingGroup()
+        // Purely decorative brand artwork — keep it out of the VoiceOver order.
+        .accessibilityHidden(true)
     }
 }
 

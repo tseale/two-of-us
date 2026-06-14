@@ -192,6 +192,9 @@ struct OnboardingPageDots: View {
             }
         }
         .animation(.easeInOut, value: index)
-        .accessibilityHidden(true)
+        // Collapse the decorative dots into a single spoken progress announcement
+        // rather than hiding progress from VoiceOver entirely.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Page \(index + 1) of \(count)")
     }
 }
