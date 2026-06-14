@@ -28,7 +28,7 @@ second Xcode Cloud workflow) are tracked in
 > specified in [`DESIGN.md`](DESIGN.md), extracted from the implemented SwiftUI.
 > Real device captures require building in Xcode on macOS.
 
-**Core screens — Home · Feed · Sleep · Diaper** *(concept: Liquid Glass cards, ✨ quick-log)*
+**Core screens — Home · Feed · Sleep · Diaper** *(concept: Liquid Glass cards)*
 
 ![Home, Feed, Sleep, and Diaper screens](mockups/mockup.png)
 
@@ -36,9 +36,9 @@ second Xcode Cloud workflow) are tracked in
 
 ![Lock screen Live Activity, widgets, and Control Center controls](mockups/mockup-lock.png)
 
-**On-device AI — natural-language quick-log & Foundation Models insights**
+**On-device AI — Foundation Models insights**
 
-![Natural-language quick log and Stats insights](mockups/mockup-ai.png)
+![Stats insights](mockups/mockup-ai.png)
 
 **Insights — sleep/feed visualizations (Phase 3)**
 
@@ -56,8 +56,6 @@ second Xcode Cloud workflow) are tracked in
   target feed interval (default 3h, configurable)
 - **Per-parent attribution** — each participant has a colored initial so you can
   see who logged what
-- **Natural-language quick log** — tap ✨ and type "4 oz, 20 min ago" or "wet
-  diaper"; parsed entirely on-device by Foundation Models (nothing leaves the phone)
 - **On-device insights** — a short, warm plain-English recap of feeding cadence,
   longest sleep stretch, and busiest hour, generated locally on the Stats tab
 - **Feed reminders** — an AlarmKit "next feed due" countdown that breaks through
@@ -82,7 +80,7 @@ second Xcode Cloud workflow) are tracked in
 - **ActivityKit / Live Activities** — live Sleep timer on the lock screen and Dynamic Island
 - **App Intents / Siri & Controls** — "Hey Siri, log a diaper change" + Control Center / Action Button controls
 - **AlarmKit** — "next feed due" reminder that breaks through Silent/Focus (iOS 26)
-- **Foundation Models** — on-device natural-language logging & insights (iOS 26)
+- **Foundation Models** — on-device insights summary (iOS 26)
 - **Swift Charts** — built-in charting for sleep/feed patterns
 
 ## iOS 26 features
@@ -96,10 +94,9 @@ gracefully on hardware/OS that doesn't support it:
 - **AlarmKit feed reminders** — `Alarms/FeedAlarmManager.swift` schedules a single
   "next feed due" countdown that pierces Silent/Focus. Device-local and opt-in
   (`LocalPrefs.feedReminderEnabled`), re-armed on each feed and on app foreground.
-- **Foundation Models** — `AI/BabyIntelligence.swift` runs everything on-device:
-  a warm Insights summary over `StatsEngine`, and `@Generable` natural-language
-  parsing behind the ✨ quick-log sheet. Gated on model availability; UI hides when
-  unavailable.
+- **Foundation Models** — `AI/BabyIntelligence.swift` runs on-device: a warm Insights
+  summary over `StatsEngine`, shown on the Stats tab. Gated on model availability; the
+  card hides when unavailable. (Hands-free logging is covered by Siri / App Intents.)
 - **Controls** — `TwoOfUsWidgets/LogControls.swift` exposes Log Feed, Log
   Diaper, and a stateful Sleep toggle to Control Center, the Lock Screen, and the
   Action Button, reusing the existing App Intents.
@@ -121,7 +118,7 @@ TwoOfUs/                 # Main iOS app target
 ├── DesignSystem/           # Colors + Liquid Glass, Urgency, Haptics, TimeFormatting, DayRibbon
 ├── Features/               # Home, Feed, Sleep, Diaper, Edit, History, Stats, Settings, Onboarding, Timeline
 ├── Intents/                # Siri App Intents (LogFeed, LogDiaper, ToggleSleep) + QuickLogger
-├── AI/                     # BabyIntelligence — on-device Foundation Models (insights + NL logging)
+├── AI/                     # BabyIntelligence — on-device Foundation Models (insights summary)
 ├── Alarms/                 # FeedAlarmManager — AlarmKit "next feed due" reminder
 ├── LiveActivities/         # Sleep Live Activity (ActivityKit)
 ├── Sync/                   # CloudKit sync, sharing & join flows
@@ -148,7 +145,7 @@ open TwoOfUs.xcodeproj
 
 Then build & run on an iOS 26 simulator or device (Xcode 26 / iOS 26 SDK).
 CloudKit sync requires a paid Apple Developer account and being signed in to iCloud
-on the device. Foundation Models features (NL quick-log, Insights) require Apple
+on the device. Foundation Models features (Insights) require Apple
 Intelligence–capable hardware and hide themselves where unavailable.
 
 ## Documentation
@@ -174,7 +171,7 @@ Intelligence–capable hardware and hide themselves where unavailable.
 - **Phase 3 — Insights** ✅ sleep/feed charts and stats (Swift Charts)
 - **Phase 4 — Smart features** ✅ Siri intents, Shortcuts, Control Center controls
 - **iOS 26 adoption** ✅ Liquid Glass, AlarmKit feed reminders, on-device Foundation
-  Models (NL logging + insights)
+  Models (insights summary)
 - **Next** — per-user push notifications; widget accented-rendering polish; AlarmKit
   "Log feed" alert action
 

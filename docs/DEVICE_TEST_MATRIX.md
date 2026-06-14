@@ -17,7 +17,7 @@ App Store submission. Deployment target is **iOS 26**.
 |---|---|
 | Appearance | Light, Dark (both from day one) |
 | Dynamic Type | Default → XXL (no clipping, ViewThatFits paths) |
-| Apple Intelligence | Available (NL log + AI summary) and unavailable (UI hides cleanly) |
+| Apple Intelligence | Available (AI insights summary) and unavailable (card hides cleanly) |
 | AlarmKit permission | Granted, denied (one-time prompt), undetermined |
 | iCloud | Signed in (sync) and signed out (local-only degrade) |
 | Network | Online, offline→reconnect, airplane mode mid-sync |

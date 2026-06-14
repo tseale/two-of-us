@@ -20,8 +20,8 @@ All notable changes to Two of Us are recorded here. The format loosely follows
   profile is slow to sync.
 
 #### Correctness — input bounds & validation
-- Natural-language, Siri/Shortcuts, and widget inputs are bounds-checked (feed
-  ounces, backdated times) before they're written.
+- Siri/Shortcuts and widget inputs are bounds-checked (feed ounces, backdated
+  times) before they're written.
 - The edit sheet blocks 0-duration sleeps and no longer clamps 0.25 oz values.
 - Baby/profile edits can't be saved with an empty name.
 

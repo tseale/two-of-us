@@ -200,7 +200,7 @@ in their identity color with their white bold initial. Larger avatar variants (3
 same photo-or-monogram-on-color fallback (initial at 44% of the size). Timeline rows and the
 People list share this `Avatar` component.
 
-### Sheets (Feed / Diaper / Edit / quick-log)
+### Sheets (Feed / Diaper / Edit)
 Bottom sheets, medium detent (Feed also large), visible drag indicator, title with emoji
 ("Log a feed 🍼"). Content patterns:
 - **Preset chips** (Feed oz: 2/3/4): equal-width, radius 14, stacked value+unit; selected =

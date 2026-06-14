@@ -10,8 +10,8 @@ been audited start to finish — a release gate per `RELEASE_POLISH_PLAN.md` §1
 - [ ] Join flow; "connecting…" state announces; Finish state is clear.
 - [ ] Home: log tiles, time-since, Today ribbon (combined label), timeline rows
       with participant attribution.
-- [ ] Sheets: Feed (preset chips selected state), Diaper (selected type), Edit,
-      NL log (error messages announce).
+- [ ] Sheets: Feed (preset chips selected state), Diaper (selected type), Edit
+      (incl. the note field).
 - [ ] History & Stats: charts have meaningful labels or summaries; insight card.
 - [ ] Settings → People: section has a heading/count; role pills read; Manage
       Data destructive flow is navigable.

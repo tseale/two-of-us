@@ -19,7 +19,6 @@ struct HomeView: View {
     @State private var editing: TimelineEntry?
     @State private var toast: ToastData?
     @State private var showSettings = false
-    @State private var showNLLog = false
     @State private var questSheet: SetupQuest?
     @State private var spotlight: SetupSpotlight?
     @State private var prefs = LocalPrefs.shared
@@ -40,6 +39,8 @@ struct HomeView: View {
             List {
                 Section {
                     header
+                        // Sits a touch higher now the top-left ✨ button is gone.
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 2, trailing: 16))
                     TodayRibbonCard(
                         marks: todayMarks,
                         feedCount: todaySummary?.feedCount ?? 0,
@@ -88,13 +89,6 @@ struct HomeView: View {
             .background(AppColor.bg)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if BabyIntelligence.isAvailable {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button { showNLLog = true } label: { Image(systemName: "sparkles") }
-                            .tint(AppColor.accentFeed)
-                            .accessibilityLabel("Log in words")
-                    }
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showSettings = true } label: { Image(systemName: "gearshape") }
                         .tint(AppColor.text3)
@@ -116,10 +110,6 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
-            }
-            .sheet(isPresented: $showNLLog) {
-                NLLogSheet(onApply: applyParsed)
-                    .presentationDetents([.medium])
             }
             .sheet(item: $questSheet) { quest in
                 switch quest {
@@ -358,7 +348,7 @@ struct HomeView: View {
     }
 
     private var noSheetUp: Bool {
-        activeSheet == nil && editing == nil && !showSettings && !showNLLog
+        activeSheet == nil && editing == nil && !showSettings
             && questSheet == nil && spotlight == nil
     }
 
@@ -371,41 +361,6 @@ struct HomeView: View {
         }
     }
 
-    // MARK: Natural-language logging
-
-    /// Turns a parsed entry into the matching store write, backdating by the
-    /// model's `minutesAgo`. Mirrors the tap-driven log paths (toast + undo).
-    /// Returns a user-facing message when the parsed values are out of range
-    /// (nothing is written), or nil on success.
-    @discardableResult
-    private func applyParsed(_ p: BabyIntelligence.ParsedLog) -> String? {
-        if let problem = BabyIntelligence.outOfRangeMessage(for: p) { return problem }
-        let date = Calendar.current.date(byAdding: .minute, value: -max(0, p.minutesAgo), to: .now) ?? .now
-        switch p.kind {
-        case "feed":
-            let oz = p.amountOz ?? settingsList.first?.defaultFeedOz ?? 4
-            let event = store.logFeed(amountOz: oz, at: date)
-            showToast("Logged \(OzFormat.string(oz)) oz feed") { store.softDelete(event) }
-            feedLogged()
-        case "diaper":
-            let type = DiaperType(rawValue: p.diaperType ?? "wet") ?? .wet
-            let event = store.logDiaper(type, at: date)
-            showToast("Logged \(type.label.lowercased()) diaper", accent: AppColor.accentDiaper) { store.softDelete(event) }
-        case "sleepStart":
-            if let event = store.startSleep(at: date) {
-                showToast("Started sleep", accent: AppColor.accentSleep) { store.softDelete(event) }
-            }
-        case "sleepEnd":
-            if let active = activeSleep {
-                store.stopSleep(active, at: date)
-                showToast("Ended sleep", accent: AppColor.accentSleep) {}
-            }
-        default:
-            break
-        }
-        Haptics.tap()
-        return nil
-    }
 }
 
 #Preview {
