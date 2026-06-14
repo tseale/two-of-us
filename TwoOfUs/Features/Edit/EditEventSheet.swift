@@ -59,7 +59,7 @@ struct EditEventSheet: View {
                         }
                         .pickerStyle(.segmented)
                     }
-                    Section("Time") { TimeControl(date: $date) }
+                    Section("Time") { TimeControl(date: $date, tint: AppColor.accentDiaper) }
                 case .sleep:
                     Section("Asleep") {
                         DatePicker("Start", selection: $sleepStart, in: ...Date())
