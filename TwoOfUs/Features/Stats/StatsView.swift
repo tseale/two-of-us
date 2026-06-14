@@ -44,8 +44,7 @@ struct StatsView: View {
     private var insightsCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("INSIGHTS", systemImage: "sparkles")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(AppColor.text2)
+                .sectionLabelStyle()
             if let summary {
                 Text(summary)
                     .font(.subheadline)

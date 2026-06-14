@@ -203,7 +203,8 @@ Bottom sheets, medium detent (Feed also large), visible drag indicator, title wi
 - **Preset chips** (Feed oz: 2/3/4): equal-width, radius 14, stacked value+unit; selected =
   accent stroke 2px + accent fill @ 25%.
 - **Choice buttons** (Diaper Wet/Dirty/Both): equal-width `--card2` tiles, radius 16, emoji over
-  label, one tap logs-and-dismisses (success haptic).
+  label; tap selects (medium haptic + accent stroke 2px, matching the Feed preset chips), then an
+  explicit "Log ‹type›" confirm logs-and-dismisses (success haptic) — so a stray tap can't mislog.
 - **Time control**: every log sheet defaults to "now" with a compact date picker + a teal
   "Now" reset button. Backdating is one tap away, never required.
 
