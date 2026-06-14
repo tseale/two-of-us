@@ -16,10 +16,10 @@ struct ManageDataView: View {
     @State private var reportURL: URL?
     @State private var showClearConfirm = false
     @State private var showDeleteFlow = false
+    @State private var reportDays = 14
 
     private var store: EventStore { EventStore(context: context) }
 
-    private let reportDays = 14
     private var report: HealthReportView {
         HealthReportView(
             babyName: babies.first?.name ?? "Baby",
@@ -42,6 +42,13 @@ struct ManageDataView: View {
     var body: some View {
         Form {
             Section {
+                Picker("Range", selection: $reportDays) {
+                    Text("7 days").tag(7)
+                    Text("14 days").tag(14)
+                    Text("30 days").tag(30)
+                }
+                .pickerStyle(.segmented)
+
                 if let reportURL {
                     ShareLink(item: reportURL) {
                         Label("Pediatrician report (PDF)", systemImage: "doc.text.fill")
@@ -102,7 +109,11 @@ struct ManageDataView: View {
         .navigationTitle("Manage data")
         .navigationBarTitleDisplayMode(.inline)
         .task { exportURL = LogExporter.writeTempFile(in: context) }
-        .task { reportURL = HealthReportPDF.render(report, babyName: babies.first?.name ?? "Baby") }
+        // Re-render the PDF whenever the selected range changes.
+        .task(id: reportDays) {
+            reportURL = nil
+            reportURL = HealthReportPDF.render(report, babyName: babies.first?.name ?? "Baby")
+        }
         .confirmationDialog("Clear all logs?", isPresented: $showClearConfirm, titleVisibility: .visible) {
             Button("Clear all logs", role: .destructive) { store.clearAllLogs() }
             Button("Cancel", role: .cancel) {}
