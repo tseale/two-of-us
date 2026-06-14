@@ -16,7 +16,9 @@ final class ShareAcceptance {
 
     /// Specific, actionable copy for the failure alert, set from the CKError code
     /// so "offline" reads differently from "signed out" or "link revoked."
-    var failureMessage = Self.genericFailure
+    /// (Concrete type name, not `Self` — `@Observable` rejects covariant `Self`
+    /// in a stored-property initializer.)
+    var failureMessage = ShareAcceptance.genericFailure
 
     /// Set when the link is tapped on a device that already has its own log
     /// (finished solo onboarding): silently becoming a participant would leave
