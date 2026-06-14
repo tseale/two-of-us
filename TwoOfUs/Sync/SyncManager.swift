@@ -29,6 +29,9 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     static func bootstrap(container: ModelContainer) {
         if shared == nil { shared = SyncManager(modelContainer: container) }
         shared?.start()
+        // Sweep any outbound asset temp files a previous run left behind (a save
+        // that failed before upload leaks the file otherwise).
+        RecordMapping.cleanUpStaleAssetFiles()
     }
 
     private let modelContainer: ModelContainer
@@ -216,7 +219,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
                 // half-fetched store could wrongly re-run the join flow.
                 reclaimIdentityAfterAccept()
             } catch {
-                print("Post-accept fetch failed: \(error)")
+                AppLog.sync.error("Post-accept fetch failed: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -351,6 +354,13 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     /// after engines start. Deferred during demo: the role/identity overrides
     /// would route the ids to the wrong engine, and `enqueueSave` ids handed over
     /// during demo would be parked under the wrong scope.
+    ///
+    /// KNOWN CONSTRAINT: this is the *only* drain point. A feed logged from the
+    /// widget/Control Center while offline persists locally and shows in widgets,
+    /// but does NOT sync to the co-parent until the app is next opened (the
+    /// extension process has no CKSyncEngine, and there's no background drain).
+    /// Acceptable for a 2-user app where the app is opened regularly; documented
+    /// in docs/RELEASE_POLISH_PLAN.md §10 so it isn't mistaken for a sync bug.
     func drainExtensionQueue() {
         guard !LocalPrefs.shared.demoModeEnabled else { return }
         guard let raw = AppGroup.userDefaults?.array(forKey: Keys.widgetWrites) as? [String], !raw.isEmpty else { return }
@@ -449,7 +459,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             // guarantee) — attach them once the baby exists.
             RecordMapping.relinkOrphanEvents(in: context)
             do { try context.save() } catch {
-                print("Sync fetch apply failed to save: \(error)")
+                AppLog.sync.error("Sync fetch apply failed to save: \(error.localizedDescription, privacy: .public)")
             }
             reconcileLiveActivity()
             WidgetCenter.shared.reloadAllTimelines()
@@ -509,17 +519,17 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
                 // Transient errors (network, throttling, zone busy…) are retried
                 // by the engine itself; anything else is logged so it's visible
                 // in Console rather than silently swallowed.
-                print("Sync save failed for \(recordID.recordName): \(failed.error)")
+                AppLog.sync.error("Sync save failed for \(recordID.recordName, privacy: .public): \(failed.error.localizedDescription, privacy: .public)")
             }
         }
         for (recordID, error) in e.failedRecordDeletes where error.code != .unknownItem {
             // Deleting an already-gone record is success; log the rest.
-            print("Sync delete failed for \(recordID.recordName): \(error)")
+            AppLog.sync.error("Sync delete failed for \(recordID.recordName, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
 
         if !reenqueueSaves.isEmpty { syncEngine.state.add(pendingRecordZoneChanges: reenqueueSaves) }
         do { try context.save() } catch {
-            print("Sync sent-changes bookkeeping failed to save: \(error)")
+            AppLog.sync.error("Sync sent-changes bookkeeping failed to save: \(error.localizedDescription, privacy: .public)")
         }
         if detach { detachFromShare() }
     }
@@ -833,7 +843,13 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         guard !LocalPrefs.shared.demoModeEnabled else { return }
         Task {
             guard await cloudAvailable() else { return }
-            guard let recordName = (try? await SyncConstants.container.userRecordID())?.recordName else { return }
+            guard let recordName = (try? await SyncConstants.container.userRecordID())?.recordName else {
+                // Without this id, removeParticipant later falls back to a
+                // count-based guess that can drop the wrong person with 2+
+                // caregivers — log so a misfire is traceable.
+                AppLog.sync.error("captureCloudUserID: couldn't resolve userRecordID for participant \(participantID, privacy: .public)")
+                return
+            }
             guard let me = Participant.fetchByID(participantID, in: context), me.cloudUserID != recordName else { return }
             me.cloudUserID = recordName
             try? context.save()
