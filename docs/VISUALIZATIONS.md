@@ -94,11 +94,12 @@ Status: ✅ = implemented in `Features/Stats/StatsView.swift`.
   (non-competitive companion to the night-shift card).
 - ✅ **"On this day"** — "A week ago, every 2h; now every 3h."
 - ✅ **Hungriest hour** — "He's hungriest around 6pm."
-- ✅ **Weekly recap card ("Miller Wrapped")** — `Features/Stats/WrappedView.swift`: a
-  recap card on the indigo delight gradient (week totals + longest sleep + night MVP +
-  hungriest hour), rendered to a PNG via `ImageRenderer` and shared with `ShareLink`.
-  Entry point: the "✨ {name}'s week" button atop the Stats tab. *(Future: monthly range,
-  a "first 5-hour sleep!" milestone callout on the card.)*
+- ✅ **Recap card ("Miller Wrapped")** — `Features/Stats/WrappedView.swift`: a recap card on
+  the indigo delight gradient (totals + longest sleep + night MVP + hungriest hour),
+  rendered to a PNG via `ImageRenderer` and shared with `ShareLink`. Entry point: the
+  "✨ {name}'s week" button atop the Stats tab. Refinements: **Week/Month toggle**, the
+  **baby's photo** in the header (CradleMark fallback), a **🎉 milestone callout** when the
+  window reached one, and a **"Tracked by …" caregiver credit**.
 
 ## Notes for the future build phase
 

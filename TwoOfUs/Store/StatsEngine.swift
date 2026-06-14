@@ -91,6 +91,8 @@ struct WeekRecap {
     let longestStretch: TimeInterval
     let hungriestHour: Int?
     let nightMVP: String?
+    /// A milestone reached during this window, if any, for the celebratory callout.
+    let milestone: Milestone?
     /// Whether anything at all was logged in the window (drives the empty case).
     var hasData: Bool { feedCount > 0 || totalSleep > 0 || diaperCount > 0 }
 }
@@ -415,8 +417,13 @@ struct StatsEngine {
     func weekRecap(days: Int = 7) -> WeekRecap {
         let summaries = dailySummaries(days: days)
         let longest = summaries.map(\.longestStretch).max() ?? 0
+        let windowStart = summaries.first?.day ?? startOfDay(now)
+        let windowEnd = calendar.date(byAdding: .day, value: 1,
+                                      to: summaries.last?.day ?? startOfDay(now)) ?? now
+        // milestones() is newest-first, so `.first` in-window is the latest one.
+        let milestone = milestones().first { $0.date >= windowStart && $0.date < windowEnd }
         return WeekRecap(
-            start: summaries.first?.day ?? startOfDay(now),
+            start: windowStart,
             end: summaries.last?.day ?? startOfDay(now),
             feedCount: summaries.reduce(0) { $0 + $1.feedCount },
             totalOz: summaries.reduce(0) { $0 + $1.feedOz },
@@ -424,7 +431,8 @@ struct StatsEngine {
             diaperCount: summaries.reduce(0) { $0 + $1.diaperCount },
             longestStretch: longest,
             hungriestHour: hungriestHour(days: days),
-            nightMVP: nightShift(days: days).first?.name
+            nightMVP: nightShift(days: days).first?.name,
+            milestone: milestone
         )
     }
 

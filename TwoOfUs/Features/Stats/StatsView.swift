@@ -44,7 +44,8 @@ struct StatsView: View {
             .background(AppColor.bg)
             .navigationTitle("Stats")
             .sheet(isPresented: $showWrapped) {
-                WrappedShareView(recap: engine.weekRecap(), babyName: babyName, ageText: ageText)
+                WrappedShareView(engine: engine, babyName: babyName,
+                                 ageText: ageText, babyPhoto: babies.first?.photoData)
             }
         }
     }
