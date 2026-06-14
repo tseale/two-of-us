@@ -192,7 +192,13 @@ struct WrappedShareView: View {
             .map(\.name)
             .filter { !$0.isEmpty && $0 != "Unknown" }
         guard !names.isEmpty else { return nil }
-        return "Tracked by " + names.formatted(.list(type: .and))
+        let joined: String
+        switch names.count {
+        case 1:  joined = names[0]
+        case 2:  joined = "\(names[0]) & \(names[1])"
+        default: joined = names.dropLast().joined(separator: ", ") + " & " + (names.last ?? "")
+        }
+        return "Tracked by " + joined
     }
 
     var body: some View {
