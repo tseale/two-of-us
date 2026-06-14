@@ -7,12 +7,27 @@ import SwiftData
 struct ManageDataView: View {
     @Environment(\.modelContext) private var context
     @Query private var participants: [Participant]
+    @Query private var babies: [Baby]
+    @Query(filter: #Predicate<FeedEvent> { $0.deletedAt == nil }) private var feeds: [FeedEvent]
+    @Query(filter: #Predicate<SleepEvent> { $0.deletedAt == nil }) private var sleeps: [SleepEvent]
+    @Query(filter: #Predicate<DiaperEvent> { $0.deletedAt == nil }) private var diapers: [DiaperEvent]
     @State private var prefs = LocalPrefs.shared
     @State private var exportURL: URL?
+    @State private var reportURL: URL?
     @State private var showClearConfirm = false
     @State private var showDeleteFlow = false
 
     private var store: EventStore { EventStore(context: context) }
+
+    private let reportDays = 14
+    private var report: HealthReportView {
+        HealthReportView(
+            babyName: babies.first?.name ?? "Baby",
+            dateOfBirth: babies.first?.dateOfBirth,
+            days: reportDays,
+            engine: StatsEngine(feeds: feeds, sleeps: sleeps, diapers: diapers)
+        )
+    }
     /// This device's app role — guests (loggers) can't clear/delete shared data.
     private var canEditShared: Bool {
         (participants.first { $0.id == prefs.myParticipantID }?.role ?? .full) == .full
@@ -26,6 +41,23 @@ struct ManageDataView: View {
 
     var body: some View {
         Form {
+            Section {
+                if let reportURL {
+                    ShareLink(item: reportURL) {
+                        Label("Pediatrician report (PDF)", systemImage: "doc.text.fill")
+                    }
+                } else {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Preparing report…").foregroundStyle(AppColor.text2)
+                    }
+                }
+            } header: {
+                Text("Share with your pediatrician")
+            } footer: {
+                Text("A printable \(reportDays)-day summary: feeds, ounces, sleep, and wet/dirty diapers per day, with averages.")
+            }
+
             Section {
                 if let exportURL {
                     ShareLink(item: exportURL) {
@@ -70,6 +102,7 @@ struct ManageDataView: View {
         .navigationTitle("Manage data")
         .navigationBarTitleDisplayMode(.inline)
         .task { exportURL = LogExporter.writeTempFile(in: context) }
+        .task { reportURL = HealthReportPDF.render(report, babyName: babies.first?.name ?? "Baby") }
         .confirmationDialog("Clear all logs?", isPresented: $showClearConfirm, titleVisibility: .visible) {
             Button("Clear all logs", role: .destructive) { store.clearAllLogs() }
             Button("Cancel", role: .cancel) {}
