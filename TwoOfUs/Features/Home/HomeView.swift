@@ -266,9 +266,9 @@ struct HomeView: View {
         Section {
             if timelineEntries.isEmpty {
                 EmptyStateView(
-                    emoji: "🍼",
+                    emoji: "🍼💤💩",
                     title: "No events yet",
-                    message: "Tap a button above to log \(baby?.name ?? "Baby")'s first feed."
+                    message: "Tap a button above to log \(baby?.name ?? "Baby")'s first feed, sleep, or diaper."
                 )
                 .listRowBackground(Color.clear)
             } else {

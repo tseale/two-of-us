@@ -231,8 +231,9 @@ radius 6, ~58% width, optional dashed average rule. Axes whisper: narrow weekday
 
 ### Empty states
 Centered: a gently bobbing emoji (46px, ±5px, 1.9s ease loop, disabled under reduced motion) →
-headline (rounded) → one supportive sentence (`--text2`). Always name the next action:
-"tap 🍼 to log Miller's first feed."
+headline (rounded) → one supportive sentence (`--text2`). Always name the next action — and
+where several are equally valid, name them all rather than picking one: the Home timeline reads
+"🍼💤💩 · Tap a button above to log Miller's first feed, sleep, or diaper."
 
 ### Settings
 Standard grouped iOS form. Custom row icons: 20×20 rounded-square (radius 7) accent fill with
