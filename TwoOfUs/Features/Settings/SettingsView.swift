@@ -346,10 +346,7 @@ struct SettingsView: View {
     private var aboutSection: some View {
         Section {
             VStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(AppColor.accentFeed)
-                    .frame(width: 60, height: 60)
-                    .overlay { Text("🍼").font(.system(size: 30)) }
+                AppIconBadge(size: 60)
                 Text("Two of Us")
                     .font(AppFont.hero(20))
                     .foregroundStyle(AppColor.text)
