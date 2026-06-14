@@ -159,7 +159,7 @@ struct StatsView: View {
             tile(key: "🍼 Bottles",
                  value: "\(t.feedCount)",
                  unit: "avg \(perDay(t.feedCount)) / day",
-                 color: AppColor.text)
+                 color: AppColor.accentFeed)
         }
     }
 
