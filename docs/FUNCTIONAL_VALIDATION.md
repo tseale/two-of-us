@@ -7,6 +7,23 @@ expected behavior holds on device/simulator, set **Status**, and capture any
 
 **Status legend:** ☐ Not yet validated · ✅ Validated · ⚠️ Issue found · 🔧 Enhancement queued
 
+## Walkthrough summary (2026-06-14)
+
+First validation pass complete — **all 26 areas reviewed at the code level** (this
+environment has no macOS/Xcode, so behavior was verified by reading the
+implementation, not running the simulator/device).
+
+- **25 areas validated ✅.** Implementation matches the intended behavior.
+- **1 area flagged ⚠️ — Accessibility (#24):** the building blocks are in place but
+  the end-to-end audit has never been run and needs a device + VoiceOver.
+- **Enhancements applied 🔧 during the pass:**
+  - #7 Edit sheet — diaper "Now" button now uses the diaper accent tint.
+  - #9 Stats insight — now regenerates on sleep/diaper changes, not just feeds
+    (it reports sleep stretch/hours, so it was going stale after a new sleep).
+- **Recommended before App Store (need real hardware/iCloud, can't be done here):**
+  live two-device CloudKit sync test (#11), invite/accept/leave/revoke test (#12),
+  and the dedicated accessibility audit (#24).
+
 | # | Area | Key code | Expected behavior | Status | Notes / enhancements |
 |---|------|----------|-------------------|--------|----------------------|
 | 1 | **Feed logging** | `Features/Feed/FeedSheet.swift`, `Models/FeedEvent.swift`, `Store/EventStore.swift` | Log a bottle in oz from presets or a custom amount; saved with timestamp + parent attribution. | ✅ | Code review: `logFeed` clamps oz to 0–32 (`EventBounds`) + timestamp to the past, stamps logger identity, then save→sync→reload widgets→re-arm feed reminder→donate intent. Custom field tolerates pasted "5 oz". Undo via `softDelete`. |
@@ -31,8 +48,8 @@ expected behavior holds on device/simulator, set **Status**, and capture any
 | 20 | **Settings & profiles** | `Features/Settings/SettingsView.swift`, `BabyEditSheet.swift`, `ProfileEditSheet.swift`, `ParticipantColorPicker.swift`, `Models/Baby.swift`, `Models/Participant.swift` | Edit baby profile, parent profiles + colors; settings persist and sync where shared. | ✅ | Code review: shared edits route through sync-aware `store.updateSettings`/`updateBaby`/`updateMyProfile`/`setRole` (not raw `context.save` — the historical no-sync bug); shared controls role-gated (`canEditShared`); People section drives invite/leave/stop/remove via `SyncManager` with error alerts; updating your profile backfills identity onto past events. |
 | 21 | **Manage data & export** | `Features/Settings/ManageDataView.swift`, `Support/LogExporter.swift` | Export/clear data behaves correctly; export contents are accurate. | ✅ | Code review: CSV export is live-events-only with RFC-4180 escaping; Clear-all is role-gated + confirmation-dialog; Delete-everything is a 3-stage gauntlet (two acks + type-`DELETE EVERYTHING`) raced against a 30s timeout so a stalled teardown offers retry, not an endless spinner. |
 | 22 | **Settings scope** | `Models/SharedSettings.swift`, `Support/LocalPrefs.swift` | Shared settings sync across parents; local prefs stay device-local. | ✅ | Code review: feeding rhythm/presets live in `SharedSettings` (synced); appearance, demo mode, feed-reminder opt-in, and `myParticipantID` live in `LocalPrefs` (device-local). Reminder toggle is explicitly footnoted "This device only." |
-| 23 | **Design system & appearance** | `DesignSystem/Colors.swift`, `Typography.swift`, `Haptics.swift`, `TimeFormatting.swift` | Liquid Glass cards/tiles; dark + light follow system; haptics + time formatting consistent. | ☐ | |
-| 24 | **Accessibility** | `docs/ACCESSIBILITY_CHECKLIST.md` (cross-cutting) | Dynamic Type, VoiceOver labels, color-plus-label urgency, one-handed, silent operation. | ☐ | |
+| 23 | **Design system & appearance** | `DesignSystem/Colors.swift`, `Typography.swift`, `Haptics.swift`, `TimeFormatting.swift` | Liquid Glass cards/tiles; dark + light follow system; haptics + time formatting consistent. | ✅ | Code review: semantic tokens resolve light/dark via a `dyn()` `UIColor` trait resolver (views never reference raw hex); `glassCard`/`glassTile`/`surfaceCard` establish a glass-floats / surface-sits hierarchy; urgency has *separate* readable text tints (dot hexes too pale for body); appearance follows system + the Settings Theme picker. |
+| 24 | **Accessibility** | `docs/ACCESSIBILITY_CHECKLIST.md` (cross-cutting) | Dynamic Type, VoiceOver labels, color-plus-label urgency, one-handed, silent operation. | ⚠️ | Building blocks present (VoiceOver labels, dot+word urgency via `accessibilityWord`, Reduce Motion branches, `minimumScaleFactor`, combined labels) — but the **end-to-end audit has never been run** and is a release gate (per checklist + RELEASE_POLISH_PLAN §17). **Action: dedicated VoiceOver / Dynamic Type / Accessibility Inspector pass on device before App Store.** |
 | 25 | **App lifecycle & routing** | `App/TwoOfUsApp.swift`, `App/RootView.swift`, `App/DeepLinkRouter.swift`, `App/AppDelegate.swift` | App launches to the right state; deep links from widgets/intents route correctly. | ✅ | Code review: `RootView` routes join / joinSyncing / onboarding / main off `babies.isEmpty` + role, crucially holding a profiled-but-baby-less participant on a syncing screen (prevents duplicate-baby creation); crossfade transitions; celebration overlay hides the route flip; deep links via `onOpenURL`→`DeepLinkRouter`; accept-failed / confirm-replace alerts; demo + error banners. |
 | 26 | **Data foundation** | `Store/Schema.swift`, `Store/ModelContainer+App.swift`, `Store/SeedData.swift`, `Store/DemoData.swift`, `docs/DATA_MODEL.md` | SwiftData schema/migrations load cleanly; seed/demo data sane. | ✅ | Code review: single shared on-disk container in the App Group (so the widget reads the same store), built with `TwoOfUsMigrationPlan`, reachable without the UI (background silent-push launch); in-memory preview/test container seeds sample data. CloudKit driven by `SyncManager`, not SwiftData `.automatic` (two mirrors can't share one store). |
 
