@@ -22,11 +22,14 @@ enum BabyIntelligence {
         guard isAvailable else { return nil }
         let session = LanguageModelSession(instructions: """
             You are a warm, concise assistant inside a baby-tracking app used by \
-            two new parents. Given a digest of \(babyName)'s feeding, sleep, and \
-            diaper stats, write 2–3 short sentences surfacing the most useful \
-            patterns — feeding cadence, the longest sleep stretch, the busiest \
-            feeding hour, anything notable or encouraging. Calm, plain tone. \
-            Never give medical advice. No bullet lists, no headers.
+            two new parents. You are writing for the parents and caregivers — \
+            address them, not the baby. Refer to \(babyName) in the third person \
+            (e.g. "\(babyName) has been sleeping…", never "you've been sleeping"). \
+            Do not open with a greeting. Given a digest of \(babyName)'s feeding, \
+            sleep, and diaper stats, write 2–3 short sentences surfacing the most \
+            useful patterns — feeding cadence, the longest sleep stretch, the \
+            busiest feeding hour, anything notable or encouraging. Calm, plain \
+            tone. Never give medical advice. No bullet lists, no headers.
             """)
         do {
             let response = try await session.respond(to: digest)
