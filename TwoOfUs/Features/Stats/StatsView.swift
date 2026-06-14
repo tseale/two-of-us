@@ -66,14 +66,16 @@ struct StatsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .surfaceCard(cornerRadius: 18)
-        .task(id: feeds.count) { await loadSummary() }
+        // Regenerate when any event kind changes — the summary covers sleep and
+        // diapers too, so keying on feeds alone left it stale after a new sleep.
+        .task(id: "\(feeds.count)-\(sleeps.count)-\(diapers.count)") { await loadSummary() }
     }
 
     private func loadSummary() async {
         guard BabyIntelligence.isAvailable, !feeds.isEmpty else { return }
-        // Debounce: `.task(id: feeds.count)` cancels and restarts this on every
-        // feed, so a widget batch of N feeds would otherwise regenerate the
-        // summary N times. Wait out the burst first — a superseded run cancels
+        // Debounce: the `.task(id:)` above cancels and restarts this on every
+        // event change, so a widget batch of N events would otherwise regenerate
+        // the summary N times. Wait out the burst first — a superseded run cancels
         // here before doing the expensive generation.
         try? await Task.sleep(for: .seconds(0.8))
         guard !Task.isCancelled else { return }
