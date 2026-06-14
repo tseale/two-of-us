@@ -1,5 +1,6 @@
 import SwiftUI
 import WidgetKit
+import AppIntents
 
 /// Small "time since last X" widget for a single event kind — rendered as a
 /// lock screen accessory (`.accessoryRectangular`) or a small home screen tile
@@ -7,31 +8,45 @@ import WidgetKit
 ///
 /// The home tile is a 1:1 mirror of the in-app log tile (`LogButtons.tile`):
 /// emoji over title / since-line / hint, with the ⊕ "tap to add" badge. The
-/// whole widget is a single tap target — `widgetURL` deep-links into the app to
-/// the matching log screen (feed/diaper sheet), or starts the sleep timer — so
-/// there are no in-widget buttons to intercept the tap.
+/// whole widget is a single tap target: `widgetURL` deep-links into the app to
+/// the matching log screen (feed/diaper sheet) or to start the sleep timer.
+/// The one exception is an active sleep — the tile then shows the in-app Wake
+/// affordance and the whole widget becomes a `SetSleepIntent` button that wakes
+/// in place (no app launch), matching the Live Activity.
 struct SmallEventWidgetView: View {
     let kind: EventKind
     let entry: WidgetEntry
     @Environment(\.widgetFamily) private var family
 
     var body: some View {
-        Group {
-            if family == .accessoryRectangular {
-                lockScreenBody
-            } else {
-                homeSmallBody
-            }
+        if family == .accessoryRectangular {
+            // Lock-screen tap opens the app to the action (deep link).
+            lockScreenBody.widgetURL(deepLink)
+        } else if showingActiveSleep {
+            // While a sleep runs the whole tile IS the Wake button — it wakes in
+            // place (no app launch) via the same SetSleepIntent the Live Activity
+            // and Control Center wake controls use.
+            Button(intent: wakeIntent()) { homeSmallBody }
+                .buttonStyle(.plain)
+        } else {
+            // Tapping anywhere opens the app to this kind's action, routed by
+            // DeepLinkRouter via onOpenURL: feed/diaper present their log sheet,
+            // sleep starts the timer.
+            homeSmallBody.widgetURL(deepLink)
         }
-        // Tapping anywhere opens the app to this kind's action. Routed by
-        // DeepLinkRouter via onOpenURL: feed/diaper present their log sheet,
-        // sleep starts the timer.
-        .widgetURL(deepLink)
     }
 
     /// `twoofus://log/feed` · `…/diaper` · `…/sleep`.
     private var deepLink: URL? {
         URL(string: "twoofus://log/\(kind.rawValue)")
+    }
+
+    /// `SetSleepIntent` driven to awake — wakes in place, mirroring the Live
+    /// Activity's and Control Center's Wake controls.
+    private func wakeIntent() -> SetSleepIntent {
+        var intent = SetSleepIntent()
+        intent.value = false
+        return intent
     }
 
     // Lock screen: monochrome per DESIGN.md §9 — eyebrow above a rounded mono
@@ -62,9 +77,9 @@ struct SmallEventWidgetView: View {
     // the ⊕ badge top-trailing and the accent-tinted ground (the widget stand-in
     // for the app's interactive glass tile).
     private var homeSmallBody: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: showingActiveSleep ? 8 : 10) {
             Text(showingActiveSleep ? "💤" : kind.emoji)
-                .font(.system(size: 30))
+                .font(.system(size: showingActiveSleep ? 28 : 30))
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
                     .font(.system(.title3, design: .rounded).weight(.bold))
@@ -76,11 +91,17 @@ struct SmallEventWidgetView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
             }
+            // While sleeping, the tile carries the app's Wake affordance and the
+            // whole widget acts as the button (wired in `body`).
+            if showingActiveSleep {
+                Spacer(minLength: 4)
+                wakePill
+            }
         }
         .padding(18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         // The ⊕ "tap to add" affordance, matching the app tile. Hidden while a
-        // sleep runs — the tile is then a live timer you tap to open, not add.
+        // sleep runs — the tile is then the Wake button, not an add affordance.
         .overlay(alignment: .topTrailing) {
             if !showingActiveSleep { plusBadge.padding(14) }
         }
@@ -90,6 +111,21 @@ struct SmallEventWidgetView: View {
                 accentColor.opacity(0.18)
             }
         }
+    }
+
+    /// The "Wake up ☀️" pill — the periwinkle button from the in-app
+    /// `SleepActiveCard`, sized for the tile. The whole widget is the tap target,
+    /// so this reads as the affordance rather than being separately tappable.
+    private var wakePill: some View {
+        HStack(spacing: 4) {
+            Text("Wake up")
+            Text("☀️")
+        }
+        .font(.footnote.weight(.semibold))
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 7)
+        .background(AppColor.accentSleep, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     /// The since-line, mirroring `LogButtons.sinceLine`: calm gray text at green,
