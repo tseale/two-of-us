@@ -16,6 +16,10 @@ struct ProfileEditSheet: View {
 
     private var store: EventStore { EventStore(context: context) }
 
+    /// Block Save on an empty name instead of silently dismissing — a cleared
+    /// field tapping Save shouldn't read as success.
+    private var canSave: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -46,7 +50,9 @@ struct ProfileEditSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Save") { save() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }.disabled(!canSave)
+                }
             }
             .onChange(of: photoItem) { _, item in loadPhoto(item) }
             .onAppear {

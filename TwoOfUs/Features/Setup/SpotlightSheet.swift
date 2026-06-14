@@ -34,12 +34,7 @@ struct SpotlightSheet: View {
                 bottomBar
             }
         }
-        .onAppear {
-            // Seen the moment it appears — a swipe-down still counts, so a
-            // spotlight never nags twice.
-            SetupProgress.shared.markShown(spotlight)
-            revealed = true
-        }
+        .onAppear { revealed = true }
     }
 
     private var ambientStop: AmbientStop {
@@ -89,6 +84,10 @@ struct SpotlightSheet: View {
         VStack(spacing: 10) {
             Button {
                 Haptics.tap()
+                // Mark seen on explicit acknowledgment, not on appear — a stray
+                // swipe-away before reading lets it return rather than burning
+                // the one-shot. (One-prompt-per-session still prevents nagging.)
+                SetupProgress.shared.markShown(spotlight)
                 dismiss()
             } label: {
                 Text("Got it")
@@ -102,6 +101,7 @@ struct SpotlightSheet: View {
             if spotlight == .rhythm, let onTuneRhythm {
                 Button {
                     Haptics.tap()
+                    SetupProgress.shared.markShown(spotlight)
                     onTuneRhythm()
                 } label: {
                     Text("Tune your rhythm")

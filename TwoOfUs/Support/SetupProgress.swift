@@ -111,8 +111,9 @@ final class SetupProgress {
         shownSpotlights.contains(spotlight.rawValue)
     }
 
-    /// Marked on appear (not dismiss) — a swipe-down still counts as seen, so a
-    /// spotlight never nags twice.
+    /// Marked when the user acknowledges the spotlight ("Got it" / "Tune"), not on
+    /// appear — a stray swipe-away before reading then lets it return rather than
+    /// burning the one-shot. The one-prompt-per-session gate prevents nagging.
     func markShown(_ spotlight: SetupSpotlight) {
         shownSpotlights.insert(spotlight.rawValue)
     }

@@ -60,7 +60,10 @@ struct DayTimelineRow: View {
         switch entry {
         case .sleep(let e):
             let minutes = (e.endedAt ?? e.startedAt).timeIntervalSince(e.startedAt) / 60
-            let length = max(14, min(30, 14 + CGFloat(minutes) / 10))
+            // Square-root scaling so longer sleeps keep growing instead of all
+            // pinning at the cap — a 4h sleep used to look identical to a 2.5h one
+            // (both hit the old 30pt ceiling around ~2h40).
+            let length = max(14, min(40, 14 + CGFloat(max(0, minutes)).squareRoot() * 1.6))
             Capsule()
                 .fill(accent)
                 .frame(width: 9, height: length)

@@ -129,7 +129,9 @@ struct HomeView: View {
             .sheet(item: $spotlight) { s in
                 SpotlightSheet(
                     spotlight: s,
-                    onTuneRhythm: setup.activeQuests(role: prefs.syncRole).contains(.rhythm)
+                    // Only offer "Tune your rhythm" while the rhythm quest is still
+                    // open — hide it once the rhythm's already been customized.
+                    onTuneRhythm: setup.incompleteQuests(role: prefs.syncRole, settings: settingsList.first).contains(.rhythm)
                         ? chainIntoRhythmQuest : nil
                 )
             }

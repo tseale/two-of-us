@@ -18,6 +18,10 @@ struct BabyEditSheet: View {
 
     private var store: EventStore { EventStore(context: context) }
 
+    /// Block Save on an empty name rather than silently keeping the old one — the
+    /// user clearing the field and tapping Save shouldn't look like a no-op.
+    private var canSave: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -46,7 +50,9 @@ struct BabyEditSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Save") { save() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }.disabled(!canSave)
+                }
             }
             .onChange(of: photoItem) { _, item in loadPhoto(item) }
             .onAppear {
@@ -68,9 +74,8 @@ struct BabyEditSheet: View {
 
     private func save() {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
-        store.updateBaby(name: trimmed.isEmpty ? baby.name : trimmed,
-                         dateOfBirth: dob,
-                         photo: .some(photoData))
+        guard !trimmed.isEmpty else { return }   // Save is disabled, but guard anyway
+        store.updateBaby(name: trimmed, dateOfBirth: dob, photo: .some(photoData))
         dismiss()
     }
 }
