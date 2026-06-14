@@ -4,6 +4,9 @@ import SwiftUI
 /// Reused by Feed, Diaper, and Edit.
 struct TimeControl: View {
     @Binding var date: Date
+    /// Tint for the "Now" reset button so it matches the hosting sheet's accent
+    /// (feed teal / diaper amber) instead of always feed teal.
+    var tint: Color = AppColor.accentFeed
 
     var body: some View {
         HStack {
@@ -22,7 +25,7 @@ struct TimeControl: View {
                     .font(.subheadline.weight(.semibold))
             }
             .buttonStyle(.bordered)
-            .tint(AppColor.accentFeed)
+            .tint(tint)
         }
     }
 }

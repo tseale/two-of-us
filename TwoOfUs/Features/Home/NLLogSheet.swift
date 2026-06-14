@@ -4,8 +4,10 @@ import SwiftUI
 /// The user types something like "4oz bottle 20 minutes ago" or "wet diaper";
 /// `BabyIntelligence` parses it and `onApply` performs the matching write.
 struct NLLogSheet: View {
-    /// Performs the actual log; called once the text parses to a known event.
-    let onApply: (BabyIntelligence.ParsedLog) -> Void
+    /// Performs the actual log once the text parses to a known event. Returns a
+    /// user-facing message if the parsed values are out of range (keeps the sheet
+    /// open so the user can correct), or nil on success (sheet dismisses).
+    let onApply: (BabyIntelligence.ParsedLog) -> String?
 
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
@@ -53,10 +55,15 @@ struct NLLogSheet: View {
             let parsed = await BabyIntelligence.parseLog(entry, now: .now)
             working = false
             if let parsed {
-                onApply(parsed)
-                dismiss()
+                if let problem = onApply(parsed) {
+                    error = problem
+                    focused = false   // surface the message instead of the keyboard
+                } else {
+                    dismiss()
+                }
             } else {
-                error = "Didn’t catch that — try “4oz 10 min ago” or “dirty diaper”."
+                error = "Didn’t catch that — try “4oz 10 min ago”, “dirty diaper”, or “fell asleep 15 min ago”."
+                focused = false
             }
         }
     }

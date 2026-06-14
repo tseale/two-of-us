@@ -35,10 +35,16 @@ struct FeedSheet: View {
                         Spacer()
                         TextField("oz", text: $customText)
                             .keyboardType(.decimalPad)
+                            .textContentType(.none)   // no autofill suggestions over a number pad
                             .multilineTextAlignment(.trailing)
                             .frame(width: 80)
                             .onChange(of: customText) { _, new in
-                                if let v = Double(new), v > 0 {
+                                // Tolerate a pasted "5 oz" / stray spaces instead of
+                                // silently rejecting anything Double() can't parse raw.
+                                let cleaned = new.lowercased()
+                                    .replacingOccurrences(of: "oz", with: "")
+                                    .trimmingCharacters(in: .whitespaces)
+                                if let v = Double(cleaned), v > 0 {
                                     amount = v
                                     usingCustom = true
                                 }

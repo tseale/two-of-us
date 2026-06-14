@@ -28,8 +28,15 @@ enum BabyIntelligence {
             feeding hour, anything notable or encouraging. Calm, plain tone. \
             Never give medical advice. No bullet lists, no headers.
             """)
-        let response = try? await session.respond(to: digest)
-        return response?.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            let response = try await session.respond(to: digest)
+            return response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        } catch {
+            // Distinguish "errored" from "unavailable" for QA — both currently
+            // present to the user as a hidden card.
+            AppLog.ai.error("Summary generation failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     // MARK: - Natural-language logging
@@ -59,8 +66,37 @@ enum BabyIntelligence {
             (\"2am\", \"20 minutes ago\") into minutesAgo. If the text is not a \
             feed, diaper, or sleep event, set kind to "unknown".
             """)
-        let response = try? await session.respond(to: text, generating: ParsedLog.self)
-        guard let parsed = response?.content, parsed.kind != "unknown" else { return nil }
-        return parsed
+        do {
+            let response = try await session.respond(to: text, generating: ParsedLog.self)
+            let parsed = response.content
+            guard parsed.kind != "unknown" else { return nil }
+            return parsed
+        } catch {
+            AppLog.ai.error("Parse failed for \"\(text, privacy: .private)\": \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    // MARK: - Bounds
+
+    /// Valid ranges for parsed values before they're written. The on-device model
+    /// can hallucinate a 1000 oz feed or a wildly out-of-range time; callers check
+    /// these and show a friendly message instead of silently clamping.
+    enum Bounds {
+        static let oz: ClosedRange<Double> = 0...32
+        static let minutesAgo: ClosedRange<Int> = 0...1440   // up to 24h back
+    }
+
+    /// Validates a parsed feed/sleep entry's numeric fields. Returns a
+    /// user-facing message when something's out of range, else nil (ok to apply).
+    static func outOfRangeMessage(for parsed: ParsedLog) -> String? {
+        if parsed.kind == "feed", let oz = parsed.amountOz,
+           !oz.isFinite || !Bounds.oz.contains(oz) {
+            return "That feed amount looks off — try something between 0 and 32 oz."
+        }
+        if !Bounds.minutesAgo.contains(parsed.minutesAgo) {
+            return "That time looks off — try something within the last day."
+        }
+        return nil
     }
 }

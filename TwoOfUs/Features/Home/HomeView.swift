@@ -105,7 +105,9 @@ struct HomeView: View {
                     showToast(message, undo: undo)
                     feedLogged()
                 })
-                case .diaper: DiaperSheet(onLogged: showToast)
+                case .diaper: DiaperSheet(onLogged: { message, undo in
+                    showToast(message, accent: AppColor.accentDiaper, undo: undo)
+                })
                 }
             }
             .sheet(item: $editing) { entry in
@@ -251,7 +253,7 @@ struct HomeView: View {
 
     private func startSleep() {
         guard let event = store.startSleep() else { return }
-        showToast("Started sleep") { store.softDelete(event) }
+        showToast("Started sleep", accent: AppColor.accentSleep) { store.softDelete(event) }
     }
 
     // MARK: Timeline
@@ -308,8 +310,8 @@ struct HomeView: View {
         Haptics.warning()
     }
 
-    private func showToast(_ message: String, undo: @escaping () -> Void) {
-        toast = ToastData(message: message, undo: undo)
+    private func showToast(_ message: String, accent: Color = AppColor.accentFeed, undo: @escaping () -> Void) {
+        toast = ToastData(message: message, accent: accent, undo: undo)
     }
 
     // MARK: Deferred setup & spotlights
@@ -362,7 +364,11 @@ struct HomeView: View {
 
     /// Turns a parsed entry into the matching store write, backdating by the
     /// model's `minutesAgo`. Mirrors the tap-driven log paths (toast + undo).
-    private func applyParsed(_ p: BabyIntelligence.ParsedLog) {
+    /// Returns a user-facing message when the parsed values are out of range
+    /// (nothing is written), or nil on success.
+    @discardableResult
+    private func applyParsed(_ p: BabyIntelligence.ParsedLog) -> String? {
+        if let problem = BabyIntelligence.outOfRangeMessage(for: p) { return problem }
         let date = Calendar.current.date(byAdding: .minute, value: -max(0, p.minutesAgo), to: .now) ?? .now
         switch p.kind {
         case "feed":
@@ -373,20 +379,21 @@ struct HomeView: View {
         case "diaper":
             let type = DiaperType(rawValue: p.diaperType ?? "wet") ?? .wet
             let event = store.logDiaper(type, at: date)
-            showToast("Logged \(type.label.lowercased()) diaper") { store.softDelete(event) }
+            showToast("Logged \(type.label.lowercased()) diaper", accent: AppColor.accentDiaper) { store.softDelete(event) }
         case "sleepStart":
             if let event = store.startSleep(at: date) {
-                showToast("Started sleep") { store.softDelete(event) }
+                showToast("Started sleep", accent: AppColor.accentSleep) { store.softDelete(event) }
             }
         case "sleepEnd":
             if let active = activeSleep {
                 store.stopSleep(active, at: date)
-                showToast("Ended sleep") {}
+                showToast("Ended sleep", accent: AppColor.accentSleep) {}
             }
         default:
             break
         }
         Haptics.tap()
+        return nil
     }
 }
 

@@ -132,6 +132,10 @@ struct QuickLogger {
 
     @discardableResult
     func logFeed(amountOz: Double) -> FeedEvent {
+        // Shortcuts/Siri can hand us a negative or absurd amount; clamp to a sane
+        // single-feed range so the widget/Siri path can never persist nonsense.
+        // (Mirrors EventBounds in the app target, which the extension can't see.)
+        let amountOz = amountOz.isFinite ? min(max(amountOz, 0), 32) : 0
         let event = FeedEvent(
             baby: baby, amountOz: amountOz, timestamp: .now,
             loggedByID: owner?.id ?? UUID(),

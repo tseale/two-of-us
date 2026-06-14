@@ -61,7 +61,8 @@ struct TodayRibbonCard: View {
         let h = minutes / 60
         let m = minutes % 60
         if h == 0 { return "\(m)m" }
-        return m == 0 ? "\(h)h" : "\(h)h\(m)"
+        // Match TimeFormatting's spaced style ("2h 45m") rather than "2h45".
+        return m == 0 ? "\(h)h" : "\(h)h \(m)m"
     }
 
     /// A gentle greeting for the arc, matched to the part of the day.
