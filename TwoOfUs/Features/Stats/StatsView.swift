@@ -71,6 +71,12 @@ struct StatsView: View {
 
     private func loadSummary() async {
         guard BabyIntelligence.isAvailable, !feeds.isEmpty else { return }
+        // Debounce: `.task(id: feeds.count)` cancels and restarts this on every
+        // feed, so a widget batch of N feeds would otherwise regenerate the
+        // summary N times. Wait out the burst first — a superseded run cancels
+        // here before doing the expensive generation.
+        try? await Task.sleep(for: .seconds(0.8))
+        guard !Task.isCancelled else { return }
         summaryLoading = true
         defer { summaryLoading = false }
         summary = await BabyIntelligence.summary(digest: buildDigest(), babyName: babyName)

@@ -25,7 +25,15 @@ final class LogExporterTests: XCTestCase {
     }
 
     func testHeaderRowComesFirst() {
-        XCTAssertEqual(lines().first, "kind,timestamp,detail,loggedBy,notes")
+        XCTAssertEqual(lines().first, "kind,timestamp,detail,loggedBy,loggedByColor,notes")
+    }
+
+    func testRowCarriesLoggerColor() throws {
+        context.insert(FeedEvent(baby: nil, amountOz: 3, timestamp: .now,
+                                 loggedByID: UUID(), loggedByName: "Taylor", loggedByColorHex: "#AABBCC"))
+        try? context.save()
+        let row = try XCTUnwrap(lines().dropFirst().first)
+        XCTAssertTrue(row.contains("#AABBCC"), "the logger's color travels in its own column — got: \(row)")
     }
 
     func testSoftDeletedEventsAreExcluded() {

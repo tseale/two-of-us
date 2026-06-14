@@ -32,7 +32,10 @@ struct ManageDataView: View {
                         Label("Export log (CSV)", systemImage: "square.and.arrow.up")
                     }
                 } else {
-                    ProgressView()
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Preparing export…").foregroundStyle(AppColor.text2)
+                    }
                 }
             } header: {
                 Text("Backup")
@@ -92,6 +95,7 @@ struct DeleteEverythingFlow: View {
     @State private var stage = 1
     @State private var typed = ""
     @State private var working = false
+    @State private var deleteFailed = false
 
     private let phrase = "DELETE EVERYTHING"
 
@@ -153,23 +157,44 @@ struct DeleteEverythingFlow: View {
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.characters)
                 .disabled(working)
+        } footer: {
+            if deleteFailed {
+                Text("That didn't finish — check your connection and try again.")
+                    .foregroundStyle(.red)
+            }
         }
         Section {
             Button(role: .destructive) {
                 Task {
                     working = true
-                    await onConfirmed()
+                    deleteFailed = false
+                    let ok = await runDeleteWithTimeout()
                     working = false
-                    dismiss()
+                    if ok { dismiss() } else { deleteFailed = true }
                 }
             } label: {
                 if working {
                     ProgressView()
                 } else {
-                    Text("Delete everything")
+                    Text(deleteFailed ? "Try again" : "Delete everything")
                 }
             }
             .disabled(typed != phrase || working)
+            // Always reachable back out — a hung/failed delete must never strand
+            // the user on a disabled spinner.
+            Button("Go back") { stage = 2 }.disabled(working)
+        }
+    }
+
+    /// Races the (non-throwing, possibly hanging) delete against a timeout so a
+    /// stalled CloudKit teardown surfaces a retry instead of an endless spinner.
+    private func runDeleteWithTimeout() async -> Bool {
+        await withTaskGroup(of: Bool.self) { group in
+            group.addTask { await onConfirmed(); return true }
+            group.addTask { try? await Task.sleep(for: .seconds(30)); return false }
+            let finished = await group.next() ?? false
+            group.cancelAll()
+            return finished
         }
     }
 }

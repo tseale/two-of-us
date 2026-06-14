@@ -48,8 +48,12 @@ struct CloudShareView: UIViewControllerRepresentable {
         func cloudSharingController(_ csc: UICloudSharingController, failedToSaveShareWithError error: Error) {
             // The share itself pre-exists (saved in makeShare); this fires for
             // participant/permission edits that failed. Nothing to roll back —
-            // the sheet re-reads server truth next open.
-            print("CloudKit share sheet failed to save share: \(error)")
+            // the sheet re-reads server truth next open — but surface it so the
+            // owner knows the change didn't stick and can reopen to retry.
+            AppLog.sync.error("CloudKit share sheet failed to save: \(error.localizedDescription, privacy: .public)")
+            Task { @MainActor in
+                StoreErrorCenter.shared.report("That sharing change didn't save. Check your connection and reopen Sharing to try again.")
+            }
         }
 
         func cloudSharingControllerDidStopSharing(_ csc: UICloudSharingController) {

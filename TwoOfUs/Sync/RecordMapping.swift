@@ -250,12 +250,17 @@ enum RecordMapping {
     }
 
     private static func applyBaby(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
+        let existed = Baby.fetchByID(uuid, in: context) != nil
         let m = Baby.fetchByID(uuid, in: context)
             ?? insert(Baby(name: "", dateOfBirth: .now), id: uuid, in: context)
         m.name = r["name"] as? String ?? m.name
         m.dateOfBirth = r["dateOfBirth"] as? Date ?? m.dateOfBirth
         m.createdAt = r["createdAt"] as? Date ?? m.createdAt
         m.photoData = data(from: r["photoData"])
+        // Events can sync in before their Baby. The fetch-batch handler relinks
+        // too, but an interrupted fetch could leave events stranded forever — so
+        // relink the moment a Baby first appears here as well.
+        if !existed { relinkOrphanEvents(in: context) }
     }
 
     private static func applyParticipant(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
@@ -285,21 +290,50 @@ enum RecordMapping {
         m.loggedByColorHex = r["loggedByColorHex"] as? String ?? m.loggedByColorHex
         m.deletedAt = r["deletedAt"] as? Date
         if let s = r["editOfID"] as? String { m.editOfID = UUID(uuidString: s) } else { m.editOfID = nil }
-        if let s = r["babyID"] as? String, let bid = UUID(uuidString: s) {
-            m.babyRef = Baby.fetchByID(bid, in: context)
+        if let s = r["babyID"] as? String {
+            if let bid = UUID(uuidString: s) {
+                m.babyRef = Baby.fetchByID(bid, in: context)
+            } else {
+                // A malformed babyID would silently orphan the event from its baby;
+                // log the offending string so QA can trace a broken relationship.
+                AppLog.sync.error("Dropped event→baby link: unparseable babyID \"\(s, privacy: .public)\"")
+            }
         }
     }
 
     // MARK: Helpers
+
+    /// Dedicated scratch dir for outbound CKAsset temp files, so they can be
+    /// swept as a group (CloudKit gives no "done reading" callback, and a save
+    /// that fails before upload otherwise leaks the file forever).
+    private static var assetOutbox: URL {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ckAssetOutbox", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
 
     /// Wraps avatar bytes in a CKAsset (CloudKit can't store `Data` as a scalar).
     /// Writes to a temp file CloudKit reads on upload; returns nil when there's no
     /// photo, which clears the field on the record.
     private static func asset(from photoData: Data?) -> CKAsset? {
         guard let photoData else { return nil }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let url = assetOutbox.appendingPathComponent(UUID().uuidString)
         guard (try? photoData.write(to: url)) != nil else { return nil }
         return CKAsset(fileURL: url)
+    }
+
+    /// Sweeps outbound asset temp files older than an hour — long past any upload
+    /// CloudKit would still be reading. Safe to call on launch.
+    static func cleanUpStaleAssetFiles(olderThan age: TimeInterval = 3600) {
+        let fm = FileManager.default
+        let cutoff = Date().addingTimeInterval(-age)
+        guard let files = try? fm.contentsOfDirectory(
+            at: assetOutbox, includingPropertiesForKeys: [.contentModificationDateKey]
+        ) else { return }
+        for url in files {
+            let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            if let modified, modified < cutoff { try? fm.removeItem(at: url) }
+        }
     }
 
     /// Reads avatar bytes back from a CKAsset field. Returns nil when the field is

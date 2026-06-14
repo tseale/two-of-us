@@ -136,6 +136,16 @@ struct RhythmStep: View {
         return m == 0 ? "\(h)h" : "\(h)h \(m)m"
     }
 
+    /// Fully spelled-out, pluralized form for VoiceOver — the compact "3h" display
+    /// reads poorly aloud.
+    private var intervalSpoken: String {
+        let h = intervalMinutes / 60, m = intervalMinutes % 60
+        let hours = h == 1 ? "1 hour" : "\(h) hours"
+        if m == 0 { return "Feed every \(hours)" }
+        let mins = m == 1 ? "1 minute" : "\(m) minutes"
+        return h == 0 ? "Feed every \(mins)" : "Feed every \(hours) \(mins)"
+    }
+
     private var intervalCard: some View {
         VStack(spacing: 10) {
             Text("Feed every").sectionLabelStyle()
@@ -146,6 +156,7 @@ struct RhythmStep: View {
                     .foregroundStyle(AppColor.text)
                     .contentTransition(.numericText())
                     .frame(minWidth: 132)
+                    .accessibilityLabel(intervalSpoken)
                 roundStepButton("plus", label: "15 minutes more") { adjustInterval(15) }
             }
         }

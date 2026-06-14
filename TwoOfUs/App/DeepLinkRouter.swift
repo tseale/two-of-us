@@ -22,10 +22,16 @@ final class DeepLinkRouter {
     /// - Returns: true if the URL was a deep link we handle, false otherwise.
     @discardableResult
     func handle(_ url: URL) -> Bool {
-        guard url.scheme == "twoofus", url.host == "log" else { return false }
+        guard url.scheme == "twoofus", url.host == "log" else {
+            AppLog.deeplink.debug("Ignored unrecognized URL: \(url.absoluteString, privacy: .public)")
+            return false
+        }
         // twoofus://log/feed  ·  twoofus://log/diaper
         guard let kind = url.pathComponents.last(where: { $0 != "/" }),
-              let target = LogTarget(rawValue: kind) else { return false }
+              let target = LogTarget(rawValue: kind) else {
+            AppLog.deeplink.warning("Unrecognized log target in URL: \(url.absoluteString, privacy: .public)")
+            return false
+        }
         pendingLog = target
         return true
     }

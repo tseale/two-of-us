@@ -14,6 +14,10 @@ final class ShareAcceptance {
     /// The last accept attempt threw — `RootView` shows a retry alert.
     var failed = false
 
+    /// Specific, actionable copy for the failure alert, set from the CKError code
+    /// so "offline" reads differently from "signed out" or "link revoked."
+    var failureMessage = Self.genericFailure
+
     /// Set when the link is tapped on a device that already has its own log
     /// (finished solo onboarding): silently becoming a participant would leave
     /// TWO babies in the store, so `RootView` asks before anything is replaced.
@@ -91,9 +95,28 @@ final class ShareAcceptance {
                 // RootView routes to the join flow either way.
                 SyncManager.shared?.didAcceptShare()
             } catch {
-                print("Failed to accept CloudKit share: \(error)")
+                AppLog.sync.error("Failed to accept CloudKit share: \(error.localizedDescription, privacy: .public)")
+                failureMessage = Self.message(for: error)
                 failed = true
             }
+        }
+    }
+
+    static let genericFailure =
+        "Couldn't accept the invite. Check that this iPhone is online and signed into iCloud, then try again — or tap the invite link once more."
+
+    /// Maps a CloudKit accept failure to plain-language, next-step copy.
+    private static func message(for error: Error) -> String {
+        guard let ck = error as? CKError else { return genericFailure }
+        switch ck.code {
+        case .notAuthenticated:
+            return "This iPhone isn't signed into iCloud. Sign in (Settings › your name › iCloud), then tap the invite link again."
+        case .networkUnavailable, .networkFailure, .serviceUnavailable, .requestRateLimited, .zoneBusy:
+            return "You appear to be offline. Reconnect to Wi-Fi or cellular, then tap Try Again."
+        case .permissionFailure, .participantMayNeedVerification:
+            return "This invite can't be used — it may have already been accepted or had its access removed. Ask your co-parent to send a fresh invite."
+        default:
+            return genericFailure
         }
     }
 }
