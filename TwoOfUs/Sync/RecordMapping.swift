@@ -285,8 +285,14 @@ enum RecordMapping {
         m.loggedByColorHex = r["loggedByColorHex"] as? String ?? m.loggedByColorHex
         m.deletedAt = r["deletedAt"] as? Date
         if let s = r["editOfID"] as? String { m.editOfID = UUID(uuidString: s) } else { m.editOfID = nil }
-        if let s = r["babyID"] as? String, let bid = UUID(uuidString: s) {
-            m.babyRef = Baby.fetchByID(bid, in: context)
+        if let s = r["babyID"] as? String {
+            if let bid = UUID(uuidString: s) {
+                m.babyRef = Baby.fetchByID(bid, in: context)
+            } else {
+                // A malformed babyID would silently orphan the event from its baby;
+                // log the offending string so QA can trace a broken relationship.
+                AppLog.sync.error("Dropped event→baby link: unparseable babyID \"\(s, privacy: .public)\"")
+            }
         }
     }
 

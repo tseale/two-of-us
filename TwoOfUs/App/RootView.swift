@@ -18,6 +18,7 @@ struct RootView: View {
     @State private var prefs = LocalPrefs.shared
     @State private var celebration: CelebrationData?
     @State private var shareAcceptance = ShareAcceptance.shared
+    @State private var storeErrors = StoreErrorCenter.shared
 
     private var needsJoinProfile: Bool {
         prefs.syncRole == .participant && prefs.myParticipantID == nil
@@ -61,6 +62,10 @@ struct RootView: View {
         .overlay(alignment: .top) {
             if prefs.demoModeEnabled { demoBanner }
         }
+        .overlay(alignment: .bottom) {
+            if let banner = storeErrors.current { errorBanner(banner) }
+        }
+        .animation(.spring(duration: 0.3), value: storeErrors.current)
         .overlay {
             if let celebration {
                 CelebrationView(data: celebration) { dismissCelebration() }
@@ -107,6 +112,29 @@ struct RootView: View {
 
     private func dismissCelebration() {
         withAnimation(.easeOut(duration: 0.5)) { celebration = nil }
+    }
+
+    /// Transient banner for a write/sync failure the user should know about.
+    /// Tap to dismiss; otherwise it clears itself after a few seconds.
+    private func errorBanner(_ banner: StoreErrorBanner) -> some View {
+        Button { storeErrors.dismiss() } label: {
+            Label(banner.message, systemImage: "exclamationmark.triangle.fill")
+                .font(.footnote.weight(.medium))
+                .multilineTextAlignment(.leading)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(AppColor.urgencyAmber.opacity(0.5))
+                )
+        }
+        .buttonStyle(.plain)
+        .tint(AppColor.urgencyAmber)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 8)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .accessibilityHint("Double tap to dismiss")
     }
 
     /// Slim pill marking the demo world; tap to exit back to real data.
