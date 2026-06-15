@@ -410,11 +410,11 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
                 // The owner revoking the share (or deleting everything) arrives
                 // here as a zone deletion in the shared database. Without this,
                 // the device stays a "participant" driving a dead engine forever.
-                // Local copies of the data remain, exactly as with a
-                // user-initiated leave. Match the FULL zone ID when we know our
-                // zone: after a re-invite, the dead old zone and the freshly
-                // joined one share a name, and a name-only match would detach
-                // the share the user just accepted.
+                // Detaching wipes our local copy — when the owner pulls access,
+                // the data leaves this phone too. Match the FULL zone ID when we
+                // know our zone: after a re-invite, the dead old zone and the
+                // freshly joined one share a name, and a name-only match would
+                // detach the share the user just accepted.
                 let attached = sharedZoneID ?? persistedSharedZoneID()
                 let revoked = e.deletions.contains { del in
                     if let attached { return del.zoneID == attached }
@@ -860,8 +860,9 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     /// Participant leaves the share: tells the owner's side, removes themselves
     /// from the share, then detaches locally. Throws when the server can't be
     /// reached — silently flipping to solo while the share still lists this
-    /// user (with live access) would lie to both sides. Local copies of the
-    /// data remain on-device and keep working solo.
+    /// user (with live access) would lie to both sides. Detaching wipes the
+    /// local copy of the shared log (leaving is a clean break), so the device
+    /// returns to onboarding.
     func leaveShare() async throws {
         guard !LocalPrefs.shared.demoModeEnabled else { return }
         guard await cloudAvailable() else { throw SyncError.iCloudUnavailable }
@@ -897,32 +898,28 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             }
             throw error
         }
+        // Wipes the local store and resets to a fresh solo install — there is
+        // no kept "me" record to re-activate afterwards.
         detachFromShare()
-        // The solo fork is its own world now — its copy of "me" must be active
-        // (the isActive=false above was a message to the owner, not to us).
-        if let me, !me.isActive {
-            me.isActive = true
-            try? context.save()
-            enqueueSave([me.id])
-        }
     }
 
-    /// Tears down all participant state (engine, persisted sync state, held
-    /// changes) and reverts to solo. Shared by the user-initiated leave and the
-    /// owner-revoked paths (zone deletion, save-time permission failures).
-    /// The device keeps its local copy of the data and re-uploads it into its
-    /// OWN private zone, so the app stays cloud-backed and re-shareable.
+    /// Tears down all participant state and wipes the local copy of the shared
+    /// log. Shared by the user-initiated leave and the owner-revoked paths (zone
+    /// deletion, save-time permission failures, the system share sheet's
+    /// "Remove Me"). Losing access — whether you left or the owner removed you —
+    /// clears the data from this device: the family's log lives in the share,
+    /// not on an ex-member's phone. The device resets to a fresh solo install,
+    /// so `RootView` returns to onboarding. Mirrors `deleteEverything`'s local
+    /// reset, minus the server delete (we no longer have access to that zone).
     private func detachFromShare() {
         guard Self.realSyncRole == .participant else { return }
-        sharedEngine = nil
-        sharedZoneID = nil
-        try? FileManager.default.removeItem(at: stateURL(.shared))
-        clearPersistedSharedZone()
-        UserDefaults.standard.removeObject(forKey: Keys.pendingSharedSaves)
-        UserDefaults.standard.removeObject(forKey: Keys.pendingSharedDeletes)
-        // Force a fresh private bootstrap so the kept data reaches the new zone.
-        UserDefaults.standard.removeObject(forKey: Keys.bootstrapPrivate)
+        tearDownEngines()
+        clearSyncBookkeeping()
+        wipeLocalModels()
         Self.setRealRole(.solo)
+        LocalPrefs.shared.myParticipantID = nil
+        DemoSession.noteRealParticipantID(nil)
+        WidgetCenter.shared.reloadAllTimelines()
         start()
     }
 
