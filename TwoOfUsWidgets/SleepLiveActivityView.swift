@@ -117,6 +117,12 @@ struct SleepLiveActivity: Widget {
                 Text(context.state.startedAt, style: .timer)
                     .monospacedDigit()
                     .foregroundStyle(AppColor.accentSleep)
+                    // A count-up `.timer` reserves width for an unbounded
+                    // duration, which stretches the compact island to full
+                    // width. Bound it to a sleep-sized H:MM:SS so the pill stays
+                    // a tight "💤 1:23:45"; longer stretches scale down to fit.
+                    .frame(maxWidth: 56, alignment: .trailing)
+                    .minimumScaleFactor(0.7)
                     .padding(.trailing, 4)
             } minimal: {
                 Image(systemName: "moon.zzz.fill")

@@ -9,8 +9,9 @@ import SwiftUI
 ///
 /// Shared by the join flow and the post-setup celebration. The `.screen` blend
 /// is isolated by the trailing `compositingGroup`, but the artwork is designed
-/// for a dark backdrop — always place the mark on a dark stage (ink ambient or
-/// stage halo).
+/// for a dark backdrop — pass `staged: true` to sit it on a self-contained
+/// `MarkSpotlight`, so the mark reads on a scene that otherwise follows the
+/// appearance toggle (callers already on a dark surface leave it off).
 struct CradleMark: View {
     /// Per-parent entrance transform: a drift `offset` (added to the resting
     /// offset), a `scale` (1 = resting), and an `opacity` (1 = present).
@@ -37,6 +38,10 @@ struct CradleMark: View {
     /// Reveal of the baby crisp core (0…1 opacity). 1 = present (default → unchanged).
     /// Separate from `glowOpacity` so the core can pop after the circles meet.
     var babyCoreOpacity: Double = 1
+    /// Place the mark on its own soft indigo spotlight (`MarkSpotlight`). Needed
+    /// wherever the surrounding scene isn't already dark — the screen-blended
+    /// glow washes out over a light backdrop without it.
+    var staged: Bool = false
 
     // Geometry mirrors the generator constants (LEFT_C / RIGHT_C / BABY_C as
     // (x, y, r) fractions of the mark; +y is down). Deliberately not mirrored.
@@ -103,14 +108,52 @@ struct CradleMark: View {
         }
         .frame(width: size, height: size)
         .compositingGroup()
+        // The spotlight sits behind the composited group so the mark's bright
+        // lens reads against its dark core, while the scene around it stays free
+        // to follow the appearance toggle.
+        .background(alignment: .center) {
+            if staged { MarkSpotlight(diameter: size * 1.8) }
+        }
         // Purely decorative brand artwork — keep it out of the VoiceOver order.
         .accessibilityHidden(true)
     }
 }
 
-#Preview {
+/// The soft indigo "stage" the `CradleMark` sits on: a contained, feathered orb
+/// that fades to transparent, giving the mark's screen-blended glow the dark core
+/// it needs without forcing the whole screen dark. The surrounding scene shows
+/// through the fade, so it stays responsive to light/dark.
+struct MarkSpotlight: View {
+    var diameter: CGFloat = 300
+
+    var body: some View {
+        Circle()
+            .fill(RadialGradient(
+                stops: [
+                    .init(color: AppColor.markStage, location: 0.0),
+                    .init(color: AppColor.markStage, location: 0.40),
+                    .init(color: AppColor.markStage.opacity(0), location: 1.0),
+                ],
+                center: .center, startRadius: 0, endRadius: diameter / 2
+            ))
+            .frame(width: diameter, height: diameter)
+            .accessibilityHidden(true)
+    }
+}
+
+#Preview("On black") {
     ZStack {
         Color.black.ignoresSafeArea()
         CradleMark()
     }
+}
+
+// The staged mark must read on the light scheme too — its spotlight provides the
+// dark core while the surrounding background stays light.
+#Preview("Staged · light") {
+    ZStack {
+        AppColor.bg.ignoresSafeArea()
+        CradleMark(size: 170, staged: true)
+    }
+    .preferredColorScheme(.light)
 }

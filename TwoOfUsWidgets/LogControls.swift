@@ -85,6 +85,10 @@ struct SetSleepIntent: SetValueIntent {
         guard let logger = QuickLogger.make() else { return .result() }
         let isActive = logger.activeSleep != nil
         if value != isActive { logger.toggleSleep() }
+        // Waking up: end the Live Activity right here. This intent backs the
+        // lock-screen / Dynamic Island Wake button and runs in the widget
+        // process, which can't rely on the app foregrounding to reconcile.
+        if !value { await SleepActivityAttributes.endAllRunning() }
         return .result()
     }
 }
