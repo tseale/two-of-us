@@ -26,6 +26,10 @@ struct ToggleSleepIntent: AppIntent {
                                           subtitle: name)
             )
         }
+        // Sleep just stopped — tear down the Live Activity now. This intent can
+        // run outside the app (Siri / Shortcuts), where the foreground reconcile
+        // won't fire, so the Dynamic Island would otherwise keep counting.
+        await SleepActivityAttributes.endAllRunning()
         let slept = runningStart.map { TimeFormatting.duration(from: $0, to: .now) }
         return .result(
             dialog: slept.map { "\(name) is awake — slept \($0)." } ?? "\(name) is awake.",
