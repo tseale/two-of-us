@@ -78,7 +78,13 @@ struct WrappedCard: View {
             }
         }
         .padding(28)
-        .frame(width: 360, height: 660)
+        // Fixed width keeps every shared card the same shape, but the height
+        // must be free to grow: a month recap with a milestone banner, all
+        // three highlight rows, and a credit + age footer overflows a hard 660,
+        // and `ImageRenderer` clips anything past the frame — the recap "cutoff".
+        // 660 stays the floor so sparse weeks still fill the card.
+        .frame(width: 360)
+        .frame(minHeight: 660)
         .background(
             LinearGradient(colors: [AppColor.indigoHi, AppColor.indigoNight],
                            startPoint: .top, endPoint: .bottom)
