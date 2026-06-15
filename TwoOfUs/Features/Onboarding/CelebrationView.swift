@@ -39,30 +39,16 @@ struct CelebrationView: View {
     @State private var textOpacity: Double = 0
     @State private var textOffset: CGFloat = 8
 
-    /// Near-black ink for the night-sky stage the mark sits on (see `CradleMark`:
-    /// the artwork wants a dark backdrop in both color schemes).
-    private let ink = AppColor.nightInk
-
     var body: some View {
         ZStack {
-            // Opaque base — the route swap underneath stays invisible.
+            // Opaque base — the route swap underneath stays invisible, and it
+            // follows the appearance toggle so the finale isn't forced dark.
             AppColor.bg.ignoresSafeArea()
 
             VStack(spacing: 18) {
-                ZStack {
-                    // Soft night-sky halo behind the mark.
-                    Circle()
-                        .fill(RadialGradient(
-                            stops: [
-                                .init(color: ink, location: 0),
-                                .init(color: ink, location: 0.45),
-                                .init(color: ink.opacity(0), location: 1),
-                            ],
-                            center: .center, startRadius: 0, endRadius: 160
-                        ))
-                        .frame(width: 320, height: 320)
-                    CradleMark(size: 170, babyScale: babyScale, glowOpacity: glowOpacity)
-                }
+                // The mark carries its own soft indigo spotlight so its glow reads
+                // on either scheme without painting the whole screen dark.
+                CradleMark(size: 170, babyScale: babyScale, glowOpacity: glowOpacity, staged: true)
 
                 VStack(spacing: 8) {
                     Text(data.title)

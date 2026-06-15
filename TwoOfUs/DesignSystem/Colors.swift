@@ -51,6 +51,11 @@ enum AppColor {
 
     /// Deep warm plum-indigo: the night-stage base ("nursery at 3am", not blue-black).
     static let nightInk = Color(hex: "130E18")
+    /// The soft "stage" the `CradleMark` sits on — a richer indigo-violet than the
+    /// near-black `nightInk`, used as a contained spotlight behind the mark so its
+    /// screen-blended glow reads without forcing the whole screen dark (the scene
+    /// itself follows the appearance toggle). Same indigo family as the hero gradient.
+    static let markStage = Color(hex: "231C40")
     /// Warm cream of the baby's light; text/glow color on the night stage.
     static let nightlightCream = Color(hex: "FFF4E8")
 

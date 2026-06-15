@@ -4,8 +4,10 @@ import SwiftUI
 /// soft accent washes. Every page re-tints the *same* two washes, so page
 /// changes play as smooth color shifts — never a background swap.
 struct AmbientStop: Equatable {
-    /// Near-black "night stage" base (welcome / join hello — the mark's home)
-    /// instead of the scheme background.
+    /// The "night stage" mood (welcome / join hello — the mark's home): warmer,
+    /// asymmetric washes and a scatter of stars in dark mode. The base stays the
+    /// scheme background, so the scene still follows the appearance toggle — the
+    /// `CradleMark` carries its own dark spotlight (see `CradleMark.staged`).
     var darkStage = false
     /// Tones the washes down (setup chapter: calmer, content leads).
     var subtle = false
@@ -52,11 +54,10 @@ struct AmbientBackground: View {
     }
 
     var body: some View {
-        ZStack {
-            AppColor.bg
-            AppColor.nightInk
-                .opacity(stop.darkStage ? 1 : 0)
-        }
+        // The base follows the appearance toggle — no forced near-black. The
+        // night stage's depth comes from the warm washes and (in dark mode) the
+        // stars; the mark brings its own spotlight where it needs one.
+        AppColor.bg
         // The washes live in an overlay so their big blurred frames never
         // contribute to layout — the backdrop always reports exactly the
         // proposed size (an oversized sibling here inflates the whole pager).
@@ -74,8 +75,10 @@ struct AmbientBackground: View {
                     .blur(radius: 110)
                     .offset(x: 150, y: 320)
                     .opacity(bottomWashOpacity)
+                // Stars only read on a genuinely dark base, so keep them to dark
+                // mode — in light mode the cream points would vanish on the bg.
                 NightStars()
-                    .opacity(stop.darkStage ? 1 : 0)
+                    .opacity(stop.darkStage && scheme == .dark ? 1 : 0)
             }
         }
         .ignoresSafeArea()

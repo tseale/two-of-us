@@ -79,14 +79,14 @@ struct JoinFlowView: View {
     private var helloPage: some View {
         VStack(spacing: 28) {
             Spacer()
-            CradleMark(size: 150)
+            CradleMark(size: 150, staged: true)
             VStack(spacing: 10) {
                 Text(helloTitle)
                     .font(AppFont.hero(28))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppColor.text)
                 Text(helloSubtitle)
                     .font(.body)
-                    .foregroundStyle(AppColor.nightlightCream.opacity(0.78))
+                    .foregroundStyle(AppColor.text2)
                     .fixedSize(horizontal: false, vertical: true)
                 if baby == nil {
                     SyncingShimmer()
@@ -267,14 +267,14 @@ struct JoinSyncingView: View {
         ZStack {
             AmbientBackground(stop: .nightStage)
             VStack(spacing: 24) {
-                CradleMark(size: 150)
+                CradleMark(size: 150, staged: true)
                 VStack(spacing: 10) {
                     Text("Bringing everything over…")
                         .font(AppFont.hero(24))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppColor.text)
                     Text("Your co-parent's log is syncing to this iPhone.")
                         .font(.subheadline)
-                        .foregroundStyle(AppColor.nightlightCream.opacity(0.78))
+                        .foregroundStyle(AppColor.text2)
                     SyncingShimmer()
                         .padding(.top, 6)
                 }
@@ -300,10 +300,10 @@ struct JoinSyncingView: View {
         VStack(spacing: 12) {
             Text("This is taking longer than usual.")
                 .font(.footnote.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(AppColor.text)
             Text("Make sure both phones are online and signed into iCloud, and ask your co-parent to open Two of Us. Then try again.")
                 .font(.footnote)
-                .foregroundStyle(AppColor.nightlightCream.opacity(0.78))
+                .foregroundStyle(AppColor.text2)
                 .multilineTextAlignment(.center)
             Button("Try again") {
                 tookTooLong = false
@@ -326,7 +326,7 @@ struct SyncingShimmer: View {
 
     var body: some View {
         Capsule()
-            .fill(.white.opacity(reduceMotion ? 0.14 : (pulse ? 0.22 : 0.08)))
+            .fill(AppColor.text.opacity(reduceMotion ? 0.14 : (pulse ? 0.22 : 0.08)))
             .frame(width: 140, height: 10)
             .onAppear {
                 guard !reduceMotion else { return }
