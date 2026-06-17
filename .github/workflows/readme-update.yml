@@ -1,0 +1,66 @@
+name: Update README
+
+# Keep README.md in sync with the app's current functionality. On every merge to
+# `staging`, Claude re-reads the codebase and screenshots and rewrites the README,
+# then commits any changes back to the branch.
+on:
+  push:
+    branches: [staging]
+
+# Allow the job to push the regenerated README back to the branch.
+permissions:
+  contents: write
+
+# Never run two README updates against staging at once.
+concurrency:
+  group: readme-update-staging
+  cancel-in-progress: false
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    # Skip the commits this workflow makes itself, so it never loops. (Pushes made
+    # with the default GITHUB_TOKEN also don't re-trigger workflows, but this keeps
+    # the intent explicit and covers manual re-runs.)
+    if: ${{ !contains(github.event.head_commit.message, '[skip-readme]') }}
+    steps:
+      - name: Check out staging
+        uses: actions/checkout@v4
+        with:
+          ref: staging
+          fetch-depth: 0
+
+      - name: Rewrite README from current functionality
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Do a comprehensive rewrite of README.md so it accurately reflects the
+            app's CURRENT functionality.
+
+            - Read CLAUDE.md, project.yml, the docs/ folder, and the Swift sources
+              under TwoOfUs/ and TwoOfUsWidgets/ to ground every claim in what the
+              code actually does. Do not invent features that aren't implemented,
+              and don't drop features that are.
+            - Keep the existing structure and tone (concise, parent-facing, calm).
+              Keep the screenshot/mockup references that already exist in the README
+              (the images under mockups/ and docs/mockups/); only change a caption
+              if the screen it describes has changed.
+            - Keep the closing note that explains this README is auto-updated on
+              merge to staging.
+            - Edit README.md in place. Make NO other file changes. If the README is
+              already accurate, leave it unchanged.
+          claude_args: |
+            --allowedTools "Read,Glob,Grep,Edit,Write"
+
+      - name: Commit and push if the README changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- README.md; then
+            echo "README.md unchanged — nothing to commit."
+            exit 0
+          fi
+          git add README.md
+          git commit -m "docs: auto-update README from current functionality [skip-readme]"
+          git push origin HEAD:staging
