@@ -10,23 +10,68 @@ enum AppModelContainer {
     /// the App Group entitlement is not configured (Simulator without signing).
     static func make(inMemory: Bool = false) -> ModelContainer {
         let schema = Schema(versionedSchema: SchemaV1.self)
-        let config: ModelConfiguration
         if inMemory {
-            config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-        } else if let storeURL = AppGroup.storeURL {
-            config = ModelConfiguration(schema: schema, url: storeURL)
-        } else {
-            // Fallback: Simulator / no App Group entitlement
-            config = ModelConfiguration(schema: schema)
+            return build(schema: schema, config: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true))
         }
+
+        let storeURL = AppGroup.storeURL
+        let config = storeURL.map { ModelConfiguration(schema: schema, url: $0) }
+            // Fallback: Simulator / no App Group entitlement
+            ?? ModelConfiguration(schema: schema)
+
         do {
-            return try ModelContainer(
-                for: schema,
-                migrationPlan: TwoOfUsMigrationPlan.self,
-                configurations: [config]
-            )
+            return try open(schema: schema, config: config)
         } catch {
-            fatalError("Failed to create ModelContainer: \(error)")
+            // A store written by a newer OS/SwiftData version (e.g. an iOS-beta
+            // store format), an interrupted migration, or a corrupt file makes
+            // ModelContainer throw — which would otherwise crash the app on its
+            // very first frame. The on-disk store is only a local cache here:
+            // CloudKit (CKSyncEngine) is the source of truth and re-bootstraps
+            // (see SyncManager). So move the unreadable store aside and retry
+            // rather than fatal-erroring at launch.
+            print("ModelContainer open failed (\(error)); quarantining store and retrying.")
+            if let storeURL { quarantineStore(at: storeURL) }
+            do {
+                return try open(schema: schema, config: config)
+            } catch {
+                // Last resort: launch against an in-memory store so the app still
+                // opens; sync repopulates it from CloudKit on this run.
+                print("ModelContainer still failed after reset (\(error)); falling back to in-memory.")
+                return build(schema: schema, config: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true))
+            }
+        }
+    }
+
+    private static func open(schema: Schema, config: ModelConfiguration) throws -> ModelContainer {
+        try ModelContainer(
+            for: schema,
+            migrationPlan: TwoOfUsMigrationPlan.self,
+            configurations: [config]
+        )
+    }
+
+    /// In-memory / known-good configs can't fail; if one somehow does there's no
+    /// store to recover, so this is the one place a trap is still appropriate.
+    private static func build(schema: Schema, config: ModelConfiguration) -> ModelContainer {
+        do {
+            return try open(schema: schema, config: config)
+        } catch {
+            fatalError("Failed to create in-memory ModelContainer: \(error)")
+        }
+    }
+
+    /// Removes the SQLite store and its `-wal`/`-shm` sidecar files so the next
+    /// `ModelContainer` opens a fresh, empty store. Safe because the local store
+    /// is a cache that CloudKit re-bootstraps.
+    private static func quarantineStore(at storeURL: URL) {
+        let fm = FileManager.default
+        // SQLite sidecars use a hyphen suffix: `twoofus.sqlite-wal` / `-shm`.
+        let base = storeURL.deletingLastPathComponent()
+        let name = storeURL.lastPathComponent
+        for url in [storeURL,
+                    base.appendingPathComponent(name + "-wal"),
+                    base.appendingPathComponent(name + "-shm")] {
+            try? fm.removeItem(at: url)
         }
     }
 
