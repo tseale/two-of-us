@@ -105,6 +105,82 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         }
     }
 
+    // MARK: Co-parent activity notifications
+
+    /// Posts a calm local notification for each freshly-synced event the *other*
+    /// parent just logged. Skips your own logs, edits, deletes, and anything
+    /// outside the recency window (so a participant joining — which pulls full
+    /// history — doesn't fire a flood). `NotificationManager` applies the per-kind
+    /// toggle, quiet hours, and dedupe.
+    private func notifyCoParentActivity(from records: [CKRecord]) {
+        // Without a known local identity we can't tell "me" from "them", so we'd
+        // risk self-notifying — bail until onboarding/sharing has set it.
+        guard let myID = LocalPrefs.shared.myParticipantID else { return }
+        let babyName = (try? context.fetch(FetchDescriptor<Baby>()))?.first?.name ?? "Baby"
+
+        for r in records {
+            guard let loggedBy = (r["loggedByID"] as? String).flatMap(UUID.init),
+                  loggedBy != myID,                    // never notify yourself
+                  r["deletedAt"] == nil,               // skip soft-deletes
+                  r["editOfID"] == nil,                // skip edits
+                  let eventID = UUID(uuidString: r.recordID.recordName)
+            else { continue }
+
+            let senderName = (r["loggedByName"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                ?? "Your co-parent"
+            let photo = participantPhoto(loggedBy)
+
+            switch r.recordType {
+            case SyncConstants.RecordType.feed:
+                guard let at = r["timestamp"] as? Date, isRecent(at) else { continue }
+                let oz = r["amountOz"] as? Double ?? 0
+                NotificationManager.postCoParentActivity(
+                    eventID: eventID, dedupeSuffix: "", kind: .feed,
+                    senderName: senderName, senderPhoto: photo,
+                    body: "Fed \(babyName) \(OzFormat.string(oz)) oz",
+                    threadID: NotificationID.Thread.feed)
+
+            case SyncConstants.RecordType.diaper:
+                guard let at = r["timestamp"] as? Date, isRecent(at) else { continue }
+                let type = DiaperType(rawValue: r["typeRaw"] as? String ?? "") ?? .wet
+                NotificationManager.postCoParentActivity(
+                    eventID: eventID, dedupeSuffix: "", kind: .diaper,
+                    senderName: senderName, senderPhoto: photo,
+                    body: "Logged a \(type.label.lowercased()) diaper for \(babyName)",
+                    threadID: NotificationID.Thread.diaper)
+
+            case SyncConstants.RecordType.sleep:
+                let started = r["startedAt"] as? Date
+                if let ended = r["endedAt"] as? Date, isRecent(ended) {
+                    let duration = started.map { TimeFormatting.duration(from: $0, to: ended) }
+                    let body = duration.map { "Ended \(babyName)'s nap · \($0)" } ?? "Ended \(babyName)'s nap"
+                    NotificationManager.postCoParentActivity(
+                        eventID: eventID, dedupeSuffix: "end", kind: .sleep,
+                        senderName: senderName, senderPhoto: photo,
+                        body: body, threadID: NotificationID.Thread.sleep)
+                } else if let started, isRecent(started) {
+                    NotificationManager.postCoParentActivity(
+                        eventID: eventID, dedupeSuffix: "start", kind: .sleep,
+                        senderName: senderName, senderPhoto: photo,
+                        body: "Started a nap for \(babyName)",
+                        threadID: NotificationID.Thread.sleep)
+                }
+
+            default:
+                continue
+            }
+        }
+    }
+
+    private func isRecent(_ date: Date) -> Bool {
+        abs(date.timeIntervalSinceNow) <= NotificationManager.coParentRecencyWindow
+    }
+
+    private func participantPhoto(_ id: UUID) -> Data? {
+        let all = (try? context.fetch(FetchDescriptor<Participant>())) ?? []
+        return all.first { $0.id == id }?.photoData
+    }
+
     // MARK: Enqueue local changes
 
     func enqueueSave(_ ids: [UUID]) {
@@ -171,6 +247,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             }
             try? context.save()
             WidgetCenter.shared.reloadAllTimelines()
+            notifyCoParentActivity(from: e.modifications.map(\.record))
 
         case .sentRecordZoneChanges(let e):
             for failed in e.failedRecordSaves {
