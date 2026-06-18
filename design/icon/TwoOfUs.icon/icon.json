@@ -1,0 +1,32 @@
+{
+  "fill" : {
+    "automatic-gradient" : "extended-srgb:0.00000,0.00000,0.00000,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        { "image-name" : "baby.png", "name" : "Baby" }
+      ],
+      "specular" : true,
+      "shadow" : { "kind" : "neutral", "opacity" : 0.5 }
+    },
+    {
+      "layers" : [
+        { "image-name" : "parent-left.png", "name" : "Parent · Left", "blend-mode" : "screen" },
+        { "image-name" : "parent-right.png", "name" : "Parent · Right", "blend-mode" : "screen" }
+      ],
+      "specular" : true,
+      "translucency" : { "enabled" : true, "value" : 0.5 },
+      "shadow" : { "kind" : "neutral", "opacity" : 0.35 }
+    },
+    {
+      "layers" : [
+        { "image-name" : "background.png", "name" : "Background" }
+      ]
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [ "watchOS" ],
+    "squares" : "shared"
+  }
+}

@@ -9,41 +9,69 @@ enum SeedData {
     }
 
     /// Used by previews/tests with sensible defaults.
+    @MainActor
     static func seedIfNeeded(in context: ModelContext, babyName: String) {
         guard !isSeeded(in: context) else { return }
         createBaby(
             name: babyName,
             dateOfBirth: Calendar.current.date(byAdding: .weekOfYear, value: -12, to: .now) ?? .now,
-            ownerName: "Taylor",
+            ownerName: "Alex",
             ownerColorHex: ParticipantColors.palette[0],
             in: context
         )
     }
 
-    /// Creates the initial records during onboarding.
+    /// Creates the initial records during onboarding — the one atomic commit at
+    /// the end of the flow (baby + owner profile + shared feeding settings).
+    /// Main-actor: runs against the main context and pokes `SyncManager`.
+    @MainActor
     @discardableResult
     static func createBaby(
         name: String,
         dateOfBirth: Date,
+        babyPhoto: Data? = nil,
         ownerName: String,
         ownerColorHex: String,
+        ownerPhoto: Data? = nil,
+        targetFeedIntervalMinutes: Int = 180,
+        ozPresets: [Double] = [2, 3, 4],
         in context: ModelContext
     ) -> Baby {
         let baby = Baby(name: name, dateOfBirth: dateOfBirth)
+        baby.photoData = babyPhoto
         context.insert(baby)
 
         let owner = Participant(displayName: ownerName, colorHex: ownerColorHex, role: .full)
+        owner.photoData = ownerPhoto
         context.insert(owner)
         // Remember who "me" is on this device (used to stamp logger identity and,
         // after sharing, to distinguish the two parents). Role stays .solo until
         // the owner actually invites a co-parent.
         LocalPrefs.shared.myParticipantID = owner.id
 
-        if (try? context.fetch(FetchDescriptor<SharedSettings>()))?.isEmpty != false {
-            context.insert(SharedSettings())
+        let settings: SharedSettings
+        if let existing = (try? context.fetch(FetchDescriptor<SharedSettings>()))?.first {
+            settings = existing
+        } else {
+            settings = SharedSettings()
+            context.insert(settings)
         }
+        settings.targetFeedIntervalMinutes = targetFeedIntervalMinutes
+        settings.ozPresets = ozPresets.sorted()
+        // Keep the one-tap (widget/Siri) amount one of the presets; the largest
+        // matches the shipped default ([2, 3, 4] → 4).
+        settings.defaultFeedOz = settings.ozPresets.max() ?? settings.defaultFeedOz
 
         try? context.save()
+
+        // These records were created *after* the sync engine's one-shot bootstrap
+        // ran (at launch, against the then-empty store), so they must be enqueued
+        // explicitly — otherwise they'd never upload and an invited co-parent
+        // would join an empty zone. Optional-chained: previews/tests have no
+        // SyncManager and demo mode runs against a throwaway store.
+        if !LocalPrefs.shared.demoModeEnabled {
+            SyncManager.shared?.enqueueSave([baby.id, owner.id, settings.id])
+        }
         return baby
     }
 

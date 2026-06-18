@@ -9,6 +9,7 @@ final class SharedSettings {
     var targetFeedIntervalMinutes: Int = 180   // next-feed countdown target (3h)
     var ozPresets: [Double] = [2, 3, 4]
     var defaultFeedOz: Double = 4              // one-tap feed amount (widget / Siri)
+    var ckSystemFields: Data?                  // archived CKRecord system fields (see Baby.ckSystemFields)
 
     init(
         id: UUID = UUID(),

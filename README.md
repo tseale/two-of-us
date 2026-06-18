@@ -195,9 +195,3 @@ Intelligence–capable hardware and hide themselves where unavailable.
   AlarmKit "Log feed" alert action
 
 See [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) for the full plan.
-
----
-
-<sub>📝 This README is kept in sync with the app's functionality automatically — a
-GitHub Actions workflow ([`.github/workflows/readme-update.yml`](.github/workflows/readme-update.yml))
-rewrites it on every merge to `staging`.</sub>

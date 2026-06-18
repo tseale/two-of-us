@@ -9,6 +9,8 @@ struct DiaperSheet: View {
     let onLogged: (String, @escaping () -> Void) -> Void
 
     @State private var date = Date()
+    @State private var selected: DiaperType = .wet
+    @State private var note = ""
 
     var body: some View {
         NavigationStack {
@@ -21,7 +23,11 @@ struct DiaperSheet: View {
                     }
                 }
                 Section("Time") {
-                    TimeControl(date: $date)
+                    TimeControl(date: $date, tint: AppColor.accentDiaper)
+                }
+                Section("Note") {
+                    TextField("Add a note (optional)", text: $note, axis: .vertical)
+                        .lineLimit(1...3)
                 }
             }
             .navigationTitle("Log a diaper 💩")
@@ -30,6 +36,12 @@ struct DiaperSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
+                // Select a type, then confirm — a selected highlight plus an
+                // explicit label so a stray tap can't log the wrong thing
+                // (parity with the Feed sheet's preset chips).
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Log \(selected.label)") { log(selected) }
+                }
             }
         }
         .presentationDetents([.medium])
@@ -37,8 +49,10 @@ struct DiaperSheet: View {
     }
 
     private func button(for type: DiaperType) -> some View {
-        Button {
-            log(type)
+        let isSelected = selected == type
+        return Button {
+            selected = type
+            Haptics.tap()
         } label: {
             VStack(spacing: 8) {
                 Text(type.emoji).font(.title)
@@ -46,15 +60,21 @@ struct DiaperSheet: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 20)
-            .background(AppColor.card2, in: RoundedRectangle(cornerRadius: 16))
+            .background(isSelected ? AppColor.accentDiaper.opacity(0.25) : AppColor.card2,
+                        in: RoundedRectangle(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(AppColor.accentDiaper, lineWidth: isSelected ? 2 : 0)
+            )
             .foregroundStyle(AppColor.text)
         }
         .buttonStyle(PressableTileStyle())
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
     private func log(_ type: DiaperType) {
         let store = EventStore(context: context)
-        let event = store.logDiaper(type, at: date)
+        let event = store.logDiaper(type, at: date, notes: note)
         Haptics.success()
         onLogged("Logged diaper · \(type.label)") {
             store.softDelete(event)

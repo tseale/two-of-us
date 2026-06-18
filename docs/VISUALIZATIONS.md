@@ -58,32 +58,48 @@ Deep multi-day charts stay in History/Stats — Home keeps a single glance + the
 
 ## 3. In-app history — trends over days/weeks (Swift Charts)
 
-- **Day-in-the-life swimlane (Gantt)** — *the* core chart. 24h axis, one row per day
-  (last 7/14). Sleep = bars, feeds/diapers = marks. Watch the rhythm form: naps
+Status: ✅ = implemented in `Features/History/HistoryView.swift` (aggregations in
+`Store/StatsEngine.swift`).
+
+- ✅ **Day-in-the-life swimlane (Gantt)** — *the* core chart. 24h axis, one row per day
+  (last 7). Sleep = bars, feeds/diapers = marks. Watch the rhythm form: naps
   consolidating, night stretch lengthening.
-- **Sleep consolidation line** — longest continuous night stretch over time. Emotionally
+- ✅ **Sleep consolidation line** — longest continuous night stretch over time. Emotionally
   rewarding: the line climbs as Miller starts sleeping through.
-- **Feed cadence & volume** — daily total oz (bars + trend), avg interval between feeds
-  over time, oz-per-feed distribution.
-- **24h feed heatmap** — 7×24 grid or polar clock; reveals his natural feeding schedule.
-- **Diaper trend** — wet vs dirty stacked per day (doubles as a health signal
-  pediatricians ask about).
-- **Today summary card** — totals vs rolling average ("3 oz above yesterday").
+- ✅ **Total sleep per day** — daily total-sleep bars with a weekly-average rule
+  (complements the consolidation line: stretch vs. total).
+- ✅ **Feed volume** — daily total oz bars + dashed average rule. *(Remaining: avg-interval
+  trend line, oz-per-feed distribution.)*
+- ✅ **24h feed heatmap** — day × 24h grid (opacity ramps with feeds-per-hour); reveals
+  his natural feeding schedule.
+- ✅ **Diaper trend** — wet / dirty / both stacked bars per day (monochrome-amber shades;
+  doubles as a health signal pediatricians ask about).
+- ✅ **Today summary card** — "Today so far" on Stats: today's feeds/oz/sleep/diapers vs the
+  trailing 7-day average ("+3 oz vs avg").
 
 Keep calm: soft fills, rounded bars, existing accents, gentle gridlines.
 
 ## 4. Fun / delightful stats (the emotional layer)
 
-- **Records** — "Longest sleep: 6h 12m on May 28."
-- **Lifetime in fun units** — "412 oz ≈ 3.2 gallons 🥛"; "1,130 hours slept";
+Status: ✅ = implemented in `Features/Stats/StatsView.swift`.
+
+- ✅ **Records** — "Longest sleep: 6h 12m on May 28."
+- ✅ **Lifetime in fun units** — "412 oz ≈ 3.2 gallons 🥛"; "1,130 hours slept";
   "847 diapers changed."
-- **Night-shift split** — "Night MVP this week: Mom, 7 of 9 feeds" (uses `loggedByID`;
+- ✅ **Night-shift split** — "Night MVP this week: Mom, 7 of 9 feeds" (uses `loggedByID`;
   light, not competitive).
-- **Streaks & milestones** — "First 5-hour stretch!", "100th bottle," "First full night."
-- **"On this day"** — "A week ago, every 2h; now every 3h."
-- **Hungriest hour** — "He's hungriest around 6pm."
-- **Weekly/monthly recap card ("Miller Wrapped")** — auto-generated **shareable image**
-  to text grandparents.
+- ✅ **Streaks & milestones** — first 4/5/6/8-hour sleep, 50/100/250/500th bottle,
+  100/250/500th diaper, current logging streak, and the next bottle milestone.
+- ✅ **Both-parents contribution** — "🤝 Teamwork": all-time split of who logged what
+  (non-competitive companion to the night-shift card).
+- ✅ **"On this day"** — "A week ago, every 2h; now every 3h."
+- ✅ **Hungriest hour** — "He's hungriest around 6pm."
+- ✅ **Recap card ("Miller Wrapped")** — `Features/Stats/WrappedView.swift`: a recap card on
+  the indigo delight gradient (totals + longest sleep + night MVP + hungriest hour),
+  rendered to a PNG via `ImageRenderer` and shared with `ShareLink`. Entry point: the
+  "✨ {name}'s week" button atop the Stats tab. Refinements: **Week/Month toggle**, the
+  **baby's photo** in the header (CradleMark fallback), a **🎉 milestone callout** when the
+  window reached one, and a **"Tracked by …" caregiver credit**.
 
 ## Notes for the future build phase
 

@@ -55,9 +55,12 @@ struct EventStore {
     // MARK: Logging
 
     @discardableResult
-    func logFeed(amountOz: Double, at date: Date = .now) -> FeedEvent {
+    func logFeed(amountOz: Double, at date: Date = .now, notes: String? = nil) -> FeedEvent {
+        let amountOz = EventBounds.clampOz(amountOz)
+        let date = EventBounds.clampPast(date)
         let event = FeedEvent(
             baby: baby, amountOz: amountOz, timestamp: date,
+            notes: EventBounds.cleanNote(notes),
             loggedByID: owner?.id ?? UUID(),
             loggedByName: owner?.displayName ?? "",
             loggedByColorHex: owner?.colorHex ?? ""
@@ -73,9 +76,11 @@ struct EventStore {
     }
 
     @discardableResult
-    func logDiaper(_ type: DiaperType, at date: Date = .now) -> DiaperEvent {
+    func logDiaper(_ type: DiaperType, at date: Date = .now, notes: String? = nil) -> DiaperEvent {
+        let date = EventBounds.clampPast(date)
         let event = DiaperEvent(
             baby: baby, type: type, timestamp: date,
+            notes: EventBounds.cleanNote(notes),
             loggedByID: owner?.id ?? UUID(),
             loggedByName: owner?.displayName ?? "",
             loggedByColorHex: owner?.colorHex ?? ""
@@ -93,6 +98,7 @@ struct EventStore {
     @discardableResult
     func startSleep(at date: Date = .now) -> SleepEvent? {
         guard activeSleep == nil else { return nil }
+        let date = EventBounds.clampPast(date)
         let event = SleepEvent(
             baby: baby, startedAt: date,
             loggedByID: owner?.id ?? UUID(),
@@ -102,7 +108,7 @@ struct EventStore {
         context.insert(event)
         save()
         sync(save: [event.id])
-        if !demo { SleepActivityManager.start(babyName: baby?.name ?? "Miller", at: date) }
+        if !demo { SleepActivityManager.start(babyName: baby?.name ?? "Baby", at: date) }
         reloadWidgets()
         donate(ToggleSleepIntent())
         return event
@@ -129,10 +135,12 @@ struct EventStore {
     // MARK: Edit (append-only: soft-delete original, insert replacement)
 
     @discardableResult
-    func editFeed(_ original: FeedEvent, amountOz: Double, timestamp: Date) -> FeedEvent {
+    func editFeed(_ original: FeedEvent, amountOz: Double, timestamp: Date, notes: String?) -> FeedEvent {
+        let amountOz = EventBounds.clampOz(amountOz)
+        let timestamp = EventBounds.clampPast(timestamp)
         let replacement = FeedEvent(
             baby: original.baby, amountOz: amountOz, timestamp: timestamp,
-            notes: original.notes,
+            notes: EventBounds.cleanNote(notes),
             loggedByID: original.loggedByID,
             loggedByName: original.loggedByName,
             loggedByColorHex: original.loggedByColorHex,
@@ -149,10 +157,10 @@ struct EventStore {
     }
 
     @discardableResult
-    func editSleep(_ original: SleepEvent, startedAt: Date, endedAt: Date?) -> SleepEvent {
+    func editSleep(_ original: SleepEvent, startedAt: Date, endedAt: Date?, notes: String?) -> SleepEvent {
         let replacement = SleepEvent(
             baby: original.baby, startedAt: startedAt, endedAt: endedAt,
-            notes: original.notes,
+            notes: EventBounds.cleanNote(notes),
             loggedByID: original.loggedByID,
             loggedByName: original.loggedByName,
             loggedByColorHex: original.loggedByColorHex,
@@ -167,10 +175,10 @@ struct EventStore {
     }
 
     @discardableResult
-    func editDiaper(_ original: DiaperEvent, type: DiaperType, timestamp: Date) -> DiaperEvent {
+    func editDiaper(_ original: DiaperEvent, type: DiaperType, timestamp: Date, notes: String?) -> DiaperEvent {
         let replacement = DiaperEvent(
             baby: original.baby, type: type, timestamp: timestamp,
-            notes: original.notes,
+            notes: EventBounds.cleanNote(notes),
             loggedByID: original.loggedByID,
             loggedByName: original.loggedByName,
             loggedByColorHex: original.loggedByColorHex,
@@ -234,10 +242,18 @@ struct EventStore {
         reloadWidgets()
     }
 
-    /// Updates the shared feeding target and syncs it.
-    func updateSettings(targetFeedIntervalMinutes: Int) {
+    /// Updates the shared feeding rhythm and syncs it. Nil fields stay as-is.
+    func updateSettings(targetFeedIntervalMinutes: Int? = nil, ozPresets: [Double]? = nil) {
         guard let settings else { return }
-        settings.targetFeedIntervalMinutes = targetFeedIntervalMinutes
+        if let targetFeedIntervalMinutes {
+            settings.targetFeedIntervalMinutes = targetFeedIntervalMinutes
+        }
+        if let ozPresets {
+            settings.ozPresets = ozPresets.sorted()
+            // Keep the one-tap (widget/Siri) amount one of the presets — same
+            // rule as `SeedData.createBaby`.
+            settings.defaultFeedOz = settings.ozPresets.max() ?? settings.defaultFeedOz
+        }
         save()
         sync(save: [settings.id])
     }
@@ -284,6 +300,10 @@ struct EventStore {
 
     // MARK: Time-since
 
+    /// Most recent live event of a kind, for the "time since" tiles. Note: an
+    /// in-progress sleep reports its `startedAt` (it has no `endedAt` yet), so the
+    /// sleep tile reads "since it began" while the active-sleep card shows the
+    /// running timer — both intentionally point at the same start.
     func lastEventDate(of kind: EventKind) -> Date? {
         switch kind {
         case .feed:
@@ -339,8 +359,17 @@ struct EventStore {
 
     // MARK: Private
 
+    /// Persists pending changes. A failure here means an optimistic log the user
+    /// already saw never actually saved, so it's surfaced as a banner (not just a
+    /// log line) — silent loss is the worst outcome for a tracking app.
     private func save() {
-        do { try context.save() } catch { print("EventStore save error: \(error)") }
+        do {
+            try context.save()
+        } catch {
+            AppLog.store.error("EventStore save failed: \(error.localizedDescription, privacy: .public)")
+            guard !demo else { return }
+            StoreErrorCenter.shared.report("That didn't save. Check your connection and try logging again.")
+        }
     }
 
     /// Hands changed record ids to the sync engine (no-op when sync is inactive).
@@ -361,7 +390,41 @@ struct EventStore {
         guard !demo else { return }
         let interval = settings?.targetFeedInterval ?? 0
         let last = lastEventDate(of: .feed)
-        Task { await FeedAlarmManager.reschedule(lastFeed: last, interval: interval) }
+        let name = baby?.name ?? "Baby"
+        Task { await FeedAlarmManager.reschedule(babyName: name, lastFeed: last, interval: interval) }
+    }
+}
+
+/// Sane bounds for event inputs, applied at the store boundary as defense in
+/// depth. Untrusted values reach here from natural-language parsing, Siri/App
+/// Intents, and the widget, none of which fully validate — clamping here means a
+/// 1000 oz parse or a future-dated Shortcut can never persist a nonsense record.
+enum EventBounds {
+    /// Realistic single-feed range, in ounces. Zero is allowed for "comfort"
+    /// nursing entries; the upper bound just blocks runaway parses.
+    static let ozRange: ClosedRange<Double> = 0...32
+
+    static func clampOz(_ oz: Double) -> Double {
+        guard oz.isFinite else { return 0 }
+        return min(max(oz, ozRange.lowerBound), ozRange.upperBound)
+    }
+
+    /// Events happen in the past or right now; a future timestamp (clock skew, a
+    /// bad parse) is pinned to now so it can't sort ahead of reality.
+    static func clampPast(_ date: Date, now: Date = .now) -> Date {
+        min(date, now)
+    }
+
+    /// Longest note we keep — generous for "spit up, fussy, left side" jottings
+    /// while still bounding a paste-bomb from Siri/Shortcuts.
+    static let noteMaxLength = 280
+
+    /// Trims a free-text note; blank/whitespace-only becomes nil so empty notes
+    /// never persist, and over-long input is capped.
+    static func cleanNote(_ note: String?) -> String? {
+        guard let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else { return nil }
+        return String(trimmed.prefix(noteMaxLength))
     }
 
     /// Re-arms the gentle "feed/diaper due" local notifications off current state.

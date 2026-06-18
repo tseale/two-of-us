@@ -14,7 +14,7 @@ BUNDLE_ID   := com.taylorseale.twoofus
 # Keeping DerivedData OUTSIDE the synced folder avoids that entirely.
 DERIVED_DATA := $(HOME)/Library/Developer/Xcode/DerivedData/TwoOfUs-local
 
-.PHONY: help project build run clean hooks ensure-hooks bootstrap
+.PHONY: help project build run test clean hooks ensure-hooks bootstrap
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -34,6 +34,10 @@ project: ensure-hooks ## Regenerate TwoOfUs.xcodeproj from project.yml (and enab
 
 build: project ## Regenerate, then build for the simulator
 	xcodebuild build -project $(PROJECT) -scheme $(SCHEME) \
+		-destination '$(DESTINATION)' -derivedDataPath '$(DERIVED_DATA)'
+
+test: project ## Regenerate, then run the unit tests on the simulator
+	xcodebuild test -project $(PROJECT) -scheme $(SCHEME) \
 		-destination '$(DESTINATION)' -derivedDataPath '$(DERIVED_DATA)'
 
 run: build ## Build, then install and launch on the simulator

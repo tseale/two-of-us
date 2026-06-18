@@ -7,8 +7,8 @@ Distributed via TestFlight to 2 users (both parents).
 
 ## Tech Stack
 - **SwiftUI** — declarative UI, iOS 17+
-- **SwiftData** — local persistence, automatic CloudKit sync
-- **CloudKit** — real-time sync between both parents' iPhones, free for 2 users, no server
+- **SwiftData** — local persistence, the on-device source of truth
+- **CloudKit** — real-time sync between both parents' iPhones, free for 2 users, no server. Hand-rolled on `CKSyncEngine` + a zone-wide `CKShare` (TwoOfUs/Sync/), NOT SwiftData's automatic mirroring — the shared-database sharing model is impossible through it
 - **WidgetKit** — lock screen and home screen widgets ("time since last feed")
 - **ActivityKit / Live Activities** — real-time timer on lock screen and Dynamic Island during feeds/sleep
 - **App Intents / Siri** — "Hey Siri, log a diaper change"
@@ -21,4 +21,10 @@ Distributed via TestFlight to 2 users (both parents).
 - Quick logging — as few taps as possible (you're holding a baby)
 - Clean, calming design (not clinical)
 - Dark mode from day 1
-- TestFlight distribution — no App Store submission needed
+- Distributed via TestFlight today; a first **App Store** release is now in
+  preparation (privacy manifest, nutrition label, screenshots, age rating, a
+  second Xcode Cloud archive workflow) — see `docs/APP_STORE_RELEASE_RUNBOOK.md`
+  and `docs/RELEASE_POLISH_PLAN.md` §18
+- CI/CD via Xcode Cloud — pushes to `main` archive and upload to TestFlight; `ci_scripts/ci_post_clone.sh` regenerates the gitignored .xcodeproj on the runner (see docs/XCODE_CLOUD.md)
+- Unit tests — `make test` runs TwoOfUsTests (CloudKit record mapping round-trips, sync hold-queues, store semantics) on the simulator; no iCloud account needed
+- TestFlight feedback automation — hourly GitHub Action polls App Store Connect for beta feedback/crashes and files them as issues labeled `testflight-feedback` (see docs/TESTFLIGHT_AUTOMATION.md)

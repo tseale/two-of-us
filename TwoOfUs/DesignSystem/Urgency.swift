@@ -12,6 +12,20 @@ enum Urgency {
         }
     }
 
+    /// "Quiet until it matters": green draws nothing extra, amber/red do.
+    var needsAttention: Bool { self != .green }
+
+    /// Since-line text color on the log tiles: calm gray at green, a darkened
+    /// readable tint once attention is due. The *presence* of color is the
+    /// signal, so it doesn't lean on red-vs-green discrimination.
+    var sinceTextColor: Color {
+        switch self {
+        case .green: return AppColor.text2
+        case .amber: return AppColor.urgencyAmberText
+        case .red:   return AppColor.urgencyRedText
+        }
+    }
+
     /// Spoken for VoiceOver — color is never the only signal.
     var accessibilityWord: String {
         switch self {

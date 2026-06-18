@@ -6,6 +6,9 @@ import Foundation
 struct WidgetEntry: TimelineEntry {
     let date: Date
 
+    /// The baby's name as entered during onboarding, for widget headers.
+    let babyName: String
+
     let lastFeedDate: Date?
     let lastSleepDate: Date?
     let lastDiaperDate: Date?
@@ -31,6 +34,7 @@ struct WidgetEntry: TimelineEntry {
     func redated(to date: Date, relevance: TimelineEntryRelevance?) -> WidgetEntry {
         WidgetEntry(
             date: date,
+            babyName: babyName,
             lastFeedDate: lastFeedDate,
             lastSleepDate: lastSleepDate,
             lastDiaperDate: lastDiaperDate,
@@ -45,6 +49,7 @@ struct WidgetEntry: TimelineEntry {
 
     static let placeholder = WidgetEntry(
         date: .now,
+        babyName: "Baby",
         lastFeedDate: Date(timeIntervalSinceNow: -7800),   // 2h 10m ago
         lastSleepDate: Date(timeIntervalSinceNow: -2700),  // 45m ago
         lastDiaperDate: Date(timeIntervalSinceNow: -4200), // 1h 10m ago
@@ -61,6 +66,7 @@ struct WidgetEntry: TimelineEntry {
 
     static let empty = WidgetEntry(
         date: .now,
+        babyName: "Baby",
         lastFeedDate: nil,
         lastSleepDate: nil,
         lastDiaperDate: nil,
@@ -78,11 +84,11 @@ struct WidgetEntry: TimelineEntry {
         return [
             RibbonMark(kind: .sleep, start: at(1), end: at(4)),
             RibbonMark(kind: .feed, start: at(2)),
-            RibbonMark(kind: .diaper, start: at(3)),
+            RibbonMark(kind: .diaper, start: at(3), diaperType: .wet),
             RibbonMark(kind: .feed, start: at(6)),
             RibbonMark(kind: .sleep, start: at(8), end: at(9.5)),
             RibbonMark(kind: .feed, start: at(10)),
-            RibbonMark(kind: .diaper, start: at(11)),
+            RibbonMark(kind: .diaper, start: at(11), diaperType: .dirty),
         ]
     }
 }

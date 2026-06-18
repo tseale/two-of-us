@@ -1,9 +1,12 @@
 import WidgetKit
 import SwiftData
 import Foundation
+import os
 
 /// Reads the shared SwiftData store and produces WidgetEntry values.
 struct WidgetProvider: TimelineProvider {
+    // Inline logger — the widget extension can't see the app target's AppLog.
+    private static let log = Logger(subsystem: "com.taylorseale.twoofus", category: "widgets")
 
     func placeholder(in context: Context) -> WidgetEntry {
         .placeholder
@@ -56,17 +59,22 @@ struct WidgetProvider: TimelineProvider {
             let storeURL = AppGroup.storeURL,
             FileManager.default.fileExists(atPath: storeURL.path)
         else {
+            // No App Group / store yet is normal pre-onboarding, but log it so a
+            // misconfigured App Group entitlement isn't an invisible blank widget.
+            Self.log.debug("Widget store unavailable (missing App Group or store file)")
             return .empty
         }
 
         let schema = Schema(versionedSchema: SchemaV1.self)
         let config = ModelConfiguration(schema: schema, url: storeURL)
         guard let container = try? ModelContainer(for: schema, configurations: [config]) else {
+            Self.log.error("Widget failed to open the shared model container")
             return .empty
         }
 
         let ctx = ModelContext(container)
         let feedTarget = (try? ctx.fetch(FetchDescriptor<SharedSettings>()))?.first?.targetFeedInterval ?? 10800
+        let babyName = (try? ctx.fetch(FetchDescriptor<Baby>()))?.first?.name ?? "Baby"
 
         // Last feed
         var feedDesc = FetchDescriptor<FeedEvent>(
@@ -102,6 +110,7 @@ struct WidgetProvider: TimelineProvider {
 
         return WidgetEntry(
             date: .now,
+            babyName: babyName,
             lastFeedDate: lastFeedDate,
             lastSleepDate: lastSleepDate,
             lastDiaperDate: lastDiaperDate,

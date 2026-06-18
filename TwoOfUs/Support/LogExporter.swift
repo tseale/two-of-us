@@ -14,14 +14,15 @@ enum LogExporter {
     /// One row per live event: kind, ISO-8601 timestamp, a human detail, who
     /// logged it, and notes. Rows are newest-first within each kind.
     static func csv(in context: ModelContext) -> String {
-        var rows = ["kind,timestamp,detail,loggedBy,notes"]
+        var rows = ["kind,timestamp,detail,loggedBy,loggedByColor,notes"]
 
         let feeds = (try? context.fetch(FetchDescriptor<FeedEvent>(
             predicate: #Predicate { $0.deletedAt == nil },
             sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
         ))) ?? []
         for f in feeds {
-            rows.append(row("feed", f.timestamp, "\(formatOz(f.amountOz)) oz", f.loggedByName, f.notes))
+            rows.append(row("feed", f.timestamp, "\(formatOz(f.amountOz)) oz",
+                            f.loggedByName, f.loggedByColorHex, f.notes))
         }
 
         let sleeps = (try? context.fetch(FetchDescriptor<SleepEvent>(
@@ -29,8 +30,9 @@ enum LogExporter {
             sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
         ))) ?? []
         for s in sleeps {
-            let detail = s.endedAt.map { "ended \(dateFormatter.string(from: $0))" } ?? "in progress"
-            rows.append(row("sleep", s.startedAt, detail, s.loggedByName, s.notes))
+            // Human-readable duration rather than a raw ISO end timestamp.
+            let detail = s.endedAt.map { "slept \(TimeFormatting.duration(from: s.startedAt, to: $0))" } ?? "in progress"
+            rows.append(row("sleep", s.startedAt, detail, s.loggedByName, s.loggedByColorHex, s.notes))
         }
 
         let diapers = (try? context.fetch(FetchDescriptor<DiaperEvent>(
@@ -38,7 +40,7 @@ enum LogExporter {
             sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
         ))) ?? []
         for d in diapers {
-            rows.append(row("diaper", d.timestamp, d.type.label, d.loggedByName, d.notes))
+            rows.append(row("diaper", d.timestamp, d.type.label, d.loggedByName, d.loggedByColorHex, d.notes))
         }
 
         return rows.joined(separator: "\n")
@@ -55,8 +57,8 @@ enum LogExporter {
     // MARK: Helpers
 
     private static func row(_ kind: String, _ date: Date, _ detail: String,
-                            _ loggedBy: String, _ notes: String?) -> String {
-        [kind, dateFormatter.string(from: date), detail, loggedBy, notes ?? ""]
+                            _ loggedBy: String, _ loggedByColor: String, _ notes: String?) -> String {
+        [kind, dateFormatter.string(from: date), detail, loggedBy, loggedByColor, notes ?? ""]
             .map(escape).joined(separator: ",")
     }
 

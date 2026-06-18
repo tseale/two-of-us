@@ -1,168 +1,162 @@
 import SwiftUI
 
-/// The four stops in the first-launch story. `OnboardingView` owns the paging and
-/// the bottom CTA bar; these are the page bodies plus a couple of small presentational
-/// helpers. All scrollable so large Dynamic Type never clips, all dark-mode aware.
+/// The tour stop of the first-launch flow, plus shared presentational helpers.
+/// `OnboardingView` owns paging, the ambient backdrop, and the CTA bar;
+/// setup-chapter pages live in `OnboardingSetupSteps.swift`.
+///
+/// Every scrolling page reserves `OnboardingLayout.barClearance` at the bottom so
+/// content never sits under the floating bar, and uses `basedOnSize` bounce so
+/// short pages feel fixed.
 
-// MARK: - Pages
-
-/// Warm hello + the value in one line. The demo button lives in the bottom bar.
-struct OnboardingWelcomePage: View {
-    let babyName: String
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var appeared = false
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                Spacer(minLength: 48)
-                Text("👶")
-                    .font(.system(size: 76))
-                    .scaleEffect(appeared || reduceMotion ? 1 : 0.6)
-                    .opacity(appeared || reduceMotion ? 1 : 0)
-                Text("Welcome to Two of Us")
-                    .font(AppFont.hero(30))
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(AppColor.text)
-                Text("A calm little log for \(babyName)'s feeds, sleeps, and diapers — made for one-handed 3am taps.")
-                    .font(.body)
-                    .foregroundStyle(AppColor.text2)
-                    .multilineTextAlignment(.center)
-                Spacer(minLength: 48)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 28)
-        }
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) { appeared = true }
-        }
-    }
+enum OnboardingLayout {
+    /// Height of the floating bottom bar (dots + primary + reserved secondary).
+    static let barClearance: CGFloat = 160
 }
 
-/// Shows the three things you log, styled exactly like the Home tiles.
-struct OnboardingTrackPage: View {
+// MARK: - Tour
+
+/// The opening page — the whole story at one glance: a brand eyebrow (the only
+/// place onboarding names the app), what you log, where
+/// the app lives (widgets, Dynamic Island, Siri, Control Center), a sync +
+/// privacy teaser, and a quiet escape hatch for an invited co-parent who opened
+/// the app before their invite link — a fixed bento collage, not a scroll. The
+/// rhythm/stats story isn't duplicated here; it plays later as the
+/// post-first-feed spotlight, with real data behind it.
+///
+/// `ViewThatFits` keeps the no-scroll promise honest: the fixed layout wins
+/// whenever it fits (the pager centers it); very large Dynamic Type falls back
+/// to the scrolling variant so nothing ever clips.
+struct OnboardingTourPage: View {
+    let revealed: Bool
+
     var body: some View {
-        ScrollView {
-            VStack(spacing: 28) {
-                Spacer(minLength: 24)
-                VStack(spacing: 8) {
-                    Text("Three things, a tap away")
-                        .font(AppFont.hero(26))
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(AppColor.text)
-                    Text("Feeds, sleep, and diapers — logged in a tap or two, even with a baby in your other arm.")
-                        .font(.subheadline)
-                        .foregroundStyle(AppColor.text2)
-                        .multilineTextAlignment(.center)
+        ViewThatFits(in: .vertical) {
+            // Fixed variant — must stay *rigid* (no flexible spacers or
+            // container frames, or it would always report "fits" and the
+            // fallback below could never win). The pager centers it, and the
+            // bottom padding keeps the optical center clear of the CTA bar.
+            tourContent
+                .padding(.horizontal, 28)
+                .padding(.bottom, OnboardingLayout.barClearance)
+
+            // Very large Dynamic Type: nothing honest fits one screen — fall
+            // back to the standard scrolling page so content never clips.
+            ScrollView {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 24)
+                    tourContent
+                    Spacer(minLength: 16)
                 }
-                GlassEffectContainer(spacing: 12) {
-                    VStack(spacing: 12) {
-                        OnboardingShowcaseTile(emoji: "🍼", title: "Feed", hint: "log a bottle", tint: AppColor.accentFeed)
-                        OnboardingShowcaseTile(emoji: "💤", title: "Sleep", hint: "start a timer", tint: AppColor.accentSleep)
-                        OnboardingShowcaseTile(emoji: "💩", title: "Diaper", hint: "wet · dirty · both", tint: AppColor.accentDiaper)
+                .padding(.horizontal, 28)
+            }
+            .contentMargins(.bottom, OnboardingLayout.barClearance, for: .scrollContent)
+            .scrollBounceBehavior(.basedOnSize)
+        }
+        // Gives ViewThatFits the pager's concrete size to measure against —
+        // the page TabView otherwise proposes ideal sizes, which would break
+        // both text wrapping and the fit check.
+        .containerRelativeFrame([.horizontal, .vertical])
+    }
+
+    @ViewBuilder private var tourContent: some View {
+        VStack(spacing: 20) {
+            OnboardingStepHeader(
+                eyebrow: "Two of Us",
+                title: "Three things, a tap away",
+                subtitle: "Feeds, sleep, and diapers — logged one-handed."
+            )
+            .onboardingEntrance(revealed)
+
+            GlassEffectContainer(spacing: 12) {
+                HStack(spacing: 12) {
+                    TourLogTile(emoji: "🍼", title: "Feed", tint: AppColor.accentFeed)
+                    TourLogTile(emoji: "💤", title: "Sleep", tint: AppColor.accentSleep)
+                    TourLogTile(emoji: "💩", title: "Diaper", tint: AppColor.accentDiaper)
+                }
+            }
+            .onboardingEntrance(revealed, index: 1)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Log feeds, sleep, and diapers.")
+
+            // The "everywhere" collage on a quiet stage card, so the miniatures
+            // read as one composed exhibit instead of loose floating pieces.
+            VStack(spacing: 14) {
+                Text("Without opening the app")
+                    .sectionLabelStyle(color: AppColor.text3)
+                MockDynamicIsland()
+                    .rotationEffect(.degrees(-2))
+                HStack(alignment: .top, spacing: 12) {
+                    MockSmallWidget()
+                        .rotationEffect(.degrees(1.5))
+                    // Fills the widget's height: Siri chip up top, the Control
+                    // Center toggle pinned to the bottom edge.
+                    VStack(spacing: 0) {
+                        MockSiriChip(phrase: "“Log a bottle”", fullWidth: true)
+                            .rotationEffect(.degrees(-1))
+                        Spacer(minLength: 0)
+                        MockControlToggle()
                     }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 124)
                 }
-                Spacer(minLength: 24)
             }
-            .padding(.horizontal, 28)
+            .padding(16)
+            .frame(maxWidth: .infinity)
+            .background(AppColor.card.opacity(0.5), in: .rect(cornerRadius: 24))
+            .overlay(
+                RoundedRectangle(cornerRadius: 24)
+                    .strokeBorder(AppColor.separator.opacity(0.4), lineWidth: 0.5)
+            )
+            .onboardingEntrance(revealed, index: 2)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Without opening the app: lock screen widgets, a live sleep timer in the Dynamic Island, Siri phrases, and Control Center controls.")
+
+            HStack(spacing: 10) {
+                Image(systemName: "icloud")
+                    .foregroundStyle(AppColor.accentSleep)
+                Text("Logs sync to your co-parent's iPhone in seconds — through your own iCloud, no accounts or servers.")
+                    .font(.footnote)
+                    .foregroundStyle(AppColor.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .surfaceCard(cornerRadius: 14)
+            .onboardingEntrance(revealed, index: 3)
+
+            // Escape hatch for the invited co-parent who installed from
+            // TestFlight and opened the app before tapping the invite link —
+            // walking through this setup instead would create a duplicate baby.
+            Text("Invited by your partner? Open the link they sent you instead — everything's already set up.")
+                .font(.caption)
+                .foregroundStyle(AppColor.text3)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 12)
+                .onboardingEntrance(revealed, index: 4)
         }
     }
 }
 
-/// The two-parent / CloudKit story.
-struct OnboardingSyncPage: View {
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                Spacer(minLength: 32)
-                HStack(spacing: -16) {
-                    OnboardingInitialBadge(initial: "A", colorHex: ParticipantColors.palette[0])
-                    OnboardingInitialBadge(initial: "J", colorHex: ParticipantColors.palette[1])
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Two parents")
-                VStack(spacing: 8) {
-                    Text("Made for both of you")
-                        .font(AppFont.hero(26))
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(AppColor.text)
-                    Text("Log from either phone and it syncs over iCloud — you both see the latest within seconds. No account, no server.")
-                        .font(.subheadline)
-                        .foregroundStyle(AppColor.text2)
-                        .multilineTextAlignment(.center)
-                }
-                Spacer(minLength: 32)
-            }
-            .padding(.horizontal, 28)
-        }
-    }
-}
-
-/// The actual setup form — same four fields as before, themed onto the page background.
-struct OnboardingSetupPage: View {
-    @Binding var babyName: String
-    @Binding var dateOfBirth: Date
-    @Binding var ownerName: String
-    @Binding var ownerColorHex: String
+/// A compact, non-interactive twin of the Home log tiles for the tour row.
+private struct TourLogTile: View {
+    let emoji: String
+    let title: String
+    let tint: Color
 
     var body: some View {
-        Form {
-            Section {
-                VStack(spacing: 4) {
-                    Text("Last step")
-                        .font(AppFont.hero(26))
-                        .foregroundStyle(AppColor.text)
-                    Text("Who are we tracking, and who's logging?")
-                        .font(.subheadline)
-                        .foregroundStyle(AppColor.text2)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .listRowBackground(Color.clear)
-            }
-
-            Section("Baby") {
-                TextField("Name", text: $babyName)
-                DatePicker("Date of birth", selection: $dateOfBirth, in: ...Date(), displayedComponents: .date)
-            }
-
-            Section("You") {
-                TextField("Your name", text: $ownerName)
-                ParticipantColorPicker(selection: $ownerColorHex)
-            }
+        VStack(spacing: 6) {
+            Text(emoji).font(.system(size: 26))
+            Text(title)
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .foregroundStyle(AppColor.text)
         }
-        .scrollContentBackground(.hidden)
+        .frame(maxWidth: .infinity, minHeight: 78)
+        .glassTile(cornerRadius: 18, tint: tint)
     }
 }
 
 // MARK: - Presentational helpers
-
-/// A non-interactive twin of the Home log tile — same glass + emoji + copy.
-struct OnboardingShowcaseTile: View {
-    let emoji: String
-    let title: String
-    let hint: String
-    let tint: Color
-
-    var body: some View {
-        HStack(spacing: 14) {
-            Text(emoji).font(.system(size: 30))
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.system(.title3, design: .rounded).weight(.bold))
-                Text(hint).font(.caption).foregroundStyle(AppColor.text2)
-            }
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-        .padding(18)
-        .glassTile(cornerRadius: 20, tint: tint)
-        .foregroundStyle(AppColor.text)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(title): \(hint)")
-    }
-}
 
 /// A round participant avatar with an initial — matches the timeline badge look.
 /// The background-colored ring lets two of these overlap cleanly.
@@ -198,6 +192,9 @@ struct OnboardingPageDots: View {
             }
         }
         .animation(.easeInOut, value: index)
-        .accessibilityHidden(true)
+        // Collapse the decorative dots into a single spoken progress announcement
+        // rather than hiding progress from VoiceOver entirely.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Page \(index + 1) of \(count)")
     }
 }

@@ -6,6 +6,7 @@ struct FeedSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query private var settingsList: [SharedSettings]
+    @Query private var babies: [Baby]
 
     /// Reports the logged event back to the host for the "Logged · Undo" toast.
     let onLogged: (String, @escaping () -> Void) -> Void
@@ -14,6 +15,7 @@ struct FeedSheet: View {
     @State private var customText = ""
     @State private var usingCustom = false
     @State private var date = Date()
+    @State private var note = ""
 
     private var presets: [Double] { settingsList.first?.ozPresets ?? [2, 3, 4] }
     private var targetMinutes: Int { settingsList.first?.targetFeedIntervalMinutes ?? 180 }
@@ -23,7 +25,7 @@ struct FeedSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("How much did Miller take?") {
+                Section("How much did \(babies.first?.name ?? "Baby") take?") {
                     HStack(spacing: 10) {
                         ForEach(presets, id: \.self) { oz in
                             presetChip(oz)
@@ -34,10 +36,16 @@ struct FeedSheet: View {
                         Spacer()
                         TextField("oz", text: $customText)
                             .keyboardType(.decimalPad)
+                            .textContentType(.none)   // no autofill suggestions over a number pad
                             .multilineTextAlignment(.trailing)
                             .frame(width: 80)
                             .onChange(of: customText) { _, new in
-                                if let v = Double(new), v > 0 {
+                                // Tolerate a pasted "5 oz" / stray spaces instead of
+                                // silently rejecting anything Double() can't parse raw.
+                                let cleaned = new.lowercased()
+                                    .replacingOccurrences(of: "oz", with: "")
+                                    .trimmingCharacters(in: .whitespaces)
+                                if let v = Double(cleaned), v > 0 {
                                     amount = v
                                     usingCustom = true
                                 }
@@ -48,6 +56,11 @@ struct FeedSheet: View {
 
                 Section("Time") {
                     TimeControl(date: $date)
+                }
+
+                Section("Note") {
+                    TextField("Add a note (optional)", text: $note, axis: .vertical)
+                        .lineLimit(1...3)
                 }
 
                 Section {
@@ -97,7 +110,7 @@ struct FeedSheet: View {
 
     private func log() {
         let store = EventStore(context: context)
-        let event = store.logFeed(amountOz: amount, at: date)
+        let event = store.logFeed(amountOz: amount, at: date, notes: note)
         Haptics.success()
         onLogged("Logged feed · \(OzFormat.string(amount)) oz") {
             store.softDelete(event)

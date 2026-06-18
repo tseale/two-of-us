@@ -7,29 +7,37 @@ enum SleepActivityManager {
 
     static func start(babyName: String, at startedAt: Date) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        Task {
+            // Await any prior ends first (crash-recovery) so a slow teardown can't
+            // flicker against the activity we're about to request.
+            await endAll()
 
-        // End any stale activities first (handles crash-recovery)
-        endAll()
+            let attributes = SleepActivityAttributes(babyName: babyName)
+            let state = SleepActivityAttributes.ContentState(startedAt: startedAt)
+            // Dim the Island ~1h in rather than keeping it bright all night; the
+            // .timer text keeps counting regardless.
+            let content = ActivityContent(state: state, staleDate: startedAt.addingTimeInterval(3600))
 
-        let attributes = SleepActivityAttributes(babyName: babyName)
-        let state = SleepActivityAttributes.ContentState(startedAt: startedAt)
-        let content = ActivityContent(state: state, staleDate: nil)
-
-        do {
-            let activity = try Activity<SleepActivityAttributes>.request(
-                attributes: attributes,
-                content: content,
-                pushType: nil
-            )
-            AppGroup.userDefaults?.set(activity.id, forKey: activityIDKey)
-        } catch {
-            print("SleepActivityManager.start error: \(error)")
+            do {
+                let activity = try Activity<SleepActivityAttributes>.request(
+                    attributes: attributes,
+                    content: content,
+                    pushType: nil
+                )
+                AppGroup.userDefaults?.set(activity.id, forKey: activityIDKey)
+            } catch {
+                // The next foreground reconcile() retries: it re-creates the
+                // activity whenever a sleep is active but none is running.
+                AppLog.liveActivity.error("Live Activity request failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
     static func end() {
-        endAll()
-        AppGroup.userDefaults?.removeObject(forKey: activityIDKey)
+        Task {
+            await endAll()
+            AppGroup.userDefaults?.removeObject(forKey: activityIDKey)
+        }
     }
 
     /// Brings the Live Activity in line with the data — used when the app
@@ -47,15 +55,13 @@ enum SleepActivityManager {
         }
     }
 
-    private static func endAll() {
+    private static func endAll() async {
         for activity in Activity<SleepActivityAttributes>.activities {
             let finalContent = ActivityContent(
                 state: activity.content.state,
                 staleDate: nil
             )
-            Task {
-                await activity.end(finalContent, dismissalPolicy: .immediate)
-            }
+            await activity.end(finalContent, dismissalPolicy: .immediate)
         }
     }
 }

@@ -17,9 +17,24 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.taylorseale.twoofus.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>twoofus</string>
+			</array>
+		</dict>
+	</array>
+	<key>CKSharingSupported</key>
+	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSAlarmKitUsageDescription</key>
 	<string>Two of Us uses alarms to remind you when the next feed is due, even when your phone is silenced.</string>
 	<key>NSSupportsLiveActivities</key>
@@ -32,8 +47,6 @@
 	<dict>
 		<key>UIColorName</key>
 		<string>LaunchBackground</string>
-		<key>UIImageName</key>
-		<string>LaunchLogo</string>
 		<key>UIImageRespectsSafeAreaInsets</key>
 		<false/>
 	</dict>

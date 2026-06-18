@@ -12,13 +12,7 @@ struct TodayRibbonCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("TODAY").sectionLabelStyle()
-                Spacer()
-                Text(timeOfDayWord)
-                    .font(.caption)
-                    .foregroundStyle(AppColor.text3)
-            }
+            Text("TODAY").sectionLabelStyle()
 
             DayRibbonView(marks: marks)
                 .frame(height: 40)
@@ -61,16 +55,7 @@ struct TodayRibbonCard: View {
         let h = minutes / 60
         let m = minutes % 60
         if h == 0 { return "\(m)m" }
-        return m == 0 ? "\(h)h" : "\(h)h\(m)"
-    }
-
-    /// A gentle greeting for the arc, matched to the part of the day.
-    private var timeOfDayWord: String {
-        switch Calendar.current.component(.hour, from: .now) {
-        case 5..<12:  return "morning ☀️"
-        case 12..<17: return "afternoon"
-        case 17..<21: return "evening 🌆"
-        default:      return "night 🌙"
-        }
+        // Match TimeFormatting's spaced style ("2h 45m") rather than "2h45".
+        return m == 0 ? "\(h)h" : "\(h)h \(m)m"
     }
 }

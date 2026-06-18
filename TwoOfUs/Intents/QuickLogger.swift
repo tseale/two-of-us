@@ -38,9 +38,16 @@ struct QuickLogger {
     private var settings: SharedSettings? { try? context.fetch(FetchDescriptor<SharedSettings>()).first }
 
     /// The local user ("me"), resolved via the App Group-shared participant id so
-    /// the extension stamps the same identity the app does. Falls back to first.
+    /// the extension stamps the same identity the app does. While demo mode is
+    /// active the shared id is overridden with a demo-store id that matches
+    /// nothing here — the real identity lives in the demo backup. Falls back to
+    /// the first participant.
     private var owner: Participant? {
-        if let s = AppGroup.userDefaults?.string(forKey: "sync.myParticipantID"), let myID = UUID(uuidString: s) {
+        let group = AppGroup.userDefaults
+        let storedID = group?.bool(forKey: "demo.overrideActive") == true
+            ? group?.string(forKey: "demo.bak.participantID")
+            : group?.string(forKey: "sync.myParticipantID")
+        if let s = storedID, let myID = UUID(uuidString: s) {
             var d = FetchDescriptor<Participant>(predicate: #Predicate { $0.id == myID })
             d.fetchLimit = 1
             if let me = try? context.fetch(d).first { return me }
@@ -56,7 +63,7 @@ struct QuickLogger {
         )).first
     }
 
-    /// How long the running sleep has lasted, or nil if Miller is awake.
+    /// How long the running sleep has lasted, or nil if the baby is awake.
     var activeSleepDuration: TimeInterval? {
         guard let s = activeSleep else { return nil }
         return Date.now.timeIntervalSince(s.startedAt)
@@ -143,6 +150,10 @@ struct QuickLogger {
 
     @discardableResult
     func logFeed(amountOz: Double) -> FeedEvent {
+        // Shortcuts/Siri can hand us a negative or absurd amount; clamp to a sane
+        // single-feed range so the widget/Siri path can never persist nonsense.
+        // (Mirrors EventBounds in the app target, which the extension can't see.)
+        let amountOz = amountOz.isFinite ? min(max(amountOz, 0), 32) : 0
         let event = FeedEvent(
             baby: baby, amountOz: amountOz, timestamp: .now,
             loggedByID: owner?.id ?? UUID(),

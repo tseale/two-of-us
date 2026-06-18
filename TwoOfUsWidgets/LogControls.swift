@@ -17,7 +17,7 @@ struct LogFeedControl: ControlWidget {
             .tint(AppColor.accentFeed)
         }
         .displayName("Log Feed")
-        .description("Log a bottle for Miller using your default amount.")
+        .description("Log a bottle for your baby using your default amount.")
     }
 }
 
@@ -31,7 +31,7 @@ struct LogDiaperControl: ControlWidget {
             .tint(AppColor.accentDiaper)
         }
         .displayName("Log Diaper")
-        .description("Log a wet diaper change for Miller.")
+        .description("Log a wet diaper change for your baby.")
     }
 }
 
@@ -55,7 +55,7 @@ struct ToggleSleepControl: ControlWidget {
             .tint(AppColor.accentSleep)
         }
         .displayName("Start / Stop Sleep")
-        .description("Start a sleep timer for Miller, or stop the running one.")
+        .description("Start a sleep timer for your baby, or stop the running one.")
     }
 }
 
@@ -73,7 +73,7 @@ struct SleepStateProvider: ControlValueProvider {
 /// state, reusing `QuickLogger.toggleSleep()` only when a change is needed.
 struct SetSleepIntent: SetValueIntent {
     static var title: LocalizedStringResource = "Set Sleep State"
-    static var description = IntentDescription("Starts or stops Miller's sleep timer.")
+    static var description = IntentDescription("Starts or stops your baby's sleep timer.")
 
     @Parameter(title: "Asleep")
     var value: Bool
@@ -85,6 +85,10 @@ struct SetSleepIntent: SetValueIntent {
         guard let logger = QuickLogger.make() else { return .result() }
         let isActive = logger.activeSleep != nil
         if value != isActive { logger.toggleSleep() }
+        // Waking up: end the Live Activity right here. This intent backs the
+        // lock-screen / Dynamic Island Wake button and runs in the widget
+        // process, which can't rely on the app foregrounding to reconcile.
+        if !value { await SleepActivityAttributes.endAllRunning() }
         return .result()
     }
 }

@@ -8,12 +8,13 @@ final class FeedEvent {
     var baby: Baby?
     var amountOz: Double = 0            // supports half-ounce steps (2, 2.5, 3…)
     var timestamp: Date = Date()        // when the bottle was given (backdatable)
-    var notes: String?                  // kept in the model; no UI this increment
+    var notes: String?                  // optional free-text note (log + edit sheets)
     var loggedByID: UUID = UUID()
     var loggedByName: String = ""       // denormalized so it renders if participant removed
     var loggedByColorHex: String = ""
     var deletedAt: Date?                // soft delete; nil == live
     var editOfID: UUID?                 // if this replaced an edited record, points to the original
+    var ckSystemFields: Data?           // archived CKRecord system fields (see Baby.ckSystemFields)
 
     init(
         id: UUID = UUID(),

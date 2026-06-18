@@ -44,6 +44,27 @@ enum AppColor {
     static let urgencyGreen = Color(hex: "5AD17E")
     static let urgencyAmber = Color(hex: "F5B971")
     static let urgencyRed   = Color(hex: "FF6B6B")
+    /// Darkened (light) / brightened (dark) urgency tints that stay readable as
+    /// body text on the tinted glass tiles — the raw dot hexes are too pale.
+    static let urgencyAmberText = dyn(light: "B87B1E", dark: "F0B05A")
+    static let urgencyRedText   = dyn(light: "D94F4F", dark: "FF8A8A")
+
+    /// Deep warm plum-indigo: the night-stage base ("nursery at 3am", not blue-black).
+    static let nightInk = Color(hex: "130E18")
+    /// The soft "stage" the `CradleMark` sits on — a richer indigo-violet than the
+    /// near-black `nightInk`, used as a contained spotlight behind the mark so its
+    /// screen-blended glow reads without forcing the whole screen dark (the scene
+    /// itself follows the appearance toggle). Same indigo family as the hero gradient.
+    static let markStage = Color(hex: "231C40")
+    /// Warm cream of the baby's light; text/glow color on the night stage.
+    static let nightlightCream = Color(hex: "FFF4E8")
+
+    /// The ONE intentional gradient (Stats record hero, sleep Live Activity).
+    /// Always `indigoHi → indigoLo`; the Live Activity runs the deeper
+    /// `indigoHi → indigoNight` so it holds up over lock-screen wallpapers.
+    static let indigoHi    = Color(hex: "2A2A4D")
+    static let indigoLo    = Color(hex: "1C1C2E")
+    static let indigoNight = Color(hex: "15151F")
 }
 
 // MARK: - Liquid Glass (iOS 26)
@@ -62,8 +83,8 @@ extension View {
     }
 
     /// A calm, *solid* content surface (no glass). Used for things you read but
-    /// don't tap — status pills, data cards, timeline rows — so that the glass
-    /// elements (log tiles, active sleep card, tab bar) read as the elevated,
+    /// don't tap — data cards, timeline rows — so that the glass elements
+    /// (log tiles, active sleep card, tab bar) read as the elevated,
     /// interactive layer. Hierarchy through depth: glass floats, surfaces sit.
     func surfaceCard(cornerRadius: CGFloat = 18, hairline: Bool = true) -> some View {
         self

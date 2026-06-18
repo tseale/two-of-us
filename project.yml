@@ -8,10 +8,12 @@ options:
 
 settings:
   base:
-    MARKETING_VERSION: "0.1.0"
+    # 1.0 matches the version train already uploaded to TestFlight (build 1 went
+    # up as 1.0); a lower train would sort as older than what's already there.
+    MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
-    DEVELOPMENT_TEAM: ""
+    DEVELOPMENT_TEAM: Q58H65DQ64
     CODE_SIGN_STYLE: Automatic
 
 targets:
@@ -21,13 +23,41 @@ targets:
     deploymentTarget: "26.0"
     sources:
       - path: TwoOfUs
+        excludes:
+          - TwoOfUs.icon
+      # The Liquid Glass icon bundle must be a single file reference (compiled by
+      # actool), not a recursed group of loose json/png resources.
+      - path: TwoOfUs/TwoOfUs.icon
+        type: file
+        buildPhase: resources
     info:
       path: TwoOfUs/Info.plist
       properties:
         CFBundleDisplayName: Two of Us
+        # Wire versions to build settings — XcodeGen otherwise writes literal
+        # "1.0"/"1", which would make ci_post_clone.sh's CI_BUILD_NUMBER
+        # stamping a no-op and every TestFlight upload a duplicate 1.0 (1).
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # Only standard HTTPS/CloudKit crypto — exempt. Without this, every
+        # TestFlight build waits on a manual export-compliance answer in ASC.
+        ITSAppUsesNonExemptEncryption: NO
+        # Required for CloudKit sharing: without it, iOS won't route a tapped
+        # invite link into the app (the scene/app delegate accept handlers
+        # never fire) and the co-parent can never join.
+        CKSharingSupported: YES
+        # Custom URL scheme the Feed/Diaper home widgets tap into
+        # (twoofus://log/feed · twoofus://log/diaper) to open their log sheet.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.taylorseale.twoofus.deeplink
+            CFBundleURLSchemes:
+              - twoofus
+        # Plain launch field matching the app background in both schemes (the
+        # LaunchBackground colorset), so cold launch lands directly on the first
+        # screen with no flash. No animated splash — removed once onboarding
+        # stopped opening on the dark welcome stage.
         UILaunchScreen:
           UIColorName: LaunchBackground
-          UIImageName: LaunchLogo
           UIImageRespectsSafeAreaInsets: false
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -58,7 +88,7 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1,2"
         ENABLE_PREVIEWS: YES
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_APPICON_NAME: TwoOfUs
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     dependencies:
       - target: TwoOfUsWidgets
@@ -95,6 +125,9 @@ targets:
       path: TwoOfUsWidgets/Info.plist
       properties:
         CFBundleDisplayName: TwoOfUsWidgets
+        # Keep extension versions in lockstep with the app (App Store requires it).
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
@@ -160,12 +193,34 @@ targets:
         SWIFT_VERSION: "5.0"
         GENERATE_INFOPLIST_FILE: NO
 
+  # Unit tests, hosted in the app so they can exercise the real targets'
+  # internals (@testable). Pure store/sync-logic tests — no CloudKit server,
+  # no iCloud account needed; `make test` runs them on the simulator.
+  TwoOfUsTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: TwoOfUsTests
+    dependencies:
+      - target: TwoOfUs
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.taylorseale.twoofus.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"
+
 schemes:
   TwoOfUs:
     build:
       targets:
         TwoOfUs: all
+        TwoOfUsTests: [test]
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - TwoOfUsTests
     archive:
       config: Release

@@ -34,7 +34,7 @@ struct DayRibbonWidgetView: View {
     private var homeBody: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Today").font(.caption.weight(.semibold)).foregroundStyle(AppColor.text2)
+                Text("TODAY").sectionLabelStyle()
                 Spacer()
                 Text(tally).font(.caption2).foregroundStyle(AppColor.text3)
             }
@@ -70,7 +70,7 @@ struct DayRibbonWidget: Widget {
             DayRibbonWidgetView(entry: entry)
         }
         .configurationDisplayName("Today Ribbon")
-        .description("When Miller fed, slept, and changed across the day.")
+        .description("When your baby fed, slept, and changed across the day.")
         .supportedFamilies([.accessoryRectangular, .systemSmall])
         .contentMarginsDisabled()
     }
@@ -122,7 +122,7 @@ struct NextFeedGaugeWidget: Widget {
             NextFeedGaugeView(entry: entry)
         }
         .configurationDisplayName("Next Feed")
-        .description("How close Miller is to his next bottle.")
+        .description("How close your baby is to the next bottle.")
         .supportedFamilies([.accessoryCircular])
         .contentMarginsDisabled()
     }

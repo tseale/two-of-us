@@ -9,35 +9,25 @@ struct LargeWidgetView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
-                Text("Miller")
-                    .font(.subheadline.weight(.semibold))
+                Text(entry.babyName)
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
                     .foregroundStyle(AppColor.text)
                 Spacer()
                 Text(Date.now, style: .time)
                     .font(.caption)
                     .foregroundStyle(AppColor.text3)
             }
-            .padding(.bottom, 10)
+            .padding(.bottom, 8)
 
-            // Time-since pills
-            VStack(spacing: 6) {
-                summaryRow(emoji: "🍼", label: "Feed",
-                           date: entry.lastFeedDate,
-                           color: AppColor.accentFeed,
-                           urgency: Urgency.from(since: entry.lastFeedDate, target: entry.feedTargetInterval))
-                summaryRow(emoji: "💤", label: "Sleep",
-                           date: entry.lastSleepDate,
-                           color: AppColor.accentSleep,
-                           urgency: Urgency.from(since: entry.lastSleepDate, target: UrgencyDefaults.sleep))
-                summaryRow(emoji: "💩", label: "Diaper",
-                           date: entry.lastDiaperDate,
-                           color: AppColor.accentDiaper,
-                           urgency: Urgency.from(since: entry.lastDiaperDate, target: UrgencyDefaults.diaper))
-            }
+            DayRibbonView(marks: entry.todayMarks, style: .color)
+                .frame(height: 22)
+                .padding(.bottom, 10)
 
-            Divider().overlay(AppColor.separator).padding(.vertical, 10)
+            WidgetMetricColumns(entry: entry)
+                .padding(.bottom, 10)
 
-            // Recent timeline
+            // Recent timeline — the app's rail language in miniature:
+            // mono time gutter, an accent node per event, emoji + detail.
             if entry.recentItems.isEmpty {
                 Text("No events yet today")
                     .font(.caption)
@@ -45,7 +35,7 @@ struct LargeWidgetView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 4)
             } else {
-                VStack(spacing: 5) {
+                VStack(alignment: .leading, spacing: 6) {
                     ForEach(entry.recentItems.prefix(5), id: \.date) { item in
                         recentRow(item: item)
                     }
@@ -58,40 +48,29 @@ struct LargeWidgetView: View {
         .containerBackground(AppColor.card, for: .widget)
     }
 
-    private func summaryRow(emoji: String, label: String, date: Date?, color: Color, urgency: Urgency) -> some View {
-        HStack(spacing: 8) {
-            Text(emoji).frame(width: 20)
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(AppColor.text2)
-            Spacer()
-            if let date {
-                Text(date, style: .relative)
-                    .font(.subheadline.bold().monospacedDigit())
-                    .foregroundStyle(urgency.color)
-                Text("ago")
-                    .font(.caption)
-                    .foregroundStyle(AppColor.text3)
-            } else {
-                Text("–")
-                    .font(.subheadline)
-                    .foregroundStyle(AppColor.text3)
-            }
-        }
-    }
-
     private func recentRow(item: WidgetItem) -> some View {
-        HStack(spacing: 6) {
-            Text(item.kind.emoji)
-                .font(.caption)
-                .frame(width: 18)
+        HStack(spacing: 8) {
             Text(TimeFormatting.clock(item.date))
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(AppColor.text3)
+                .frame(width: 48, alignment: .trailing)
+            Circle()
+                .fill(accent(for: item.kind))
+                .frame(width: 11, height: 11)
+            Text(item.kind.emoji)
+                .font(.caption)
             Text(item.detail)
                 .font(.caption)
                 .foregroundStyle(AppColor.text2)
             Spacer()
+        }
+    }
+
+    private func accent(for kind: EventKind) -> Color {
+        switch kind {
+        case .feed:   return AppColor.accentFeed
+        case .sleep:  return AppColor.accentSleep
+        case .diaper: return AppColor.accentDiaper
         }
     }
 }

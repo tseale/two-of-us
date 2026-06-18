@@ -10,16 +10,57 @@ import WidgetKit
 /// `.private` engine on a zone they can share; the joining parent runs the
 /// `.shared` engine against the owner's zone. See the plan and
 /// [[widget-cloudkit-architecture]] for the rationale.
+///
+/// Two invariants this layer must never break (both were broken once):
+/// 1. Outbound saves of existing records must carry the server's change tag
+///    (`ckSystemFields` via `RecordMapping`) — CloudKit rejects tag-less updates
+///    as conflicts, and "handling" the conflict by taking the server copy
+///    silently reverts the user's change.
+/// 2. A queued local change may be parked (hold queues) but never dropped: the
+///    engines come and go with iCloud account state, demo mode, and role flips,
+///    and any dropped id is an event the co-parent permanently never sees.
 @MainActor
 final class SyncManager: NSObject, CKSyncEngineDelegate {
     static var shared: SyncManager?
+
+    /// Builds (once) and starts the manager. Callable from any launch path —
+    /// including a background launch for a silent push, where no SwiftUI scene
+    /// ever connects — so sync never depends on the UI appearing first.
+    static func bootstrap(container: ModelContainer) {
+        if shared == nil { shared = SyncManager(modelContainer: container) }
+        shared?.start()
+        // Sweep any outbound asset temp files a previous run left behind (a save
+        // that failed before upload leaks the file otherwise).
+        RecordMapping.cleanUpStaleAssetFiles()
+    }
 
     private let modelContainer: ModelContainer
     private var privateEngine: CKSyncEngine?
     private var sharedEngine: CKSyncEngine?
 
-    /// Discovered when the participant fetches the shared database's zones.
+    /// The owner's zone in the shared database (the participant writes here).
+    /// Backed by `Keys.sharedZoneName/Owner` — it must survive relaunches because
+    /// the engine's persisted state means the zone is never re-announced via
+    /// `fetchedDatabaseChanges`, and a participant whose zone is unknown can only
+    /// park writes, not send them.
     private var sharedZoneID: CKRecordZone.ID?
+
+    /// A dead private zone produces MANY signals (one per failed save in a
+    /// batch, plus the database-changes deletion) — recovery must run once per
+    /// engine generation, or each re-fire wipes the change tags the previous
+    /// recovery just re-captured.
+    private var handledPrivateZoneDeletion = false
+
+    private enum Keys {
+        static let sharedZoneName = "sync.sharedZone.name"
+        static let sharedZoneOwner = "sync.sharedZone.owner"
+        static let pendingSharedSaves = "sync.pendingSharedSaves"
+        static let pendingSharedDeletes = "sync.pendingSharedDeletes"
+        static let pendingPrivateSaves = "sync.pendingPrivateSaves"
+        static let pendingPrivateDeletes = "sync.pendingPrivateDeletes"
+        static let bootstrapPrivate = "sync.bootstrap.private"
+        static let widgetWrites = "sync.pendingWidgetWrites"
+    }
 
     private var context: ModelContext { modelContainer.mainContext }
 
@@ -27,38 +68,73 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         CKRecordZone.ID(zoneName: SyncConstants.zoneName, ownerName: CKCurrentUserDefaultName)
     }
 
-    /// The engine + zone this device writes through, based on its role.
-    private var activeEngine: CKSyncEngine? {
-        LocalPrefs.shared.syncRole == .participant ? sharedEngine : privateEngine
+    /// The device's actual sync role. During demo, `LocalPrefs.syncRole` is
+    /// overridden to `.owner` for the UI — routing engine work by that would
+    /// send a real participant's writes to the wrong queue, so the sync layer
+    /// always reads through here.
+    static var realSyncRole: SyncRole {
+        DemoSession.realSyncRole ?? LocalPrefs.shared.syncRole
     }
-    private var activeZoneID: CKRecordZone.ID? {
-        LocalPrefs.shared.syncRole == .participant ? sharedZoneID : privateZoneID
+
+    /// Writes the device's REAL role: straight to prefs normally, but only to
+    /// the demo backup while the override is active — clobbering the override
+    /// would flip the demo UI's People controls mid-demo, while skipping the
+    /// backup would let demo exit restore a stale role.
+    private static func setRealRole(_ role: SyncRole) {
+        if DemoSession.realSyncRole != nil {
+            DemoSession.noteRealRole(role)
+        } else {
+            LocalPrefs.shared.syncRole = role
+        }
+    }
+
+    /// The iCloud user record name of the share owner this participant is
+    /// attached to, if any (`ShareAcceptance` uses it to spot a link from a
+    /// DIFFERENT household, which must run the replace flow, not merge).
+    static func persistedSharedZoneOwnerName() -> String? {
+        UserDefaults.standard.string(forKey: Keys.sharedZoneOwner)
     }
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
         super.init()
+        // iCloud sign-in after launch must start sync mid-session; without an
+        // engine there is no `.accountChange` event to react to, so the only
+        // signal is the system notification. `start()` is idempotent.
+        NotificationCenter.default.addObserver(forName: .CKAccountChanged, object: nil, queue: nil) { _ in
+            Task { @MainActor in SyncManager.shared?.start() }
+        }
     }
 
     // MARK: Lifecycle
 
-    /// True only when the device can actually use CloudKit. Guards against
-    /// `CKContainer(identifier:)` fatal-trapping when the iCloud entitlement/
-    /// container isn't available (unsigned builds, or no iCloud account signed in).
-    private var cloudAvailable: Bool {
-        FileManager.default.ubiquityIdentityToken != nil
+    /// Gate for every CloudKit touchpoint: true when an iCloud account is signed
+    /// in (`CKAccountStatus.available`). iCloud Drive is intentionally NOT
+    /// required — CloudKit works without it, and the ubiquity-token shortcut this
+    /// replaced wrongly read Drive-off as iCloud-off and disabled sync.
+    private func cloudAvailable() async -> Bool {
+        await CloudAccount.isAvailable()
     }
 
-    /// Starts the engine(s) appropriate to this device's role. Safe to call once
-    /// at launch; no-ops without iCloud (the app still works fully offline/local).
+    /// Starts the engine(s) appropriate to this device's role. Safe to call
+    /// repeatedly (launch, foreground, account changes, role flips); no-ops
+    /// without iCloud (the app still works fully offline/local).
     func start() {
-        guard cloudAvailable else { return }
-        switch LocalPrefs.shared.syncRole {
+        Task { await ensureStarted() }
+    }
+
+    /// Awaitable form of `start()` — callers that fetch right after (the silent
+    /// push handler) must be able to wait for the engines to actually exist,
+    /// not race the account check on a cold background launch.
+    func ensureStarted() async {
+        guard await cloudAvailable() else { return }
+        switch Self.realSyncRole {
         case .solo, .owner:
             startPrivateEngine()
         case .participant:
             startSharedEngine()
         }
+        drainExtensionQueue()
     }
 
     private func startPrivateEngine() {
@@ -69,10 +145,13 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             delegate: self
         )
         config.automaticallySync = true
+        handledPrivateZoneDeletion = false
         privateEngine = CKSyncEngine(config)
         // Ensure the custom zone exists, then push anything not yet uploaded.
+        // (The engine always sends zone saves before record saves.)
         privateEngine?.state.add(pendingDatabaseChanges: [.saveZone(CKRecordZone(zoneID: privateZoneID))])
-        bootstrapReconcileIfNeeded(scope: "private")
+        bootstrapReconcileIfNeeded()
+        drainPendingPrivateChanges()
     }
 
     private func startSharedEngine() {
@@ -84,25 +163,117 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         )
         config.automaticallySync = true
         sharedEngine = CKSyncEngine(config)
+        if sharedZoneID == nil { sharedZoneID = persistedSharedZoneID() }
+        if sharedZoneID != nil { drainPendingSharedChanges() }
+    }
+
+    private func tearDownEngines() {
+        privateEngine = nil
+        sharedEngine = nil
+        sharedZoneID = nil
+        handledPrivateZoneDeletion = false
+    }
+
+    /// Whether the real store already holds a baby — `ShareAcceptance` asks
+    /// before replacing a device's own log with a shared one.
+    var hasLocalBaby: Bool {
+        ((try? context.fetchCount(FetchDescriptor<Baby>())) ?? 0) > 0
+    }
+
+    /// Device-state half of accepting a share: flips the role and records the
+    /// owner's zone from the share metadata (the ONLY reliable source — the
+    /// engine never re-announces a zone it has already fetched). Static so
+    /// `ShareAcceptance` can record the accept even when the manager doesn't
+    /// exist yet (cold-launch link tap) — the next `start()` brings the shared
+    /// engine up from this state.
+    static func markShareAccepted(zoneID: CKRecordZone.ID? = nil) {
+        // If the link was tapped while demo mode was on, the real role lives in
+        // the demo backup — `setRealRole` writes whichever is authoritative, so
+        // exiting demo can never restore a stale role over the accept.
+        setRealRole(.participant)
+        if let zoneID {
+            UserDefaults.standard.set(zoneID.zoneName, forKey: Keys.sharedZoneName)
+            UserDefaults.standard.set(zoneID.ownerName, forKey: Keys.sharedZoneOwner)
+        }
+        DemoSession.noteRealParticipantID(nil)
     }
 
     /// Called after the user accepts a share — becomes a participant and starts
-    /// syncing the owner's shared zone.
+    /// syncing the owner's shared zone. The role flip is unconditional (accepting
+    /// a share proves an account exists); only the engine work awaits the check.
     func didAcceptShare() {
-        guard cloudAvailable else { return }
-        LocalPrefs.shared.syncRole = .participant
-        UserDefaults.standard.removeObject(forKey: "sync.bootstrap.shared")
-        startSharedEngine()
-        Task { try? await sharedEngine?.fetchChanges() }
+        Task {
+            guard await cloudAvailable() else { return }
+            // A re-accept can attach us to a DIFFERENT zone than the engine was
+            // following (re-join after a leave/revoke, or a new household) —
+            // the old engine state belongs to the wrong zone, so start fresh.
+            if let persisted = persistedSharedZoneID(), sharedZoneID != persisted {
+                sharedEngine = nil
+                sharedZoneID = nil
+                try? FileManager.default.removeItem(at: stateURL(.shared))
+            }
+            startSharedEngine()
+            do {
+                try await sharedEngine?.fetchChanges()
+                // Only after a SUCCESSFUL fetch: judging our profile against a
+                // half-fetched store could wrongly re-run the join flow.
+                reclaimIdentityAfterAccept()
+            } catch {
+                AppLog.sync.error("Post-accept fetch failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
     }
 
-    /// Forward a received remote (silent push) notification so the engine pulls
-    /// changes promptly — this is what keeps the other parent's widget fresh.
-    func handleRemoteNotification() {
-        Task {
-            try? await privateEngine?.fetchChanges()
-            try? await sharedEngine?.fetchChanges()
+    /// A re-accept on a device that already had a profile must not leave a ghost:
+    /// the profile may have been deactivated when the owner stopped sharing or
+    /// removed us (nothing else ever reactivates it — the joiner would sync fine
+    /// but be invisible in both People lists, and skew the NEXT joiner's role).
+    private func reclaimIdentityAfterAccept() {
+        guard let myID = LocalPrefs.shared.myParticipantID else { return }
+        guard let me = Participant.fetchByID(myID, in: context) else {
+            // Our profile is gone from the shared data — run the join flow again.
+            LocalPrefs.shared.myParticipantID = nil
+            DemoSession.noteRealParticipantID(nil)
+            return
         }
+        if !me.isActive {
+            me.isActive = true
+            try? context.save()
+            enqueueSave([me.id])
+        }
+    }
+
+    /// Pulls remote changes now (silent push, foreground refresh) — this is what
+    /// keeps the other parent's widget fresh. Returns false when no engine could
+    /// run (signed out / still unavailable), so push handlers can report honestly.
+    @discardableResult
+    func handleRemoteNotification() async -> Bool {
+        await ensureStarted()
+        guard privateEngine != nil || sharedEngine != nil else { return false }
+        try? await privateEngine?.fetchChanges()
+        try? await sharedEngine?.fetchChanges()
+        return true
+    }
+
+    // MARK: Shared zone persistence
+
+    private func persistedSharedZoneID() -> CKRecordZone.ID? {
+        guard let name = UserDefaults.standard.string(forKey: Keys.sharedZoneName),
+              let owner = UserDefaults.standard.string(forKey: Keys.sharedZoneOwner) else { return nil }
+        return CKRecordZone.ID(zoneName: name, ownerName: owner)
+    }
+
+    private func setSharedZone(_ zoneID: CKRecordZone.ID) {
+        guard zoneID.zoneName == SyncConstants.zoneName else { return }
+        sharedZoneID = zoneID
+        UserDefaults.standard.set(zoneID.zoneName, forKey: Keys.sharedZoneName)
+        UserDefaults.standard.set(zoneID.ownerName, forKey: Keys.sharedZoneOwner)
+        drainPendingSharedChanges()
+    }
+
+    private func clearPersistedSharedZone() {
+        UserDefaults.standard.removeObject(forKey: Keys.sharedZoneName)
+        UserDefaults.standard.removeObject(forKey: Keys.sharedZoneOwner)
     }
 
     // MARK: Co-parent activity notifications
@@ -184,32 +355,102 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     // MARK: Enqueue local changes
 
     func enqueueSave(_ ids: [UUID]) {
-        guard let engine = activeEngine, let zoneID = activeZoneID, !ids.isEmpty else { return }
-        let changes = ids.map { CKSyncEngine.PendingRecordZoneChange.saveRecord(CKRecord.ID(recordName: $0.uuidString, zoneID: zoneID)) }
-        engine.state.add(pendingRecordZoneChanges: changes)
+        guard !ids.isEmpty else { return }
+        if Self.realSyncRole == .participant {
+            // The shared zone may be unknown (first session before discovery) or
+            // the engine down (signed out) — park, never drop.
+            guard let engine = sharedEngine, let zoneID = sharedZoneID else {
+                park(ids, key: Keys.pendingSharedSaves); return
+            }
+            engine.state.add(pendingRecordZoneChanges: ids.map {
+                .saveRecord(CKRecord.ID(recordName: $0.uuidString, zoneID: zoneID))
+            })
+        } else {
+            // Solo/owner writes get the same parking when the private engine
+            // isn't up (iCloud signed out, mid-session resets).
+            guard let engine = privateEngine else {
+                park(ids, key: Keys.pendingPrivateSaves); return
+            }
+            engine.state.add(pendingRecordZoneChanges: ids.map {
+                .saveRecord(CKRecord.ID(recordName: $0.uuidString, zoneID: privateZoneID))
+            })
+        }
     }
 
     func enqueueDelete(_ ids: [UUID]) {
-        guard let engine = activeEngine, let zoneID = activeZoneID, !ids.isEmpty else { return }
-        let changes = ids.map { CKSyncEngine.PendingRecordZoneChange.deleteRecord(CKRecord.ID(recordName: $0.uuidString, zoneID: zoneID)) }
-        engine.state.add(pendingRecordZoneChanges: changes)
+        guard !ids.isEmpty else { return }
+        if Self.realSyncRole == .participant {
+            guard let engine = sharedEngine, let zoneID = sharedZoneID else {
+                park(ids, key: Keys.pendingSharedDeletes); return
+            }
+            engine.state.add(pendingRecordZoneChanges: ids.map {
+                .deleteRecord(CKRecord.ID(recordName: $0.uuidString, zoneID: zoneID))
+            })
+        } else {
+            guard let engine = privateEngine else {
+                park(ids, key: Keys.pendingPrivateDeletes); return
+            }
+            engine.state.add(pendingRecordZoneChanges: ids.map {
+                .deleteRecord(CKRecord.ID(recordName: $0.uuidString, zoneID: privateZoneID))
+            })
+        }
+    }
+
+    private func park(_ ids: [UUID], key: String) {
+        let held = UserDefaults.standard.stringArray(forKey: key) ?? []
+        UserDefaults.standard.set(held + ids.map(\.uuidString), forKey: key)
+    }
+
+    /// Re-enqueues saves/deletes held while the shared zone was still unknown.
+    private func drainPendingSharedChanges() {
+        if let raw = UserDefaults.standard.stringArray(forKey: Keys.pendingSharedSaves), !raw.isEmpty {
+            UserDefaults.standard.removeObject(forKey: Keys.pendingSharedSaves)
+            enqueueSave(raw.compactMap(UUID.init))
+        }
+        if let raw = UserDefaults.standard.stringArray(forKey: Keys.pendingSharedDeletes), !raw.isEmpty {
+            UserDefaults.standard.removeObject(forKey: Keys.pendingSharedDeletes)
+            enqueueDelete(raw.compactMap(UUID.init))
+        }
+    }
+
+    /// Re-enqueues solo/owner saves/deletes held while the private engine was down.
+    private func drainPendingPrivateChanges() {
+        if let raw = UserDefaults.standard.stringArray(forKey: Keys.pendingPrivateSaves), !raw.isEmpty {
+            UserDefaults.standard.removeObject(forKey: Keys.pendingPrivateSaves)
+            enqueueSave(raw.compactMap(UUID.init))
+        }
+        if let raw = UserDefaults.standard.stringArray(forKey: Keys.pendingPrivateDeletes), !raw.isEmpty {
+            UserDefaults.standard.removeObject(forKey: Keys.pendingPrivateDeletes)
+            enqueueDelete(raw.compactMap(UUID.init))
+        }
     }
 
     /// Drains record ids written by the widget/Siri extension (which can't reach
-    /// the engine) and enqueues them. Called when the app becomes active.
+    /// the engine) and enqueues them. Called when the app becomes active and
+    /// after engines start. Deferred during demo: the role/identity overrides
+    /// would route the ids to the wrong engine, and `enqueueSave` ids handed over
+    /// during demo would be parked under the wrong scope.
+    ///
+    /// KNOWN CONSTRAINT: this is the *only* drain point. A feed logged from the
+    /// widget/Control Center while offline persists locally and shows in widgets,
+    /// but does NOT sync to the co-parent until the app is next opened (the
+    /// extension process has no CKSyncEngine, and there's no background drain).
+    /// Acceptable for a 2-user app where the app is opened regularly; documented
+    /// in docs/RELEASE_POLISH_PLAN.md §10 so it isn't mistaken for a sync bug.
     func drainExtensionQueue() {
-        let key = "sync.pendingWidgetWrites"
-        guard let raw = AppGroup.userDefaults?.array(forKey: key) as? [String], !raw.isEmpty else { return }
+        guard !LocalPrefs.shared.demoModeEnabled else { return }
+        guard let raw = AppGroup.userDefaults?.array(forKey: Keys.widgetWrites) as? [String], !raw.isEmpty else { return }
+        // enqueueSave parks when no engine is up, so handing the ids over (and
+        // clearing the extension queue) can never lose them.
         enqueueSave(raw.compactMap(UUID.init))
-        AppGroup.userDefaults?.removeObject(forKey: key)
+        AppGroup.userDefaults?.removeObject(forKey: Keys.widgetWrites)
     }
 
-    /// One-time push of all existing local records into the (new) zone.
-    private func bootstrapReconcileIfNeeded(scope: String) {
-        let key = "sync.bootstrap.\(scope)"
-        guard !UserDefaults.standard.bool(forKey: key) else { return }
+    /// One-time push of all existing local records into the (new) private zone.
+    private func bootstrapReconcileIfNeeded() {
+        guard !UserDefaults.standard.bool(forKey: Keys.bootstrapPrivate) else { return }
         enqueueSave(allLocalIDs())
-        UserDefaults.standard.set(true, forKey: key)
+        UserDefaults.standard.set(true, forKey: Keys.bootstrapPrivate)
     }
 
     private func allLocalIDs() -> [UUID] {
@@ -226,38 +467,82 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     // MARK: CKSyncEngineDelegate
 
     func handleEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) async {
+        // Events from an engine we already discarded (account change, reset)
+        // must not touch state — a stale engine's stateUpdate would resurrect
+        // the state file we just deleted.
+        guard syncEngine === privateEngine || syncEngine === sharedEngine else { return }
+
         switch event {
         case .stateUpdate(let e):
             saveState(e.stateSerialization, scope: scope(for: syncEngine))
 
         case .fetchedDatabaseChanges(let e):
-            // Participant: capture the owner's shared zone the first time we see it.
             if syncEngine === sharedEngine {
+                // Participant: capture the owner's shared zone, then flush any
+                // changes that were held while the zone was unknown.
                 for change in e.modifications {
-                    sharedZoneID = change.zoneID
+                    setSharedZone(change.zoneID)
+                }
+                // The owner revoking the share (or deleting everything) arrives
+                // here as a zone deletion in the shared database. Without this,
+                // the device stays a "participant" driving a dead engine forever.
+                // Detaching wipes our local copy — when the owner pulls access,
+                // the data leaves this phone too. Match the FULL zone ID when we
+                // know our zone: after a re-invite, the dead old zone and the
+                // freshly joined one share a name, and a name-only match would
+                // detach the share the user just accepted.
+                let attached = sharedZoneID ?? persistedSharedZoneID()
+                let revoked = e.deletions.contains { del in
+                    if let attached { return del.zoneID == attached }
+                    return del.zoneID.zoneName == SyncConstants.zoneName
+                }
+                if revoked {
+                    detachFromShare()
+                }
+            } else {
+                // Owner/solo: the private zone vanished server-side (deleted from
+                // another device, iCloud storage purge, encrypted-data reset).
+                if e.deletions.contains(where: { $0.zoneID.zoneName == SyncConstants.zoneName }) {
+                    handlePrivateZoneDeleted()
                 }
             }
 
         case .fetchedRecordZoneChanges(let e):
+            // A fetched copy must not clobber a local edit still waiting in the
+            // send queue: for those records keep the local content, adopt the
+            // server's change tag (and terminal fields), and let the pending
+            // save push our version.
+            let pendingSaves = Set(syncEngine.state.pendingRecordZoneChanges.compactMap {
+                if case .saveRecord(let id) = $0 { id } else { nil }
+            })
             for mod in e.modifications {
-                RecordMapping.apply(mod.record, in: context)
+                if pendingSaves.contains(mod.record.recordID) {
+                    RecordMapping.absorbConflict(server: mod.record, in: context)
+                } else {
+                    RecordMapping.apply(mod.record, in: context)
+                    // Cache the server change tag so a later local edit of this
+                    // record saves cleanly instead of conflicting.
+                    RecordMapping.persistSystemFields(of: mod.record, in: context)
+                }
+                if syncEngine === sharedEngine, sharedZoneID == nil {
+                    setSharedZone(mod.record.recordID.zoneID)
+                }
             }
             for del in e.deletions {
                 RecordMapping.delete(recordName: del.recordID.recordName, in: context)
             }
-            try? context.save()
+            // Events can land before their Baby record (no batch ordering
+            // guarantee) — attach them once the baby exists.
+            RecordMapping.relinkOrphanEvents(in: context)
+            do { try context.save() } catch {
+                AppLog.sync.error("Sync fetch apply failed to save: \(error.localizedDescription, privacy: .public)")
+            }
+            reconcileLiveActivity()
             WidgetCenter.shared.reloadAllTimelines()
             notifyCoParentActivity(from: e.modifications.map(\.record))
 
         case .sentRecordZoneChanges(let e):
-            for failed in e.failedRecordSaves {
-                if let ckError = failed.error as? CKError, ckError.code == .serverRecordChanged,
-                   let serverRecord = ckError.serverRecord {
-                    // Last-writer-wins: take the server's copy.
-                    RecordMapping.apply(serverRecord, in: context)
-                }
-            }
-            try? context.save()
+            handleSentRecordZoneChanges(e, syncEngine: syncEngine)
 
         case .accountChange(let e):
             handleAccountChange(e)
@@ -265,6 +550,99 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         default:
             break
         }
+    }
+
+    private func handleSentRecordZoneChanges(_ e: CKSyncEngine.Event.SentRecordZoneChanges, syncEngine: CKSyncEngine) {
+        // Successful saves: capture the new change tags — without this the
+        // SECOND edit of any record conflicts again.
+        for saved in e.savedRecords {
+            RecordMapping.persistSystemFields(of: saved, in: context)
+        }
+
+        var reenqueueSaves: [CKSyncEngine.PendingRecordZoneChange] = []
+        var detach = false
+
+        for failed in e.failedRecordSaves {
+            let recordID = failed.record.recordID
+            switch failed.error.code {
+            case .serverRecordChanged:
+                // A real concurrent edit by the other parent. Adopt the server's
+                // change tag, keep our content (deletes/sleep-stops win either
+                // way — see RecordMapping.absorbConflict), and re-send.
+                guard let server = failed.error.serverRecord else { continue }
+                RecordMapping.absorbConflict(server: server, in: context)
+                reenqueueSaves.append(.saveRecord(recordID))
+
+            case .zoneNotFound, .userDeletedZone:
+                if syncEngine === sharedEngine {
+                    // Owner's zone is gone from our shared database — our access
+                    // was revoked between fetches.
+                    detach = true
+                } else {
+                    handlePrivateZoneDeleted()
+                    reenqueueSaves.append(.saveRecord(recordID))
+                }
+
+            case .unknownItem:
+                // The record vanished server-side (e.g. zone recreated): drop the
+                // stale change tag and re-upload as a fresh create.
+                RecordMapping.clearSystemFields(forRecordName: recordID.recordName, in: context)
+                reenqueueSaves.append(.saveRecord(recordID))
+
+            case .permissionFailure:
+                if syncEngine === sharedEngine { detach = true }
+
+            default:
+                // Transient errors (network, throttling, zone busy…) are retried
+                // by the engine itself; anything else is logged so it's visible
+                // in Console rather than silently swallowed.
+                AppLog.sync.error("Sync save failed for \(recordID.recordName, privacy: .public): \(failed.error.localizedDescription, privacy: .public)")
+            }
+        }
+        for (recordID, error) in e.failedRecordDeletes where error.code != .unknownItem {
+            // Deleting an already-gone record is success; log the rest.
+            AppLog.sync.error("Sync delete failed for \(recordID.recordName, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
+
+        if !reenqueueSaves.isEmpty { syncEngine.state.add(pendingRecordZoneChanges: reenqueueSaves) }
+        do { try context.save() } catch {
+            AppLog.sync.error("Sync sent-changes bookkeeping failed to save: \(error.localizedDescription, privacy: .public)")
+        }
+        if detach { detachFromShare() }
+    }
+
+    /// Keeps the sleep Live Activity truthful when the change arrives via sync:
+    /// the co-parent stopping (or starting) a sleep must end/start the timer on
+    /// this lock screen too, not only after the next app foreground.
+    private func reconcileLiveActivity() {
+        guard !LocalPrefs.shared.demoModeEnabled else { return }
+        let babyName = (try? context.fetch(FetchDescriptor<Baby>()))?.first?.name ?? "Baby"
+        var d = FetchDescriptor<SleepEvent>(
+            predicate: #Predicate { $0.endedAt == nil && $0.deletedAt == nil }
+        )
+        d.fetchLimit = 1
+        let active = try? context.fetch(d).first
+        SleepActivityManager.reconcile(babyName: babyName, activeSleepStartedAt: active?.startedAt)
+    }
+
+    /// The private zone was deleted server-side. Bias to preserving the family's
+    /// data: recreate the zone and re-upload everything local. (`.purged`
+    /// technically asks apps not to re-upload automatically, but for a two-person
+    /// family tracker, silently losing the baby's history is the worse failure —
+    /// in-app "Delete everything" is the supported way to actually erase.)
+    private func handlePrivateZoneDeleted() {
+        guard !handledPrivateZoneDeletion else { return }
+        handledPrivateZoneDeletion = true
+        // Every cached change tag pointed at the dead zone's records.
+        RecordMapping.clearAllSystemFields(in: context)
+        if Self.realSyncRole == .owner {
+            // The zone-wide share died with the zone.
+            applyStopSharingBookkeeping()
+        }
+        try? context.save()
+        UserDefaults.standard.removeObject(forKey: Keys.bootstrapPrivate)
+        privateEngine?.state.add(pendingDatabaseChanges: [.saveZone(CKRecordZone(zoneID: privateZoneID))])
+        bootstrapReconcileIfNeeded()
     }
 
     func nextRecordZoneChangeBatch(_ context: CKSyncEngine.SendChangesContext, syncEngine: CKSyncEngine) async -> CKSyncEngine.RecordZoneChangeBatch? {
@@ -284,22 +662,39 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
                 }
             }
         }
+        let builtRecords = records
         return await CKSyncEngine.RecordZoneChangeBatch(pendingChanges: pending) { recordID in
-            records[recordID]
+            builtRecords[recordID]
         }
     }
 
     // MARK: Sharing (owner)
 
-    /// Creates (or returns the existing) zone-wide CKShare so the owner can invite
-    /// the co-parent. Marks this device the owner.
-    enum SyncError: Error { case iCloudUnavailable }
+    enum SyncError: LocalizedError {
+        case iCloudUnavailable
+        case shareUnavailable
+        case participantNotFound
 
+        var errorDescription: String? {
+            switch self {
+            case .iCloudUnavailable:
+                "iCloud isn't available on this device — check that you're signed in and try again."
+            case .shareUnavailable:
+                "Couldn't reach the shared log — check your connection and try again."
+            case .participantNotFound:
+                "Couldn't match this person on the iCloud share — they may have already left."
+            }
+        }
+    }
+
+    /// Creates (or returns the existing) zone-wide CKShare so the owner can invite
+    /// the co-parent. Marks this device the owner only once the share actually
+    /// exists server-side — a failed save must not leave the device "owner" of
+    /// nothing.
     func makeShare() async throws -> CKShare {
         // Demo mode runs against a throwaway store; never touch the real iCloud zone.
         guard !LocalPrefs.shared.demoModeEnabled else { throw SyncError.iCloudUnavailable }
-        guard cloudAvailable else { throw SyncError.iCloudUnavailable }
-        LocalPrefs.shared.syncRole = .owner
+        guard await cloudAvailable() else { throw SyncError.iCloudUnavailable }
         startPrivateEngine()
         let db = SyncConstants.container.privateCloudDatabase
 
@@ -308,45 +703,128 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
 
         let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: privateZoneID)
         if let existing = try? await db.record(for: shareID) as? CKShare {
+            LocalPrefs.shared.syncRole = .owner
+            await refreshShareMetadata(existing, db: db)
             return existing
         }
         let share = CKShare(recordZoneID: privateZoneID)
-        share[CKShare.SystemFieldKey.title] = "Two of Us" as CKRecordValue
-        _ = try await db.modifyRecords(saving: [share], deleting: [])
-        return share
+        share[CKShare.SystemFieldKey.title] = shareTitle() as CKRecordValue
+        if let thumb = shareThumbnail() {
+            share[CKShare.SystemFieldKey.thumbnailImageData] = thumb as CKRecordValue
+        }
+        let results = try await db.modifyRecords(saving: [share], deleting: [])
+        // Return the SERVER's copy: only it carries the share URL that the share
+        // sheet's Messages bubble resolves (the local instance's `.url` stays
+        // nil, which left the invite spinning forever). `get()` also surfaces
+        // per-record failures that `modifyRecords` itself doesn't throw for, so
+        // a failed save shows as an error instead of hanging.
+        if let result = results.saveResults[share.recordID],
+           let saved = try result.get() as? CKShare {
+            LocalPrefs.shared.syncRole = .owner
+            return saved
+        }
+        // Save reported success without returning our record (or another device
+        // created the share concurrently) — fetch the canonical copy.
+        if let fetched = try? await db.record(for: shareID) as? CKShare {
+            LocalPrefs.shared.syncRole = .owner
+            return fetched
+        }
+        throw SyncError.iCloudUnavailable
     }
 
-    /// Owner stops sharing: deletes the share (co-parent loses access).
-    func stopSharing() async {
+    /// The invite card title — personalized once the baby exists (the share is
+    /// created during onboarding, before the baby record).
+    private func shareTitle() -> String {
+        if let name = (try? context.fetch(FetchDescriptor<Baby>()))?.first?.name, !name.isEmpty {
+            return "\(name) — Two of Us"
+        }
+        return "Two of Us"
+    }
+
+    private func shareThumbnail() -> Data? {
+        (try? context.fetch(FetchDescriptor<Baby>()))?.first?.photoData
+    }
+
+    /// Best-effort: keep the invite card's title/thumbnail current on an existing
+    /// share (it was created before the baby had a name or photo).
+    private func refreshShareMetadata(_ share: CKShare, db: CKDatabase) async {
+        let title = shareTitle()
+        let thumb = shareThumbnail()
+        let titleStale = (share[CKShare.SystemFieldKey.title] as? String) != title
+        let thumbStale = thumb != nil && (share[CKShare.SystemFieldKey.thumbnailImageData] as? Data) != thumb
+        guard titleStale || thumbStale else { return }
+        share[CKShare.SystemFieldKey.title] = title as CKRecordValue
+        if let thumb { share[CKShare.SystemFieldKey.thumbnailImageData] = thumb as CKRecordValue }
+        _ = try? await db.modifyRecords(saving: [share], deleting: [])
+    }
+
+    /// Owner stops sharing: deletes the share (everyone else loses access).
+    /// Throws when the server delete fails — the UI must not pretend access was
+    /// revoked when it wasn't.
+    func stopSharing() async throws {
         guard !LocalPrefs.shared.demoModeEnabled else { return }
+        guard await cloudAvailable() else { throw SyncError.iCloudUnavailable }
         let db = SyncConstants.container.privateCloudDatabase
         let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: privateZoneID)
-        _ = try? await db.modifyRecords(saving: [], deleting: [shareID])
-        LocalPrefs.shared.syncRole = .solo
+        let results = try await db.modifyRecords(saving: [], deleting: [shareID])
+        if let result = results.deleteResults[shareID] {
+            do { try result.get() } catch let error as CKError where error.code == .unknownItem {
+                // Already gone — that's the state we wanted.
+            }
+        }
+        applyStopSharingBookkeeping()
     }
 
-    /// Owner removes a single co-parent from the share — the others keep access
+    /// Local consequences of the share ending (owner side): back to solo, and
+    /// everyone who only had access through the share is no longer active.
+    /// Shared by `stopSharing`, the system share sheet's Stop Sharing button,
+    /// and the private-zone-deleted recovery.
+    private func applyStopSharingBookkeeping() {
+        Self.setRealRole(.solo)
+        let myID = LocalPrefs.shared.myParticipantID
+        var changed: [UUID] = []
+        for p in (try? context.fetch(FetchDescriptor<Participant>())) ?? [] where p.id != myID && p.isActive {
+            p.isActive = false
+            changed.append(p.id)
+        }
+        try? context.save()
+        enqueueSave(changed)
+    }
+
+    /// The system share sheet finished a "Stop Sharing" (owner) or "Remove Me"
+    /// (participant) — mirror the state our own buttons would have set.
+    func handleShareSheetStopped() {
+        if Self.realSyncRole == .participant {
+            detachFromShare()
+        } else {
+            applyStopSharingBookkeeping()
+        }
+    }
+
+    /// Owner removes a single person from the share — the others keep access
     /// (unlike `stopSharing`, which removes everyone). Matches the CKShare
     /// participant by `cloudUserID` when known; with only one co-parent it falls
-    /// back to removing the sole non-owner participant. Marks the local record
-    /// inactive (its past logs still render via denormalized identity) and syncs.
-    func removeParticipant(_ participant: Participant) async {
+    /// back to removing the sole non-owner participant. Only marks the local
+    /// record inactive once the server actually dropped them — pretending
+    /// otherwise leaves a "removed" person with live access.
+    func removeParticipant(_ participant: Participant) async throws {
         // In demo the participant belongs to the in-memory store and there's no real
         // share to mutate — leave the seeded People list intact.
         guard !LocalPrefs.shared.demoModeEnabled else { return }
-        if cloudAvailable {
-            let db = SyncConstants.container.privateCloudDatabase
-            let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: privateZoneID)
-            if let share = try? await db.record(for: shareID) as? CKShare {
-                let removable = share.participants.filter { $0.role != .owner }
-                let target = removable.first { $0.userIdentity.userRecordID?.recordName == participant.cloudUserID }
-                    ?? (removable.count == 1 ? removable.first : nil)
-                if let target {
-                    share.removeParticipant(target)
-                    _ = try? await db.modifyRecords(saving: [share], deleting: [])
-                }
-            }
+        guard await cloudAvailable() else { throw SyncError.iCloudUnavailable }
+        let db = SyncConstants.container.privateCloudDatabase
+        let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: privateZoneID)
+        guard let share = try? await db.record(for: shareID) as? CKShare else {
+            throw SyncError.shareUnavailable
         }
+        let removable = share.participants.filter { $0.role != .owner }
+        guard let target = removable.first(where: { $0.userIdentity.userRecordID?.recordName == participant.cloudUserID })
+            ?? (removable.count == 1 ? removable.first : nil) else {
+            throw SyncError.participantNotFound
+        }
+        share.removeParticipant(target)
+        let results = try await db.modifyRecords(saving: [share], deleting: [])
+        if let result = results.saveResults[share.recordID] { _ = try result.get() }
         participant.isActive = false
         try? context.save()
         enqueueSave([participant.id])
@@ -355,29 +833,68 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     /// Permanently deletes ALL data and resets this device to a fresh solo install.
     /// Owner/solo: deletes the private zone (server-side cascade removes every
     /// record and the zone-wide share, so the co-parent loses the data too).
-    /// Participant: can't delete the owner's zone, so this just wipes the local
-    /// copy. Either way the local store is cleared, sync state dropped, and
-    /// `LocalPrefs` reset — `RootView` then returns to onboarding.
+    /// Participant: can't delete the owner's zone — leaves the share and wipes
+    /// the local copy. Either way the local store is cleared, sync state dropped,
+    /// and `LocalPrefs` reset — `RootView` then returns to onboarding.
     func deleteEverything() async {
         guard !LocalPrefs.shared.demoModeEnabled else { return }
-        if cloudAvailable, LocalPrefs.shared.syncRole != .participant {
-            let db = SyncConstants.container.privateCloudDatabase
-            _ = try? await db.modifyRecordZones(saving: [], deleting: [privateZoneID])
-        }
-        // Stop engines and drop persisted sync state so a fresh start re-bootstraps.
-        privateEngine = nil
-        sharedEngine = nil
-        sharedZoneID = nil
-        try? FileManager.default.removeItem(at: stateURL(.private))
-        try? FileManager.default.removeItem(at: stateURL(.shared))
-        UserDefaults.standard.removeObject(forKey: "sync.bootstrap.private")
-        UserDefaults.standard.removeObject(forKey: "sync.bootstrap.shared")
+        let wasParticipant = Self.realSyncRole == .participant
+        let oldSharedZone = sharedZoneID ?? persistedSharedZoneID()
+        let cloud = await cloudAvailable()
 
+        if cloud, wasParticipant {
+            // The owner's People list renders our Participant record (not the
+            // CKShare) — flip it inactive and push while the engine still
+            // exists, or the owner shows a ghost co-parent forever and the
+            // NEXT joiner's role is computed against it.
+            if let myID = LocalPrefs.shared.myParticipantID,
+               let me = Participant.fetchByID(myID, in: context), me.isActive {
+                me.isActive = false
+                try? context.save()
+                enqueueSave([me.id])
+                try? await sharedEngine?.sendChanges()
+            }
+        }
+
+        tearDownEngines()
+
+        if cloud {
+            if wasParticipant {
+                // Leave the share so the owner's list reflects reality.
+                if let zoneID = oldSharedZone {
+                    let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: zoneID)
+                    _ = try? await SyncConstants.container.sharedCloudDatabase.modifyRecords(saving: [], deleting: [shareID])
+                }
+            } else {
+                let db = SyncConstants.container.privateCloudDatabase
+                _ = try? await db.modifyRecordZones(saving: [], deleting: [privateZoneID])
+            }
+        }
+
+        clearSyncBookkeeping()
         wipeLocalModels()
 
-        LocalPrefs.shared.syncRole = .solo
+        Self.setRealRole(.solo)
         LocalPrefs.shared.myParticipantID = nil
+        DemoSession.noteRealParticipantID(nil)
         WidgetCenter.shared.reloadAllTimelines()
+        // Fresh start in-session: onboarding runs next, and its commits need a
+        // live engine (previously writes were silently dropped until relaunch).
+        start()
+    }
+
+    /// Drops every piece of persisted sync state: engine checkpoints, bootstrap
+    /// marker, hold queues, the persisted shared zone, and the widget queue.
+    private func clearSyncBookkeeping() {
+        try? FileManager.default.removeItem(at: stateURL(.private))
+        try? FileManager.default.removeItem(at: stateURL(.shared))
+        UserDefaults.standard.removeObject(forKey: Keys.bootstrapPrivate)
+        UserDefaults.standard.removeObject(forKey: Keys.pendingSharedSaves)
+        UserDefaults.standard.removeObject(forKey: Keys.pendingSharedDeletes)
+        UserDefaults.standard.removeObject(forKey: Keys.pendingPrivateSaves)
+        UserDefaults.standard.removeObject(forKey: Keys.pendingPrivateDeletes)
+        clearPersistedSharedZone()
+        AppGroup.userDefaults?.removeObject(forKey: Keys.widgetWrites)
     }
 
     /// Hard-deletes every local model (events cascade from Baby, but we clear all
@@ -394,25 +911,129 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
 
     // MARK: Sharing (participant)
 
-    /// Participant leaves the share: stops the shared engine and reverts to solo.
-    /// Local copies of the owner's data remain on-device but stop updating.
-    func leaveShare() {
+    /// Stamps the local user's CloudKit identity onto their own Participant
+    /// record (best effort, async). `removeParticipant` matches CKShare
+    /// participants against this, so each joiner records it right after creating
+    /// their profile — without it, removal only works while there's a single
+    /// co-parent (the sole-non-owner fallback).
+    func captureCloudUserID(for participantID: UUID) {
         guard !LocalPrefs.shared.demoModeEnabled else { return }
-        sharedEngine = nil
-        sharedZoneID = nil
-        try? FileManager.default.removeItem(at: stateURL(.shared))
-        UserDefaults.standard.removeObject(forKey: "sync.bootstrap.shared")
-        LocalPrefs.shared.syncRole = .solo
+        Task {
+            guard await cloudAvailable() else { return }
+            guard let recordName = (try? await SyncConstants.container.userRecordID())?.recordName else {
+                // Without this id, removeParticipant later falls back to a
+                // count-based guess that can drop the wrong person with 2+
+                // caregivers — log so a misfire is traceable.
+                AppLog.sync.error("captureCloudUserID: couldn't resolve userRecordID for participant \(participantID, privacy: .public)")
+                return
+            }
+            guard let me = Participant.fetchByID(participantID, in: context), me.cloudUserID != recordName else { return }
+            me.cloudUserID = recordName
+            try? context.save()
+            enqueueSave([me.id])
+        }
     }
 
-    // MARK: State persistence
+    /// Participant leaves the share: tells the owner's side, removes themselves
+    /// from the share, then detaches locally. Throws when the server can't be
+    /// reached — silently flipping to solo while the share still lists this
+    /// user (with live access) would lie to both sides. Detaching wipes the
+    /// local copy of the shared log (leaving is a clean break), so the device
+    /// returns to onboarding.
+    func leaveShare() async throws {
+        guard !LocalPrefs.shared.demoModeEnabled else { return }
+        guard await cloudAvailable() else { throw SyncError.iCloudUnavailable }
+        // Deactivate our profile and push it while we can still write to the
+        // owner's zone (after the self-removal below, we can't).
+        let me = LocalPrefs.shared.myParticipantID.flatMap { Participant.fetchByID($0, in: context) }
+        if let me, me.isActive {
+            me.isActive = false
+            try? context.save()
+            enqueueSave([me.id])
+            try? await sharedEngine?.sendChanges()
+        }
+        do {
+            // Deleting the share record from the SHARED database is CloudKit's
+            // documented participant self-removal.
+            if let zoneID = sharedZoneID ?? persistedSharedZoneID() {
+                let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: zoneID)
+                let results = try await SyncConstants.container.sharedCloudDatabase.modifyRecords(saving: [], deleting: [shareID])
+                if let result = results.deleteResults[shareID] {
+                    do { try result.get() } catch let error as CKError where error.code == .unknownItem {
+                        // Share already gone (owner revoked first) — same outcome.
+                    }
+                }
+            }
+        } catch {
+            // Still attached: undo the departure signal, or the owner's People
+            // list hides someone who still has access.
+            if let me, !me.isActive {
+                me.isActive = true
+                try? context.save()
+                enqueueSave([me.id])
+                try? await sharedEngine?.sendChanges()
+            }
+            throw error
+        }
+        // Wipes the local store and resets to a fresh solo install — there is
+        // no kept "me" record to re-activate afterwards.
+        detachFromShare()
+    }
+
+    /// Tears down all participant state and wipes the local copy of the shared
+    /// log. Shared by the user-initiated leave and the owner-revoked paths (zone
+    /// deletion, save-time permission failures, the system share sheet's
+    /// "Remove Me"). Losing access — whether you left or the owner removed you —
+    /// clears the data from this device: the family's log lives in the share,
+    /// not on an ex-member's phone. The device resets to a fresh solo install,
+    /// so `RootView` returns to onboarding. Mirrors `deleteEverything`'s local
+    /// reset, minus the server delete (we no longer have access to that zone).
+    private func detachFromShare() {
+        guard Self.realSyncRole == .participant else { return }
+        tearDownEngines()
+        clearSyncBookkeeping()
+        wipeLocalModels()
+        Self.setRealRole(.solo)
+        LocalPrefs.shared.myParticipantID = nil
+        DemoSession.noteRealParticipantID(nil)
+        WidgetCenter.shared.reloadAllTimelines()
+        start()
+    }
+
+    // MARK: Account changes & state persistence
 
     private func handleAccountChange(_ event: CKSyncEngine.Event.AccountChange) {
         switch event.changeType {
-        case .signOut, .switchAccounts:
-            // Drop sync state; local data stays. A fresh sign-in re-bootstraps.
+        case .signOut:
+            // Engines belong to the old account: discard them and every
+            // checkpoint. Local data stays. The bootstrap marker deliberately
+            // stays SET: writes made while signed out park in the hold queues,
+            // and the cached change tags still match the same account's zone —
+            // a blanket re-push here would flood the pending queue and, under
+            // the local-wins conflict policy, silently revert every edit the
+            // co-parent made during the sign-out window.
+            tearDownEngines()
             try? FileManager.default.removeItem(at: stateURL(.private))
             try? FileManager.default.removeItem(at: stateURL(.shared))
+
+        case .switchAccounts:
+            tearDownEngines()
+            try? FileManager.default.removeItem(at: stateURL(.private))
+            try? FileManager.default.removeItem(at: stateURL(.shared))
+            UserDefaults.standard.removeObject(forKey: Keys.bootstrapPrivate)
+            // The new account has no access to the old owner's share, and any
+            // cached change tags reference the old account's zones.
+            RecordMapping.clearAllSystemFields(in: context)
+            try? context.save()
+            if Self.realSyncRole == .participant {
+                detachFromShare()
+            } else {
+                start()
+            }
+
+        case .signIn:
+            start()
+
         default:
             break
         }
