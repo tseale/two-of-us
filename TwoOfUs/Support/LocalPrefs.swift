@@ -43,6 +43,11 @@ final class LocalPrefs {
         static let notifySleep = "notify.sleep"
         static let notifyDiaper = "notify.diaper"
         static let feedReminder = "notify.feedReminder"
+        static let gentleReminders = "notify.gentleReminders"
+        static let notifyMilestones = "notify.milestones"
+        static let quietHoursEnabled = "notify.quietHours.enabled"
+        static let quietHoursStart = "notify.quietHours.start"
+        static let quietHoursEnd = "notify.quietHours.end"
         static let appearance = "ui.appearance"
         static let myParticipantID = "sync.myParticipantID"
         static let syncRole = "sync.role"
@@ -84,11 +89,41 @@ final class LocalPrefs {
         didSet { defaults.set(feedReminderEnabled, forKey: Key.feedReminder) }
     }
 
+    /// Soft, snoozable "feed/diaper due" nudges (distinct from the loud AlarmKit
+    /// feed alarm). When on, the gentle feed reminder defers to AlarmKit if that's
+    /// also on, so you never get two feed reminders.
+    var gentleRemindersEnabled: Bool {
+        didSet { defaults.set(gentleRemindersEnabled, forKey: Key.gentleReminders) }
+    }
+
+    /// A calm end-of-day summary notification.
+    var notifyMilestones: Bool {
+        didSet { defaults.set(notifyMilestones, forKey: Key.notifyMilestones) }
+    }
+
+    /// When on, informational (co-parent / milestone) notifications are suppressed
+    /// inside the quiet-hours window. The AlarmKit feed alarm still breaks through.
+    var quietHoursEnabled: Bool {
+        didSet { defaults.set(quietHoursEnabled, forKey: Key.quietHoursEnabled) }
+    }
+    /// Quiet-hours window as minutes-from-midnight (local). Defaults 22:00–07:00.
+    var quietHoursStartMinutes: Int {
+        didSet { defaults.set(quietHoursStartMinutes, forKey: Key.quietHoursStart) }
+    }
+    var quietHoursEndMinutes: Int {
+        didSet { defaults.set(quietHoursEndMinutes, forKey: Key.quietHoursEnd) }
+    }
+
     private init() {
         notifyFeed = defaults.object(forKey: Key.notifyFeed) as? Bool ?? true
         notifySleep = defaults.object(forKey: Key.notifySleep) as? Bool ?? false
         notifyDiaper = defaults.object(forKey: Key.notifyDiaper) as? Bool ?? false
         feedReminderEnabled = defaults.object(forKey: Key.feedReminder) as? Bool ?? true
+        gentleRemindersEnabled = defaults.object(forKey: Key.gentleReminders) as? Bool ?? false
+        notifyMilestones = defaults.object(forKey: Key.notifyMilestones) as? Bool ?? false
+        quietHoursEnabled = defaults.object(forKey: Key.quietHoursEnabled) as? Bool ?? false
+        quietHoursStartMinutes = defaults.object(forKey: Key.quietHoursStart) as? Int ?? (22 * 60)
+        quietHoursEndMinutes = defaults.object(forKey: Key.quietHoursEnd) as? Int ?? (7 * 60)
         appearance = Appearance(rawValue: defaults.string(forKey: Key.appearance) ?? "") ?? .system
         myParticipantID = (AppGroup.userDefaults?.string(forKey: Key.myParticipantID)).flatMap(UUID.init)
         syncRole = SyncRole(rawValue: defaults.string(forKey: Key.syncRole) ?? "") ?? .solo

@@ -86,6 +86,53 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Toggle(isOn: $prefs.notifyFeed) {
+                        SettingsIconLabel(title: "Feeds", systemImage: "drop.fill", tint: AppColor.accentFeed)
+                    }
+                    .onChange(of: prefs.notifyFeed) { _, _ in notificationsChanged() }
+                    Toggle(isOn: $prefs.notifySleep) {
+                        SettingsIconLabel(title: "Sleep", systemImage: "moon.fill", tint: AppColor.accentSleep)
+                    }
+                    .onChange(of: prefs.notifySleep) { _, _ in notificationsChanged() }
+                    Toggle(isOn: $prefs.notifyDiaper) {
+                        SettingsIconLabel(title: "Diapers", systemImage: "leaf.fill", tint: AppColor.accentDiaper)
+                    }
+                    .onChange(of: prefs.notifyDiaper) { _, _ in notificationsChanged() }
+                } header: {
+                    Text("When your co-parent logs")
+                } footer: {
+                    Text("A quiet heads-up — with their photo — when the other parent logs. You're never notified for your own entries.")
+                }
+
+                Section {
+                    Toggle(isOn: $prefs.gentleRemindersEnabled) {
+                        SettingsIconLabel(title: "Gentle reminders", systemImage: "bell", tint: AppColor.urgencyAmber)
+                    }
+                    .onChange(of: prefs.gentleRemindersEnabled) { _, _ in notificationsChanged() }
+                    Toggle(isOn: $prefs.notifyMilestones) {
+                        SettingsIconLabel(title: "Daily summary", systemImage: "chart.bar.fill", tint: AppColor.accentSleep)
+                    }
+                    .onChange(of: prefs.notifyMilestones) { _, _ in notificationsChanged() }
+                } footer: {
+                    Text("Soft “feed due / diaper check” nudges you can log or snooze right from the lock screen, plus an end-of-day recap. The feed nudge stays silent while the Feed reminder alarm is on, so you’re never told twice.")
+                }
+
+                Section {
+                    Toggle(isOn: $prefs.quietHoursEnabled) {
+                        SettingsIconLabel(title: "Quiet hours", systemImage: "moon.zzz.fill", tint: .gray)
+                    }
+                    .onChange(of: prefs.quietHoursEnabled) { _, _ in notificationsChanged() }
+                    if prefs.quietHoursEnabled {
+                        DatePicker("From", selection: quietStart, displayedComponents: .hourAndMinute)
+                        DatePicker("To", selection: quietEnd, displayedComponents: .hourAndMinute)
+                    }
+                } header: {
+                    Text("Quiet hours")
+                } footer: {
+                    Text("Mutes co-parent and summary notifications overnight. The Feed reminder alarm still breaks through.")
+                }
+
+                Section {
                     NavigationLink {
                         ManageDataView()
                     } label: {
@@ -368,7 +415,11 @@ struct SettingsView: View {
     /// Arms or clears this device's AlarmKit feed reminder when the toggle flips.
     /// Reverts the toggle if the user declines alarm authorization.
     private func updateFeedAlarm(enabled: Bool) async {
-        guard enabled else { await FeedAlarmManager.cancel(); return }
+        guard enabled else {
+            await FeedAlarmManager.cancel()
+            NotificationManager.refreshScheduledReminders()  // gentle feed nudge may take over
+            return
+        }
         guard await FeedAlarmManager.requestAuthorization() else {
             prefs.feedReminderEnabled = false
             return
@@ -376,6 +427,34 @@ struct SettingsView: View {
         await FeedAlarmManager.reschedule(babyName: baby?.name ?? "Baby",
                                           lastFeed: lastFeedDate(),
                                           interval: settings?.targetFeedInterval ?? 0)
+        NotificationManager.refreshScheduledReminders()      // stand the gentle feed nudge down
+    }
+
+    /// Requests notification authorization (once) and re-applies the schedules
+    /// whenever a notification preference changes.
+    private func notificationsChanged() {
+        Task {
+            await NotificationManager.requestAuthorization()
+            NotificationManager.refreshScheduledReminders()
+            NotificationManager.refreshDailyMilestone()
+        }
+    }
+
+    /// Quiet-hours pickers bridge `Date` (hour+minute) to minutes-from-midnight.
+    private var quietStart: Binding<Date> {
+        Binding(get: { Self.date(fromMinutes: prefs.quietHoursStartMinutes) },
+                set: { prefs.quietHoursStartMinutes = Self.minutes(from: $0); notificationsChanged() })
+    }
+    private var quietEnd: Binding<Date> {
+        Binding(get: { Self.date(fromMinutes: prefs.quietHoursEndMinutes) },
+                set: { prefs.quietHoursEndMinutes = Self.minutes(from: $0); notificationsChanged() })
+    }
+    private static func date(fromMinutes m: Int) -> Date {
+        Calendar.current.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: .now) ?? .now
+    }
+    private static func minutes(from date: Date) -> Int {
+        let c = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return (c.hour ?? 0) * 60 + (c.minute ?? 0)
     }
 
     private func lastFeedDate() -> Date? {

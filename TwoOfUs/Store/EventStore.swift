@@ -70,6 +70,7 @@ struct EventStore {
         sync(save: [event.id])
         reloadWidgets()
         scheduleFeedReminder()
+        refreshLocalReminders()
         donate(LogFeedIntent(amountOz: amountOz))
         return event
     }
@@ -88,6 +89,7 @@ struct EventStore {
         save()
         sync(save: [event.id])
         reloadWidgets()
+        refreshLocalReminders()
         donate(LogDiaperIntent(type: DiaperTypeAppEnum(rawValue: type.rawValue) ?? .wet))
         return event
     }
@@ -150,6 +152,7 @@ struct EventStore {
         sync(save: [original.id, replacement.id])
         reloadWidgets()
         scheduleFeedReminder()
+        refreshLocalReminders()
         return replacement
     }
 
@@ -186,6 +189,7 @@ struct EventStore {
         save()
         sync(save: [original.id, replacement.id])
         reloadWidgets()
+        refreshLocalReminders()
         return replacement
     }
 
@@ -196,6 +200,7 @@ struct EventStore {
         save()
         sync(save: [event.id])   // soft delete travels as a `deletedAt` update
         reloadWidgets()
+        refreshLocalReminders()
     }
 
     /// Soft-deletes every live event (keeps baby, participants, settings). Used by
@@ -420,5 +425,14 @@ enum EventBounds {
         guard let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty else { return nil }
         return String(trimmed.prefix(noteMaxLength))
+    }
+
+    /// Re-arms the gentle "feed/diaper due" local notifications off current state.
+    /// Distinct from `scheduleFeedReminder` (the loud AlarmKit alarm); no-ops in
+    /// demo and when the user hasn't opted into gentle reminders.
+    private func refreshLocalReminders() {
+        guard !demo else { return }
+        NotificationManager.refreshScheduledReminders()
+        NotificationManager.refreshDailyMilestone()   // keep the summary's counts fresh
     }
 }

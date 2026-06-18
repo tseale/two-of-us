@@ -115,6 +115,24 @@ struct QuickLogger {
         return (feeds.count, feeds.reduce(0) { $0 + $1.amountOz }, diapers.count)
     }
 
+    /// Total sleep time that falls within today (clips sessions that span
+    /// midnight, and counts the running session up to now). Used by the
+    /// dynamic daily summary + the rich notification card.
+    var todaySleep: TimeInterval {
+        let now = Date.now
+        let dayStart = Calendar.current.startOfDay(for: now)
+        let sleeps = (try? context.fetch(FetchDescriptor<SleepEvent>(
+            predicate: #Predicate { $0.deletedAt == nil }
+        ))) ?? []
+        var total: TimeInterval = 0
+        for s in sleeps {
+            let start = max(s.startedAt, dayStart)
+            let end = s.endedAt ?? now
+            if end > start { total += end.timeIntervalSince(start) }
+        }
+        return total
+    }
+
     /// Default feed amount for one-tap logging: SharedSettings.defaultFeedOz,
     /// else the most-recent feed's amount, else 4 oz.
     var defaultFeedOz: Double {
