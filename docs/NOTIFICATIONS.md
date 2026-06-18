@@ -60,11 +60,41 @@ CloudKit. Snooze reschedules the reminder. The default tap just opens the app.
 - **Not** using Critical Alerts — AlarmKit already covers the wake-the-parents
   case, and Critical Alerts needs a special request to Apple.
 
+## Rich expanded UI (Notification Content Extension)
+
+Long-pressing / pulling down a notification shows a custom card rendered by the
+**`TwoOfUsNotificationContent`** app extension (`NotificationViewController` hosts
+the SwiftUI `NotificationCardView`). It's registered for the daily summary,
+co-parent, and both reminder categories (`UNNotificationExtensionCategory` in the
+extension's Info.plist). The card reads **live** state from `QuickLogger`
+(today's counts/sleep for the summary; last-feed/diaper/sleep "time since" for
+co-parent/reminders) so it's accurate even if the notification was posted earlier.
+Action buttons still render below, supplied by the category. The extension shares
+`QuickLogger`, the models, and the design system via `project.yml` sources (like
+the widget target).
+
+## Dynamic daily summary
+
+`refreshDailyMilestone()` schedules a **one-shot** notification for the next 9pm
+with today's real numbers (e.g. "8 feeds (24 oz) · 6 diapers · 5h 10m sleep")
+from `QuickLogger.todayCounts` + `todaySleep`. It's re-armed on app foreground
+and on every log so the pending copy stays fresh. (If the app isn't opened on a
+given day, that day's summary keeps the last-armed copy.)
+
+## Focus filters
+
+`TwoOfUsFocusFilter` (`SetFocusFilterIntent`, in `Intents/`) lets each iOS Focus
+reconfigure the app via two per-Focus toggles — **Mute co-parent activity** and
+**Only urgent reminders**. `perform()` persists them to App Group UserDefaults;
+`NotificationManager` suppresses passive (co-parent) posts when either is set,
+while time-sensitive reminders always get through. Note: deactivation reversion
+is the one behavior to confirm on-device, and the pre-scheduled daily summary
+can't be focus-gated at fire time.
+
 ## Future / deferred
 
-- Dynamic daily-summary copy (today's real counts).
-- Focus Filter intent (`SetFocusFilterIntent`).
-- Notification Content Extension for fully custom rich UI.
+- Per-focus gating of the pre-scheduled daily summary.
+- `relevantDate` / scheduled-summary tuning.
 
 ## Testing
 

@@ -181,25 +181,53 @@ enum NotificationManager {
 
     // MARK: Daily milestone
 
-    /// Schedules (or clears) a calm end-of-day summary that repeats at
-    /// `milestoneHour`. Honors the per-user toggle.
+    /// Schedules (or clears) the calm end-of-day summary for the next
+    /// `milestoneHour`, with **today's real counts** in the body. Re-armed on
+    /// foreground and on every log so the pending copy stays fresh as the day
+    /// fills in. Honors the per-user toggle and quiet hours.
     static func refreshDailyMilestone() {
         center.removePendingNotificationRequests(withIdentifiers: [NotificationID.Request.dailyMilestone])
         guard !prefs.demoModeEnabled, prefs.notifyMilestones else { return }
+        guard let fireDate = nextMilestoneDate(), !isWithinQuietHours(fireDate) else { return }
 
-        var components = DateComponents()
-        components.hour = milestoneHour
-        let babyName = QuickLogger.make()?.babyName ?? "your little one"
+        let logger = QuickLogger.make()
+        let babyName = logger?.babyName ?? "your little one"
+        let body = logger.map { summaryBody($0) } ?? "Tap to see \(babyName)'s day."
+
         let content = makeContent(
-            title: "How was today?",
-            body: "Tap to see \(babyName)'s feeds, sleep, and diapers from today.",
+            title: "\(babyName)'s day",
+            body: body,
             category: NotificationID.Category.milestone,
             threadID: NotificationID.Thread.milestone,
             level: .passive, relevanceScore: 0.3
         )
-        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+        let trigger = UNTimeIntervalNotificationTrigger(
+            timeInterval: fireDate.timeIntervalSinceNow, repeats: false)
         center.add(UNNotificationRequest(
             identifier: NotificationID.Request.dailyMilestone, content: content, trigger: trigger))
+    }
+
+    /// The next occurrence of `milestoneHour` (today if still ahead, else tomorrow).
+    private static func nextMilestoneDate() -> Date? {
+        let cal = Calendar.current
+        let now = Date.now
+        var comps = cal.dateComponents([.year, .month, .day], from: now)
+        comps.hour = milestoneHour
+        comps.minute = 0
+        guard let todayFire = cal.date(from: comps) else { return nil }
+        return todayFire > now ? todayFire : cal.date(byAdding: .day, value: 1, to: todayFire)
+    }
+
+    /// "8 feeds (24 oz) · 6 diapers · 5h 10m sleep" from today's totals.
+    private static func summaryBody(_ logger: QuickLogger) -> String {
+        let c = logger.todayCounts
+        var parts: [String] = [
+            c.feeds == 1 ? "1 feed (\(OzFormat.string(c.oz)) oz)" : "\(c.feeds) feeds (\(OzFormat.string(c.oz)) oz)",
+            c.diapers == 1 ? "1 diaper" : "\(c.diapers) diapers"
+        ]
+        let sleep = logger.todaySleep
+        if sleep >= 60 { parts.append("\(hoursLabel(sleep)) sleep") }
+        return parts.joined(separator: " · ")
     }
 
     // MARK: Co-parent activity
@@ -213,7 +241,7 @@ enum NotificationManager {
         senderName: String, senderPhoto: Data?, body: String, threadID: String
     ) {
         guard !prefs.demoModeEnabled, isEnabled(for: kind) else { return }
-        guard !isWithinQuietHours(.now) else { return }
+        guard !isWithinQuietHours(.now), !focusSuppressesPassive else { return }
 
         let dedupeKey = "\(eventID.uuidString)-\(dedupeSuffix)"
         guard !hasPosted(dedupeKey) else { return }
@@ -319,6 +347,22 @@ enum NotificationManager {
         case .sleep: return prefs.notifySleep
         case .diaper: return prefs.notifyDiaper
         }
+    }
+
+    // MARK: Focus filter (written by `TwoOfUsFocusFilter`, read here)
+    //
+    // The keys live in the App Group so a background notification launch sees the
+    // same state the focus-filter intent wrote. Passive (co-parent / summary)
+    // posts are suppressed while a filtered Focus is active; time-sensitive
+    // reminders are the "urgent" channel and always get through.
+
+    static let focusMuteCoParentKey = "focus.muteCoParent"
+    static let focusOnlyUrgentKey = "focus.onlyUrgent"
+
+    private static var focusSuppressesPassive: Bool {
+        let d = AppGroup.userDefaults
+        return (d?.bool(forKey: focusMuteCoParentKey) ?? false)
+            || (d?.bool(forKey: focusOnlyUrgentKey) ?? false)
     }
 
     /// True if `date`'s local time falls inside the user's quiet-hours window

@@ -62,6 +62,7 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     dependencies:
       - target: TwoOfUsWidgets
+      - target: TwoOfUsNotificationContent
 
   TwoOfUsWidgets:
     type: app-extension
@@ -104,6 +105,56 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.taylorseale.twoofus.widgets
+        SKIP_INSTALL: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: NO
+
+  TwoOfUsNotificationContent:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: TwoOfUsNotificationContent
+      # Shared with the app target: the App Group read path + design system so the
+      # rich card reflects live data and matches the app's look.
+      - path: TwoOfUs/Intents/QuickLogger.swift
+      - path: TwoOfUs/Models/Baby.swift
+      - path: TwoOfUs/Models/FeedEvent.swift
+      - path: TwoOfUs/Models/SleepEvent.swift
+      - path: TwoOfUs/Models/DiaperEvent.swift
+      - path: TwoOfUs/Models/Participant.swift
+      - path: TwoOfUs/Models/SharedSettings.swift
+      - path: TwoOfUs/Models/Enums.swift
+      - path: TwoOfUs/Store/Schema.swift
+      - path: TwoOfUs/Support/AppGroup.swift
+      - path: TwoOfUs/DesignSystem/Colors.swift
+      - path: TwoOfUs/DesignSystem/Typography.swift
+      - path: TwoOfUs/DesignSystem/TimeFormatting.swift
+      - path: TwoOfUs/Notifications/NotificationIdentifiers.swift
+    info:
+      path: TwoOfUsNotificationContent/Info.plist
+      properties:
+        CFBundleDisplayName: TwoOfUsNotificationContent
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.content-extension
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationViewController
+          NSExtensionAttributes:
+            UNNotificationExtensionCategory:
+              - MILESTONE
+              - COPARENT
+              - REMINDER_FEED
+              - REMINDER_DIAPER
+            UNNotificationExtensionInitialContentSizeRatio: 0.4
+            UNNotificationExtensionDefaultContentHidden: true
+    entitlements:
+      path: TwoOfUsNotificationContent/TwoOfUsNotificationContent.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.taylorseale.twoofus
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.taylorseale.twoofus.notificationcontent
         SKIP_INSTALL: YES
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"

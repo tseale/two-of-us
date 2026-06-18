@@ -370,5 +370,6 @@ struct EventStore {
     private func refreshLocalReminders() {
         guard !demo else { return }
         NotificationManager.refreshScheduledReminders()
+        NotificationManager.refreshDailyMilestone()   // keep the summary's counts fresh
     }
 }
