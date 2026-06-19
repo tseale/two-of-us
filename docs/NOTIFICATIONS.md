@@ -76,6 +76,39 @@ entitlement here and in `project.yml`.
 - **Not** using Critical Alerts — AlarmKit already covers the wake-the-parents
   case, and Critical Alerts needs a special request to Apple.
 
+### Notification-content-extension App ID — REQUIRED portal step
+
+The rich card (below) ships as the **`TwoOfUsNotificationContent`** app
+extension, bundle id **`com.taylorseale.twoofus.notificationcontent`**. It reads
+live data from the shared App Group (`QuickLogger.make()`), so its entitlements
+declare `com.apple.security.application-groups` → `group.com.taylorseale.twoofus`.
+
+This is a **new** bundle id (added in #78). Xcode Cloud's automatic *cloud
+signing* will register the App ID on the fly, but it does **not** reliably enable
+the **App Groups** capability on it or assign the group — and an App Store
+*Distribution* profile for an App-Group target can't be minted until that's set.
+That is what fails the archive at **"Exporting for App Store Distribution failed
+→ Code Signing"** (Builds 47–49), independent of the app-level notification
+entitlements removed in #80/#81.
+
+**One-time fix in [developer.apple.com → Identifiers](https://developer.apple.com/account/resources/identifiers/list)** (team `Q58H65DQ64`):
+
+1. **+** → **App IDs** → **App** → Continue.
+   - Description: `Two of Us Notification Content`
+   - Bundle ID: **Explicit** → `com.taylorseale.twoofus.notificationcontent`
+   - Capabilities: check **App Groups**. Register.
+2. Edit the new App ID → **App Groups** → **Configure** → select the existing
+   `group.com.taylorseale.twoofus` group → Save. (The group already exists; it's
+   shared by the app and widgets — do *not* create a new one.)
+3. Nothing else to upload — Xcode Cloud's managed certs do the rest. Re-run the
+   workflow (push to `main` or **Start Build**); the next archive exports.
+
+No repo change is needed — `project.yml` and the extension's entitlements are
+already correct. This is purely the portal registration catching up to the new
+target. (If the export *still* fails after this, the App Group capability also
+needs confirming on the `…twoofus` and `…twoofus.widgets` App IDs, but those have
+signed since the original setup.)
+
 ## Rich expanded UI (Notification Content Extension)
 
 Long-pressing / pulling down a notification shows a custom card rendered by the
