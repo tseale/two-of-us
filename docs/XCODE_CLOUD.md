@@ -92,6 +92,16 @@ automatically — internal-group builds need no Beta App Review.
   `Q58H65DQ64` with iCloud/App Groups/Push capabilities, and that the workflow's
   Archive action uses TestFlight deployment preparation (that's what enables
   cloud signing).
+- **"Exporting for App Store Distribution failed → Code Signing"** after adding a
+  **new extension/target** — cloud signing auto-registers the new bundle id but
+  does *not* reliably enable special capabilities on it. Every new signable
+  target's bundle id must exist as an App ID under `Q58H65DQ64` with its
+  capabilities turned on *before* the archive can export. This bit Builds 47–49:
+  the new `com.taylorseale.twoofus.notificationcontent` content extension needs
+  the **App Groups** capability + `group.com.taylorseale.twoofus` assigned. See
+  `docs/NOTIFICATIONS.md` → "Notification-content-extension App ID" for the
+  step-by-step. Rule of thumb: any time you add a target with an entitlement,
+  register its App ID + capability in the portal in the same change.
 - **CloudKit**: TestFlight builds use the *production* CloudKit container
   environment. Deploy the schema (CloudKit Console → Deploy Schema Changes to
   Production) before relying on sync in TestFlight builds — see the dev-vs-prod
