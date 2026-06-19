@@ -81,7 +81,6 @@ targets:
           - CloudKit
         aps-environment: development
         com.apple.developer.usernotifications.time-sensitive: true
-        com.apple.developer.usernotifications.communication: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.taylorseale.twoofus
