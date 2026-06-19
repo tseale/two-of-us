@@ -393,6 +393,15 @@ struct EventStore {
         let name = baby?.name ?? "Baby"
         Task { await FeedAlarmManager.reschedule(babyName: name, lastFeed: last, interval: interval) }
     }
+
+    /// Re-arms the gentle "feed/diaper due" local notifications off current state.
+    /// Distinct from `scheduleFeedReminder` (the loud AlarmKit alarm); no-ops in
+    /// demo and when the user hasn't opted into gentle reminders.
+    private func refreshLocalReminders() {
+        guard !demo else { return }
+        NotificationManager.refreshScheduledReminders()
+        NotificationManager.refreshDailyMilestone()   // keep the summary's counts fresh
+    }
 }
 
 /// Sane bounds for event inputs, applied at the store boundary as defense in
@@ -425,14 +434,5 @@ enum EventBounds {
         guard let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty else { return nil }
         return String(trimmed.prefix(noteMaxLength))
-    }
-
-    /// Re-arms the gentle "feed/diaper due" local notifications off current state.
-    /// Distinct from `scheduleFeedReminder` (the loud AlarmKit alarm); no-ops in
-    /// demo and when the user hasn't opted into gentle reminders.
-    private func refreshLocalReminders() {
-        guard !demo else { return }
-        NotificationManager.refreshScheduledReminders()
-        NotificationManager.refreshDailyMilestone()   // keep the summary's counts fresh
     }
 }
