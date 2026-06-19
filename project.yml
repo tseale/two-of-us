@@ -80,7 +80,6 @@ targets:
         com.apple.developer.icloud-services:
           - CloudKit
         aps-environment: development
-        com.apple.developer.usernotifications.time-sensitive: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.taylorseale.twoofus
