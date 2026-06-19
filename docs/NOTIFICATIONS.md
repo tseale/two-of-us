@@ -56,7 +56,15 @@ CloudKit. Snooze reschedules the reminder. The default tap just opens the app.
 
 - `com.apple.developer.usernotifications.time-sensitive` — for `.timeSensitive`
   reminders (no Apple approval needed).
-- `com.apple.developer.usernotifications.communication` — for the avatar styling.
+- **Communication Notifications** (`com.apple.developer.usernotifications.communication`)
+  — *deferred.* It styled co-parent posts with the sender's avatar
+  (`INSendMessageIntent`), but Xcode Cloud's automatic cloud signing couldn't
+  provision it, which failed the App Store export step (Build 47). The
+  entitlement is removed; `NotificationManager.communicationContent` still
+  builds the intent but **falls back to plain content** when the styling can't
+  be applied, so co-parent notifications post without an avatar. Re-enable by
+  turning on Communication Notifications for the `com.taylorseale.twoofus` App
+  ID in the Developer portal and restoring the entitlement here + in `project.yml`.
 - **Not** using Critical Alerts — AlarmKit already covers the wake-the-parents
   case, and Critical Alerts needs a special request to Apple.
 
