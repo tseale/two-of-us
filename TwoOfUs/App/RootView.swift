@@ -37,31 +37,26 @@ struct RootView: View {
     }
 
     var body: some View {
-        ZStack {
-            switch route {
-            case .join:
-                JoinFlowView(onFinished: celebrate)
-                    .transition(.opacity)
-            case .joinSyncing:
-                JoinSyncingView()
-                    .transition(.opacity)
-            case .onboarding:
-                OnboardingView(onFinished: celebrate)
-                    .transition(.opacity)
-            case .main:
-                MainTabView()
-                    .transition(.opacity)
+        // The demo pill sits in its own row ABOVE the routed content (a VStack, not
+        // a floating overlay), so it can never land on the Home header / baby name
+        // — and, unlike a top safeAreaInset over the TabView's List, the content
+        // below isn't rendered up under the pill and clipped.
+        VStack(spacing: 0) {
+            if prefs.demoModeEnabled {
+                demoBanner
+                    .frame(maxWidth: .infinity)   // center the pill in its strip
+                    .padding(.bottom, 6)          // breathing room above content
+                    .background(AppColor.bg)      // strip matches the app background
             }
+            routedContent
         }
         .animation(.easeInOut(duration: 0.35), value: route)
+        .animation(.easeInOut(duration: 0.35), value: prefs.demoModeEnabled)
         .tint(AppColor.accentFeed)
         .preferredColorScheme(prefs.appearance.colorScheme)
         // A tapped Feed/Diaper home-screen widget opens the app on this URL;
         // the router stages the sheet for HomeView to present.
         .onOpenURL { DeepLinkRouter.shared.handle($0) }
-        .overlay(alignment: .top) {
-            if prefs.demoModeEnabled { demoBanner }
-        }
         .overlay(alignment: .bottom) {
             if let banner = storeErrors.current { errorBanner(banner) }
         }
@@ -110,6 +105,26 @@ struct RootView: View {
         celebration = data
     }
 
+    /// The active top-level world; crossfades between routes.
+    @ViewBuilder private var routedContent: some View {
+        ZStack {
+            switch route {
+            case .join:
+                JoinFlowView(onFinished: celebrate)
+                    .transition(.opacity)
+            case .joinSyncing:
+                JoinSyncingView()
+                    .transition(.opacity)
+            case .onboarding:
+                OnboardingView(onFinished: celebrate)
+                    .transition(.opacity)
+            case .main:
+                MainTabView()
+                    .transition(.opacity)
+            }
+        }
+    }
+
     private func dismissCelebration() {
         withAnimation(.easeOut(duration: 0.5)) { celebration = nil }
     }
@@ -147,6 +162,7 @@ struct RootView: View {
                 .background(.regularMaterial, in: Capsule())
                 .overlay(Capsule().strokeBorder(AppColor.accentFeed.opacity(0.5)))
         }
+        .buttonStyle(.plain)
         .tint(AppColor.accentFeed)
         .padding(.top, 4)
         .accessibilityLabel("Exit demo mode")
