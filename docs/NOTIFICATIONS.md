@@ -54,17 +54,25 @@ CloudKit. Snooze reschedules the reminder. The default tap just opens the app.
 
 `TwoOfUs.entitlements` (mirrored in `project.yml`):
 
-- `com.apple.developer.usernotifications.time-sensitive` — for `.timeSensitive`
-  reminders (no Apple approval needed).
+Both special UserNotifications entitlements are currently **deferred** because
+Xcode Cloud's automatic cloud signing couldn't provision them, which failed the
+App Store distribution export (Builds 47–48). Neither removal breaks the build
+at runtime — the related features simply degrade:
+
+- **Time Sensitive Notifications** (`com.apple.developer.usernotifications.time-sensitive`)
+  — *deferred.* `NotificationManager` still sets `interruptionLevel =
+  .timeSensitive` on gentle reminders, but without the entitlement iOS downgrades
+  them to a normal active level, so they no longer break through Focus/Silent.
+  The loud AlarmKit feed alarm still pierces for the critical overnight wake case.
 - **Communication Notifications** (`com.apple.developer.usernotifications.communication`)
   — *deferred.* It styled co-parent posts with the sender's avatar
-  (`INSendMessageIntent`), but Xcode Cloud's automatic cloud signing couldn't
-  provision it, which failed the App Store export step (Build 47). The
-  entitlement is removed; `NotificationManager.communicationContent` still
+  (`INSendMessageIntent`). `NotificationManager.communicationContent` still
   builds the intent but **falls back to plain content** when the styling can't
-  be applied, so co-parent notifications post without an avatar. Re-enable by
-  turning on Communication Notifications for the `com.taylorseale.twoofus` App
-  ID in the Developer portal and restoring the entitlement here + in `project.yml`.
+  be applied, so co-parent notifications post without an avatar.
+
+Re-enable either by turning the matching capability on for the
+`com.taylorseale.twoofus` App ID in the Developer portal, then restoring the
+entitlement here and in `project.yml`.
 - **Not** using Critical Alerts — AlarmKit already covers the wake-the-parents
   case, and Critical Alerts needs a special request to Apple.
 
