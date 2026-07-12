@@ -240,6 +240,9 @@ struct EventStore {
         save()
         sync(save: [baby.id])
         reloadWidgets()
+        // Keep the share invite card title current — it shows the baby's name
+        // and is otherwise stale if the owner renamed after the share was created.
+        SyncManager.shared?.refreshShareTitleIfOwner()
     }
 
     /// Updates the shared feeding rhythm and syncs it. Nil fields stay as-is.

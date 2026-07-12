@@ -114,7 +114,7 @@ Dynamic Type, ambient re-tint).
 **Checklist**
 - [x] 🟠 `OnboardingSetupSteps.swift:38–42` — Baby DOB `DatePicker` allows **future dates**.
       Cap with `in: ...Date()`.
-- [ ] 🟡 `OnboardingSetupSteps.swift:31` — Baby-name field has no max length; long names
+- [x] 🟡 `OnboardingSetupSteps.swift:31` — Baby-name field has no max length; long names
       can break layout. Add `lineLimit`/truncation on display.
 - [ ] 🟡 `OnboardingPages.swift:137–138` — "Invited by your partner? Open the link…"
       escape hatch is buried at the bottom; raise its prominence.
@@ -168,11 +168,11 @@ Home card + Settings rows + just-in-time spotlights. Rhythm is shared; reminders
       either counts).
 - [x] 🟠 `SetupProgress.swift:116–118` — Spotlight marks "shown" on **appear**, so a user
       who swipes it away before reading never sees it again. Mark shown on **dismiss**.
-- [ ] 🟡 `SetupChecklistCard.swift:84–91` — "All set" card auto-dismisses after 2s; fade
+- [x] 🟡 `SetupChecklistCard.swift:84–91` — "All set" card auto-dismisses after 2s; fade
       gently or keep until the user leaves the screen.
 - [x] 🟡 `SpotlightSheet.swift:102–111` — "Tune rhythm" button still shows when the rhythm
       quest is already complete; hide/disable it.
-- [ ] 🟡 `QuestSheets.swift:101–102` — Reminders quest "not now" is a silent no-op; add a
+- [x] 🟡 `QuestSheets.swift:101–102` — Reminders quest "not now" is a silent no-op; add a
       light confirmation toast.
 
 ---
@@ -284,9 +284,9 @@ is sound. The main risk is **silent failure** in the write path.
       Surface a failure banner / propagate the error.
 - [x] 🟠 `EventStore.swift:58,75,92` — `logFeed/logDiaper/startSleep` don't validate
       inputs (negative/huge oz, future/ancient timestamps, `baby == nil`). Add guards.
-- [ ] 🟠 `StatsEngine.swift:69–100` — Every fetch is `try? … ?? []`, so a fetch failure
+- [x] 🟠 `StatsEngine.swift:69–100` — Every fetch is `try? … ?? []`, so a fetch failure
       reads as "0 oz today" rather than an error. Return a result type or render an error
-      state.
+      state. *(Already resolved: StatsEngine receives @Query results from views — no direct fetches.)*
 - [x] 🟡 `EventStore.swift:305–306` — `lastEventDate(of:)` returns an active sleep's
       `startedAt` (hours old); document or return `endedAt ?? .now`.
 - [x] 🟡 `Baby.swift:28–30` — `.cascade` delete rule vs never-hard-deleting invariant is
@@ -320,14 +320,14 @@ overhauled. Gaps are around **surfacing failure to the user** and a few edge cas
 - [x] 🟠 `RecordMapping.swift:210–217` — Orphaned events (event syncs before its Baby) are
       only relinked on `fetchedRecordZoneChanges`; an interrupted fetch can leave
       `baby == nil` forever. Relink whenever a Baby is fetched/inserted too.
-- [ ] 🟠 `SyncManager.swift:832–841` — `captureCloudUserID` is fire-and-forget; if it
+- [x] 🟠 `SyncManager.swift:832–841` — `captureCloudUserID` is fire-and-forget; if it
       fails, `removeParticipant` falls back to "sole non-owner," which can remove the
       **wrong** person with 2+ caregivers. Add retry or make it blocking with a spinner.
 - [x] 🟠 `RecordMapping.swift` asset writes (`:298–302`, `:70`) — temp files for
       Baby/Participant photos leak if a save fails before upload. Add a cleanup queue.
-- [ ] 🟡 `SyncManager.swift:546–559` — Private-zone-deletion recovery re-uploads
+- [x] 🟡 `SyncManager.swift:546–559` — Private-zone-deletion recovery re-uploads
       everything but logs nothing if the re-upload fails (catastrophic-but-rare). Log it.
-- [ ] 🟡 `SyncManager.swift:849–892` — Document the `leaveShare()` partial-rollback
+- [x] 🟡 `SyncManager.swift:849–892` — Document the `leaveShare()` partial-rollback
       recovery ("tap Leave again if it throws").
 
 ---
@@ -350,7 +350,7 @@ gating). Gaps are in error messaging and a couple of multi-account edge cases.
       with no name/role (sync lag). Filter inactive or show a "left the log" state.
 - [ ] 🟡 `ShareAcceptance.swift:27–41` — Replace-vs-merge logic reads like a fragile
       boolean short-circuit; refactor to an explicit `LinkAction` enum.
-- [ ] 🟡 `SyncManager.swift:663–672` — Share invite card can show a stale title if the
+- [x] 🟡 `SyncManager.swift:663–672` — Share invite card can show a stale title if the
       baby is named after the share is created; refresh share metadata on baby-name change.
 - [ ] 🟡 Document the invariant: a device syncs to **one** zone owner at a time; switching
       requires `deleteEverything()` first (guards the "two owners in one store" edge).
@@ -421,7 +421,7 @@ failure). `QuickLogger.logFeed` clamps ounces at the write boundary.
 - [x] 🟠 `LogFeedIntent.swift:22` — `amountOz` accepts 0 / negative / absurd values from
       Shortcuts with no bounds check. Guard `oz ∈ (0, 32]`.
 - [x] 🟡 `DeepLinkRouter.swift:28` — Unrecognized host/kind fails silently; log a warning.
-- [ ] 🟡 `DeepLinkRouter.swift:13` — Two fast widget taps overwrite `pendingLog` (second is
+- [x] 🟡 `DeepLinkRouter.swift:13` — Two fast widget taps overwrite `pendingLog` (second is
       lost); queue or de-dupe. Low real-world risk.
 - [ ] 🟡 `QuickLogger.swift:45–56` — Owner-ID fallback to "first participant" can stamp the
       wrong parent if the stored ID is stale; log when the fallback fires.
@@ -448,9 +448,9 @@ weakest production area.
       feed silently no-ops. Detect denial once and prompt to enable in Settings.
 - [x] 🟠 `FeedAlarmManager.swift:41` — No guard on `interval > 0`; a 0/garbage
       `targetFeedIntervalMinutes` silently no-ops. Validate a sane minimum.
-- [ ] 🟡 No "reminder armed" affordance anywhere; the user can't tell a reminder is set.
+- [x] 🟡 No "reminder armed" affordance anywhere; the user can't tell a reminder is set.
       Add a small badge on the Feed tile / Today card.
-- [ ] 🟡 Revoking a share doesn't cancel a device's pending alarm (low severity).
+- [x] 🟡 Revoking a share doesn't cancel a device's pending alarm (low severity).
 
 ---
 
@@ -478,9 +478,9 @@ and recovery gaps.
       across exports; clean up old ones or reuse a stable name.
 - [x] 🟡 `LogExporter.swift:32–33` — Sleep "detail" shows a raw ISO `endedAt`; format as a
       readable time / duration.
-- [ ] 🟡 `SettingsView.swift:51–57` — Feed-interval stepper is granular (15-min) and verbose
+- [x] 🟡 `SettingsView.swift:51–57` — Feed-interval stepper is granular (15-min) and verbose
       ("every 3h 0m"); add common presets (2h/3h/4h).
-- [ ] 🟡 `SettingsView.swift:267–272` — People section lacks a heading/count for VoiceOver.
+- [x] 🟡 `SettingsView.swift:267–272` — People section lacks a heading/count for VoiceOver.
 - [x] 💡 `LogExporter.swift` — CSV doesn't carry participant identity/color; add a column.
 
 ---

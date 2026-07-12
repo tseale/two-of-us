@@ -52,9 +52,26 @@ struct SettingsView: View {
                                                set: { store.updateSettings(targetFeedIntervalMinutes: $0) }),
                                 in: 60...360, step: 15) {
                             SettingsIconLabel(
-                                title: "Feed every \(settings.targetFeedIntervalMinutes / 60)h \(settings.targetFeedIntervalMinutes % 60)m",
+                                title: "Feed every \(intervalLabel(settings.targetFeedIntervalMinutes))",
                                 systemImage: "timer", tint: AppColor.accentFeed)
                         }
+                        // Common presets for quick selection.
+                        HStack(spacing: 8) {
+                            ForEach([120, 150, 180, 240], id: \.self) { mins in
+                                let selected = settings.targetFeedIntervalMinutes == mins
+                                Button(intervalLabel(mins)) {
+                                    store.updateSettings(targetFeedIntervalMinutes: mins)
+                                }
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(selected ? AppColor.accentFeed : AppColor.text2)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(selected ? AppColor.accentFeed.opacity(0.15) : AppColor.card2,
+                                            in: Capsule())
+                            }
+                            Spacer()
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
 
@@ -311,7 +328,9 @@ struct SettingsView: View {
                 }
             }
         } header: {
+            let count = participants.filter { $0.isActive }.count
             Text("People")
+                .accessibilityLabel("People, \(count) member\(count == 1 ? "" : "s")")
         } footer: {
             if prefs.syncRole != .participant {
                 Text("Inviting someone? Have them install Two of Us first — the invite link only works once the app is on their iPhone.")
@@ -464,5 +483,12 @@ struct SettingsView: View {
         )
         d.fetchLimit = 1
         return (try? context.fetch(d))?.first?.timestamp
+    }
+
+    /// "2h", "2h 30m", "3h" — omits the "0m" that made the stepper label verbose.
+    private func intervalLabel(_ minutes: Int) -> String {
+        let h = minutes / 60
+        let m = minutes % 60
+        return m == 0 ? "\(h)h" : "\(h)h \(m)m"
     }
 }

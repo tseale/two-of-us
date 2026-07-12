@@ -36,6 +36,9 @@ struct LogButtons: View {
     let sleepHint: String
     let sleepDetail: TileDetail?
     let sleepActive: Bool
+    /// True when a feed alarm is armed on this device — shows a bell affordance
+    /// on the Feed tile so parents know a reminder is counting down.
+    var feedReminderArmed: Bool = false
     let onFeed: () -> Void
     let onSleep: () -> Void
     let onDiaper: () -> Void
@@ -45,7 +48,7 @@ struct LogButtons: View {
             GlassEffectContainer(spacing: 12) {
                 HStack(spacing: 12) {
                     tile(title: "Feed", hint: feedHint, emoji: "🍼", color: AppColor.accentFeed,
-                         status: feedStatus, action: onFeed)
+                         status: feedStatus, reminderArmed: feedReminderArmed, action: onFeed)
                     tile(title: "Diaper", hint: "wet · dirty · both", emoji: "💩", color: AppColor.accentDiaper,
                          status: diaperStatus, action: onDiaper)
                 }
@@ -68,6 +71,7 @@ struct LogButtons: View {
     /// bonus — a trailing stat the square tiles have no room for.
     private func tile(title: String, hint: String, emoji: String, color: Color,
                       status: TileStatus?, detail: TileDetail? = nil,
+                      reminderArmed: Bool = false,
                       action: @escaping () -> Void) -> some View {
         Button(action: { action(); Haptics.tap() }) {
             HStack(spacing: 14) {
@@ -103,13 +107,23 @@ struct LogButtons: View {
             .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
             .padding(18)
             .overlay(alignment: .topTrailing) { plusBadge(color).padding(14) }
+            .overlay(alignment: .bottomTrailing) {
+                if reminderArmed {
+                    Image(systemName: "bell.fill")
+                        .font(.caption2)
+                        .foregroundStyle(AppColor.text3)
+                        .padding(14)
+                        .accessibilityHidden(true)
+                }
+            }
             .glassTile(cornerRadius: 20, tint: color)
             .contentShape(.rect(cornerRadius: 20))
             .foregroundStyle(AppColor.text)
         }
         .buttonStyle(PressableTileStyle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityText(title: title, hint: hint, status: status, detail: detail))
+        .accessibilityLabel(accessibilityText(title: title, hint: hint, status: status, detail: detail,
+                                              reminderArmed: reminderArmed))
     }
 
     /// Quiet until it matters: plain gray at green, tinted semibold text plus
@@ -141,7 +155,8 @@ struct LogButtons: View {
     }
 
     private func accessibilityText(title: String, hint: String, status: TileStatus?,
-                                   detail: TileDetail? = nil) -> String {
+                                   detail: TileDetail? = nil,
+                                   reminderArmed: Bool = false) -> String {
         var text: String
         if let status {
             text = "\(title), \(status.value) since last, \(status.urgency.accessibilityWord), \(hint)"
@@ -149,6 +164,7 @@ struct LogButtons: View {
             text = "\(title), \(hint)"
         }
         if let detail { text += ", \(detail.label) \(detail.value)" }
+        if reminderArmed { text += ", reminder set" }
         return text
     }
 }

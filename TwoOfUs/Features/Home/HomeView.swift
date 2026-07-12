@@ -140,15 +140,14 @@ struct HomeView: View {
         }
     }
 
-    /// Opens the log sheet a tapped widget asked for, then clears the request so
-    /// it doesn't re-fire on the next appear.
+    /// Opens the next log sheet a tapped widget queued, draining one entry per
+    /// call so two fast taps both resolve.
     private func consumeDeepLink() {
-        guard let target = router.pendingLog else { return }
+        guard let target = router.dequeue() else { return }
         switch target {
         case .feed:   activeSheet = .feed
         case .diaper: activeSheet = .diaper
         }
-        router.pendingLog = nil
     }
 
     // MARK: Header
@@ -161,6 +160,8 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(baby?.name ?? "Baby")
                     .font(AppFont.hero())
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                 if let dob = baby?.dateOfBirth {
                     Text(TimeFormatting.age(from: dob))
                         .font(.subheadline)
@@ -212,6 +213,7 @@ struct HomeView: View {
             sleepHint: sleepHint(now: now),
             sleepDetail: lastNapDetail,
             sleepActive: activeSleep != nil,
+            feedReminderArmed: prefs.feedReminderEnabled && FeedAlarmManager.isAuthorized,
             onFeed: { activeSheet = .feed },
             onSleep: startSleep,
             onDiaper: { activeSheet = .diaper }

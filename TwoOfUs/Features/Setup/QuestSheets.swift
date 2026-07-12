@@ -67,6 +67,7 @@ struct RemindersQuestSheet: View {
 
     @State private var on = false
     @State private var revealed = false
+    @State private var showingDeferredMessage = false
 
     var body: some View {
         NavigationStack {
@@ -75,11 +76,28 @@ struct RemindersQuestSheet: View {
                                                     bottom: AppColor.accentSleep))
                 RemindersStep(on: $on, revealed: revealed, contextLine: contextLine,
                               barClearance: false)
+
+                if showingDeferredMessage {
+                    VStack {
+                        Spacer()
+                        Text("You can enable reminders anytime in Settings.")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(AppColor.text)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 14)
+                            .background(AppColor.card2, in: Capsule())
+                            .padding(.horizontal, 32)
+                            .padding(.bottom, 48)
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
+            .animation(.spring(duration: 0.3), value: showingDeferredMessage)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Not now") { dismiss() }
+                    Button("Not now") { deferReminders() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { finish() }
@@ -87,6 +105,15 @@ struct RemindersQuestSheet: View {
             }
         }
         .onAppear { revealed = true }
+    }
+
+    /// Brief confirmation toast before closing — "Not now" isn't silent.
+    private func deferReminders() {
+        showingDeferredMessage = true
+        Task {
+            try? await Task.sleep(for: .milliseconds(1200))
+            dismiss()
+        }
     }
 
     /// The step's toggle already secured authorization on flip, so `on` here

@@ -137,6 +137,8 @@ struct GlassField: View {
     @Binding var text: String
     var tint: Color = AppColor.accentFeed
     var active: Bool = true
+    /// Caps the input length so long names don't break layout downstream.
+    var maxLength: Int = 40
 
     @FocusState private var focused: Bool
 
@@ -149,6 +151,9 @@ struct GlassField: View {
                 .focused($focused)
                 .submitLabel(.done)
                 .onSubmit { focused = false }
+                .onChange(of: text) { _, new in
+                    if new.count > maxLength { text = String(new.prefix(maxLength)) }
+                }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
