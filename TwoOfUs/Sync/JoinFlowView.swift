@@ -43,6 +43,12 @@ struct JoinFlowView: View {
     var body: some View {
         ZStack {
             AmbientBackground(stop: ambientStop)
+                // Only the backdrop stays put behind the keyboard; the pager
+                // and bottom bar below must shrink with it, so Finish rides
+                // above the keyboard instead of hiding behind it and the
+                // pages' `barClearance` margin lines up with the floating bar
+                // (same fix as OnboardingView).
+                .ignoresSafeArea(.keyboard)
 
             TabView(selection: $page) {
                 helloPage
@@ -57,7 +63,6 @@ struct JoinFlowView: View {
                 bottomBar
             }
         }
-        .ignoresSafeArea(.keyboard)
         .onChange(of: page) { _, new in revealed.insert(new) }
         .onChange(of: participants.count) { _, _ in suggestColor() }
         .onAppear {
