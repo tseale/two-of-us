@@ -12,9 +12,9 @@ This file is the source of truth for what's done — a continuation reads it fir
 ✅ done & verified · 🔧 in progress · ⏭️ queued · 🔎 finding (noted, not fixed) · ⚠️ needs device/manual
 
 ## Backlog (ordered)
-- 🔧 **A11y-1** Dynamic Type: make `AppFont.display`/`hero` actually scale (Typography.swift)
-- ⏭️ **A11y-2** Urgency non-color cue + de-alias `accentDiaper`==`urgencyAmber`
-- ⏭️ **A11y-3** VoiceOver: "Wake up" button absorbed into the sleep card element (SleepActiveCard)
+- ✅ **A11y-1** Dynamic Type: make `AppFont.display`/`hero` actually scale (Typography.swift)
+- ✅ **A11y-2** Urgency non-color cue (dot vs "!" marker). ⚠️ amber/red marker rendering not yet visually confirmed (all-green seed state verified — no marker, correct); confirm on a device with an overdue event. De-alias of `accentDiaper`==`urgencyAmber` left as-is — the shape cue makes the hue overlap non-blocking.
+- 🔧 **A11y-3** VoiceOver: "Wake up" button absorbed into the sleep card element (SleepActiveCard)
 - ⏭️ **CK-1** CloudKit schema review: Schema.swift + RecordMapping.swift round-trip completeness
 - ⏭️ **CK-2** Sync review: SyncManager conflict/absorb, hold-queues, zone/share edge cases
 - ⏭️ **EDGE-1** Active-sleep broken sliver on History swimlane (DayRibbon anchor) — audit high

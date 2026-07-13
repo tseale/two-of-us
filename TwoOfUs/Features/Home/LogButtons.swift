@@ -134,10 +134,13 @@ struct LogButtons: View {
         HStack(spacing: 5) {
             Text(status.sinceText)
                 .fontWeight(status.urgency.needsAttention ? .semibold : .regular)
-            if status.urgency.needsAttention {
-                Circle()
-                    .fill(status.urgency.color)
-                    .frame(width: 8, height: 8)
+            // A shape marker (dot vs exclamation), not just a colored dot, so
+            // "due soon" and "overdue" are distinguishable without color vision.
+            if let marker = status.urgency.marker {
+                Image(systemName: marker)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(status.urgency.color)
+                    .accessibilityHidden(true)
             }
         }
         .font(.subheadline)
