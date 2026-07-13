@@ -272,7 +272,9 @@ struct HomeView: View {
 
     private func startSleep() {
         guard let event = store.startSleep() else { return }
-        showToast("Started sleep", accent: AppColor.accentSleep) { store.softDelete(event) }
+        // Undo must also end the Live Activity startSleep began — softDelete alone
+        // would strand a running lock-screen timer.
+        showToast("Started sleep", accent: AppColor.accentSleep) { store.cancelSleep(event) }
     }
 
     // MARK: Timeline

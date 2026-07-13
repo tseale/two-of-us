@@ -24,6 +24,10 @@ This file is the source of truth for what's done — a continuation reads it fir
 - ✅ **EDGE-3** JoinFlow stuck state — added a "Try again" re-kick on the profile page's slow-connect state (owner profile not synced), matching JoinSyncingView. ⚠️ slow-connect state needs interactive verification (30s wait + name entry).
 - 🔧 **OB-1** Keyboard covers Continue — ✅ fixed (scoped `ignoresSafeArea(.keyboard)` to background+pager; bar rides above keyboard). ⚠️ needs interactive keyboard verification. Blank-page-on-swipe still ⏭️.
 
+## More fixes (from the deduped 197-finding audit)
+- ✅ **SLEEP-UNDO** Undo of "Started sleep" now ends the Live Activity (new `EventStore.cancelSleep`) — a plain softDelete stranded the lock-screen timer.
+- ✅ **CK-AVATAR** Inbound sync no longer erases a good local avatar when a CKAsset is momentarily unreadable (`inboundPhoto` distinguishes cleared vs transiently-unreadable). +2 regression tests.
+
 ## CK-1 — CloudKit schema/mapping review (findings)
 Reviewed `Schema.swift`, `RecordMapping.swift`, `SyncConstants.swift`. **The mapping code is solid** — this is the trickiest area and it's well-built:
 - Every field **round-trips**: outbound `record(forRecordName:)` writes exactly what inbound `apply*` reads, for all 6 record types (Feed/Sleep/Diaper/Baby/Participant/SharedSettings). Verified field-by-field.

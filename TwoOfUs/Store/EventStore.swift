@@ -123,6 +123,14 @@ struct EventStore {
         donate(ToggleSleepIntent())
     }
 
+    /// Undo of a just-started sleep: soft-deletes it AND tears down the Live
+    /// Activity `startSleep` spun up — a plain `softDelete` would leave the
+    /// lock-screen timer running for a sleep that no longer exists.
+    func cancelSleep(_ event: SleepEvent) {
+        if !demo { SleepActivityManager.end() }
+        softDelete(event)
+    }
+
     /// Best-effort Siri donation so Suggestions / Spotlight rank Two of Us
     /// actions by the family's real rhythm. Fire-and-forget; never blocks a log.
     private func donate(_ intent: some AppIntent) {
