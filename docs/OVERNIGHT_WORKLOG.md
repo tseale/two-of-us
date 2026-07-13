@@ -41,6 +41,24 @@ Reviewed `Schema.swift`, `RecordMapping.swift`, `SyncConstants.swift`. **The map
 - ⚠️ **CK-DEPLOY-2**: Deploy the full schema (all 6 record types + fields) from Development → **Production** in the CloudKit Dashboard before App Store submit. CKSyncEngine uses zone changes (no queries), so no query indexes are required.
 - ⚠️ **CK-DEPLOY-3**: `Schema.swift` migration plan is intentionally empty (additive-optional changes auto-migrate). Any **non-additive** model change post-launch needs a real `MigrationStage` — matches the existing SwiftData/CloudKit constraint note.
 
+## Batch 1 summary (overnight, ~22:10–23:00)
+**9 commits, all green** (build ✅, 81 unit tests ✅, UI smoke test ✅). Fixed:
+1. Dynamic Type scaling for glance fonts (was fully broken) + ribbon labels
+2. Urgency shape cue (dot vs "!") — no longer hue-only
+3. VoiceOver reaches the "Wake up" button
+4. Active-sleep sliver on History swimlane (+3 tests)
+5. Invite gated on names (no empty-zone share)
+6. Continue rides above the keyboard in onboarding
+7. JoinFlow "Try again" escape hatch (no permanent stuck state)
+8. Onboarding secondary CTA wraps at large text
+9. Undo-of-started-sleep ends the Live Activity
+10. Inbound sync keeps local avatar on transient asset failure (+2 tests)
+Plus CloudKit CK-1 + CK-2 reviews (no bugs; deployment items logged).
+
+**Verified on device/sim:** #1 (AX-XL), #2 green-state, #4/#9/#10 by tests, UI smoke.
+**Needs interactive verification:** #2 amber/red marker, #6 keyboard, #7 slow-connect. See ⚠️ items.
+**Deferred (risk/verification):** A11y-5 tour-page AX3 overflow; onboarding blank-page-on-swipe; StatsEngine "divide by fixed 7 days" newborn-delta inflation (HistoryView:113/StatsEngine:396); ManageDataView export "Preparing…" hang; WidgetProvider overnight-sleep drop; HistoryView whole-screen empty state.
+
 ## Change log
 _(append newest last)_
 - Dynamic Type scaling (A11y-1) + ribbon label shrink-to-fit. Verified at accessibility-extra-large.
