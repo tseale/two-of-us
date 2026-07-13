@@ -26,6 +26,9 @@ final class SyncQueueTests: XCTestCase {
     private let zoneNameKey = "sync.sharedZone.name"
     private let zoneOwnerKey = "sync.sharedZone.owner"
     private let demoKeys = ["demo.overrideActive", "demo.bak.syncRole", "demo.bak.participantID"]
+    private let legacyWidgetKey = "sync.pendingWidgetWrites"
+    private let widgetPrefix = "sync.widgetWrite."
+    private var savedGroupDefaults: [String: Any?] = [:]
 
     private var allKeys: [String] {
         [sharedSavesKey, sharedDeletesKey, privateSavesKey, privateDeletesKey, zoneNameKey, zoneOwnerKey] + demoKeys
@@ -43,6 +46,16 @@ final class SyncQueueTests: XCTestCase {
         savedParticipantID = LocalPrefs.shared.myParticipantID
         savedDefaults = Dictionary(uniqueKeysWithValues: allKeys.map { ($0, UserDefaults.standard.object(forKey: $0)) })
         allKeys.forEach { UserDefaults.standard.removeObject(forKey: $0) }
+        // Same care for the App Group widget queue: a dev device may hold REAL
+        // queued widget writes — snapshot and restore, never just delete.
+        if let group = AppGroup.userDefaults {
+            var snap: [String: Any?] = [legacyWidgetKey: group.object(forKey: legacyWidgetKey)]
+            for key in group.dictionaryRepresentation().keys where key.hasPrefix(widgetPrefix) {
+                snap[key] = group.object(forKey: key)
+            }
+            savedGroupDefaults = snap
+            snap.keys.forEach { group.removeObject(forKey: $0) }
+        }
     }
 
     override func tearDown() {
@@ -53,6 +66,15 @@ final class SyncQueueTests: XCTestCase {
                 UserDefaults.standard.set(value, forKey: key)
             } else {
                 UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        if let group = AppGroup.userDefaults {
+            // Drop anything a test left, then restore the pre-test queue.
+            for key in group.dictionaryRepresentation().keys where key.hasPrefix(widgetPrefix) {
+                group.removeObject(forKey: key)
+            }
+            for (key, value) in savedGroupDefaults {
+                if let value { group.set(value, forKey: key) } else { group.removeObject(forKey: key) }
             }
         }
         manager = nil
@@ -182,6 +204,50 @@ final class SyncQueueTests: XCTestCase {
         XCTAssertFalse(SyncManager.requiresServerDeletion(
             isParticipant: true, sharedZoneKnown: false, hasBootstrappedUpload: false),
             "a participant whose zone was never discovered has nothing server-side to confirm")
+    }
+
+    // MARK: Widget extension queue (per-key scheme)
+
+    func testDrainPicksUpPerKeyWidgetWritesAndRemovesThem() throws {
+        let group = try XCTUnwrap(AppGroup.userDefaults, "test host should have the app-group suite")
+        LocalPrefs.shared.syncRole = .solo
+        let a = UUID(), b = UUID()
+        group.set(a.uuidString, forKey: widgetPrefix + "test-a")
+        group.set(b.uuidString, forKey: widgetPrefix + "test-b")
+
+        manager.drainExtensionQueue()
+
+        XCTAssertEqual(Set(held(privateSavesKey)), [a.uuidString, b.uuidString],
+                       "widget-origin ids must land in the hold queue (no engine in tests)")
+        XCTAssertNil(group.string(forKey: widgetPrefix + "test-a"),
+                     "drained keys must be removed so ids aren't re-enqueued forever")
+        XCTAssertNil(group.string(forKey: widgetPrefix + "test-b"))
+    }
+
+    func testDrainMigratesLegacyArrayQueue() throws {
+        let group = try XCTUnwrap(AppGroup.userDefaults)
+        LocalPrefs.shared.syncRole = .solo
+        let legacy = UUID(), perKey = UUID()
+        group.set([legacy.uuidString], forKey: legacyWidgetKey)
+        group.set(perKey.uuidString, forKey: widgetPrefix + "test-new")
+
+        manager.drainExtensionQueue()
+
+        XCTAssertEqual(Set(held(privateSavesKey)), [legacy.uuidString, perKey.uuidString],
+                       "an upgrade must drain ids queued under the old shared-array key too")
+        XCTAssertNil(group.array(forKey: legacyWidgetKey))
+    }
+
+    func testDrainIgnoresGarbagePerKeyValues() throws {
+        let group = try XCTUnwrap(AppGroup.userDefaults)
+        LocalPrefs.shared.syncRole = .solo
+        group.set("not-a-uuid", forKey: widgetPrefix + "test-junk")
+
+        manager.drainExtensionQueue()
+
+        XCTAssertTrue(held(privateSavesKey).isEmpty)
+        XCTAssertNil(group.string(forKey: widgetPrefix + "test-junk"),
+                     "junk keys must still be cleared, not re-scanned every drain")
     }
 
     // MARK: Share accept device state

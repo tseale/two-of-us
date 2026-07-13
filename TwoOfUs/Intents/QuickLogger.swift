@@ -241,10 +241,14 @@ struct QuickLogger {
         do { try context.save() } catch { print("QuickLogger save error: \(error)") }
         // The extension can't reach the sync engine — queue the ids in the App
         // Group for the app to push (SyncManager.drainExtensionQueue) next launch.
+        // ONE KEY PER WRITE, not a shared array: UserDefaults has no atomic
+        // read-modify-write across processes, so appending to an array here
+        // while the app drains it could lose the append. With unique keys the
+        // drain only ever removes the exact keys it read.
         if let d = AppGroup.userDefaults {
-            var arr = d.array(forKey: "sync.pendingWidgetWrites") as? [String] ?? []
-            arr += ids.map(\.uuidString)
-            d.set(arr, forKey: "sync.pendingWidgetWrites")
+            for id in ids {
+                d.set(id.uuidString, forKey: "sync.widgetWrite.\(UUID().uuidString)")
+            }
         }
         WidgetCenter.shared.reloadAllTimelines()
     }

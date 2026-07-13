@@ -59,7 +59,13 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         static let pendingPrivateSaves = "sync.pendingPrivateSaves"
         static let pendingPrivateDeletes = "sync.pendingPrivateDeletes"
         static let bootstrapPrivate = "sync.bootstrap.private"
+        /// Legacy shared-array widget queue — drained (and cleared) for installs
+        /// that queued ids before the per-key scheme below.
         static let widgetWrites = "sync.pendingWidgetWrites"
+        /// Per-write widget queue: `sync.widgetWrite.<uuid>` → record id. One
+        /// key per write so the extension's writes and the app's drain can
+        /// never race each other (see QuickLogger.commit).
+        static let widgetWritePrefix = "sync.widgetWrite."
     }
 
     private var context: ModelContext { modelContainer.mainContext }
@@ -465,11 +471,26 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     /// in docs/RELEASE_POLISH_PLAN.md §10 so it isn't mistaken for a sync bug.
     func drainExtensionQueue() {
         guard !LocalPrefs.shared.demoModeEnabled else { return }
-        guard let raw = AppGroup.userDefaults?.array(forKey: Keys.widgetWrites) as? [String], !raw.isEmpty else { return }
+        guard let defaults = AppGroup.userDefaults else { return }
+
+        var ids: [UUID] = []
+        // Legacy shared-array queue (pre per-key): drain once on upgrade.
+        if let raw = defaults.array(forKey: Keys.widgetWrites) as? [String], !raw.isEmpty {
+            ids += raw.compactMap(UUID.init)
+            defaults.removeObject(forKey: Keys.widgetWrites)
+        }
+        // Per-key queue: only remove the exact keys read here — a key the
+        // extension writes after this snapshot survives untouched for the next
+        // drain, so a concurrent widget log can never be dropped.
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(Keys.widgetWritePrefix) {
+            if let s = defaults.string(forKey: key), let id = UUID(uuidString: s) { ids.append(id) }
+            defaults.removeObject(forKey: key)
+        }
+
+        guard !ids.isEmpty else { return }
         // enqueueSave parks when no engine is up, so handing the ids over (and
         // clearing the extension queue) can never lose them.
-        enqueueSave(raw.compactMap(UUID.init))
-        AppGroup.userDefaults?.removeObject(forKey: Keys.widgetWrites)
+        enqueueSave(ids)
     }
 
     /// One-time push of all existing local records into the (new) private zone.
@@ -1025,7 +1046,12 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         UserDefaults.standard.removeObject(forKey: Keys.pendingPrivateSaves)
         UserDefaults.standard.removeObject(forKey: Keys.pendingPrivateDeletes)
         clearPersistedSharedZone()
-        AppGroup.userDefaults?.removeObject(forKey: Keys.widgetWrites)
+        if let defaults = AppGroup.userDefaults {
+            defaults.removeObject(forKey: Keys.widgetWrites)
+            for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(Keys.widgetWritePrefix) {
+                defaults.removeObject(forKey: key)
+            }
+        }
     }
 
     /// Hard-deletes every local model (events cascade from Baby, but we clear all

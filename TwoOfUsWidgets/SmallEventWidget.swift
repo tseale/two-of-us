@@ -155,7 +155,7 @@ struct SmallEventWidgetView: View {
             // Self-updating relative time — ticks on its own with no timeline
             // reloads. The app shows a precise "2h 31m ago"; a widget can't
             // recompute that every second, so this is the one phrasing difference.
-            return Text(date, style: .relative) + Text(" ago")
+            return Text("\(date, style: .relative) ago")
         }
         // Home tile hides the since-line entirely with no prior event
         // (`hasSinceLine`); this fallback only shows on the lock-screen accessory.

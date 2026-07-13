@@ -10,14 +10,27 @@ import SwiftData
 final class QuickLoggerTests: XCTestCase {
     private var container: ModelContainer!
     private var logger: QuickLogger!
-    private var savedQueue: [String]?
+    private var savedQueue: [String: Any?] = [:]
 
-    private let queueKey = "sync.pendingWidgetWrites"
+    /// Per-write queue keys (see QuickLogger.commit — one key per write so the
+    /// extension can never race the app's drain).
+    private let queuePrefix = "sync.widgetWrite."
+
+    /// Every currently-queued widget-write value in the app-group suite.
+    private func queuedIDs() -> [String] {
+        guard let d = AppGroup.userDefaults else { return [] }
+        return d.dictionaryRepresentation().keys
+            .filter { $0.hasPrefix(queuePrefix) }
+            .compactMap { d.string(forKey: $0) }
+    }
 
     override func setUp() {
         super.setUp()
-        savedQueue = AppGroup.userDefaults?.array(forKey: queueKey) as? [String]
-        AppGroup.userDefaults?.removeObject(forKey: queueKey)
+        if let d = AppGroup.userDefaults {
+            let keys = d.dictionaryRepresentation().keys.filter { $0.hasPrefix(queuePrefix) }
+            savedQueue = Dictionary(uniqueKeysWithValues: keys.map { ($0, d.object(forKey: $0)) })
+            keys.forEach { d.removeObject(forKey: $0) }
+        }
 
         container = AppModelContainer.make(inMemory: true)
         let ctx = container.mainContext
@@ -28,10 +41,14 @@ final class QuickLoggerTests: XCTestCase {
     }
 
     override func tearDown() {
-        if let savedQueue {
-            AppGroup.userDefaults?.set(savedQueue, forKey: queueKey)
-        } else {
-            AppGroup.userDefaults?.removeObject(forKey: queueKey)
+        if let d = AppGroup.userDefaults {
+            // Drop what tests queued, restore what the device had queued.
+            for key in d.dictionaryRepresentation().keys where key.hasPrefix(queuePrefix) {
+                d.removeObject(forKey: key)
+            }
+            for (key, value) in savedQueue {
+                if let value { d.set(value, forKey: key) }
+            }
         }
         logger = nil
         container = nil
@@ -110,12 +127,21 @@ final class QuickLoggerTests: XCTestCase {
     // MARK: Extension → app sync hand-off
 
     func testWritesQueueForTheAppToSync() throws {
-        guard let defaults = AppGroup.userDefaults else {
+        guard AppGroup.userDefaults != nil else {
             throw XCTSkip("App Group suite unavailable in this test host")
         }
         let feed = logger.logFeed(amountOz: 3)
-        let queued = defaults.array(forKey: queueKey) as? [String]
-        XCTAssertEqual(queued, [feed.id.uuidString],
+        XCTAssertEqual(queuedIDs(), [feed.id.uuidString],
                        "the widget process can't reach CKSyncEngine; ids must queue for the app")
+    }
+
+    func testEachWriteQueuesUnderItsOwnKey() throws {
+        guard AppGroup.userDefaults != nil else {
+            throw XCTSkip("App Group suite unavailable in this test host")
+        }
+        let feed = logger.logFeed(amountOz: 3)
+        let diaper = logger.logDiaper(.wet)
+        XCTAssertEqual(Set(queuedIDs()), [feed.id.uuidString, diaper.id.uuidString],
+                       "one key per write — a shared array could drop an append that races the app's drain")
     }
 }
