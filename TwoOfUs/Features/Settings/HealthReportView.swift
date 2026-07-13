@@ -64,7 +64,11 @@ struct HealthReportView: View {
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(.black)
             if let dob = dateOfBirth {
-                Text("Born \(Self.long(dob)) · \(TimeFormatting.age(from: dob))")
+                // Future date of birth = due date; the age suffix would repeat
+                // "due", so the pre-arrival form is just "Due <date>".
+                Text(dob <= .now
+                     ? "Born \(Self.long(dob)) · \(TimeFormatting.age(from: dob))"
+                     : "Due \(Self.long(dob))")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             }

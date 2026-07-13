@@ -13,6 +13,7 @@ struct BabyEditSheet: View {
 
     @State private var name = ""
     @State private var dob = Date()
+    @State private var notBornYet = false
     @State private var photoData: Data?      // working copy; committed on Save
     @State private var photoItem: PhotosPickerItem?
 
@@ -42,8 +43,16 @@ struct BabyEditSheet: View {
 
                 Section {
                     TextField("Name", text: $name)
-                    DatePicker("Date of birth", selection: $dob,
-                               in: ...Date(), displayedComponents: .date)
+                    Toggle("Not born just yet", isOn: $notBornYet)
+                    DatePicker(notBornYet ? "Due date" : "Date of birth",
+                               selection: $dob,
+                               in: notBornYet ? Date()...Date.distantFuture
+                                              : Date.distantPast...Date(),
+                               displayedComponents: .date)
+                } footer: {
+                    if notBornYet {
+                        Text("Once your baby arrives, turn this off and set their real birthday.")
+                    }
                 }
             }
             .navigationTitle("Edit baby")
@@ -55,9 +64,19 @@ struct BabyEditSheet: View {
                 }
             }
             .onChange(of: photoItem) { _, item in loadPhoto(item) }
+            // Keep the date inside the flipped range — the picker clamps its UI
+            // but not the bound value.
+            .onChange(of: notBornYet) { _, expecting in
+                if expecting, dob <= .now {
+                    dob = Calendar.current.date(byAdding: .weekOfYear, value: 4, to: .now) ?? .now
+                } else if !expecting, dob > .now {
+                    dob = .now
+                }
+            }
             .onAppear {
                 name = baby.name
                 dob = baby.dateOfBirth
+                notBornYet = !baby.isBorn
                 photoData = baby.photoData
             }
         }
