@@ -110,14 +110,19 @@ struct OnboardingBottomBar: View {
                     Button(action: secondary.action) {
                         Text(secondary.title)
                             .font(.subheadline.weight(.semibold))
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.8)
+                            .multilineTextAlignment(.center)
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }
                     .tint(secondary.prominent ? AppColor.accentDiaper : AppColor.accentFeed)
                     .disabled(!secondary.enabled)
                 }
             }
-            // Reserved even when empty, so the bar never resizes between pages.
-            .frame(height: 44)
+            // Reserve at least 44pt when empty so the bar doesn't jump between
+            // pages, but allow growth so a long secondary label wraps instead of
+            // clipping at large Dynamic Type.
+            .frame(minHeight: 44)
             .animation(.easeInOut(duration: 0.2), value: secondary?.title)
         }
         .padding(.horizontal, 24)
