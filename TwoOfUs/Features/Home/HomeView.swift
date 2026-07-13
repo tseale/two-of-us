@@ -25,6 +25,11 @@ struct HomeView: View {
     @State private var setup = SetupProgress.shared
     @State private var router = DeepLinkRouter.shared
     @State private var didApplyDebugScreen = false
+    /// Start of the current day. Advanced by a task at midnight so the "today"
+    /// ribbon, counts, and 24h window refresh even if the app sits foregrounded
+    /// across midnight with nothing new logged (a @Query change would otherwise
+    /// be the only trigger).
+    @State private var dayStart = Calendar.current.startOfDay(for: .now)
 
     private enum ActiveSheet: String, Identifiable { case feed, diaper; var id: String { rawValue } }
 
@@ -149,6 +154,20 @@ struct HomeView: View {
             // warm launch (Home already up), onAppear a cold launch / tab switch.
             .onChange(of: router.pendingLog) { _, _ in consumeDeepLink() }
             .onAppear { consumeDeepLink() }
+            .task { await advanceAtMidnight() }
+        }
+    }
+
+    /// Keeps `dayStart` current while Home is on screen, so the today ribbon,
+    /// counts, and 24h window roll over at midnight without needing a new log or
+    /// a tab switch to trigger a re-render.
+    private func advanceAtMidnight() async {
+        while !Task.isCancelled {
+            let now = Date()
+            let start = Calendar.current.startOfDay(for: now)
+            if start != dayStart { dayStart = start }
+            guard let nextMidnight = Calendar.current.date(byAdding: .day, value: 1, to: start) else { return }
+            try? await Task.sleep(for: .seconds(max(1, nextMidnight.timeIntervalSince(now))))
         }
     }
 
@@ -205,7 +224,9 @@ struct HomeView: View {
     // MARK: Today ribbon
 
     private var todayMarks: [RibbonMark] {
-        RibbonMark.forDay(.now, feeds: feeds, sleeps: sleeps, diapers: diapers)
+        // Reads dayStart so a midnight rollover (which bumps it) re-renders the
+        // whole today section — refreshing the counts and 24h window too.
+        RibbonMark.forDay(dayStart, feeds: feeds, sleeps: sleeps, diapers: diapers)
     }
 
     private var todaySummary: DaySummary? {

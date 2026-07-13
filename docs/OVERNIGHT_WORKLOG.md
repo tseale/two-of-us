@@ -75,7 +75,11 @@ Plus CloudKit CK-1 + CK-2 reviews (no bugs; deployment items logged).
 **Needs interactive verification:** #2 amber/red marker, #6 keyboard, #7 slow-connect. See ⚠️ items.
 **Deferred (risk/verification):** A11y-5 tour-page AX3 overflow; onboarding blank-page-on-swipe; StatsEngine "divide by fixed 7 days" newborn-delta inflation (HistoryView:113/StatsEngine:396); ManageDataView export "Preparing…" hang; WidgetProvider overnight-sleep drop; HistoryView whole-screen empty state.
 
-## ✅ SESSION COMPLETE
+## Batch 3 (morning, "more code fixes")
+- ✅ **QUEST-DURABLE** Reminders quest completes durably (persisted milestone), not mirroring the live feed-reminder toggle — turning reminders off no longer resurrects the finished quest. Enable-paths (primer + Settings) record it; existing "on" installs migrated in init. +1 SetupProgressTests.
+- ✅ **MIDNIGHT** Home "today" ribbon/counts/24h window now roll over at midnight while foregrounded (a `dayStart` @State advanced by a task; `todayMarks` reads it so the whole today section re-renders). Verified no regression on fresh launch; the red urgency "!" marker (A11y-2) is now visually confirmed too.
+
+## ✅ SESSION COMPLETE (overnight batches 1–2)
 Loop stopped — no clearly-safe, blind-verifiable work remains. **14 fixes committed** on `release-polish-batch-1`, **all green** (`make build` ✅, `make test` = 82 unit tests ✅, `make uitest` UI smoke ✅). Nothing pushed.
 
 **Fixes:** Dynamic Type scaling · urgency shape cue · VoiceOver Wake-up · onboarding CTA wrap · History active-sleep sliver (+tests) · newborn stat-average inflation (Stats + History, +test) · sleep-undo Live Activity · avatar erasure on transient asset failure (+tests) · invite gated on names · JoinFlow escape hatch · keyboard-above-Continue · export/report failure recovery · History empty state · widget overnight-sleep. Plus CloudKit CK-1/CK-2 reviews (no bugs; 3 deployment gates logged).
