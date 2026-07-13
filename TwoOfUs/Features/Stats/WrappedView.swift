@@ -41,10 +41,10 @@ struct WrappedCard: View {
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
-                metric("🍼", "\(recap.feedCount)", "bottles")
+                metric("🍼", "\(recap.feedCount)", Plural.unit(recap.feedCount, "bottle"))
                 metric("🥛", OzFormat.string(recap.totalOz.rounded()), "oz of milk")
                 metric("💤", "\(Int((recap.totalSleep / 3600).rounded()))h", "of sleep")
-                metric("💩", "\(recap.diaperCount)", "diapers")
+                metric("💩", "\(recap.diaperCount)", Plural.unit(recap.diaperCount, "diaper"))
             }
 
             VStack(spacing: 8) {

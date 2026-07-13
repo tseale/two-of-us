@@ -1,6 +1,7 @@
 # Two of Us — Privacy
 
-**Status**: v1 — June 5, 2026
+**Status**: v2 — July 13, 2026 (avatars, export, and App Store distribution
+reflected; v1 was June 5, 2026)
 
 Two of Us records a baby's feeds, sleep, and diapers and shares them between a small, invited group of family/caregivers. The data is mundane but personal, and it's about a child — so the design is privacy-first by default.
 
@@ -8,12 +9,15 @@ Two of Us records a baby's feeds, sleep, and diapers and shares them between a s
 
 ## What's stored
 
-- **Baby**: name, date of birth.
+- **Baby**: name, date of birth, optional profile photo (chosen by a parent,
+  downscaled on-device before storage).
 - **Events**: feeds (ounces, time), sleep (start/end), diapers (type, time), optional notes, who logged each.
-- **People**: display name, color, and role of each invited participant.
+- **People**: display name, color, role, and optional avatar photo of each invited participant.
 - **Settings**: target feed interval and presets (shared); notification preferences and quiet hours (per-device, never leave the device).
 
-No location, no contacts, no health-kit data, no photos in v1.
+No location, no contacts, no HealthKit data. Photos are limited to the optional
+baby/participant avatars above — chosen through the system photo picker, so the
+app never gets access to the photo library itself.
 
 ## Where it's stored
 
@@ -35,15 +39,15 @@ No location, no contacts, no health-kit data, no photos in v1.
 
 ## Data lifetime & control
 
-- Data persists in the owner's iCloud until deleted. Deleting an event is a soft delete in-app; full removal follows from deleting the iCloud records / container.
-- Uninstalling the app does not delete the iCloud data (so a reinstall restores it); the owner can purge it via iCloud settings.
-- **Export** is deferred past v1 — when added, it will be a local export (CSV/PDF) the user initiates, with no upload.
+- Data persists in the owner's iCloud until deleted. Deleting an event is a soft delete in-app; **Settings → Manage data → Delete everything** permanently removes the CloudKit zone (and with it every record and the share) after a multi-step confirmation.
+- Uninstalling the app does not delete the iCloud data (so a reinstall restores it); the owner can purge it in-app via Delete everything or via iCloud settings.
+- **Export** is built in and local-only: a CSV backup and a pediatrician PDF report, both generated on-device and shared only where the user chooses to send them. No upload, ever.
 
 ## Children's data note
 
-Two of Us is used **by parents to record their own child's care** — it does not collect data *from* a child, has no accounts for children, and is distributed privately via TestFlight to a handful of invited adults. It is not a service directed at children. If the app is ever submitted to the App Store, revisit the privacy nutrition label and applicable children's-privacy requirements before release.
+Two of Us is used **by parents to record their own child's care** — it does not collect data *from* a child, has no accounts for children, and has no child-facing features. It is not a service directed at children and is not enrolled in the Kids Category. The App Store privacy nutrition label answers derived from this document live in `docs/appstore/PRIVACY_NUTRITION_LABEL.md`.
 
 ## Distribution
 
-- Distributed via **TestFlight** to invited testers only. No public App Store listing in v1.
+- Distributed via **TestFlight** today; a public **App Store** release is in preparation with the same privacy posture (the listing's nutrition label is "Data Not Collected" — no data ever reaches the developer).
 - Requires the user to be **signed into iCloud** for sync; the app degrades to local-only logging if not.

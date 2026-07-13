@@ -204,7 +204,7 @@ struct StatsView: View {
                  color: AppColor.accentFeed)
             tile(key: "💤 Total sleep",
                  value: "\(Int((t.totalSleepSeconds / 3600).rounded()))h",
-                 unit: "≈ \(sleepDays(t.totalSleepSeconds)) days",
+                 unit: "≈ \(Plural.count(Int(sleepDays(t.totalSleepSeconds)) ?? 0, "day"))",
                  color: AppColor.accentSleep)
             tile(key: "💩 Diapers",
                  value: "\(t.diaperCount)",
@@ -323,11 +323,11 @@ struct StatsView: View {
                     .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
             } else {
                 VStack(alignment: .leading, spacing: 10) {
-                    todayRow("🍼", "\(t.feedsToday) feeds · \(OzFormat.string(t.ozToday.rounded())) oz",
+                    todayRow("🍼", "\(Plural.count(t.feedsToday, "feed")) · \(OzFormat.string(t.ozToday.rounded())) oz",
                              t.hasHistory ? ozDelta(t.ozToday - t.ozAvg) : nil)
                     todayRow("💤", t.sleepToday > 0 ? durationLong(t.sleepToday) : "none yet",
                              t.hasHistory ? sleepDelta(t.sleepToday - t.sleepAvg) : nil)
-                    todayRow("💩", "\(t.diapersToday) diapers",
+                    todayRow("💩", Plural.count(t.diapersToday, "diaper"),
                              t.hasHistory ? countDelta(Double(t.diapersToday) - t.diapersAvg) : nil)
                 }
             }
