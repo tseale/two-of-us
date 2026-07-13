@@ -29,6 +29,17 @@ This file is the source of truth for what's done — a continuation reads it fir
 - ✅ **HIST-AVG** History "Daily formula" + "Total sleep per day" chart averages now divide by days-with-data, not the fixed 7-day window (same newborn-inflation class).
 - ✅ **HIST-EMPTY** History now shows a single warm whole-screen empty state on first run instead of 7 blank swimlane rows + five "No X yet" cards. ⚠️ visual needs baby-without-events state to confirm (populated path validated by UI smoke).
 
+- ✅ **EXPORT-HANG** ManageDataView: PDF report + CSV export no longer spin "Preparing…" forever on failure — a nil result now shows a tappable "try again" instead. (Perf note from audit — PDF renders synchronously on the main actor, one un-paginated page — left as ⏭️.)
+
+### Remaining ⏭️ (lower-value or need interactive/device verification)
+- WidgetProvider drops overnight sleeps that ended this morning (widget-only, hard to verify without device)
+- Onboarding tour-page overflow at AX3+ (A11y-5) — risky blind layout rework
+- Onboarding blank-page-on-swipe — needs interactive swipe verification
+- Feed-tile bell implies armed alarm even when none scheduled (HomeView) — needs the armed/unarmed states
+- Home ribbon/counts go stale across midnight while foregrounded (needs a midnight-crossing test)
+- Reminders-quest resurrects when the feed toggle is turned off (SetupProgress) — minor
+- ManageDataView PDF renders synchronously on main actor / un-paginated (perf)
+
 ## More fixes (from the deduped 197-finding audit)
 - ✅ **SLEEP-UNDO** Undo of "Started sleep" now ends the Live Activity (new `EventStore.cancelSleep`) — a plain softDelete stranded the lock-screen timer.
 - ✅ **CK-AVATAR** Inbound sync no longer erases a good local avatar when a CKAsset is momentarily unreadable (`inboundPhoto` distinguishes cleared vs transiently-unreadable). +2 regression tests.

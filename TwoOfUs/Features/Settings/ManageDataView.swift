@@ -14,6 +14,10 @@ struct ManageDataView: View {
     @State private var prefs = LocalPrefs.shared
     @State private var exportURL: URL?
     @State private var reportURL: URL?
+    @State private var reportFailed = false
+    @State private var exportFailed = false
+    @State private var reportRetry = 0
+    @State private var exportRetry = 0
     @State private var showClearConfirm = false
     @State private var showDeleteFlow = false
     @State private var reportDays = 14
@@ -53,6 +57,11 @@ struct ManageDataView: View {
                     ShareLink(item: reportURL) {
                         Label("Pediatrician report (PDF)", systemImage: "doc.text.fill")
                     }
+                } else if reportFailed {
+                    Button { reportRetry += 1 } label: {
+                        Label("Couldn't build the report — tap to try again", systemImage: "arrow.clockwise")
+                            .foregroundStyle(AppColor.urgencyAmber)
+                    }
                 } else {
                     HStack(spacing: 10) {
                         ProgressView()
@@ -69,6 +78,11 @@ struct ManageDataView: View {
                 if let exportURL {
                     ShareLink(item: exportURL) {
                         Label("Export log (CSV)", systemImage: "square.and.arrow.up")
+                    }
+                } else if exportFailed {
+                    Button { exportRetry += 1 } label: {
+                        Label("Couldn't build the export — tap to try again", systemImage: "arrow.clockwise")
+                            .foregroundStyle(AppColor.urgencyAmber)
                     }
                 } else {
                     HStack(spacing: 10) {
@@ -108,11 +122,22 @@ struct ManageDataView: View {
         }
         .navigationTitle("Manage data")
         .navigationBarTitleDisplayMode(.inline)
-        .task { exportURL = LogExporter.writeTempFile(in: context) }
-        // Re-render the PDF whenever the selected range changes.
-        .task(id: reportDays) {
+        // Re-runs on "try again" (exportRetry). A nil result means generation
+        // failed — surface it instead of spinning "Preparing…" forever.
+        .task(id: exportRetry) {
+            exportURL = nil
+            exportFailed = false
+            let url = LogExporter.writeTempFile(in: context)
+            exportURL = url
+            exportFailed = (url == nil)
+        }
+        // Re-render the PDF whenever the range changes or on "try again".
+        .task(id: "\(reportDays)-\(reportRetry)") {
             reportURL = nil
-            reportURL = HealthReportPDF.render(report, babyName: babies.first?.name ?? "Baby")
+            reportFailed = false
+            let url = HealthReportPDF.render(report, babyName: babies.first?.name ?? "Baby")
+            reportURL = url
+            reportFailed = (url == nil)
         }
         .confirmationDialog("Clear all logs?", isPresented: $showClearConfirm, titleVisibility: .visible) {
             Button("Clear all logs", role: .destructive) { store.clearAllLogs() }
