@@ -25,7 +25,9 @@ This file is the source of truth for what's done — a continuation reads it fir
 - 🔧 **OB-1** Keyboard covers Continue — ✅ fixed (scoped `ignoresSafeArea(.keyboard)` to background+pager; bar rides above keyboard). ⚠️ needs interactive keyboard verification. Blank-page-on-swipe still ⏭️.
 
 ## Batch 2 (continuing)
-- ✅ **STATS-AVG** "Today so far" deltas: average each metric over the days it was actually tracked, not a fixed 7 prior days. Pre-birth/untracked zero-days no longer deflate "typical" and inflate deltas — important for a newborn's first week. +1 StatsEngineTests case. (Sibling HistoryView chart "avg /7" — HistoryView:113 — still ⏭️.)
+- ✅ **STATS-AVG** "Today so far" deltas: average each metric over the days it was actually tracked, not a fixed 7 prior days. Pre-birth/untracked zero-days no longer deflate "typical" and inflate deltas — important for a newborn's first week. +1 StatsEngineTests case.
+- ✅ **HIST-AVG** History "Daily formula" + "Total sleep per day" chart averages now divide by days-with-data, not the fixed 7-day window (same newborn-inflation class).
+- ✅ **HIST-EMPTY** History now shows a single warm whole-screen empty state on first run instead of 7 blank swimlane rows + five "No X yet" cards. ⚠️ visual needs baby-without-events state to confirm (populated path validated by UI smoke).
 
 ## More fixes (from the deduped 197-finding audit)
 - ✅ **SLEEP-UNDO** Undo of "Started sleep" now ends the Live Activity (new `EventStore.cancelSleep`) — a plain softDelete stranded the lock-screen timer.
