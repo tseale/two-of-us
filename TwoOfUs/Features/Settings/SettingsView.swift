@@ -473,6 +473,9 @@ struct SettingsView: View {
             prefs.feedReminderEnabled = false
             return
         }
+        // Enabling reminders here (not via the primer quest) still finishes the
+        // reminders setup quest — durably, so a later toggle-off won't reopen it.
+        SetupProgress.shared.markComplete(.reminders)
         await FeedAlarmManager.reschedule(babyName: baby?.name ?? "Baby",
                                           lastFeed: lastFeedDate(),
                                           interval: settings?.targetFeedInterval ?? 0)
