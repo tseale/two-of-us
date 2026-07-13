@@ -27,6 +27,9 @@ for device in "${DEVICES[@]}"; do
 
   for appearance in "${APPEARANCES[@]}"; do
     echo "=== $device / $appearance ==="
+    # Fresh install per pass: the capture test logs a feed, so a persistent
+    # store accumulates one extra feed per run and the sizes drift apart.
+    xcrun simctl uninstall "$device" com.taylorseale.twoofus 2>/dev/null || true
     xcrun simctl ui "$device" appearance "$appearance"
     result="$DERIVED/screenshots-$slug-$appearance.xcresult"
     rm -rf "$result"
