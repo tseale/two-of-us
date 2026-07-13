@@ -75,6 +75,22 @@ Plus CloudKit CK-1 + CK-2 reviews (no bugs; deployment items logged).
 **Needs interactive verification:** #2 amber/red marker, #6 keyboard, #7 slow-connect. See ⚠️ items.
 **Deferred (risk/verification):** A11y-5 tour-page AX3 overflow; onboarding blank-page-on-swipe; StatsEngine "divide by fixed 7 days" newborn-delta inflation (HistoryView:113/StatsEngine:396); ManageDataView export "Preparing…" hang; WidgetProvider overnight-sleep drop; HistoryView whole-screen empty state.
 
+## ✅ SESSION COMPLETE
+Loop stopped — no clearly-safe, blind-verifiable work remains. **14 fixes committed** on `release-polish-batch-1`, **all green** (`make build` ✅, `make test` = 82 unit tests ✅, `make uitest` UI smoke ✅). Nothing pushed.
+
+**Fixes:** Dynamic Type scaling · urgency shape cue · VoiceOver Wake-up · onboarding CTA wrap · History active-sleep sliver (+tests) · newborn stat-average inflation (Stats + History, +test) · sleep-undo Live Activity · avatar erasure on transient asset failure (+tests) · invite gated on names · JoinFlow escape hatch · keyboard-above-Continue · export/report failure recovery · History empty state · widget overnight-sleep. Plus CloudKit CK-1/CK-2 reviews (no bugs; 3 deployment gates logged).
+
+**Needs your eyes (couldn't tap-test autonomously):** amber/red urgency markers · keyboard-above-Continue · JoinFlow slow-connect "Try again".
+
+**Best next candidates for a future session** (real, but need verification I couldn't do blind):
+- SetupProgress: reminders quest resurrects when the feed-reminder toggle is turned off — make quest completion a persisted flag set on primer-finish, not a live mirror of the pref. (Logic-only; add a SetupProgress test.)
+- Home ribbon/counts stale across midnight while foregrounded — invalidate on a midnight `TimelineView`/date change.
+- Onboarding tour page overflows at AX3+ (make it scroll / ViewThatFits).
+- Feed-tile bell shows "armed" without a scheduled alarm — reflect actual AlarmKit pending state.
+- ManageData PDF renders synchronously on the main actor + one un-paginated page (perf/pagination).
+
+**Suggested morning steps:** review the branch → open the PR → then the device-only QA gate (widgets, Live Activity, Siri, 2-account CloudKit sharing, offline→reconnect) and the App Store manual items (privacy nutrition label, listing, CloudKit→Production).
+
 ## Change log
 _(append newest last)_
 - Dynamic Type scaling (A11y-1) + ribbon label shrink-to-fit. Verified at accessibility-extra-large.
