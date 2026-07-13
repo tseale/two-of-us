@@ -147,7 +147,7 @@ struct ManageDataView: View {
         }
         .sheet(isPresented: $showDeleteFlow) {
             DeleteEverythingFlow {
-                await SyncManager.shared?.deleteEverything()
+                try await SyncManager.shared?.deleteEverything()
             }
         }
     }
@@ -158,8 +158,9 @@ struct ManageDataView: View {
 /// step requiring the exact phrase before the final button enables.
 struct DeleteEverythingFlow: View {
     @Environment(\.dismiss) private var dismiss
-    /// Runs the actual deletion once all stages pass.
-    let onConfirmed: () async -> Void
+    /// Runs the actual deletion once all stages pass. A throw means the
+    /// server-side deletion couldn't be confirmed — surfaced as the retry state.
+    let onConfirmed: () async throws -> Void
 
     @State private var stage = 1
     @State private var typed = ""
@@ -255,11 +256,14 @@ struct DeleteEverythingFlow: View {
         }
     }
 
-    /// Races the (non-throwing, possibly hanging) delete against a timeout so a
-    /// stalled CloudKit teardown surfaces a retry instead of an endless spinner.
+    /// Races the (possibly hanging) delete against a timeout so a stalled
+    /// CloudKit teardown surfaces a retry instead of an endless spinner. A
+    /// thrown delete (server deletion unconfirmed) also lands on the retry state.
     private func runDeleteWithTimeout() async -> Bool {
         await withTaskGroup(of: Bool.self) { group in
-            group.addTask { await onConfirmed(); return true }
+            group.addTask {
+                do { try await onConfirmed(); return true } catch { return false }
+            }
             group.addTask { try? await Task.sleep(for: .seconds(30)); return false }
             let finished = await group.next() ?? false
             group.cancelAll()

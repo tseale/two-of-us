@@ -115,6 +115,75 @@ final class SyncQueueTests: XCTestCase {
         XCTAssertTrue(held(sharedDeletesKey).isEmpty)
     }
 
+    // MARK: Sign-out harvesting (engine state → hold queues)
+
+    func testParkUnsentChangesRoutesPrivateScopeToPrivateQueues() {
+        let save = UUID(), delete = UUID()
+        let changes: [CKSyncEngine.PendingRecordZoneChange] = [
+            .saveRecord(CKRecord.ID(recordName: save.uuidString)),
+            .deleteRecord(CKRecord.ID(recordName: delete.uuidString)),
+        ]
+
+        manager.parkUnsentChanges(changes, scope: .private)
+
+        XCTAssertEqual(held(privateSavesKey), [save.uuidString],
+                       "sign-out deletes the engine state file — unsent saves must land in the hold queue first")
+        XCTAssertEqual(held(privateDeletesKey), [delete.uuidString])
+        XCTAssertTrue(held(sharedSavesKey).isEmpty, "private-scope changes must not leak into the shared queues")
+    }
+
+    func testParkUnsentChangesRoutesSharedScopeToSharedQueues() {
+        let save = UUID()
+        manager.parkUnsentChanges([.saveRecord(CKRecord.ID(recordName: save.uuidString))], scope: .shared)
+
+        XCTAssertEqual(held(sharedSavesKey), [save.uuidString])
+        XCTAssertTrue(held(privateSavesKey).isEmpty)
+    }
+
+    func testParkUnsentChangesAppendsAfterExistingHeldIDs() {
+        LocalPrefs.shared.syncRole = .solo
+        let first = UUID(), second = UUID()
+        manager.enqueueSave([first])   // parked (no engine)
+
+        manager.parkUnsentChanges([.saveRecord(CKRecord.ID(recordName: second.uuidString))], scope: .private)
+
+        XCTAssertEqual(held(privateSavesKey), [first.uuidString, second.uuidString],
+                       "harvested engine changes must append to, not clobber, already-parked ids")
+    }
+
+    func testParkUnsentChangesIgnoresNonUUIDRecordNames() {
+        // The zone-wide share record lives in the same zone; its name is not a
+        // model UUID and must not be replayed through the model save path.
+        manager.parkUnsentChanges([.saveRecord(CKRecord.ID(recordName: CKRecordNameZoneWideShare))], scope: .private)
+
+        XCTAssertTrue(held(privateSavesKey).isEmpty)
+    }
+
+    // MARK: Delete-everything server gate
+
+    func testDeleteRequiresServerWhenOwnerHasBootstrapped() {
+        XCTAssertTrue(SyncManager.requiresServerDeletion(
+            isParticipant: false, sharedZoneKnown: false, hasBootstrappedUpload: true),
+            "an owner who has uploaded must not local-wipe offline — the zone would resurrect everything")
+    }
+
+    func testDeleteAllowsLocalWipeWhenNeverSynced() {
+        XCTAssertFalse(SyncManager.requiresServerDeletion(
+            isParticipant: false, sharedZoneKnown: false, hasBootstrappedUpload: false),
+            "a device that never pushed anywhere can delete locally without the network")
+    }
+
+    func testDeleteRequiresServerForAttachedParticipant() {
+        XCTAssertTrue(SyncManager.requiresServerDeletion(
+            isParticipant: true, sharedZoneKnown: true, hasBootstrappedUpload: false))
+    }
+
+    func testDeleteAllowsLocalWipeForParticipantWithUnknownZone() {
+        XCTAssertFalse(SyncManager.requiresServerDeletion(
+            isParticipant: true, sharedZoneKnown: false, hasBootstrappedUpload: false),
+            "a participant whose zone was never discovered has nothing server-side to confirm")
+    }
+
     // MARK: Share accept device state
 
     func testMarkShareAcceptedFlipsRoleWithoutAManager() {

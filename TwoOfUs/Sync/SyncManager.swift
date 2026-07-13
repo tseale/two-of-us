@@ -245,14 +245,15 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
 
     /// Pulls remote changes now (silent push, foreground refresh) — this is what
     /// keeps the other parent's widget fresh. Returns false when no engine could
-    /// run (signed out / still unavailable), so push handlers can report honestly.
+    /// run (signed out / still unavailable) OR every fetch attempt threw, so
+    /// push handlers report `.noData`/`.newData` honestly to iOS's push budget.
     @discardableResult
     func handleRemoteNotification() async -> Bool {
         await ensureStarted()
-        guard privateEngine != nil || sharedEngine != nil else { return false }
-        try? await privateEngine?.fetchChanges()
-        try? await sharedEngine?.fetchChanges()
-        return true
+        var fetched = false
+        if let engine = privateEngine, (try? await engine.fetchChanges()) != nil { fetched = true }
+        if let engine = sharedEngine, (try? await engine.fetchChanges()) != nil { fetched = true }
+        return fetched
     }
 
     // MARK: Shared zone persistence
@@ -399,6 +400,31 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     private func park(_ ids: [UUID], key: String) {
         let held = UserDefaults.standard.stringArray(forKey: key) ?? []
         UserDefaults.standard.set(held + ids.map(\.uuidString), forKey: key)
+    }
+
+    /// Moves record changes an engine never got to send into the hold queues,
+    /// keyed by scope. Used right before an engine's state file (which is where
+    /// those pending changes live) is deleted. Internal so the queue routing is
+    /// unit-testable without a live engine.
+    func parkUnsentChanges(_ changes: [CKSyncEngine.PendingRecordZoneChange], scope: CKDatabase.Scope) {
+        var saves: [UUID] = []
+        var deletes: [UUID] = []
+        for change in changes {
+            switch change {
+            case .saveRecord(let id):
+                if let uuid = UUID(uuidString: id.recordName) { saves.append(uuid) }
+            case .deleteRecord(let id):
+                if let uuid = UUID(uuidString: id.recordName) { deletes.append(uuid) }
+            @unknown default:
+                break
+            }
+        }
+        if !saves.isEmpty {
+            park(saves, key: scope == .shared ? Keys.pendingSharedSaves : Keys.pendingPrivateSaves)
+        }
+        if !deletes.isEmpty {
+            park(deletes, key: scope == .shared ? Keys.pendingSharedDeletes : Keys.pendingPrivateDeletes)
+        }
     }
 
     /// Re-enqueues saves/deletes held while the shared zone was still unknown.
@@ -573,7 +599,12 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
                 // A real concurrent edit by the other parent. Adopt the server's
                 // change tag, keep our content (deletes/sleep-stops win either
                 // way — see RecordMapping.absorbConflict), and re-send.
-                guard let server = failed.error.serverRecord else { continue }
+                // CloudKit always attaches the server record to this error; if
+                // that ever fails to hold, at least say so before dropping.
+                guard let server = failed.error.serverRecord else {
+                    AppLog.sync.error("serverRecordChanged without a server record for \(recordID.recordName, privacy: .public) — change dropped")
+                    continue
+                }
                 RecordMapping.absorbConflict(server: server, in: context)
                 reenqueueSaves.append(.saveRecord(recordID))
 
@@ -875,19 +906,33 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     /// Participant: can't delete the owner's zone — leaves the share and wipes
     /// the local copy. Either way the local store is cleared, sync state dropped,
     /// and `LocalPrefs` reset — `RootView` then returns to onboarding.
-    func deleteEverything() async {
+    ///
+    /// Throws when a server copy exists but its deletion can't be confirmed
+    /// (offline, or the delete failed): wiping only the local cache while the
+    /// zone survives is an illusion — the next full fetch resurrects everything
+    /// the user just typed DELETE EVERYTHING to destroy. A device that never
+    /// pushed to a server (never signed in / never bootstrapped) deletes
+    /// locally without needing the network.
+    func deleteEverything() async throws {
         guard !LocalPrefs.shared.demoModeEnabled else { return }
         let wasParticipant = Self.realSyncRole == .participant
         let oldSharedZone = sharedZoneID ?? persistedSharedZoneID()
         let cloud = await cloudAvailable()
 
+        let hasServerCopy = Self.requiresServerDeletion(
+            isParticipant: wasParticipant,
+            sharedZoneKnown: oldSharedZone != nil,
+            hasBootstrappedUpload: UserDefaults.standard.bool(forKey: Keys.bootstrapPrivate)
+        )
+        guard cloud || !hasServerCopy else { throw SyncError.iCloudUnavailable }
+
+        let me = LocalPrefs.shared.myParticipantID.flatMap { Participant.fetchByID($0, in: context) }
         if cloud, wasParticipant {
             // The owner's People list renders our Participant record (not the
             // CKShare) — flip it inactive and push while the engine still
             // exists, or the owner shows a ghost co-parent forever and the
             // NEXT joiner's role is computed against it.
-            if let myID = LocalPrefs.shared.myParticipantID,
-               let me = Participant.fetchByID(myID, in: context), me.isActive {
+            if let me, me.isActive {
                 me.isActive = false
                 try? context.save()
                 enqueueSave([me.id])
@@ -895,18 +940,56 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             }
         }
 
-        tearDownEngines()
-
-        if cloud {
-            if wasParticipant {
-                // Leave the share so the owner's list reflects reality.
-                if let zoneID = oldSharedZone {
-                    let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: zoneID)
-                    _ = try? await SyncConstants.container.sharedCloudDatabase.modifyRecords(saving: [], deleting: [shareID])
+        if wasParticipant {
+            // Leave the share so the owner's list reflects reality. Must be
+            // confirmed: silently keeping membership while wiping locally
+            // strands a live participant the owner can't tell has "deleted".
+            // The shared engine stays up through this so a failure can roll
+            // the isActive push back; it's torn down right after success.
+            if cloud {
+                do {
+                    if let zoneID = oldSharedZone {
+                        let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: zoneID)
+                        let results = try await SyncConstants.container.sharedCloudDatabase.modifyRecords(saving: [], deleting: [shareID])
+                        if let result = results.deleteResults[shareID] {
+                            do { try result.get() } catch let error as CKError where error.code == .unknownItem {
+                                // Share already gone (owner revoked first) — same outcome.
+                            }
+                        }
+                    }
+                } catch {
+                    // Same rollback contract as `leaveShare`: the share delete
+                    // failed, so we still have access — undo the isActive=false
+                    // push so the owner's list reflects reality, and surface the
+                    // failure (the delete flow shows retry).
+                    if let me, !me.isActive {
+                        me.isActive = true
+                        try? context.save()
+                        enqueueSave([me.id])
+                        try? await sharedEngine?.sendChanges()
+                    }
+                    AppLog.sync.error("deleteEverything: share leave failed, rolled back isActive: \(error.localizedDescription, privacy: .public)")
+                    throw error
                 }
-            } else {
+            }
+            tearDownEngines()
+        } else {
+            // Tear down BEFORE deleting the zone: a live private engine that
+            // observes its zone vanishing runs the zone-recovery path
+            // (`handlePrivateZoneDeleted`) and re-uploads everything we are
+            // deleting. On a thrown failure the engines stay down with local
+            // data intact — the delete flow offers retry, and the next
+            // `start()` (foreground) rebuilds them either way.
+            tearDownEngines()
+            if cloud {
                 let db = SyncConstants.container.privateCloudDatabase
-                _ = try? await db.modifyRecordZones(saving: [], deleting: [privateZoneID])
+                let results = try await db.modifyRecordZones(saving: [], deleting: [privateZoneID])
+                if let result = results.deleteResults[privateZoneID] {
+                    do { try result.get() } catch let error as CKError
+                        where error.code == .zoneNotFound || error.code == .userDeletedZone {
+                        // Already gone — that's the state we wanted.
+                    }
+                }
             }
         }
 
@@ -920,6 +1003,15 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         // Fresh start in-session: onboarding runs next, and its commits need a
         // live engine (previously writes were silently dropped until relaunch).
         start()
+    }
+
+    /// Whether "Delete everything" must reach the server to be truthful: any
+    /// device attached to a server copy (a participant with a known shared
+    /// zone, or an owner/solo device that has bootstrapped an upload) would
+    /// otherwise watch the "deleted" data resurrect on the next full fetch.
+    /// Pure so the gate is unit-testable.
+    static func requiresServerDeletion(isParticipant: Bool, sharedZoneKnown: Bool, hasBootstrappedUpload: Bool) -> Bool {
+        isParticipant ? sharedZoneKnown : hasBootstrappedUpload
     }
 
     /// Drops every piece of persisted sync state: engine checkpoints, bootstrap
@@ -1067,6 +1159,19 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             // a blanket re-push here would flood the pending queue and, under
             // the local-wins conflict policy, silently revert every edit the
             // co-parent made during the sign-out window.
+            //
+            // The state files deleted below are ALSO the engines' outbound
+            // queue — move any still-unsent record changes into the hold
+            // queues first, or an edit made in an offline window just before
+            // sign-out is dropped for good (invariant 2). They drain on the
+            // next start with this same account; a switch to a different
+            // account clears them via detach/bootstrap instead.
+            if let engine = privateEngine {
+                parkUnsentChanges(engine.state.pendingRecordZoneChanges, scope: .private)
+            }
+            if let engine = sharedEngine {
+                parkUnsentChanges(engine.state.pendingRecordZoneChanges, scope: .shared)
+            }
             tearDownEngines()
             try? FileManager.default.removeItem(at: stateURL(.private))
             try? FileManager.default.removeItem(at: stateURL(.shared))
@@ -1110,6 +1215,8 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
 
     private func saveState(_ state: CKSyncEngine.State.Serialization, scope: CKDatabase.Scope) {
         guard let data = try? JSONEncoder().encode(state) else { return }
-        try? data.write(to: stateURL(scope))
+        // Atomic: a torn write here would decode as nil next launch, starting a
+        // fresh engine — full re-fetch, and every unsent pending change lost.
+        try? data.write(to: stateURL(scope), options: .atomic)
     }
 }
