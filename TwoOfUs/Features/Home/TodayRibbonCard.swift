@@ -40,6 +40,10 @@ struct TodayRibbonCard: View {
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
             Text(label).sectionLabelStyle(color: AppColor.text3)
+                // Shrink-to-fit rather than break mid-word ("CHANG ES") at large
+                // Dynamic Type in the narrow third-of-width column.
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity)
     }
