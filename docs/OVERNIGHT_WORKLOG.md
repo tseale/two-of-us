@@ -14,13 +14,30 @@ This file is the source of truth for what's done — a continuation reads it fir
 ## Backlog (ordered)
 - ✅ **A11y-1** Dynamic Type: make `AppFont.display`/`hero` actually scale (Typography.swift)
 - ✅ **A11y-2** Urgency non-color cue (dot vs "!" marker). ⚠️ amber/red marker rendering not yet visually confirmed (all-green seed state verified — no marker, correct); confirm on a device with an overdue event. De-alias of `accentDiaper`==`urgencyAmber` left as-is — the shape cue makes the hue overlap non-blocking.
-- 🔧 **A11y-3** VoiceOver: "Wake up" button absorbed into the sleep card element (SleepActiveCard)
-- ⏭️ **CK-1** CloudKit schema review: Schema.swift + RecordMapping.swift round-trip completeness
-- ⏭️ **CK-2** Sync review: SyncManager conflict/absorb, hold-queues, zone/share edge cases
+- ✅ **A11y-3** VoiceOver: "Wake up" button now a separate focusable/actionable element (SleepActiveCard). Verified by the passing UI smoke test.
+- ✅ **CK-1** CloudKit schema/mapping review — see findings below. Code is correct & complete; no code fix needed.
+- 🔧 **CK-2** Sync review: SyncManager conflict/absorb, hold-queues, zone/share edge cases
 - ⏭️ **EDGE-1** Active-sleep broken sliver on History swimlane (DayRibbon anchor) — audit high
 - ⏭️ **EDGE-2** "Invite my partner" tappable with empty names → co-parent joins empty zone (OnboardingView)
 - ⏭️ **EDGE-3** JoinFlow stuck state — add escape hatch after patience window
 - ⏭️ **OB-1** Onboarding: keyboard covers Continue; blank-page-on-swipe
 
+## CK-1 — CloudKit schema/mapping review (findings)
+Reviewed `Schema.swift`, `RecordMapping.swift`, `SyncConstants.swift`. **The mapping code is solid** — this is the trickiest area and it's well-built:
+- Every field **round-trips**: outbound `record(forRecordName:)` writes exactly what inbound `apply*` reads, for all 6 record types (Feed/Sleep/Diaper/Baby/Participant/SharedSettings). Verified field-by-field.
+- Records keyed by model `UUID` (stable across owner/participant zones); relationships stored as UUID strings, resolved locally — **no `CKReference`**, so no cross-zone ordering/integrity trap.
+- `ckSystemFields` (archived server change tag) correctly rebuilt on every outbound save (if-server-record-unchanged semantics) with a newer-wins guard; `absorbConflict` preserves terminal fields (soft-delete, sleep-stop) so a race loser can't resurrect them.
+- Orphan events relinked to the baby both in the fetch handler and on first Baby apply (belt-and-suspenders for interrupted fetches).
+- CKAsset temp files swept via `cleanUpStaleAssetFiles` (called from `SyncManager` bootstrap) — no leak.
+
+**🔎 Deployment items to verify (not code bugs — CloudKit Dashboard / manual):**
+- ⚠️ **CK-DEPLOY-1**: `SharedSettings.ozPresets` is a `[Double]` → CloudKit **Double (List)** field. Auto-created in Development; must be **promoted to Production** with the list type or settings sync fails in prod.
+- ⚠️ **CK-DEPLOY-2**: Deploy the full schema (all 6 record types + fields) from Development → **Production** in the CloudKit Dashboard before App Store submit. CKSyncEngine uses zone changes (no queries), so no query indexes are required.
+- ⚠️ **CK-DEPLOY-3**: `Schema.swift` migration plan is intentionally empty (additive-optional changes auto-migrate). Any **non-additive** model change post-launch needs a real `MigrationStage` — matches the existing SwiftData/CloudKit constraint note.
+
 ## Change log
 _(append newest last)_
+- Dynamic Type scaling (A11y-1) + ribbon label shrink-to-fit. Verified at accessibility-extra-large.
+- Urgency shape marker dot/"!" (A11y-2). Green state verified; amber/red pending device confirm.
+- SleepActiveCard: split accessibility so "Wake up" is reachable in VoiceOver (A11y-3). UI test green.
+- CK-1 review: no code change; deployment findings logged above.
