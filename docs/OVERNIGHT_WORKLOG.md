@@ -24,6 +24,9 @@ This file is the source of truth for what's done — a continuation reads it fir
 - ✅ **EDGE-3** JoinFlow stuck state — added a "Try again" re-kick on the profile page's slow-connect state (owner profile not synced), matching JoinSyncingView. ⚠️ slow-connect state needs interactive verification (30s wait + name entry).
 - 🔧 **OB-1** Keyboard covers Continue — ✅ fixed (scoped `ignoresSafeArea(.keyboard)` to background+pager; bar rides above keyboard). ⚠️ needs interactive keyboard verification. Blank-page-on-swipe still ⏭️.
 
+## Batch 2 (continuing)
+- ✅ **STATS-AVG** "Today so far" deltas: average each metric over the days it was actually tracked, not a fixed 7 prior days. Pre-birth/untracked zero-days no longer deflate "typical" and inflate deltas — important for a newborn's first week. +1 StatsEngineTests case. (Sibling HistoryView chart "avg /7" — HistoryView:113 — still ⏭️.)
+
 ## More fixes (from the deduped 197-finding audit)
 - ✅ **SLEEP-UNDO** Undo of "Started sleep" now ends the Live Activity (new `EventStore.cancelSleep`) — a plain softDelete stranded the lock-screen timer.
 - ✅ **CK-AVATAR** Inbound sync no longer erases a good local avatar when a CKAsset is momentarily unreadable (`inboundPhoto` distinguishes cleared vs transiently-unreadable). +2 regression tests.
