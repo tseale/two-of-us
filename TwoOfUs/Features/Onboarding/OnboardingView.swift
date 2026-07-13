@@ -121,9 +121,12 @@ struct OnboardingView: View {
                     .tag(Page.invite)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            // Paged content stays full-height behind the keyboard (fields scroll
-            // themselves into view); only the bottom bar below reacts to it.
-            .ignoresSafeArea(.keyboard)
+            // The pages MUST respect the keyboard like the bottom bar does:
+            // each page reserves `barClearance` at its bottom for the floating
+            // bar, and that reservation only lines up with where the bar
+            // actually floats if both share the same (keyboard-shrunk) frame.
+            // When the pages ignored the keyboard, the clearance sat uselessly
+            // behind it and the bar landed on mid-page content (the Photo card).
 
             VStack {
                 Spacer()

@@ -85,6 +85,12 @@ struct OnboardingBottomBar: View {
     let primary: Primary
     var secondary: Secondary? = nil
 
+    /// At rest the bar floats over the empty `barClearance` band its pages
+    /// reserve, so it needs no backing. The keyboard breaks that contract by
+    /// lifting the bar into the middle of the page, over live cards — glass
+    /// appears exactly (and only) while that overlap is possible.
+    @State private var keyboardUp = false
+
     var body: some View {
         VStack(spacing: 14) {
             OnboardingPageDots(count: pageCount, index: pageIndex)
@@ -128,6 +134,21 @@ struct OnboardingBottomBar: View {
         .padding(.horizontal, 24)
         .padding(.top, 8)
         .padding(.bottom, 12)
+        .background {
+            if keyboardUp {
+                Color.clear
+                    .glassCard(cornerRadius: 28)
+                    .padding(.horizontal, 8)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: keyboardUp)
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            keyboardUp = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardUp = false
+        }
     }
 }
 
