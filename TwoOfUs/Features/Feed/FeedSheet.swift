@@ -34,7 +34,9 @@ struct FeedSheet: View {
                     HStack {
                         Text("Custom")
                         Spacer()
-                        TextField("oz", text: $customText)
+                        // Placeholder is a value hint, not "oz" — the trailing unit
+                        // label already says oz (else an empty field reads "oz  oz").
+                        TextField("0", text: $customText)
                             .keyboardType(.decimalPad)
                             .textContentType(.none)   // no autofill suggestions over a number pad
                             .multilineTextAlignment(.trailing)
@@ -78,6 +80,7 @@ struct FeedSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Log \(OzFormat.string(amount)) oz") { log() }
                         .disabled(!canLog)
+                        .accessibilityIdentifier("feedSheet.confirm")
                 }
             }
         }

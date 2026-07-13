@@ -173,8 +173,22 @@ struct RootView: View {
 /// Home (glance + log), History (trends), Stats (records & fun numbers).
 struct MainTabView: View {
     enum Tab: Hashable { case home, history, stats }
-    @State private var selection: Tab = .home
+    @State private var selection: Tab = MainTabView.initialTab
     @State private var router = DeepLinkRouter.shared
+
+    /// DEBUG-only: `-uiScreen history|stats` launches straight into that tab, for
+    /// deterministic screenshot/QA captures. Mirrors the `-forceSpotlight` hook.
+    static var initialTab: Tab {
+        #if DEBUG
+        switch UserDefaults.standard.string(forKey: "uiScreen") {
+        case "history": return .history
+        case "stats": return .stats
+        default: return .home
+        }
+        #else
+        return .home
+        #endif
+    }
 
     var body: some View {
         TabView(selection: $selection) {

@@ -10,13 +10,18 @@ struct TimeControl: View {
 
     var body: some View {
         HStack {
+            // Label hidden — every host wraps this in a `Section("Time")`, so an
+            // inline "Time" label would read as "Time" twice on the row.
             DatePicker(
                 "Time",
                 selection: $date,
                 in: ...Date(),
                 displayedComponents: [.date, .hourAndMinute]
             )
+            .labelsHidden()
             .font(.subheadline)
+
+            Spacer(minLength: 12)
 
             Button {
                 date = .now

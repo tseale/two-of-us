@@ -200,6 +200,21 @@ struct EventStore {
         save()
         sync(save: [event.id])   // soft delete travels as a `deletedAt` update
         reloadWidgets()
+        // Re-arm/cancel the loud alarm too: deleting the latest feed must not leave
+        // a "feed due" alarm armed for an event that no longer exists.
+        scheduleFeedReminder()
+        refreshLocalReminders()
+    }
+
+    /// Reverses a `softDelete` — the Undo path for swipe-to-delete. Re-arms the
+    /// reminders off the restored state so an undone delete leaves everything as it
+    /// was before the swipe.
+    func restore(_ event: any SoftDeletable) {
+        event.deletedAt = nil
+        save()
+        sync(save: [event.id])
+        reloadWidgets()
+        scheduleFeedReminder()
         refreshLocalReminders()
     }
 
@@ -221,6 +236,10 @@ struct EventStore {
         save()
         sync(save: ids)
         reloadWidgets()
+        // No feeds remain → these cancel the pending alarm and clear the gentle
+        // reminders/summary rather than leaving them armed for purged events.
+        scheduleFeedReminder()
+        refreshLocalReminders()
     }
 
     // MARK: Profile / baby / settings edits

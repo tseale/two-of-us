@@ -227,10 +227,14 @@ struct JoinFlowView: View {
 
     private func finish() {
         Haptics.success()
-        // Reminders are offered later as a Home quest. Must be off until then:
-        // the pref defaults to true, and logging a feed with it on would ambush
-        // the user with the AlarmKit dialog.
+        // Reminders are offered later as a Home quest — keep the loud alarm off
+        // until the primer turns it on. Belt-and-suspenders with the LocalPrefs
+        // default (also off).
         LocalPrefs.shared.feedReminderEnabled = false
+        // Deliberate post-setup moment to request notification permission — a
+        // joiner has a co-parent by definition, so co-parent notifications matter
+        // immediately (auth was previously only requested from a Settings toggle).
+        Task { await NotificationManager.requestAuthorization() }
         SetupProgress.shared.markNewFlowComplete()
         onFinished(.joiner(babyName: baby?.name ?? ""))
         // The first joiner is the co-parent — full access from the start

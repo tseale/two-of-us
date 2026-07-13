@@ -540,6 +540,10 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             reconcileLiveActivity()
             WidgetCenter.shared.reloadAllTimelines()
             notifyCoParentActivity(from: e.modifications.map(\.record))
+            // A co-parent's feed (or a synced-in delete) changes what "next feed"
+            // is on THIS device — re-arm the alarm/reminders off the new state so
+            // we don't fire a stale/false overnight alarm.
+            rearmFeedRemindersFromStore()
 
         case .sentRecordZoneChanges(let e):
             handleSentRecordZoneChanges(e, syncEngine: syncEngine)
@@ -623,6 +627,26 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         d.fetchLimit = 1
         let active = try? context.fetch(d).first
         SleepActivityManager.reconcile(babyName: babyName, activeSleepStartedAt: active?.startedAt)
+    }
+
+    /// Re-arms this device's feed alarm + gentle reminders + daily summary off the
+    /// current store state, after a sync fetch changed it. Mirrors what a foreground
+    /// does (`AppDelegate.applicationDidBecomeActive`) so a co-parent's synced-in or
+    /// synced-away feed doesn't leave a stale "feed due" alarm pointed at an old
+    /// last-feed. Cheap-guarded: default installs (all reminder prefs off) pay
+    /// nothing — no store read happens unless something is actually scheduled.
+    private func rearmFeedRemindersFromStore() {
+        guard !LocalPrefs.shared.demoModeEnabled else { return }
+        guard LocalPrefs.shared.feedReminderEnabled
+            || LocalPrefs.shared.gentleRemindersEnabled
+            || LocalPrefs.shared.notifyMilestones else { return }
+        guard let logger = QuickLogger.make() else { return }
+        let babyName = logger.babyName ?? "Baby"
+        let lastFeed = logger.lastFeed?.timestamp
+        let interval = logger.targetFeedInterval
+        Task { await FeedAlarmManager.reschedule(babyName: babyName, lastFeed: lastFeed, interval: interval) }
+        NotificationManager.refreshScheduledReminders()
+        NotificationManager.refreshDailyMilestone()
     }
 
     /// The private zone was deleted server-side. Bias to preserving the family's

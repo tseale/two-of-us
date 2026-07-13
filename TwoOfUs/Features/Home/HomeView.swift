@@ -24,6 +24,7 @@ struct HomeView: View {
     @State private var prefs = LocalPrefs.shared
     @State private var setup = SetupProgress.shared
     @State private var router = DeepLinkRouter.shared
+    @State private var didApplyDebugScreen = false
 
     private enum ActiveSheet: String, Identifiable { case feed, diaper; var id: String { rawValue } }
 
@@ -129,6 +130,17 @@ struct HomeView: View {
                 if let raw = UserDefaults.standard.string(forKey: "forceSpotlight"),
                    let forced = SetupSpotlight(rawValue: raw) {
                     spotlight = forced
+                }
+                // Dev-only: `-uiScreen feed|diaper|settings` presents that sheet once
+                // on launch, for deterministic screenshot/QA captures.
+                if !didApplyDebugScreen {
+                    didApplyDebugScreen = true
+                    switch UserDefaults.standard.string(forKey: "uiScreen") {
+                    case "feed":     activeSheet = .feed
+                    case "diaper":   activeSheet = .diaper
+                    case "settings": showSettings = true
+                    default:         break
+                    }
                 }
             }
             #endif
@@ -284,6 +296,7 @@ struct HomeView: View {
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                         .contentShape(Rectangle())
+                        .accessibilityIdentifier("timelineRow")
                         .onTapGesture { editing = entry }
                         .swipeActions(edge: .trailing) {
                             Button(role: .destructive) { delete(entry) } label: {
@@ -317,12 +330,17 @@ struct HomeView: View {
     // MARK: Actions
 
     private func delete(_ entry: TimelineEntry) {
+        let event: any SoftDeletable
         switch entry {
-        case .feed(let e): store.softDelete(e)
-        case .sleep(let e): store.softDelete(e)
-        case .diaper(let e): store.softDelete(e)
+        case .feed(let e): event = e
+        case .sleep(let e): event = e
+        case .diaper(let e): event = e
         }
+        store.softDelete(event)
         Haptics.warning()
+        // Swipe-delete is fast and easy to fire by accident — offer the same Undo
+        // affordance a log gets, restoring the exact event on tap.
+        showToast("Deleted", accent: AppColor.urgencyAmber) { store.restore(event) }
     }
 
     private func showToast(_ message: String, accent: Color = AppColor.accentFeed, undo: @escaping () -> Void) {

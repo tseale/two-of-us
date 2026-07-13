@@ -142,11 +142,14 @@ enum NotificationManager {
     /// pending one with the same id. Skips past-due times and quiet hours.
     private static func scheduleReminder(
         id: String, fireDate: Date, category: String,
-        threadID: String, title: String, body: String
+        threadID: String, title: String, body: String,
+        respectQuietHours: Bool = true
     ) {
         let interval = fireDate.timeIntervalSinceNow
         guard interval > 0 else { return }                  // already due
-        guard !isWithinQuietHours(fireDate) else { return } // honor quiet hours
+        // Auto-scheduled reminders honor quiet hours; a user-initiated snooze does
+        // not — the parent explicitly asked to be reminded in 30 minutes.
+        if respectQuietHours { guard !isWithinQuietHours(fireDate) else { return } }
 
         let content = makeContent(
             title: title, body: body, category: category, threadID: threadID,
@@ -166,13 +169,15 @@ enum NotificationManager {
             scheduleReminder(
                 id: NotificationID.Request.feedReminder, fireDate: fire,
                 category: category, threadID: NotificationID.Thread.feed,
-                title: "\(babyName) — feed due", body: "Snoozed reminder."
+                title: "\(babyName) — feed due", body: "Snoozed reminder.",
+                respectQuietHours: false
             )
         case NotificationID.Category.reminderDiaper:
             scheduleReminder(
                 id: NotificationID.Request.diaperReminder, fireDate: fire,
                 category: category, threadID: NotificationID.Thread.diaper,
-                title: "\(babyName) — diaper check", body: "Snoozed reminder."
+                title: "\(babyName) — diaper check", body: "Snoozed reminder.",
+                respectQuietHours: false
             )
         default:
             break

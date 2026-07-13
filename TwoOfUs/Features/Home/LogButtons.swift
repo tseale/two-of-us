@@ -124,6 +124,8 @@ struct LogButtons: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText(title: title, hint: hint, status: status, detail: detail,
                                               reminderArmed: reminderArmed))
+        // Stable hook for UI tests (doesn't affect the VoiceOver label above).
+        .accessibilityIdentifier("logTile.\(title.lowercased())")
     }
 
     /// Quiet until it matters: plain gray at green, tinted semibold text plus

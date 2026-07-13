@@ -268,10 +268,14 @@ struct OnboardingView: View {
     /// store write — `RootView`'s gate flips to Home underneath the overlay.
     private func finish() {
         Haptics.success()
-        // Reminders are now asked in their own moment (quest / after a feed).
-        // Must be off until then: the pref defaults to true, and logging a feed
-        // with it on would ambush the user with the AlarmKit dialog.
+        // Reminders are asked in their own moment (quest / after a feed), so keep
+        // the loud alarm off until then — the reminders primer is what turns it on.
+        // Belt-and-suspenders with the LocalPrefs default (also off).
         LocalPrefs.shared.feedReminderEnabled = false
+        // Ask for notification permission at this deliberate post-setup moment —
+        // otherwise the default-on co-parent notifications never fire (auth was
+        // previously only ever requested from a Settings toggle).
+        Task { await NotificationManager.requestAuthorization() }
         SetupProgress.shared.markNewFlowComplete()
         onFinished(.owner(babyName: trimmedBabyName))
         SeedData.createBaby(

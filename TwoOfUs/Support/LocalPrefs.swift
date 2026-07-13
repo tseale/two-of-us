@@ -118,7 +118,11 @@ final class LocalPrefs {
         notifyFeed = defaults.object(forKey: Key.notifyFeed) as? Bool ?? true
         notifySleep = defaults.object(forKey: Key.notifySleep) as? Bool ?? false
         notifyDiaper = defaults.object(forKey: Key.notifyDiaper) as? Bool ?? false
-        feedReminderEnabled = defaults.object(forKey: Key.feedReminder) as? Bool ?? true
+        // Default OFF: the loud AlarmKit feed alarm is opt-in via the reminders
+        // primer/quest, so a fresh install never fires an uncontextualized alarm
+        // permission prompt on the first feed. Existing installs keep their stored
+        // choice (this default only applies when nothing was ever written).
+        feedReminderEnabled = defaults.object(forKey: Key.feedReminder) as? Bool ?? false
         gentleRemindersEnabled = defaults.object(forKey: Key.gentleReminders) as? Bool ?? false
         notifyMilestones = defaults.object(forKey: Key.notifyMilestones) as? Bool ?? false
         quietHoursEnabled = defaults.object(forKey: Key.quietHoursEnabled) as? Bool ?? false
