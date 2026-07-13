@@ -17,7 +17,7 @@ This file is the source of truth for what's done — a continuation reads it fir
 - ✅ **A11y-3** VoiceOver: "Wake up" button now a separate focusable/actionable element (SleepActiveCard). Verified by the passing UI smoke test.
 - ✅ **CK-1** CloudKit schema/mapping review — see findings below. Code is correct & complete; no code fix needed.
 - 🔧 **CK-2** Sync review: SyncManager conflict/absorb, hold-queues, zone/share edge cases
-- ⏭️ **EDGE-1** Active-sleep broken sliver on History swimlane (DayRibbon anchor) — audit high
+- ✅ **EDGE-1** Active-sleep broken sliver on History swimlane — fixed (DayRibbon: anchor active sleep to `min(now, laneEnd)`, not the lane's midnight). +3 regression tests (DayRibbonTests).
 - ⏭️ **EDGE-2** "Invite my partner" tappable with empty names → co-parent joins empty zone (OnboardingView)
 - ⏭️ **EDGE-3** JoinFlow stuck state — add escape hatch after patience window
 - ⏭️ **OB-1** Onboarding: keyboard covers Continue; blank-page-on-swipe

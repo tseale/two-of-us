@@ -47,7 +47,11 @@ extension RibbonMark {
 
         for sleep in sleeps where sleep.deletedAt == nil {
             let sStart = sleep.startedAt
-            let sEnd = sleep.endedAt ?? day        // active sleep counts up to `day`
+            // Active sleep counts up to *now*, clipped to this lane's end — NOT to
+            // `day`. On the Home ribbon `day` is now so both agree, but History
+            // passes each row's midnight, which made an active sleep collapse to a
+            // 0-width (inverted) span rendered as a 3px sliver.
+            let sEnd = sleep.endedAt ?? min(Date(), end)
             guard sEnd >= start, sStart < end else { continue }
             marks.append(RibbonMark(
                 id: sleep.id, kind: .sleep,
