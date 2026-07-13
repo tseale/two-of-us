@@ -132,6 +132,13 @@ enum SeedData {
             }
         }
 
+        // A calm "right now": recent feed/diaper and a just-ended nap, so Home
+        // reads relaxed at any capture time (screenshots, previews) instead of
+        // whatever urgency the fixed schedule happens to land on.
+        feed(3.5, now.addingTimeInterval(-45 * 60), dad)
+        diaper(.wet, now.addingTimeInterval(-70 * 60))
+        sleep(now.addingTimeInterval(-100 * 60), hours: 80.0 / 60, dad)
+
         try? context.save()
     }
 }
