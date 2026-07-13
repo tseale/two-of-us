@@ -80,9 +80,12 @@ final class ShareAcceptance {
                 LocalPrefs.shared.demoModeEnabled = false
                 try await SyncConstants.container.accept(metadata)
                 // Only after the accept succeeded — a failed accept must never
-                // cost the user their existing data.
+                // cost the user their existing data. A thrown delete (the old
+                // zone couldn't be confirmed gone) falls to the catch below:
+                // the user keeps their data and Retry re-runs the whole accept,
+                // which is safe to repeat.
                 if replacingLocalData {
-                    await SyncManager.shared?.deleteEverything()
+                    try await SyncManager.shared?.deleteEverything()
                 }
                 pending = nil
                 // Flip device state directly, NOT only via `SyncManager.shared`:
