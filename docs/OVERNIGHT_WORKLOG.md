@@ -32,7 +32,7 @@ This file is the source of truth for what's done — a continuation reads it fir
 - ✅ **EXPORT-HANG** ManageDataView: PDF report + CSV export no longer spin "Preparing…" forever on failure — a nil result now shows a tappable "try again" instead. (Perf note from audit — PDF renders synchronously on the main actor, one un-paginated page — left as ⏭️.)
 
 ### Remaining ⏭️ (lower-value or need interactive/device verification)
-- WidgetProvider drops overnight sleeps that ended this morning (widget-only, hard to verify without device)
+- ✅ **WIDGET-SLEEP** WidgetProvider "Today" ribbon/tally dropped an overnight sleep that ended this morning — fetch now looks back a day so `forDay` can clip it to today (`fetchTodayMarks`). Logic mirrors the DayRibbon anchor fix; covered by DayRibbonTests.testCompletedSleepClippedToLaneBounds. Build + 82 tests green.
 - Onboarding tour-page overflow at AX3+ (A11y-5) — risky blind layout rework
 - Onboarding blank-page-on-swipe — needs interactive swipe verification
 - Feed-tile bell implies armed alarm even when none scheduled (HomeView) — needs the armed/unarmed states
