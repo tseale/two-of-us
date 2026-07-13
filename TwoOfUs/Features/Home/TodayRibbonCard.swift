@@ -18,17 +18,17 @@ struct TodayRibbonCard: View {
                 .frame(height: 40)
 
             HStack(spacing: 0) {
-                metric(emoji: "🍼", value: "\(feedCount)", label: "feeds", color: AppColor.accentFeed)
+                metric(emoji: "🍼", value: "\(feedCount)", label: Plural.unit(feedCount, "feed"), color: AppColor.accentFeed)
                 metricDivider
                 metric(emoji: "💤", value: sleepSummary, label: "sleep", color: AppColor.accentSleep)
                 metricDivider
-                metric(emoji: "💩", value: "\(diaperCount)", label: "changes", color: AppColor.accentDiaper)
+                metric(emoji: "💩", value: "\(diaperCount)", label: Plural.unit(diaperCount, "change"), color: AppColor.accentDiaper)
             }
         }
         .padding(16)
         .surfaceCard(cornerRadius: 20)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Today: \(feedCount) feeds, \(sleepSummary) sleep, \(diaperCount) diapers")
+        .accessibilityLabel("Today: \(Plural.count(feedCount, "feed")), \(sleepSummary) sleep, \(Plural.count(diaperCount, "diaper"))")
     }
 
     private func metric(emoji: String, value: String, label: String, color: Color) -> some View {

@@ -28,10 +28,16 @@ repo — this runbook is the checklist and the source of truth for "what's left.
       child; it is not directed at children — re-confirm per `PRIVACY.md`).
 
 ## 2. Listing assets
-- [ ] Screenshots: iPhone (6.9"/6.5") and iPad, **light + dark**. Use
-      `-seedSampleData` for realistic data; cover Home, Timeline, Stats, a log
-      sheet, and a widget.
-- [ ] Description + promotional text.
+- [ ] Screenshots: iPhone (6.9"/6.5") and iPad, **light + dark**. Automated:
+      `scripts/capture_appstore_screenshots.sh` → `docs/appstore/screenshots/`
+      (shots 1–5); widget/Live Activity shots remain manual — see
+      `docs/appstore/SCREENSHOT_SHOTLIST.md`.
+- [x] Description + promotional text — drafted in
+      `docs/appstore/LISTING_COPY.md`. Two open picks: promo-text variant
+      (named vs generic) and the app-name fallback if "Two of Us" is taken.
+- [x] Privacy policy page — publish-ready at
+      `docs/appstore/PRIVACY_POLICY.md`; needs a public URL (GitHub Pages or
+      similar), then paste into ASC (Privacy Policy URL + Support URL).
 - [ ] App icon: finish the Liquid Glass icon in Icon Composer (macOS) — see
       `docs/ICON_AND_SPLASH_MAC_STEPS.md`. PNG fallback is an acceptable backstop.
 

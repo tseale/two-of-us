@@ -8,6 +8,19 @@ enum OzFormat {
     }
 }
 
+/// Naive English pluralizer for count labels ("1 diaper" / "3 diapers").
+/// Add-an-s only — every unit in the app pluralizes regularly.
+enum Plural {
+    static func count(_ n: Int, _ unit: String) -> String {
+        "\(n) \(unit)\(n == 1 ? "" : "s")"
+    }
+
+    /// Unit-only form, for layouts that render the number separately.
+    static func unit(_ n: Int, _ unit: String) -> String {
+        n == 1 ? unit : unit + "s"
+    }
+}
+
 enum TimeFormatting {
     /// Compact elapsed string from a past date to now, e.g. "2h 40m", "45m", "just now".
     static func since(_ date: Date, now: Date = .now) -> String {

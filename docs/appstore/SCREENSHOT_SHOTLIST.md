@@ -23,6 +23,13 @@ so show it. Up to **10 screenshots per size**; aim for **5–6 strong ones**.
 
 ---
 
+> **Automated:** `scripts/capture_appstore_screenshots.sh` runs
+> `AppStoreScreenshotTests` (shots 1–5 below) on the 6.9" iPhone and 13" iPad,
+> light + dark, with the clean status bar, and exports PNGs to
+> `docs/appstore/screenshots/` (gitignored). The widget and Live Activity shots
+> below still need the manual capture. The manual steps that follow remain the
+> reference for one-off captures.
+
 ## Setup (do this once per simulator)
 
 1. Boot the target simulator (e.g. iPhone 16 Pro Max), set **Appearance** for
