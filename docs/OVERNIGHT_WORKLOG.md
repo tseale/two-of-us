@@ -18,9 +18,9 @@ This file is the source of truth for what's done — a continuation reads it fir
 - ✅ **CK-1** CloudKit schema/mapping review — see findings below. Code is correct & complete; no code fix needed.
 - 🔧 **CK-2** Sync review: SyncManager conflict/absorb, hold-queues, zone/share edge cases
 - ✅ **EDGE-1** Active-sleep broken sliver on History swimlane — fixed (DayRibbon: anchor active sleep to `min(now, laneEnd)`, not the lane's midnight). +3 regression tests (DayRibbonTests).
-- ⏭️ **EDGE-2** "Invite my partner" tappable with empty names → co-parent joins empty zone (OnboardingView)
-- ⏭️ **EDGE-3** JoinFlow stuck state — add escape hatch after patience window
-- ⏭️ **OB-1** Onboarding: keyboard covers Continue; blank-page-on-swipe
+- ✅ **EDGE-2** "Invite my partner" now gated on `canFinish` (OnboardingView) — no share before names exist.
+- 🔧 **EDGE-3** JoinFlow stuck state — add escape hatch after patience window
+- 🔧 **OB-1** Keyboard covers Continue — ✅ fixed (scoped `ignoresSafeArea(.keyboard)` to background+pager; bar rides above keyboard). ⚠️ needs interactive keyboard verification. Blank-page-on-swipe still ⏭️.
 
 ## CK-1 — CloudKit schema/mapping review (findings)
 Reviewed `Schema.swift`, `RecordMapping.swift`, `SyncConstants.swift`. **The mapping code is solid** — this is the trickiest area and it's well-built:
