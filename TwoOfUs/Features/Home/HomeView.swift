@@ -246,11 +246,21 @@ struct HomeView: View {
             sleepHint: sleepHint(now: now),
             sleepDetail: lastNapDetail,
             sleepActive: activeSleep != nil,
-            feedReminderArmed: prefs.feedReminderEnabled && FeedAlarmManager.isAuthorized,
+            feedReminderArmed: feedReminderArmed(now: now),
             onFeed: { activeSheet = .feed },
             onSleep: startSleep,
             onDiaper: { activeSheet = .diaper }
         )
+    }
+
+    /// The Feed tile's bell should mean "an alarm is actually counting down", not
+    /// merely "reminders are enabled". Mirror `FeedAlarmManager.reschedule`'s own
+    /// guards: reminders on + authorized + a logged feed whose next-due time is
+    /// still ahead. (No feed yet, or already overdue, means nothing is armed.)
+    private func feedReminderArmed(now: Date) -> Bool {
+        guard prefs.feedReminderEnabled, FeedAlarmManager.isAuthorized,
+              let last = feeds.first?.timestamp else { return false }
+        return last.addingTimeInterval(targetFeed) > now
     }
 
     /// The Feed tile says what's next, not just what happened: the projected

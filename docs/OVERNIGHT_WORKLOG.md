@@ -78,6 +78,8 @@ Plus CloudKit CK-1 + CK-2 reviews (no bugs; deployment items logged).
 ## Batch 3 (morning, "more code fixes")
 - ✅ **QUEST-DURABLE** Reminders quest completes durably (persisted milestone), not mirroring the live feed-reminder toggle — turning reminders off no longer resurrects the finished quest. Enable-paths (primer + Settings) record it; existing "on" installs migrated in init. +1 SetupProgressTests.
 - ✅ **MIDNIGHT** Home "today" ribbon/counts/24h window now roll over at midnight while foregrounded (a `dayStart` @State advanced by a task; `todayMarks` reads it so the whole today section re-renders). Verified no regression on fresh launch; the red urgency "!" marker (A11y-2) is now visually confirmed too.
+- ✅ **FEED-BELL** Feed-tile bell now shows only when an alarm is actually counting down (reminders on + authorized + a logged feed whose next-due is still ahead — mirrors `FeedAlarmManager.reschedule`), not merely when reminders are enabled.
+- 🔎 **Tour-page AX3 overflow left as-is:** `OnboardingTourPage` already has a deliberate `ViewThatFits` + scrolling fallback; the residual clearance issue interacts with the (now taller) bottom bar and is a risky blind rework. Flagged, not touched.
 
 ## ✅ SESSION COMPLETE (overnight batches 1–2)
 Loop stopped — no clearly-safe, blind-verifiable work remains. **14 fixes committed** on `release-polish-batch-1`, **all green** (`make build` ✅, `make test` = 82 unit tests ✅, `make uitest` UI smoke ✅). Nothing pushed.
