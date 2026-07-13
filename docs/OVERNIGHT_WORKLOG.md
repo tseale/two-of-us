@@ -19,7 +19,7 @@ This file is the source of truth for what's done — a continuation reads it fir
 - 🔧 **CK-2** Sync review: SyncManager conflict/absorb, hold-queues, zone/share edge cases
 - ✅ **EDGE-1** Active-sleep broken sliver on History swimlane — fixed (DayRibbon: anchor active sleep to `min(now, laneEnd)`, not the lane's midnight). +3 regression tests (DayRibbonTests).
 - ✅ **EDGE-2** "Invite my partner" now gated on `canFinish` (OnboardingView) — no share before names exist.
-- 🔧 **EDGE-3** JoinFlow stuck state — add escape hatch after patience window
+- ✅ **EDGE-3** JoinFlow stuck state — added a "Try again" re-kick on the profile page's slow-connect state (owner profile not synced), matching JoinSyncingView. ⚠️ slow-connect state needs interactive verification (30s wait + name entry).
 - 🔧 **OB-1** Keyboard covers Continue — ✅ fixed (scoped `ignoresSafeArea(.keyboard)` to background+pager; bar rides above keyboard). ⚠️ needs interactive keyboard verification. Blank-page-on-swipe still ⏭️.
 
 ## CK-1 — CloudKit schema/mapping review (findings)

@@ -31,6 +31,9 @@ struct JoinFlowView: View {
     /// Set after ~30s still waiting on the owner's profile, so the disabled Finish
     /// button explains itself instead of hanging on a silent spinner.
     @State private var slowConnect = false
+    /// Bumped by "Try again" to re-kick the fetch and restart the patience window,
+    /// so a joiner waiting on the owner's profile is never left with no control.
+    @State private var retryCount = 0
 
     private var baby: Baby? { babies.first }
     /// The inviting parent — the first full-access participant that synced in.
@@ -148,7 +151,7 @@ struct JoinFlowView: View {
                 // synced down (it decides this joiner's role) — say so instead
                 // of leaving a mysteriously dead button.
                 if !trimmedName.isEmpty && owner == nil {
-                    VStack(spacing: 8) {
+                    VStack(spacing: 10) {
                         SyncingShimmer()
                         Text(slowConnect
                              ? "Still connecting. Make sure both phones are online and signed into iCloud — your co-parent may need to open Two of Us."
@@ -156,14 +159,28 @@ struct JoinFlowView: View {
                             .font(.footnote)
                             .foregroundStyle(AppColor.text3)
                             .multilineTextAlignment(.center)
+                        // Once it's slow, offer a re-kick so the joiner isn't stuck
+                        // on a dead Finish button with no way to act.
+                        if slowConnect {
+                            Button("Try again") {
+                                slowConnect = false
+                                retryCount += 1
+                                SyncManager.shared?.didAcceptShare()
+                            }
+                            .font(.subheadline.weight(.semibold))
+                            .buttonStyle(.borderedProminent)
+                            .tint(AppColor.accentFeed)
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.top, 4)
-                    .task(id: owner == nil) {
+                    // Keyed on retryCount so "Try again" restarts the patience
+                    // window; the guard re-checks owner so a mid-wait sync stops it.
+                    .task(id: retryCount) {
                         slowConnect = false
                         guard owner == nil else { return }
                         try? await Task.sleep(for: .seconds(30))
-                        guard !Task.isCancelled else { return }
+                        guard !Task.isCancelled, owner == nil else { return }
                         withAnimation { slowConnect = true }
                     }
                 }
