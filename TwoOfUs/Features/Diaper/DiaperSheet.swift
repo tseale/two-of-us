@@ -41,6 +41,7 @@ struct DiaperSheet: View {
                 // (parity with the Feed sheet's preset chips).
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Log \(selected.label)") { log(selected) }
+                        .accessibilityIdentifier("diaperSheet.confirm")
                 }
             }
         }

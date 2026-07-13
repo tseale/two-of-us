@@ -61,6 +61,24 @@ final class StatsEngineTests: XCTestCase {
                     calendar: calendar, now: now)
     }
 
+    // MARK: Today vs typical
+
+    /// A newborn logged on only two prior days out of the 7-day window (the rest
+    /// are pre-birth zeros). "Typical" must average the tracked days, not divide
+    /// the total by a fixed 7 (which inflated every "vs avg" delta).
+    func testTodayVsTypicalAveragesOnlyTrackedDays() {
+        let feeds = [
+            feed(3, at: date(2026, 6, 8, 9)), feed(3, at: date(2026, 6, 8, 15)),   // day -2: 6 oz
+            feed(4, at: date(2026, 6, 9, 9)), feed(4, at: date(2026, 6, 9, 15)),   // day -1: 8 oz
+            feed(5, at: date(2026, 6, 10, 9)),                                     // today: 5 oz
+        ]
+        let comparison = engine(feeds: feeds).todayVsTypical()
+        XCTAssertEqual(comparison.ozToday, 5, accuracy: 0.001)
+        XCTAssertEqual(comparison.ozAvg, 7, accuracy: 0.001,
+                       "avg of the two tracked days (6 & 8 oz), not the total / 7")
+        XCTAssertTrue(comparison.hasHistory)
+    }
+
     // MARK: Daily summaries
 
     func testDailySummariesBucketByCalendarDayAndSkipDeleted() throws {

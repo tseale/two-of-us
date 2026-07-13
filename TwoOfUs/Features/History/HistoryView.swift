@@ -12,24 +12,46 @@ struct HistoryView: View {
     @Query(filter: #Predicate<DiaperEvent> { $0.deletedAt == nil }, sort: \DiaperEvent.timestamp, order: .reverse)
     private var diapers: [DiaperEvent]
 
+    @Query private var babies: [Baby]
+
     private let days = 7
 
     private var engine: StatsEngine {
         StatsEngine(feeds: feeds, sleeps: sleeps, diapers: diapers)
     }
 
+    private var babyName: String { babies.first?.name ?? "your baby" }
+    private var hasAnyData: Bool { !feeds.isEmpty || !sleeps.isEmpty || !diapers.isEmpty }
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 14) {
-                    swimlaneCard
-                    consolidationCard
-                    sleepTotalCard
-                    volumeCard
-                    feedHeatmapCard
-                    diaperTrendCard
+            Group {
+                if hasAnyData {
+                    ScrollView {
+                        VStack(spacing: 14) {
+                            swimlaneCard
+                            consolidationCard
+                            sleepTotalCard
+                            volumeCard
+                            feedHeatmapCard
+                            diaperTrendCard
+                        }
+                        .padding(16)
+                    }
+                } else {
+                    // A single warm whole-screen empty state beats 7 blank
+                    // swimlane rows + five "No X yet" cards on first run.
+                    VStack {
+                        Spacer()
+                        EmptyStateView(
+                            emoji: "📈",
+                            title: "No history yet",
+                            message: "Log a few feeds, sleeps, and diapers and \(babyName)'s trends will show up here."
+                        )
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .padding(16)
             }
             .background(AppColor.bg)
             .navigationTitle("History")
@@ -110,7 +132,10 @@ struct HistoryView: View {
     private var volumeCard: some View {
         let summaries = engine.dailySummaries(days: days)
         let total = summaries.reduce(0.0) { $0 + $1.feedOz }
-        let avg = summaries.isEmpty ? 0 : total / Double(summaries.count)
+        // Average over days actually logged, not the whole window — pre-birth /
+        // untracked zero-days would otherwise understate "avg" for a young baby.
+        let trackedDays = summaries.filter { $0.feedOz > 0 }.count
+        let avg = trackedDays == 0 ? 0 : total / Double(trackedDays)
         return Card(title: "Daily formula (oz)", trailing: "avg \(OzFormat.string(avg.rounded()))") {
             if total == 0 {
                 emptyState("No feeds logged yet")
@@ -145,7 +170,9 @@ struct HistoryView: View {
     private var sleepTotalCard: some View {
         let summaries = engine.dailySummaries(days: days)
         let total = summaries.reduce(0.0) { $0 + $1.sleepSeconds }
-        let avgPerDay = summaries.isEmpty ? 0 : total / Double(summaries.count)
+        // Average over days with sleep logged, not the whole window (see volumeCard).
+        let trackedDays = summaries.filter { $0.sleepSeconds > 0 }.count
+        let avgPerDay = trackedDays == 0 ? 0 : total / Double(trackedDays)
         return Card(title: "Total sleep per day", trailing: "avg \(durationShort(avgPerDay))") {
             if total == 0 {
                 emptyState("No completed sleeps yet")

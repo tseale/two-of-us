@@ -208,6 +208,25 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "5.0"
 
+  # UI smoke tests: drive the app through its core interactive flows (log,
+  # delete + undo, destructive-action confirmations, tab navigation) and capture
+  # a screenshot per screen. Kept in their OWN scheme so `make test` / Xcode
+  # Cloud's unit path stays fast — run these with `make uitest`.
+  TwoOfUsUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: TwoOfUsUITests
+    dependencies:
+      - target: TwoOfUs
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.taylorseale.twoofus.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"
+        TEST_TARGET_NAME: TwoOfUs
+
 schemes:
   TwoOfUs:
     build:
@@ -222,3 +241,17 @@ schemes:
         - TwoOfUsTests
     archive:
       config: Release
+
+  # Separate scheme so the slow, UI-driven smoke tests never run in the fast
+  # unit path (`make test`) or the Xcode Cloud unit workflow. `make uitest`.
+  TwoOfUsUITests:
+    build:
+      targets:
+        TwoOfUs: all
+        TwoOfUsUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - TwoOfUsUITests

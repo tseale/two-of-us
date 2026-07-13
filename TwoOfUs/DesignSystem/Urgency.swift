@@ -35,6 +35,17 @@ enum Urgency {
         }
     }
 
+    /// Shape cue on the log tiles so amber-vs-red isn't carried by hue alone: a
+    /// plain dot for "due soon", an exclamation for "overdue". nil at green (no
+    /// marker at all — quiet until it matters).
+    var marker: String? {
+        switch self {
+        case .green: return nil
+        case .amber: return "circle.fill"
+        case .red:   return "exclamationmark.circle.fill"
+        }
+    }
+
     /// Ratio of elapsed time to the target interval.
     static func from(since date: Date?, now: Date = .now, target: TimeInterval) -> Urgency {
         guard let date, target > 0 else { return .green }

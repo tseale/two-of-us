@@ -74,6 +74,13 @@ final class SetupProgress {
         dismissedChecklist = defaults.bool(forKey: Key.dismissedChecklist)
         shownSpotlights = Set(defaults.stringArray(forKey: Key.shownSpotlights) ?? [])
         reminderOfferShown = defaults.bool(forKey: Key.reminderOfferShown)
+
+        // Migrate installs that turned the feed reminder on before completion was a
+        // durable milestone: record it so toggling reminders off can't resurrect
+        // the reminders quest. (Fresh installs default the reminder off → no-op.)
+        if LocalPrefs.shared.feedReminderEnabled {
+            completedQuests.insert(SetupQuest.reminders.rawValue)
+        }
     }
 
     // MARK: Quests
@@ -90,7 +97,11 @@ final class SetupProgress {
         if completedQuests.contains(quest.rawValue) { return true }
         switch quest {
         case .reminders:
-            return LocalPrefs.shared.feedReminderEnabled
+            // Completion is the persisted milestone above — NOT the live toggle.
+            // Enabling reminders (primer or Settings toggle) records the milestone;
+            // existing "on" installs are migrated in init. This way turning the
+            // feed reminder off later can't resurrect a quest you already finished.
+            return false
         case .rhythm:
             guard let settings else { return false }
             return settings.targetFeedIntervalMinutes != 180 || settings.ozPresets != [2, 3, 4]

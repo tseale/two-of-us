@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// The Two of Us type ramp.
 ///
@@ -10,23 +11,57 @@ import SwiftUI
 ///    as warm and human ("calm, not clinical"); body/label text stays SF Pro for
 ///    legibility. This pairing is Apple's own convention in Fitness/Sleep/Health.
 ///
-/// Everything scales with Dynamic Type via `.relativeTo` text styles, so XXL still
-/// works without clipping.
+/// Both `display` and `hero` scale with Dynamic Type: the fixed point size is run
+/// through `UIFontMetrics` for the mapped text style, so a low-vision parent's
+/// larger text setting grows the glance numbers and the hero title too. The scale
+/// is bounded (see `scaled`) so the tight glance layouts don't explode at AX5.
 enum AppFont {
     /// Big glance numerals (timers, "time since", record values). Rounded + mono.
     static func display(_ size: CGFloat, weight: Font.Weight = .bold,
                         relativeTo style: Font.TextStyle = .largeTitle) -> Font {
-        .system(size: size, weight: weight, design: .rounded)
+        .system(size: scaled(size, relativeTo: style), weight: weight, design: .rounded)
             .monospacedDigit()
     }
 
     /// Screen / hero titles (the baby's name). Rounded for warmth.
-    static func hero(_ size: CGFloat = 34, weight: Font.Weight = .bold) -> Font {
-        .system(size: size, weight: weight, design: .rounded)
+    static func hero(_ size: CGFloat = 34, weight: Font.Weight = .bold,
+                     relativeTo style: Font.TextStyle = .largeTitle) -> Font {
+        .system(size: scaled(size, relativeTo: style), weight: weight, design: .rounded)
     }
 
     /// The small ALL-CAPS section labels that sit above a value or card.
     static let sectionLabel = Font.caption2.weight(.semibold)
+
+    /// Scales a fixed point size against the user's Dynamic Type setting via
+    /// `UIFontMetrics`. Re-evaluated whenever a SwiftUI body re-runs (which it
+    /// does on a content-size-category change), so it tracks live. The growth is
+    /// capped at 1.6× because the glance surfaces (square tiles, the timer row,
+    /// the 2×2 stats grid) are height/width-constrained — uncapped AX5 scaling
+    /// would clip them. Bigger accessibility text still lands; it just doesn't
+    /// run away. Full AX3–AX5 layout verification is a device task.
+    private static func scaled(_ size: CGFloat, relativeTo style: Font.TextStyle) -> CGFloat {
+        let metrics = UIFontMetrics(forTextStyle: style.uiTextStyle)
+        return min(metrics.scaledValue(for: size), size * 1.6)
+    }
+}
+
+private extension Font.TextStyle {
+    /// Maps a SwiftUI text style to its UIKit counterpart for `UIFontMetrics`.
+    var uiTextStyle: UIFont.TextStyle {
+        switch self {
+        case .largeTitle: .largeTitle
+        case .title: .title1
+        case .title2: .title2
+        case .title3: .title3
+        case .headline: .headline
+        case .subheadline: .subheadline
+        case .callout: .callout
+        case .footnote: .footnote
+        case .caption: .caption1
+        case .caption2: .caption2
+        default: .body
+        }
+    }
 }
 
 extension View {

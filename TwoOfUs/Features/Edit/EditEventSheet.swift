@@ -15,6 +15,7 @@ struct EditEventSheet: View {
     @State private var sleepStart: Date
     @State private var sleepEnd: Date
     @State private var notes: String
+    @State private var showDeleteConfirm = false
 
     init(entry: TimelineEntry) {
         self.entry = entry
@@ -86,7 +87,7 @@ struct EditEventSheet: View {
                 }
 
                 Section {
-                    Button(role: .destructive) { deleteOriginal() } label: {
+                    Button(role: .destructive) { showDeleteConfirm = true } label: {
                         Text("Delete entry")
                     }
                 }
@@ -98,6 +99,12 @@ struct EditEventSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(saveLabel) { save() }.disabled(!canSave)
                 }
+            }
+            .confirmationDialog("Delete this entry?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+                Button("Delete entry", role: .destructive) { deleteOriginal() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This removes the logged event from the timeline and your stats.")
             }
         }
     }

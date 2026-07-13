@@ -163,9 +163,15 @@ struct WidgetProvider: TimelineProvider {
         let feeds = (try? ctx.fetch(FetchDescriptor<FeedEvent>(
             predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= start }
         ))) ?? []
-        // Sleeps overlapping today: started today, or still running from earlier.
+        // Sleeps overlapping today: started today, still running, OR started
+        // yesterday and ended this morning (the overnight sleep). Fetch back to
+        // yesterday and let `forDay` clip to today's window — the previous
+        // `startedAt >= start` predicate dropped last night's sleep from today's
+        // ribbon + tally. (A day's lookback is plenty; no baby sleeps 24h+.)
+        let sleepFetchStart = Calendar.current.date(byAdding: .day, value: -1, to: start)
+            ?? start.addingTimeInterval(-86_400)
         let sleeps = (try? ctx.fetch(FetchDescriptor<SleepEvent>(
-            predicate: #Predicate { $0.deletedAt == nil && ($0.startedAt >= start || $0.endedAt == nil) }
+            predicate: #Predicate { $0.deletedAt == nil && ($0.startedAt >= sleepFetchStart || $0.endedAt == nil) }
         ))) ?? []
         let diapers = (try? ctx.fetch(FetchDescriptor<DiaperEvent>(
             predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= start }

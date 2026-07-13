@@ -8,15 +8,20 @@ import SwiftUI
 final class DeepLinkRouter {
     static let shared = DeepLinkRouter()
 
-    /// The log sheet a tapped widget asked us to present. `HomeView` consumes
-    /// and clears it — `onChange` for a warm launch, `onAppear` for a cold one.
-    var pendingLog: LogTarget?
-
-    private init() {}
-
     /// The log sheets a widget tap can open. Raw values match the URL path
     /// component, e.g. `twoofus://log/feed`.
     enum LogTarget: String { case feed, diaper }
+
+    /// Queue of log sheets widget taps asked us to present. `HomeView` dequeues
+    /// one on each `onChange` / `onAppear`. Two fast taps no longer lose the first
+    /// action (the second tap enqueues rather than overwriting the first).
+    private(set) var pendingLogs: [LogTarget] = []
+
+    /// Mirrors the head of the queue for `onChange` observation — SwiftUI fires
+    /// onChange when this value changes, which happens on every enqueue and dequeue.
+    var pendingLog: LogTarget? { pendingLogs.first }
+
+    private init() {}
 
     /// Stages the action for a recognized `twoofus://log/<kind>` URL.
     /// - Returns: true if the URL was a deep link we handle, false otherwise.
@@ -32,7 +37,16 @@ final class DeepLinkRouter {
             AppLog.deeplink.warning("Unrecognized log target in URL: \(url.absoluteString, privacy: .public)")
             return false
         }
-        pendingLog = target
+        pendingLogs.append(target)
         return true
     }
+
+    /// Removes and returns the next pending action, or nil if the queue is empty.
+    func dequeue() -> LogTarget? {
+        guard !pendingLogs.isEmpty else { return nil }
+        return pendingLogs.removeFirst()
+    }
+
+    /// Clears all pending actions. Used in tests and teardown.
+    func clearAll() { pendingLogs.removeAll() }
 }

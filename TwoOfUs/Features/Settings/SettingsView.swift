@@ -23,6 +23,10 @@ struct SettingsView: View {
     @State private var showBabyEdit = false
     @State private var showProfileEdit = false
     @State private var questSheet: SetupQuest?
+    // Confirmation gates for the irreversible sharing actions.
+    @State private var showLeaveConfirm = false
+    @State private var showStopSharingConfirm = false
+    @State private var participantToRemove: Participant?
 
     private var baby: Baby? { babies.first }
     private var settings: SharedSettings? { settingsList.first }
@@ -52,9 +56,26 @@ struct SettingsView: View {
                                                set: { store.updateSettings(targetFeedIntervalMinutes: $0) }),
                                 in: 60...360, step: 15) {
                             SettingsIconLabel(
-                                title: "Feed every \(settings.targetFeedIntervalMinutes / 60)h \(settings.targetFeedIntervalMinutes % 60)m",
+                                title: "Feed every \(intervalLabel(settings.targetFeedIntervalMinutes))",
                                 systemImage: "timer", tint: AppColor.accentFeed)
                         }
+                        // Common presets for quick selection.
+                        HStack(spacing: 8) {
+                            ForEach([120, 150, 180, 240], id: \.self) { mins in
+                                let selected = settings.targetFeedIntervalMinutes == mins
+                                Button(intervalLabel(mins)) {
+                                    store.updateSettings(targetFeedIntervalMinutes: mins)
+                                }
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(selected ? AppColor.accentFeed : AppColor.text2)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(selected ? AppColor.accentFeed.opacity(0.15) : AppColor.card2,
+                                            in: Capsule())
+                            }
+                            Spacer()
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
 
@@ -272,12 +293,7 @@ struct SettingsView: View {
             }
 
             if prefs.syncRole == .participant {
-                Button("Leave shared baby", role: .destructive) {
-                    Task {
-                        do { try await SyncManager.shared?.leaveShare() }
-                        catch { shareError = (error as NSError).localizedDescription }
-                    }
-                }
+                Button("Leave shared baby", role: .destructive) { showLeaveConfirm = true }
             } else {
                 Button {
                     Task {
@@ -302,20 +318,58 @@ struct SettingsView: View {
                 .disabled(preparingShare)
 
                 if prefs.syncRole == .owner {
-                    Button("Stop sharing", role: .destructive) {
-                        Task {
-                            do { try await SyncManager.shared?.stopSharing() }
-                            catch { shareError = (error as NSError).localizedDescription }
-                        }
-                    }
+                    Button("Stop sharing", role: .destructive) { showStopSharingConfirm = true }
                 }
             }
         } header: {
+            let count = participants.filter { $0.isActive }.count
             Text("People")
+                .accessibilityLabel("People, \(count) member\(count == 1 ? "" : "s")")
         } footer: {
             if prefs.syncRole != .participant {
                 Text("Inviting someone? Have them install Two of Us first — the invite link only works once the app is on their iPhone.")
             }
+        }
+        // Confirm the irreversible sharing actions — each runs CloudKit teardown
+        // the instant it's tapped, so a mis-tap otherwise revokes access or wipes
+        // the shared log from this phone with no undo.
+        .confirmationDialog("Leave this shared log?", isPresented: $showLeaveConfirm, titleVisibility: .visible) {
+            Button("Leave", role: .destructive) {
+                Task {
+                    do { try await SyncManager.shared?.leaveShare() }
+                    catch { shareError = (error as NSError).localizedDescription }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the shared baby from this iPhone. Your co-parent keeps the log, and you can be re-invited later.")
+        }
+        .confirmationDialog("Stop sharing?", isPresented: $showStopSharingConfirm, titleVisibility: .visible) {
+            Button("Stop sharing", role: .destructive) {
+                Task {
+                    do { try await SyncManager.shared?.stopSharing() }
+                    catch { shareError = (error as NSError).localizedDescription }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Your co-parent loses access to the shared log. You keep everything on this iPhone.")
+        }
+        .confirmationDialog(
+            "Remove \(participantToRemove?.displayName ?? "this person")?",
+            isPresented: Binding(get: { participantToRemove != nil },
+                                 set: { if !$0 { participantToRemove = nil } }),
+            titleVisibility: .visible, presenting: participantToRemove
+        ) { p in
+            Button("Remove", role: .destructive) {
+                Task {
+                    do { try await SyncManager.shared?.removeParticipant(p) }
+                    catch { shareError = (error as NSError).localizedDescription }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { p in
+            Text("\(p.displayName.isEmpty ? "This person" : p.displayName) loses access to the shared log. You can invite them again later.")
         }
     }
 
@@ -344,15 +398,10 @@ struct SettingsView: View {
         }
         .swipeActions {
             if canManage {
-                Button("Remove", role: .destructive) {
-                    Task {
-                        // Only flips the local row once the server actually
-                        // dropped them — a swallowed failure here used to hide
-                        // someone who still had full access.
-                        do { try await SyncManager.shared?.removeParticipant(p) }
-                        catch { shareError = (error as NSError).localizedDescription }
-                    }
-                }
+                // Confirm before removing — the teardown (which only flips the
+                // local row once the server actually dropped them) runs from the
+                // dialog on the section.
+                Button("Remove", role: .destructive) { participantToRemove = p }
             }
         }
     }
@@ -424,6 +473,9 @@ struct SettingsView: View {
             prefs.feedReminderEnabled = false
             return
         }
+        // Enabling reminders here (not via the primer quest) still finishes the
+        // reminders setup quest — durably, so a later toggle-off won't reopen it.
+        SetupProgress.shared.markComplete(.reminders)
         await FeedAlarmManager.reschedule(babyName: baby?.name ?? "Baby",
                                           lastFeed: lastFeedDate(),
                                           interval: settings?.targetFeedInterval ?? 0)
@@ -464,5 +516,12 @@ struct SettingsView: View {
         )
         d.fetchLimit = 1
         return (try? context.fetch(d))?.first?.timestamp
+    }
+
+    /// "2h", "2h 30m", "3h" — omits the "0m" that made the stepper label verbose.
+    private func intervalLabel(_ minutes: Int) -> String {
+        let h = minutes / 60
+        let m = minutes % 60
+        return m == 0 ? "\(h)h" : "\(h)h \(m)m"
     }
 }

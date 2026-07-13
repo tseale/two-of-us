@@ -540,6 +540,10 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             reconcileLiveActivity()
             WidgetCenter.shared.reloadAllTimelines()
             notifyCoParentActivity(from: e.modifications.map(\.record))
+            // A co-parent's feed (or a synced-in delete) changes what "next feed"
+            // is on THIS device — re-arm the alarm/reminders off the new state so
+            // we don't fire a stale/false overnight alarm.
+            rearmFeedRemindersFromStore()
 
         case .sentRecordZoneChanges(let e):
             handleSentRecordZoneChanges(e, syncEngine: syncEngine)
@@ -625,6 +629,26 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         SleepActivityManager.reconcile(babyName: babyName, activeSleepStartedAt: active?.startedAt)
     }
 
+    /// Re-arms this device's feed alarm + gentle reminders + daily summary off the
+    /// current store state, after a sync fetch changed it. Mirrors what a foreground
+    /// does (`AppDelegate.applicationDidBecomeActive`) so a co-parent's synced-in or
+    /// synced-away feed doesn't leave a stale "feed due" alarm pointed at an old
+    /// last-feed. Cheap-guarded: default installs (all reminder prefs off) pay
+    /// nothing — no store read happens unless something is actually scheduled.
+    private func rearmFeedRemindersFromStore() {
+        guard !LocalPrefs.shared.demoModeEnabled else { return }
+        guard LocalPrefs.shared.feedReminderEnabled
+            || LocalPrefs.shared.gentleRemindersEnabled
+            || LocalPrefs.shared.notifyMilestones else { return }
+        guard let logger = QuickLogger.make() else { return }
+        let babyName = logger.babyName ?? "Baby"
+        let lastFeed = logger.lastFeed?.timestamp
+        let interval = logger.targetFeedInterval
+        Task { await FeedAlarmManager.reschedule(babyName: babyName, lastFeed: lastFeed, interval: interval) }
+        NotificationManager.refreshScheduledReminders()
+        NotificationManager.refreshDailyMilestone()
+    }
+
     /// The private zone was deleted server-side. Bias to preserving the family's
     /// data: recreate the zone and re-upload everything local. (`.purged`
     /// technically asks apps not to re-upload automatically, but for a two-person
@@ -633,6 +657,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     private func handlePrivateZoneDeleted() {
         guard !handledPrivateZoneDeletion else { return }
         handledPrivateZoneDeletion = true
+        AppLog.sync.warning("Private zone deleted server-side — clearing change tags and re-uploading all local records. If the subsequent re-upload fails, the family log will not be visible to the other parent until the app is relaunched.")
         // Every cached change tag pointed at the dead zone's records.
         RecordMapping.clearAllSystemFields(in: context)
         if Self.realSyncRole == .owner {
@@ -743,6 +768,20 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
 
     private func shareThumbnail() -> Data? {
         (try? context.fetch(FetchDescriptor<Baby>()))?.first?.photoData
+    }
+
+    /// Best-effort: refresh the invite card's title/thumbnail when the baby's name
+    /// or photo changes after the share was created. No-op if offline or not the owner.
+    func refreshShareTitleIfOwner() {
+        guard Self.realSyncRole == .owner,
+              !LocalPrefs.shared.demoModeEnabled else { return }
+        Task {
+            guard await cloudAvailable() else { return }
+            let db = SyncConstants.container.privateCloudDatabase
+            let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: privateZoneID)
+            guard let share = try? await db.record(for: shareID) as? CKShare else { return }
+            await refreshShareMetadata(share, db: db)
+        }
     }
 
     /// Best-effort: keep the invite card's title/thumbnail current on an existing
@@ -920,17 +959,24 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         guard !LocalPrefs.shared.demoModeEnabled else { return }
         Task {
             guard await cloudAvailable() else { return }
-            guard let recordName = (try? await SyncConstants.container.userRecordID())?.recordName else {
-                // Without this id, removeParticipant later falls back to a
-                // count-based guess that can drop the wrong person with 2+
-                // caregivers — log so a misfire is traceable.
-                AppLog.sync.error("captureCloudUserID: couldn't resolve userRecordID for participant \(participantID, privacy: .public)")
+            // Retry up to 3 times with back-off: transient auth/network errors
+            // should resolve quickly; without this id, removeParticipant can
+            // remove the wrong person when there are 2+ caregivers.
+            for attempt in 1...3 {
+                guard let recordName = (try? await SyncConstants.container.userRecordID())?.recordName else {
+                    if attempt < 3 {
+                        try? await Task.sleep(for: .seconds(Double(attempt) * 2))
+                        continue
+                    }
+                    AppLog.sync.error("captureCloudUserID: couldn't resolve userRecordID after 3 attempts for \(participantID, privacy: .public)")
+                    return
+                }
+                guard let me = Participant.fetchByID(participantID, in: context), me.cloudUserID != recordName else { return }
+                me.cloudUserID = recordName
+                try? context.save()
+                enqueueSave([me.id])
                 return
             }
-            guard let me = Participant.fetchByID(participantID, in: context), me.cloudUserID != recordName else { return }
-            me.cloudUserID = recordName
-            try? context.save()
-            enqueueSave([me.id])
         }
     }
 
@@ -965,14 +1011,19 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
                 }
             }
         } catch {
-            // Still attached: undo the departure signal, or the owner's People
-            // list hides someone who still has access.
+            // Partial-rollback: the CKShare delete failed, so the participant still
+            // has server-side access. Undo the isActive=false push so the owner's
+            // People list reflects reality (still there, still has access).
+            // Recovery for the user: tap "Leave shared baby" again — it's idempotent
+            // once the network comes back. If the rollback push also fails, the
+            // owner will see the ghost entry clear on their next fetch.
             if let me, !me.isActive {
                 me.isActive = true
                 try? context.save()
                 enqueueSave([me.id])
                 try? await sharedEngine?.sendChanges()
             }
+            AppLog.sync.error("leaveShare failed (server delete threw), rolled back isActive: \(error.localizedDescription, privacy: .public)")
             throw error
         }
         // Wipes the local store and resets to a fresh solo install — there is
@@ -996,6 +1047,10 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         Self.setRealRole(.solo)
         LocalPrefs.shared.myParticipantID = nil
         DemoSession.noteRealParticipantID(nil)
+        // Cancel any pending feed alarm — the baby data is gone, so nothing to
+        // count down to. The user's reminder preference is preserved so it
+        // auto-arms if they join or create a new household.
+        Task { await FeedAlarmManager.cancel() }
         WidgetCenter.shared.reloadAllTimelines()
         start()
     }

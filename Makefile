@@ -14,7 +14,7 @@ BUNDLE_ID   := com.taylorseale.twoofus
 # Keeping DerivedData OUTSIDE the synced folder avoids that entirely.
 DERIVED_DATA := $(HOME)/Library/Developer/Xcode/DerivedData/TwoOfUs-local
 
-.PHONY: help project build run test clean hooks ensure-hooks bootstrap
+.PHONY: help project build run test uitest clean hooks ensure-hooks bootstrap
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -39,6 +39,12 @@ build: project ## Regenerate, then build for the simulator
 test: project ## Regenerate, then run the unit tests on the simulator
 	xcodebuild test -project $(PROJECT) -scheme $(SCHEME) \
 		-destination '$(DESTINATION)' -derivedDataPath '$(DERIVED_DATA)'
+
+uitest: project ## Regenerate, then run the UI smoke tests (own scheme; captures screenshots)
+	rm -rf '$(DERIVED_DATA)/uitest.xcresult'
+	xcodebuild test -project $(PROJECT) -scheme TwoOfUsUITests \
+		-destination '$(DESTINATION)' -derivedDataPath '$(DERIVED_DATA)' \
+		-resultBundlePath '$(DERIVED_DATA)/uitest.xcresult'
 
 run: build ## Build, then install and launch on the simulator
 	# Shut every simulator down first, then boot ONLY the target. With more than

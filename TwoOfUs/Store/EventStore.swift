@@ -123,6 +123,14 @@ struct EventStore {
         donate(ToggleSleepIntent())
     }
 
+    /// Undo of a just-started sleep: soft-deletes it AND tears down the Live
+    /// Activity `startSleep` spun up — a plain `softDelete` would leave the
+    /// lock-screen timer running for a sleep that no longer exists.
+    func cancelSleep(_ event: SleepEvent) {
+        if !demo { SleepActivityManager.end() }
+        softDelete(event)
+    }
+
     /// Best-effort Siri donation so Suggestions / Spotlight rank Two of Us
     /// actions by the family's real rhythm. Fire-and-forget; never blocks a log.
     private func donate(_ intent: some AppIntent) {
@@ -200,6 +208,21 @@ struct EventStore {
         save()
         sync(save: [event.id])   // soft delete travels as a `deletedAt` update
         reloadWidgets()
+        // Re-arm/cancel the loud alarm too: deleting the latest feed must not leave
+        // a "feed due" alarm armed for an event that no longer exists.
+        scheduleFeedReminder()
+        refreshLocalReminders()
+    }
+
+    /// Reverses a `softDelete` — the Undo path for swipe-to-delete. Re-arms the
+    /// reminders off the restored state so an undone delete leaves everything as it
+    /// was before the swipe.
+    func restore(_ event: any SoftDeletable) {
+        event.deletedAt = nil
+        save()
+        sync(save: [event.id])
+        reloadWidgets()
+        scheduleFeedReminder()
         refreshLocalReminders()
     }
 
@@ -221,6 +244,10 @@ struct EventStore {
         save()
         sync(save: ids)
         reloadWidgets()
+        // No feeds remain → these cancel the pending alarm and clear the gentle
+        // reminders/summary rather than leaving them armed for purged events.
+        scheduleFeedReminder()
+        refreshLocalReminders()
     }
 
     // MARK: Profile / baby / settings edits
@@ -240,6 +267,9 @@ struct EventStore {
         save()
         sync(save: [baby.id])
         reloadWidgets()
+        // Keep the share invite card title current — it shows the baby's name
+        // and is otherwise stale if the owner renamed after the share was created.
+        SyncManager.shared?.refreshShareTitleIfOwner()
     }
 
     /// Updates the shared feeding rhythm and syncs it. Nil fields stay as-is.

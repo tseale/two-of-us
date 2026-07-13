@@ -119,6 +119,45 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertEqual(copy.photoData, original.photoData, "avatar must survive the CKAsset round trip")
     }
 
+    /// A present-but-unreadable photo asset (transient fetch failure) must NOT
+    /// wipe a good local avatar.
+    func testUnreadablePhotoAssetKeepsLocalAvatar() throws {
+        let receiver = AppModelContainer.make(inMemory: true)
+        let local = Baby(name: "Miller", dateOfBirth: Date(timeIntervalSince1970: 1_690_000_000))
+        local.photoData = Data([0x01, 0x02, 0x03])
+        receiver.mainContext.insert(local)
+        try receiver.mainContext.save()
+
+        let r = CKRecord(recordType: SyncConstants.RecordType.baby, recordID: recordID(local.id))
+        r["name"] = "Miller"
+        r["dateOfBirth"] = local.dateOfBirth
+        r["photoData"] = CKAsset(fileURL: URL(fileURLWithPath: NSTemporaryDirectory() + "missing-\(UUID().uuidString)"))
+        RecordMapping.apply(r, in: receiver.mainContext)
+
+        let copy = try XCTUnwrap(Baby.fetchByID(local.id, in: receiver.mainContext))
+        XCTAssertEqual(copy.photoData, Data([0x01, 0x02, 0x03]),
+                       "a transiently unreadable asset must not erase the local avatar")
+    }
+
+    /// A genuinely absent photo field (the photo was cleared upstream) clears the
+    /// local avatar.
+    func testAbsentPhotoFieldClearsLocalAvatar() throws {
+        let receiver = AppModelContainer.make(inMemory: true)
+        let local = Baby(name: "Miller", dateOfBirth: Date(timeIntervalSince1970: 1_690_000_000))
+        local.photoData = Data([0x09])
+        receiver.mainContext.insert(local)
+        try receiver.mainContext.save()
+
+        let r = CKRecord(recordType: SyncConstants.RecordType.baby, recordID: recordID(local.id))
+        r["name"] = "Miller"
+        r["dateOfBirth"] = local.dateOfBirth
+        // no photoData field → the photo was cleared
+        RecordMapping.apply(r, in: receiver.mainContext)
+
+        let copy = try XCTUnwrap(Baby.fetchByID(local.id, in: receiver.mainContext))
+        XCTAssertNil(copy.photoData, "an absent photo field should clear the local avatar")
+    }
+
     func testParticipantRoundTrip() throws {
         let original = Participant(displayName: "Katie", colorHex: "#112233",
                                    role: .logger, cloudUserID: "_abc123", isActive: false)

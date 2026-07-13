@@ -9,7 +9,7 @@ final class DeepLinkRouterTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        router.pendingLog = nil
+        router.clearAll()
     }
 
     func testFeedURLStagesFeedSheet() {
@@ -41,5 +41,18 @@ final class DeepLinkRouterTests: XCTestCase {
     func testGarbageURLIsIgnored() {
         XCTAssertFalse(router.handle(URL(string: "twoofus://log/")!))
         XCTAssertNil(router.pendingLog)
+    }
+
+    func testTwoFastTapsBothEnqueue() {
+        // Two rapid taps should queue both actions, not lose the first.
+        router.handle(URL(string: "twoofus://log/feed")!)
+        router.handle(URL(string: "twoofus://log/diaper")!)
+        XCTAssertEqual(router.dequeue(), .feed)
+        XCTAssertEqual(router.dequeue(), .diaper)
+        XCTAssertNil(router.dequeue())
+    }
+
+    func testDequeueEmptyReturnsNil() {
+        XCTAssertNil(router.dequeue())
     }
 }

@@ -102,6 +102,7 @@ struct OnboardingView: View {
     var body: some View {
         ZStack {
             AmbientBackground(stop: ambientStop)
+                .ignoresSafeArea(.keyboard)
 
             TabView(selection: $page) {
                 OnboardingTourPage(revealed: revealed.contains(.tour))
@@ -118,6 +119,9 @@ struct OnboardingView: View {
                     .tag(Page.invite)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
+            // Paged content stays full-height behind the keyboard (fields scroll
+            // themselves into view); only the bottom bar below reacts to it.
+            .ignoresSafeArea(.keyboard)
 
             VStack {
                 Spacer()
@@ -125,8 +129,9 @@ struct OnboardingView: View {
                     .opacity(chromeRevealed ? 1 : 0)
                     .allowsHitTesting(chromeRevealed)
             }
+            // Deliberately NOT ignoring the keyboard here, so "Continue" rides
+            // above the keyboard while typing a name instead of hiding behind it.
         }
-        .ignoresSafeArea(.keyboard)
         .onChange(of: page) { _, new in
             revealed.insert(new)
             if new == .invite { refreshCloudStatus() }
@@ -184,7 +189,12 @@ struct OnboardingView: View {
             .init(title: "Continue", enabled: !trimmedOwnerName.isEmpty, action: advance)
         case .invite:
             if cloudAvailable == true && !didOfferShare && !shareFailed {
-                .init(title: "Invite my partner", loading: preparingShare, action: prepareShare)
+                // Gate on canFinish just like Finish — the flow is freely
+                // swipeable, so without this a share could be created (and a
+                // co-parent could accept an empty zone) before the baby/owner
+                // names exist. The secondary hint routes back to the missing step.
+                .init(title: "Invite my partner", enabled: canFinish,
+                      loading: preparingShare, action: prepareShare)
             } else {
                 .init(title: "Finish", enabled: canFinish, action: finish)
             }
@@ -268,10 +278,14 @@ struct OnboardingView: View {
     /// store write — `RootView`'s gate flips to Home underneath the overlay.
     private func finish() {
         Haptics.success()
-        // Reminders are now asked in their own moment (quest / after a feed).
-        // Must be off until then: the pref defaults to true, and logging a feed
-        // with it on would ambush the user with the AlarmKit dialog.
+        // Reminders are asked in their own moment (quest / after a feed), so keep
+        // the loud alarm off until then — the reminders primer is what turns it on.
+        // Belt-and-suspenders with the LocalPrefs default (also off).
         LocalPrefs.shared.feedReminderEnabled = false
+        // Ask for notification permission at this deliberate post-setup moment —
+        // otherwise the default-on co-parent notifications never fire (auth was
+        // previously only ever requested from a Settings toggle).
+        Task { await NotificationManager.requestAuthorization() }
         SetupProgress.shared.markNewFlowComplete()
         onFinished(.owner(babyName: trimmedBabyName))
         SeedData.createBaby(

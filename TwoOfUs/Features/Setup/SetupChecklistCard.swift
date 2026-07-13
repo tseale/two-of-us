@@ -81,13 +81,14 @@ struct SetupChecklistCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .surfaceCard()
-        // Retire on its own once everything is done: a short "All set" beat,
-        // then gone for good (completion can also arrive via Settings or the
-        // co-parent's sync, so this is the one place the card says goodbye).
+        // Retire on its own once everything is done: the "All set" state stays
+        // visible until the user scrolls past it (swipe up / new section loads),
+        // then onDismiss hides the card for good.  A longer beat (4s) so the
+        // parent has time to see the "All set" row if completion arrives via sync.
         .task(id: allDone) {
             guard allDone else { return }
-            try? await Task.sleep(for: .seconds(2))
-            onDismiss()
+            try? await Task.sleep(for: .seconds(4))
+            withAnimation { onDismiss() }
         }
     }
 

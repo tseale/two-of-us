@@ -393,9 +393,14 @@ struct StatsEngine {
                                    sleepAvg: 0, diapersToday: 0, diapersAvg: 0, hasHistory: false)
         }
         let prior = summaries.dropLast()
-        let divisor = Double(max(prior.count, 1))
+        // Average each metric over the prior days that actually have that metric —
+        // NOT a fixed 7. For a newborn only a few days old the pre-birth (and
+        // untracked) days are all zeros; dividing by 7 understated the "typical"
+        // and inflated every "vs avg" delta.
         func avg(_ value: (DaySummary) -> Double) -> Double {
-            prior.reduce(0) { $0 + value($1) } / divisor
+            let tracked = prior.filter { value($0) > 0 }
+            guard !tracked.isEmpty else { return 0 }
+            return tracked.reduce(0) { $0 + value($1) } / Double(tracked.count)
         }
         let hasHistory = prior.contains {
             $0.feedCount > 0 || $0.sleepSeconds > 0 || $0.diaperCount > 0

@@ -256,7 +256,7 @@ enum RecordMapping {
         m.name = r["name"] as? String ?? m.name
         m.dateOfBirth = r["dateOfBirth"] as? Date ?? m.dateOfBirth
         m.createdAt = r["createdAt"] as? Date ?? m.createdAt
-        m.photoData = data(from: r["photoData"])
+        if let resolved = inboundPhoto(r["photoData"]) { m.photoData = resolved }
         // Events can sync in before their Baby. The fetch-batch handler relinks
         // too, but an interrupted fetch could leave events stranded forever — so
         // relink the moment a Baby first appears here as well.
@@ -272,7 +272,7 @@ enum RecordMapping {
         m.cloudUserID = r["cloudUserID"] as? String
         m.isActive = (r["isActive"] as? Int ?? 1) != 0
         m.invitedAt = r["invitedAt"] as? Date ?? m.invitedAt
-        m.photoData = data(from: r["photoData"])
+        if let resolved = inboundPhoto(r["photoData"]) { m.photoData = resolved }
     }
 
     private static func applySettings(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
@@ -336,11 +336,17 @@ enum RecordMapping {
         }
     }
 
-    /// Reads avatar bytes back from a CKAsset field. Returns nil when the field is
-    /// absent or the asset file can't be read (so a missing photo clears locally).
-    private static func data(from value: Any?) -> Data? {
-        guard let asset = value as? CKAsset, let url = asset.fileURL else { return nil }
-        return try? Data(contentsOf: url)
+    /// Resolves an inbound avatar field into an *action*, so a transient unreadable
+    /// asset can't wipe a good local photo:
+    /// - `.some(data)` — a readable photo (set it locally)
+    /// - `.some(nil)`  — the field is genuinely absent (the photo was cleared upstream)
+    /// - `nil`         — a present-but-unreadable `CKAsset` (transient; keep the local copy)
+    private static func inboundPhoto(_ value: Any?) -> Data?? {
+        guard let asset = value as? CKAsset else { return .some(nil) }     // no asset → cleared
+        guard let url = asset.fileURL, let bytes = try? Data(contentsOf: url) else {
+            return nil                                                     // present but unreadable → keep local
+        }
+        return .some(bytes)
     }
 
     /// Resolves the local model for a CKRecord type + id (the type avoids probing

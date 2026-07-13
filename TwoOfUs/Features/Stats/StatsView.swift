@@ -19,6 +19,16 @@ struct StatsView: View {
     private var ageText: String? { babies.first.map { TimeFormatting.age(from: $0.dateOfBirth) } }
     private var hasAnyData: Bool { !feeds.isEmpty || !sleeps.isEmpty || !diapers.isEmpty }
 
+    /// Show the Insights card only when it has something real to say: while a
+    /// summary is generating, once one exists, or as a teaser before there's any
+    /// data. When the model is available but generation yields nothing despite
+    /// data (e.g. Simulator, or a transient failure), hide the card rather than
+    /// showing the misleading "log a few feeds" empty-state over a week of data.
+    private var showInsights: Bool {
+        guard BabyIntelligence.isAvailable else { return false }
+        return summaryLoading || summary != nil || !hasAnyData
+    }
+
     @State private var summary: String?
     @State private var summaryLoading = false
     @State private var showWrapped = false
@@ -28,7 +38,7 @@ struct StatsView: View {
             ScrollView {
                 VStack(spacing: 14) {
                     if hasAnyData { wrappedButton }
-                    if BabyIntelligence.isAvailable {
+                    if showInsights {
                         insightsCard
                     }
                     todayCard
@@ -40,6 +50,9 @@ struct StatsView: View {
                     cadenceCard
                 }
                 .padding(16)
+                // Kept on the always-present container (not on the conditionally
+                // shown card) so generation still runs when the card is hidden.
+                .task(id: "\(feeds.count)-\(sleeps.count)-\(diapers.count)") { await loadSummary() }
             }
             .background(AppColor.bg)
             .navigationTitle("Stats")
@@ -106,9 +119,6 @@ struct StatsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .surfaceCard(cornerRadius: 18)
-        // Regenerate when any event kind changes — the summary covers sleep and
-        // diapers too, so keying on feeds alone left it stale after a new sleep.
-        .task(id: "\(feeds.count)-\(sleeps.count)-\(diapers.count)") { await loadSummary() }
     }
 
     private func loadSummary() async {
@@ -151,22 +161,25 @@ struct StatsView: View {
     private var recordHero: some View {
         let record = engine.longestSleep()
         return VStack(alignment: .leading, spacing: 6) {
+            // Fixed cream (not adaptive text2) — this card is always the dark indigo
+            // gradient, so adaptive tokens go near-invisible in Light Mode. Matches
+            // the sibling "…'s week" card's subtitle treatment.
             Text("🏆 Record — longest sleep")
-                .sectionLabelStyle(color: AppColor.text2.opacity(0.9))
+                .sectionLabelStyle(color: AppColor.nightlightCream.opacity(0.75))
             if let record {
                 Text(durationLong(record.duration))
                     .font(AppFont.display(38, weight: .heavy))
                     .foregroundStyle(.white)
                 Text(Self.monthDay(record.date))
                     .font(.subheadline)
-                    .foregroundStyle(AppColor.text2)
+                    .foregroundStyle(AppColor.nightlightCream.opacity(0.8))
             } else {
                 Text("—")
                     .font(AppFont.display(38, weight: .heavy))
                     .foregroundStyle(.white)
                 Text("No completed sleeps yet")
                     .font(.subheadline)
-                    .foregroundStyle(AppColor.text2)
+                    .foregroundStyle(AppColor.nightlightCream.opacity(0.8))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

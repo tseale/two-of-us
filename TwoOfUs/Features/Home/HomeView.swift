@@ -24,6 +24,12 @@ struct HomeView: View {
     @State private var prefs = LocalPrefs.shared
     @State private var setup = SetupProgress.shared
     @State private var router = DeepLinkRouter.shared
+    @State private var didApplyDebugScreen = false
+    /// Start of the current day. Advanced by a task at midnight so the "today"
+    /// ribbon, counts, and 24h window refresh even if the app sits foregrounded
+    /// across midnight with nothing new logged (a @Query change would otherwise
+    /// be the only trigger).
+    @State private var dayStart = Calendar.current.startOfDay(for: .now)
 
     private enum ActiveSheet: String, Identifiable { case feed, diaper; var id: String { rawValue } }
 
@@ -130,6 +136,17 @@ struct HomeView: View {
                    let forced = SetupSpotlight(rawValue: raw) {
                     spotlight = forced
                 }
+                // Dev-only: `-uiScreen feed|diaper|settings` presents that sheet once
+                // on launch, for deterministic screenshot/QA captures.
+                if !didApplyDebugScreen {
+                    didApplyDebugScreen = true
+                    switch UserDefaults.standard.string(forKey: "uiScreen") {
+                    case "feed":     activeSheet = .feed
+                    case "diaper":   activeSheet = .diaper
+                    case "settings": showSettings = true
+                    default:         break
+                    }
+                }
             }
             #endif
             .loggedToast($toast)
@@ -137,18 +154,31 @@ struct HomeView: View {
             // warm launch (Home already up), onAppear a cold launch / tab switch.
             .onChange(of: router.pendingLog) { _, _ in consumeDeepLink() }
             .onAppear { consumeDeepLink() }
+            .task { await advanceAtMidnight() }
         }
     }
 
-    /// Opens the log sheet a tapped widget asked for, then clears the request so
-    /// it doesn't re-fire on the next appear.
+    /// Keeps `dayStart` current while Home is on screen, so the today ribbon,
+    /// counts, and 24h window roll over at midnight without needing a new log or
+    /// a tab switch to trigger a re-render.
+    private func advanceAtMidnight() async {
+        while !Task.isCancelled {
+            let now = Date()
+            let start = Calendar.current.startOfDay(for: now)
+            if start != dayStart { dayStart = start }
+            guard let nextMidnight = Calendar.current.date(byAdding: .day, value: 1, to: start) else { return }
+            try? await Task.sleep(for: .seconds(max(1, nextMidnight.timeIntervalSince(now))))
+        }
+    }
+
+    /// Opens the next log sheet a tapped widget queued, draining one entry per
+    /// call so two fast taps both resolve.
     private func consumeDeepLink() {
-        guard let target = router.pendingLog else { return }
+        guard let target = router.dequeue() else { return }
         switch target {
         case .feed:   activeSheet = .feed
         case .diaper: activeSheet = .diaper
         }
-        router.pendingLog = nil
     }
 
     // MARK: Header
@@ -161,6 +191,8 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(baby?.name ?? "Baby")
                     .font(AppFont.hero())
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                 if let dob = baby?.dateOfBirth {
                     Text(TimeFormatting.age(from: dob))
                         .font(.subheadline)
@@ -192,7 +224,9 @@ struct HomeView: View {
     // MARK: Today ribbon
 
     private var todayMarks: [RibbonMark] {
-        RibbonMark.forDay(.now, feeds: feeds, sleeps: sleeps, diapers: diapers)
+        // Reads dayStart so a midnight rollover (which bumps it) re-renders the
+        // whole today section — refreshing the counts and 24h window too.
+        RibbonMark.forDay(dayStart, feeds: feeds, sleeps: sleeps, diapers: diapers)
     }
 
     private var todaySummary: DaySummary? {
@@ -212,10 +246,21 @@ struct HomeView: View {
             sleepHint: sleepHint(now: now),
             sleepDetail: lastNapDetail,
             sleepActive: activeSleep != nil,
+            feedReminderArmed: feedReminderArmed(now: now),
             onFeed: { activeSheet = .feed },
             onSleep: startSleep,
             onDiaper: { activeSheet = .diaper }
         )
+    }
+
+    /// The Feed tile's bell should mean "an alarm is actually counting down", not
+    /// merely "reminders are enabled". Mirror `FeedAlarmManager.reschedule`'s own
+    /// guards: reminders on + authorized + a logged feed whose next-due time is
+    /// still ahead. (No feed yet, or already overdue, means nothing is armed.)
+    private func feedReminderArmed(now: Date) -> Bool {
+        guard prefs.feedReminderEnabled, FeedAlarmManager.isAuthorized,
+              let last = feeds.first?.timestamp else { return false }
+        return last.addingTimeInterval(targetFeed) > now
     }
 
     /// The Feed tile says what's next, not just what happened: the projected
@@ -258,7 +303,9 @@ struct HomeView: View {
 
     private func startSleep() {
         guard let event = store.startSleep() else { return }
-        showToast("Started sleep", accent: AppColor.accentSleep) { store.softDelete(event) }
+        // Undo must also end the Live Activity startSleep began — softDelete alone
+        // would strand a running lock-screen timer.
+        showToast("Started sleep", accent: AppColor.accentSleep) { store.cancelSleep(event) }
     }
 
     // MARK: Timeline
@@ -282,6 +329,7 @@ struct HomeView: View {
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                         .contentShape(Rectangle())
+                        .accessibilityIdentifier("timelineRow")
                         .onTapGesture { editing = entry }
                         .swipeActions(edge: .trailing) {
                             Button(role: .destructive) { delete(entry) } label: {
@@ -315,12 +363,17 @@ struct HomeView: View {
     // MARK: Actions
 
     private func delete(_ entry: TimelineEntry) {
+        let event: any SoftDeletable
         switch entry {
-        case .feed(let e): store.softDelete(e)
-        case .sleep(let e): store.softDelete(e)
-        case .diaper(let e): store.softDelete(e)
+        case .feed(let e): event = e
+        case .sleep(let e): event = e
+        case .diaper(let e): event = e
         }
+        store.softDelete(event)
         Haptics.warning()
+        // Swipe-delete is fast and easy to fire by accident — offer the same Undo
+        // affordance a log gets, restoring the exact event on tap.
+        showToast("Deleted", accent: AppColor.urgencyAmber) { store.restore(event) }
     }
 
     private func showToast(_ message: String, accent: Color = AppColor.accentFeed, undo: @escaping () -> Void) {
