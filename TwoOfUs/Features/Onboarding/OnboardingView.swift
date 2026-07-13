@@ -46,6 +46,7 @@ struct OnboardingView: View {
 
     @State private var babyName = ""
     @State private var dateOfBirth = Date()
+    @State private var notBornYet = false
     @State private var babyPhotoData: Data?
     @State private var ownerName = ""
     @State private var ownerColorHex = ParticipantColors.palette[0]
@@ -107,7 +108,8 @@ struct OnboardingView: View {
             TabView(selection: $page) {
                 OnboardingTourPage(revealed: revealed.contains(.tour))
                     .tag(Page.tour)
-                BabyStep(name: $babyName, dateOfBirth: $dateOfBirth, photoData: $babyPhotoData,
+                BabyStep(name: $babyName, dateOfBirth: $dateOfBirth, notBornYet: $notBornYet,
+                         photoData: $babyPhotoData,
                          revealed: revealed.contains(.setupBaby), active: page == .setupBaby)
                     .tag(Page.setupBaby)
                 YouStep(name: $ownerName, colorHex: $ownerColorHex, photoData: $ownerPhotoData,

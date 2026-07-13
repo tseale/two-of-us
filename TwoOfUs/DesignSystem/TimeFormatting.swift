@@ -51,11 +51,23 @@ enum TimeFormatting {
         return f.string(from: date)
     }
 
-    /// Adaptive age string: days → weeks → months.
+    /// Adaptive age string: days → weeks → months. A future date of birth is a
+    /// due date (expecting parents set up before the arrival) and counts down
+    /// in the same brackets the age counts up.
     static func age(from dob: Date, now: Date = .now) -> String {
         let cal = Calendar.current
         let days = cal.dateComponents([.day], from: cal.startOfDay(for: dob), to: cal.startOfDay(for: now)).day ?? 0
-        if days < 0 { return "due soon" }
+        if days < 0 {
+            let until = -days
+            if until == 1 { return "due tomorrow" }
+            if until < 14 { return "due in \(until) days" }
+            if until < 56 {
+                let weeks = until / 7
+                return weeks == 1 ? "due in 1 week" : "due in \(weeks) weeks"
+            }
+            let months = until / 30
+            return months == 1 ? "due in 1 month" : "due in \(months) months"
+        }
         if days < 14 {
             return days == 1 ? "1 day old" : "\(days) days old"
         }

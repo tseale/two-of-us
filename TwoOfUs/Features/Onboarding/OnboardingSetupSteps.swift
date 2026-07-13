@@ -12,6 +12,7 @@ import PhotosUI
 struct BabyStep: View {
     @Binding var name: String
     @Binding var dateOfBirth: Date
+    @Binding var notBornYet: Bool
     @Binding var photoData: Data?
     let revealed: Bool
     /// False once this stops being the current page — drops the keyboard.
@@ -32,18 +33,39 @@ struct BabyStep: View {
                     .onboardingEntrance(revealed, index: 1)
 
                 GlassRow {
-                    HStack {
-                        Text("Date of birth").foregroundStyle(AppColor.text)
-                        Spacer()
-                        DatePicker("Date of birth", selection: $dateOfBirth,
-                                   in: ...Date(), displayedComponents: .date)
-                            .labelsHidden()
+                    Toggle(isOn: $notBornYet) {
+                        Text("Not born just yet").foregroundStyle(AppColor.text)
                     }
+                    .tint(AppColor.accentSleep)
                 }
                 .onboardingEntrance(revealed, index: 2)
 
+                GlassRow {
+                    HStack {
+                        Text(notBornYet ? "Due date" : "Date of birth")
+                            .foregroundStyle(AppColor.text)
+                        Spacer()
+                        DatePicker(notBornYet ? "Due date" : "Date of birth",
+                                   selection: $dateOfBirth,
+                                   in: notBornYet ? Date()...Date.distantFuture
+                                                  : Date.distantPast...Date(),
+                                   displayedComponents: .date)
+                            .labelsHidden()
+                    }
+                }
+                .onboardingEntrance(revealed, index: 3)
+                // Keep the date inside the flipped range — the picker clamps its
+                // UI but not the bound value.
+                .onChange(of: notBornYet) { _, expecting in
+                    if expecting, dateOfBirth <= .now {
+                        dateOfBirth = Calendar.current.date(byAdding: .weekOfYear, value: 4, to: .now) ?? .now
+                    } else if !expecting, dateOfBirth > .now {
+                        dateOfBirth = .now
+                    }
+                }
+
                 PhotoPickCard(name: name, colorHex: ParticipantColors.babyHex, photoData: $photoData)
-                    .onboardingEntrance(revealed, index: 3)
+                    .onboardingEntrance(revealed, index: 4)
                 Spacer(minLength: 16)
             }
             .padding(.horizontal, 28)

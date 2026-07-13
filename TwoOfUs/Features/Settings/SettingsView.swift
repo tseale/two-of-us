@@ -247,7 +247,9 @@ struct SettingsView: View {
                     .font(AppFont.hero(26))
                     .foregroundStyle(AppColor.text)
                 if let baby {
-                    Text("\(TimeFormatting.age(from: baby.dateOfBirth)) · born \(baby.dateOfBirth.formatted(.dateTime.month().day()))")
+                    // The age string already says "due in …" for a future date,
+                    // so the suffix carries just the date to avoid "due … due".
+                    Text("\(TimeFormatting.age(from: baby.dateOfBirth)) · \(baby.isBorn ? "born " : "")\(baby.dateOfBirth.formatted(.dateTime.month().day()))")
                         .font(.subheadline)
                         .foregroundStyle(AppColor.text2)
                 }

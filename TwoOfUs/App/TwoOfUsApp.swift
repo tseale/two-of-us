@@ -17,6 +17,19 @@ struct TwoOfUsApp: App {
 
     init() {
         #if DEBUG
+        // Dev-only: `-wipeStore` empties the real store before anything reads
+        // it, so onboarding can be exercised repeatedly (UI tests, design
+        // iteration) without reinstalling the app.
+        if ProcessInfo.processInfo.arguments.contains("-wipeStore") {
+            let ctx = realContainer.mainContext
+            try? ctx.delete(model: FeedEvent.self)
+            try? ctx.delete(model: SleepEvent.self)
+            try? ctx.delete(model: DiaperEvent.self)
+            try? ctx.delete(model: Participant.self)
+            try? ctx.delete(model: SharedSettings.self)
+            try? ctx.delete(model: Baby.self)
+            try? ctx.save()
+        }
         // Dev-only: `-seedSampleData` populates a week of events for screenshots.
         if ProcessInfo.processInfo.arguments.contains("-seedSampleData") {
             let ctx = realContainer.mainContext

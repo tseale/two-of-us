@@ -43,3 +43,12 @@ final class Baby {
         self.createdAt = createdAt
     }
 }
+
+extension Baby {
+    /// Expecting parents can set up before the birth: a future `dateOfBirth`
+    /// is the due date. Derived, not stored — the moment the date passes, the
+    /// baby reads as born everywhere, and editing in the real birth date after
+    /// the arrival is the same edit parents make anyway (babies rarely land
+    /// exactly on the due date).
+    var isBorn: Bool { dateOfBirth <= .now }
+}
