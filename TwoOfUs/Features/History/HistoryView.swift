@@ -73,6 +73,10 @@ struct HistoryView: View {
                         DayRibbonView(marks: row.marks, style: .color, day: row.day, showNowMarker: false)
                             .frame(height: 16)
                     }
+                    // The ribbon Canvas is hidden from accessibility — without
+                    // this, VoiceOver reads seven bare weekday labels and no data.
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Self.swimlaneSummary(row))
                 }
                 HStack(spacing: 16) {
                     legendEmoji("🍼", label: "feed")
@@ -300,12 +304,18 @@ struct HistoryView: View {
         }
     }
 
-    /// Compact hour label for the heatmap axis (0/6/12/18/24 → 12a/6a/12p/6p/12a).
+    /// Compact hour label for the heatmap axis (0/6/12/18/24 → 12a/6a/12p/6p/12a),
+    /// or the plain hour number for 24-hour locales (→ 0/6/12/18/0).
     private static func hourShort(_ hour: Int) -> String {
         let h = hour % 24
-        let suffix = h < 12 ? "a" : "p"
-        let twelve = h % 12 == 0 ? 12 : h % 12
-        return "\(twelve)\(suffix)"
+        switch Locale.current.hourCycle {
+        case .zeroToTwentyThree, .oneToTwentyFour:
+            return "\(h)"
+        default:
+            let suffix = h < 12 ? "a" : "p"
+            let twelve = h % 12 == 0 ? 12 : h % 12
+            return "\(twelve)\(suffix)"
+        }
     }
 
     // MARK: Helpers
@@ -359,14 +369,31 @@ struct HistoryView: View {
         return TimeFormatting.duration(from: .now, to: .now.addingTimeInterval(seconds))
     }
 
-    private static let weekdayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "EEE"
-        return f
-    }()
-
     private static func weekday(_ date: Date) -> String {
-        weekdayFormatter.string(from: date)
+        date.formatted(.dateTime.weekday(.abbreviated))
+    }
+
+    /// Spoken summary of one swimlane row, e.g.
+    /// "Tuesday: 6 feeds, 3 hours 20 minutes of sleep, 4 diapers."
+    private static func swimlaneSummary(_ row: DayMarks) -> String {
+        let feeds = row.marks.filter { $0.kind == .feed }.count
+        let diapers = row.marks.filter { $0.kind == .diaper }.count
+        let sleepSeconds = row.marks
+            .filter { $0.kind == .sleep }
+            .reduce(0.0) { $0 + (($1.end ?? $1.start).timeIntervalSince($1.start)) }
+        let mins = Int(sleepSeconds / 60)
+        let sleep: String
+        if mins == 0 {
+            sleep = "no sleep logged"
+        } else {
+            let h = mins / 60, m = mins % 60
+            let hours = h == 1 ? "1 hour" : "\(h) hours"
+            let minutes = m == 1 ? "1 minute" : "\(m) minutes"
+            let span = h == 0 ? minutes : (m == 0 ? hours : "\(hours) \(minutes)")
+            sleep = "\(span) of sleep"
+        }
+        let day = row.day.formatted(.dateTime.weekday(.wide))
+        return "\(day): \(Plural.count(feeds, "feed")), \(sleep), \(Plural.count(diapers, "diaper"))."
     }
 }
 

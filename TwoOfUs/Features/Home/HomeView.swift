@@ -209,7 +209,7 @@ struct HomeView: View {
             Image(systemName: "gearshape")
                 .font(.title3)
                 .foregroundStyle(AppColor.text3)
-                .frame(width: 40, height: 40)
+                .frame(width: 44, height: 44)
                 .background(AppColor.card, in: Circle())
                 .overlay(Circle().strokeBorder(AppColor.separator.opacity(0.5), lineWidth: 0.5))
         }
@@ -351,6 +351,10 @@ struct HomeView: View {
                         .contentShape(Rectangle())
                         .accessibilityIdentifier("timelineRow")
                         .onTapGesture { editing = entry }
+                        // The row is tappable but nothing tells VoiceOver that —
+                        // without the trait + hint it reads as inert text.
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityHint("Edits this entry")
                         .swipeActions(edge: .trailing) {
                             Button(role: .destructive) { delete(entry) } label: {
                                 Label("Delete", systemImage: "trash")

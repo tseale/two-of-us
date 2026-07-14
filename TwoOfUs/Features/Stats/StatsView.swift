@@ -462,13 +462,16 @@ struct StatsView: View {
         if h == 0 { return "\(m)m" }
         return m == 0 ? "\(h)h" : "\(h)h \(m)m"
     }
+    // `.formatted` styles: locale-aware (fixed "MMM d"/"h a" patterns aren't)
+    // and backed by Foundation's own formatter cache — no per-call allocation.
     private static func monthDay(_ date: Date) -> String {
-        let f = DateFormatter(); f.dateFormat = "MMM d"; return f.string(from: date)
+        date.formatted(.dateTime.month(.abbreviated).day())
     }
     private static func hourLabel(_ hour: Int) -> String {
         var c = DateComponents(); c.hour = hour
         let date = Calendar.current.date(from: c) ?? .now
-        let f = DateFormatter(); f.dateFormat = "h a"; return f.string(from: date)
+        // "6 PM" for 12-hour users, "18" for 24-hour locales.
+        return date.formatted(.dateTime.hour())
     }
 }
 

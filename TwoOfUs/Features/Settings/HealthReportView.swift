@@ -168,11 +168,13 @@ struct HealthReportView: View {
 
     // MARK: Formatting
 
+    // `.formatted` styles: locale-aware (a fixed "EEE MMM d" pattern isn't) and
+    // backed by Foundation's formatter cache — no per-call allocation.
     private static func short(_ d: Date) -> String {
-        let f = DateFormatter(); f.dateFormat = "EEE MMM d"; return f.string(from: d)
+        d.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
     }
     private static func long(_ d: Date) -> String {
-        let f = DateFormatter(); f.dateStyle = .medium; return f.string(from: d)
+        d.formatted(date: .abbreviated, time: .omitted)
     }
 }
 

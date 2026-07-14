@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Data for the transient "Logged · Undo" toast.
 struct ToastData: Identifiable, Equatable {
@@ -40,7 +41,12 @@ private struct LoggedToastModifier: ViewModifier {
                 .padding(.bottom, 8)
                 .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 .task(id: toast.id) {
-                    try? await Task.sleep(for: .seconds(3))
+                    // The toast is transient — announce it, or a VoiceOver user
+                    // never knows the log (or its Undo) happened. They also get
+                    // longer to find the Undo button before it auto-dismisses.
+                    UIAccessibility.post(notification: .announcement, argument: toast.message)
+                    let dwell: Double = UIAccessibility.isVoiceOverRunning ? 6 : 3
+                    try? await Task.sleep(for: .seconds(dwell))
                     withAnimation { self.toast = nil }
                 }
             }

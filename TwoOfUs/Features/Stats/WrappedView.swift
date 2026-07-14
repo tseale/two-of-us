@@ -158,8 +158,8 @@ struct WrappedCard: View {
     // Self-contained formatting (the card renders off-screen for image export).
 
     private static func range(_ start: Date, _ end: Date) -> String {
-        let f = DateFormatter(); f.dateFormat = "MMM d"
-        return "\(f.string(from: start)) – \(f.string(from: end))"
+        let style = Date.FormatStyle.dateTime.month(.abbreviated).day()
+        return "\(start.formatted(style)) – \(end.formatted(style))"
     }
 
     private static func durationShort(_ seconds: TimeInterval) -> String {
@@ -172,8 +172,8 @@ struct WrappedCard: View {
     private static func hourLabel(_ hour: Int) -> String {
         var c = DateComponents(); c.hour = hour
         let date = Calendar.current.date(from: c) ?? .now
-        let f = DateFormatter(); f.dateFormat = "h a"
-        return f.string(from: date)
+        // Locale-aware: "6 PM" for 12-hour users, "18" for 24-hour locales.
+        return date.formatted(.dateTime.hour())
     }
 }
 

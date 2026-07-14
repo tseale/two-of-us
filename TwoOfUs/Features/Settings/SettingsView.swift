@@ -59,19 +59,27 @@ struct SettingsView: View {
                                 title: "Feed every \(intervalLabel(settings.targetFeedIntervalMinutes))",
                                 systemImage: "timer", tint: AppColor.accentFeed)
                         }
-                        // Common presets for quick selection.
+                        // Common presets for quick selection. Chip styling lives
+                        // INSIDE the button label (with a 44pt-min frame), so the
+                        // whole capsule is tappable — not just the caption text.
                         HStack(spacing: 8) {
                             ForEach([120, 150, 180, 240], id: \.self) { mins in
                                 let selected = settings.targetFeedIntervalMinutes == mins
-                                Button(intervalLabel(mins)) {
+                                Button {
                                     store.updateSettings(targetFeedIntervalMinutes: mins)
+                                } label: {
+                                    Text(intervalLabel(mins))
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(selected ? AppColor.accentFeed : AppColor.text2)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 5)
+                                        .background(selected ? AppColor.accentFeed.opacity(0.15) : AppColor.card2,
+                                                    in: Capsule())
+                                        .frame(minHeight: 44)
+                                        .contentShape(Rectangle())
                                 }
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(selected ? AppColor.accentFeed : AppColor.text2)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(selected ? AppColor.accentFeed.opacity(0.15) : AppColor.card2,
-                                            in: Capsule())
+                                .accessibilityLabel("Feed every \(spokenInterval(mins))")
+                                .accessibilityAddTraits(selected ? [.isSelected] : [])
                             }
                             Spacer()
                         }
@@ -525,5 +533,15 @@ struct SettingsView: View {
         let h = minutes / 60
         let m = minutes % 60
         return m == 0 ? "\(h)h" : "\(h)h \(m)m"
+    }
+
+    /// Fully spelled-out form for VoiceOver — "2h 30m" reads poorly aloud.
+    private func spokenInterval(_ minutes: Int) -> String {
+        let h = minutes / 60
+        let m = minutes % 60
+        let hours = h == 1 ? "1 hour" : "\(h) hours"
+        if m == 0 { return hours }
+        let mins = m == 1 ? "1 minute" : "\(m) minutes"
+        return h == 0 ? mins : "\(hours) \(mins)"
     }
 }

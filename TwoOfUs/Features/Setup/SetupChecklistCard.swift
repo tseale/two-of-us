@@ -62,8 +62,13 @@ struct SetupChecklistCard: View {
                         Image(systemName: "xmark.circle.fill")
                             .font(.body)
                             .foregroundStyle(AppColor.text3)
+                            // 44pt hit target; negative padding keeps the header
+                            // row's layout at the icon's visual size.
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .padding(-11)
                     .accessibilityLabel("Dismiss — finish anytime in Settings")
                 }
             }
