@@ -50,6 +50,11 @@ struct FeedSheet: View {
                                 if let v = Double(cleaned), v > 0 {
                                     amount = v
                                     usingCustom = true
+                                } else if cleaned.isEmpty {
+                                    // Field was cleared — revert to preset-selection mode so
+                                    // the last selected chip re-highlights instead of showing
+                                    // no selection while the button still carries a stale amount.
+                                    usingCustom = false
                                 }
                             }
                         Text("oz").foregroundStyle(AppColor.text3)
@@ -94,6 +99,7 @@ struct FeedSheet: View {
             amount = oz
             usingCustom = false
             customText = ""
+            Haptics.tap()
         } label: {
             VStack(spacing: 2) {
                 Text(OzFormat.string(oz)).font(.system(.title2, design: .rounded).weight(.bold))

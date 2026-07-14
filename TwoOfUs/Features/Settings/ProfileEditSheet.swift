@@ -75,7 +75,7 @@ struct ProfileEditSheet: View {
 
     private func save() {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { dismiss(); return }
+        guard !trimmed.isEmpty else { return }   // Save is disabled, but guard anyway
         store.updateMyProfile(name: trimmed, colorHex: colorHex, photo: .some(photoData))
         dismiss()
     }

@@ -18,7 +18,9 @@ final class UrgencyTests: XCTestCase {
     }
 
     func testAmberBeginsAtTwoThirds() {
-        XCTAssertEqual(urgency(elapsed: 66), .amber, "ratio 0.66 is the first amber")
+        // threshold is 2/3 ≈ 0.6667; ratio 0.66 is still green, 0.67 is the first amber
+        XCTAssertEqual(urgency(elapsed: 66), .green, "ratio 0.66 is just below 2/3 — still green")
+        XCTAssertEqual(urgency(elapsed: 67), .amber, "ratio 0.67 crosses 2/3 — first amber")
         XCTAssertEqual(urgency(elapsed: 100), .amber, "exactly on target is still amber")
     }
 

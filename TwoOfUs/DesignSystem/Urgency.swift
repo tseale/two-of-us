@@ -50,7 +50,7 @@ enum Urgency {
     static func from(since date: Date?, now: Date = .now, target: TimeInterval) -> Urgency {
         guard let date, target > 0 else { return .green }
         let ratio = now.timeIntervalSince(date) / target
-        if ratio < 0.66 { return .green }
+        if ratio < 2.0 / 3.0 { return .green }
         if ratio <= 1.0 { return .amber }
         return .red
     }
