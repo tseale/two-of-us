@@ -7,7 +7,7 @@ struct AmbientStop: Equatable {
     /// The "night stage" mood (welcome / join hello — the mark's home): warmer,
     /// asymmetric washes and a scatter of stars in dark mode. The base stays the
     /// scheme background, so the scene still follows the appearance toggle — the
-    /// `CradleMark` carries its own dark spotlight (see `CradleMark.staged`).
+    /// `CradleMark` carries its own scheme-aware spotlight (see `CradleMark.staged`).
     var darkStage = false
     /// Tones the washes down (setup chapter: calmer, content leads).
     var subtle = false
