@@ -8,10 +8,10 @@ import SwiftUI
 /// glowing lights rather than the icon's crisp vector discs.
 ///
 /// Shared by the join flow and the post-setup celebration. The `.screen` blend
-/// is isolated by the trailing `compositingGroup`, but the artwork is designed
-/// for a dark backdrop — pass `staged: true` to sit it on a self-contained
-/// `MarkSpotlight`, so the mark reads on a scene that otherwise follows the
-/// appearance toggle (callers already on a dark surface leave it off).
+/// is isolated by the trailing `compositingGroup` — pass `staged: true` to sit
+/// the mark on a self-contained `MarkSpotlight` (deep indigo in dark mode, a
+/// faint lavender wash in light) so it reads on a scene that otherwise follows
+/// the appearance toggle (callers already on a dark surface leave it off).
 struct CradleMark: View {
     /// Per-parent entrance transform: a drift `offset` (added to the resting
     /// offset), a `scale` (1 = resting), and an `opacity` (1 = present).
@@ -38,9 +38,9 @@ struct CradleMark: View {
     /// Reveal of the baby crisp core (0…1 opacity). 1 = present (default → unchanged).
     /// Separate from `glowOpacity` so the core can pop after the circles meet.
     var babyCoreOpacity: Double = 1
-    /// Place the mark on its own soft indigo spotlight (`MarkSpotlight`). Needed
-    /// wherever the surrounding scene isn't already dark — the screen-blended
-    /// glow washes out over a light backdrop without it.
+    /// Place the mark on its own soft spotlight (`MarkSpotlight`). Needed
+    /// wherever the surrounding scene isn't already dark, so the mark keeps a
+    /// gentle stage under it in either scheme.
     var staged: Bool = false
 
     // Geometry mirrors the generator constants (LEFT_C / RIGHT_C / BABY_C as
@@ -108,9 +108,9 @@ struct CradleMark: View {
         }
         .frame(width: size, height: size)
         .compositingGroup()
-        // The spotlight sits behind the composited group so the mark's bright
-        // lens reads against its dark core, while the scene around it stays free
-        // to follow the appearance toggle.
+        // The spotlight sits behind the composited group — a dark core for the
+        // mark's bright lens in dark mode, a faint tint in light — while the
+        // scene around it stays free to follow the appearance toggle.
         .background(alignment: .center) {
             if staged { MarkSpotlight(diameter: size * 1.8) }
         }
@@ -119,10 +119,11 @@ struct CradleMark: View {
     }
 }
 
-/// The soft indigo "stage" the `CradleMark` sits on: a contained, feathered orb
-/// that fades to transparent, giving the mark's screen-blended glow the dark core
-/// it needs without forcing the whole screen dark. The surrounding scene shows
-/// through the fade, so it stays responsive to light/dark.
+/// The soft "stage" the `CradleMark` sits on: a contained, feathered orb that
+/// fades to transparent. In dark mode it's a deep indigo core for the mark's
+/// screen-blended glow; in light mode a barely-there lavender wash — a dark orb
+/// there reads as a shadowy halo. The surrounding scene shows through the fade,
+/// so it stays responsive to light/dark.
 struct MarkSpotlight: View {
     var diameter: CGFloat = 300
 
