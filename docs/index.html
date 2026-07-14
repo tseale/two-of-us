@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Two of Us — Support</title>
+  <style>
+    :root {
+      --bg: #f9f7f4;
+      --surface: #ffffff;
+      --text: #1a1a1a;
+      --text-muted: #6b6b6b;
+      --accent: #4a7c6f;
+      --border: #e8e4df;
+      --shadow: rgba(0,0,0,0.06);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f0f10;
+        --surface: #1c1c1e;
+        --text: #f0ece6;
+        --text-muted: #8e8e93;
+        --accent: #6db5a4;
+        --border: #2c2c2e;
+        --shadow: rgba(0,0,0,0.3);
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 60px 24px 80px;
+    }
+
+    header {
+      margin-bottom: 56px;
+    }
+
+    .app-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 20px;
+      background: linear-gradient(145deg, #5a9e8e, #3a7060);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 16px var(--shadow);
+    }
+
+    .app-icon svg {
+      width: 44px;
+      height: 44px;
+      opacity: 0.92;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .tagline {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      max-width: 480px;
+    }
+
+    section {
+      margin-bottom: 48px;
+    }
+
+    h2 {
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px 28px;
+      box-shadow: 0 2px 8px var(--shadow);
+    }
+
+    .card p {
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+
+    .card p:last-child { margin-bottom: 0; }
+
+    .card a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .card a:hover { text-decoration: underline; }
+
+    .support-email {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 16px;
+      margin-top: 12px;
+      font-size: 0.95rem;
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+      transition: opacity 0.15s;
+    }
+
+    .support-email:hover { opacity: 0.75; }
+
+    .privacy-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .privacy-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .privacy-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .privacy-row:first-child { padding-top: 0; }
+
+    .privacy-check {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #e8f5f1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .privacy-check { background: #1e3530; }
+    }
+
+    .privacy-check svg { width: 11px; height: 11px; }
+
+    .privacy-label {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+
+    .privacy-desc {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    footer {
+      margin-top: 64px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+
+    footer a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="app-icon">
+        <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Two hearts -->
+          <path d="M15 10c-3.3 0-6 2.7-6 6 0 4 6 10 6 10s6-6 6-10c0-3.3-2.7-6-6-6z" fill="white"/>
+          <path d="M29 14c-2.8 0-5 2.2-5 5 0 3.3 5 8.5 5 8.5s5-5.2 5-8.5c0-2.8-2.2-5-5-5z" fill="rgba(255,255,255,0.65)"/>
+        </svg>
+      </div>
+      <h1>The Two of Us</h1>
+      <p class="tagline">A quiet, private baby tracker for both parents. Log feeds, sleep, and diapers — together, in sync.</p>
+    </header>
+
+    <section>
+      <h2>Support</h2>
+      <div class="card">
+        <p>Have a question, spotted a bug, or want to share feedback? Reach out directly — we read everything.</p>
+        <a href="mailto:tseale@alumni.nd.edu" class="support-email">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M2 4a1 1 0 011-1h10a1 1 0 011 1v8a1 1 0 01-1 1H3a1 1 0 01-1-1V4z" stroke="currentColor" stroke-width="1.25"/>
+            <path d="M2 4.5l6 4.5 6-4.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
+          </svg>
+          tseale@alumni.nd.edu
+        </a>
+      </div>
+    </section>
+
+    <section>
+      <h2>Privacy</h2>
+      <div class="card">
+        <p>The short version: <strong>your data stays in your own iCloud, and we never see it.</strong> The app's App Store privacy label is <em>Data Not Collected</em>.</p>
+
+        <div class="privacy-grid" style="margin-top: 20px;">
+          <div class="privacy-row">
+            <div class="privacy-check">
+              <svg viewBox="0 0 11 11" fill="none"><path d="M2 5.5l2.5 2.5 4.5-5" stroke="#4a7c6f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div>
+              <div class="privacy-label">All data lives in your iCloud</div>
+              <div class="privacy-desc">Baby name and date of birth, feed amounts, sleep times, diaper logs, and participant names are stored in your private iCloud via CloudKit. There is no Two of Us server.</div>
+            </div>
+          </div>
+          <div class="privacy-row">
+            <div class="privacy-check">
+              <svg viewBox="0 0 11 11" fill="none"><path d="M2 5.5l2.5 2.5 4.5-5" stroke="#4a7c6f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div>
+              <div class="privacy-label">We can't see your data</div>
+              <div class="privacy-desc">Data flows between your devices and the people you invite entirely inside Apple's iCloud. The developer has no access.</div>
+            </div>
+          </div>
+          <div class="privacy-row">
+            <div class="privacy-check">
+              <svg viewBox="0 0 11 11" fill="none"><path d="M2 5.5l2.5 2.5 4.5-5" stroke="#4a7c6f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div>
+              <div class="privacy-label">No tracking, ads, or analytics</div>
+              <div class="privacy-desc">No analytics SDKs, no advertising, no telemetry. The app uses only Apple's own frameworks — nothing from any third party.</div>
+            </div>
+          </div>
+          <div class="privacy-row">
+            <div class="privacy-check">
+              <svg viewBox="0 0 11 11" fill="none"><path d="M2 5.5l2.5 2.5 4.5-5" stroke="#4a7c6f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div>
+              <div class="privacy-label">Invite-only access</div>
+              <div class="privacy-desc">Only the people you explicitly invite by link can see your data. Access is revocable any time from Settings → People.</div>
+            </div>
+          </div>
+          <div class="privacy-row">
+            <div class="privacy-check">
+              <svg viewBox="0 0 11 11" fill="none"><path d="M2 5.5l2.5 2.5 4.5-5" stroke="#4a7c6f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div>
+              <div class="privacy-label">You're in control</div>
+              <div class="privacy-desc">Export your full log as a CSV or PDF at any time, generated on-device. Delete everything via Settings → Manage data — permanently removes all data from iCloud.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>About</h2>
+      <div class="card">
+        <p>The Two of Us is a native iOS app built for parents who want a fast, calm way to track newborn care together. No accounts, no subscriptions, no cloud service of our own — just your iPhone and your iCloud.</p>
+        <p>Built with SwiftUI, SwiftData, and CloudKit. Available on TestFlight.</p>
+      </div>
+    </section>
+
+    <footer>
+      <span>© 2026 Taylor Seale</span>
+      <a href="mailto:tseale@alumni.nd.edu">Contact</a>
+    </footer>
+  </div>
+</body>
+</html>
