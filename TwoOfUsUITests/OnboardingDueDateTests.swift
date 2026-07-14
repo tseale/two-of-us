@@ -24,32 +24,35 @@ final class OnboardingDueDateTests: XCTestCase {
                       "Toggling 'Not born just yet' should relabel the picker to Due date")
     }
 
-    /// Regression: with the keyboard up, the floating Continue bar used to land
-    /// on top of mid-page content (the Photo card), because the pages ignored
-    /// the keyboard and their reserved bar clearance sat behind it. The page
-    /// must scroll its last card fully clear of the bar while typing.
+    /// The keyboard-up contract: the Continue bar stays pinned to the screen
+    /// bottom and lets the keyboard cover it (it used to ride above the
+    /// keyboard, landing mid-page in a glass card — wonky). While typing, the
+    /// page's content must still scroll fully clear of the keyboard; once the
+    /// keyboard drops, Continue is right there and hittable.
     ///
     /// Only meaningful with the SOFTWARE keyboard: with "Connect Hardware
-    /// Keyboard" on, the keyboard never raises, the bar never lifts, and every
-    /// assertion passes vacuously (`defaults write com.apple.iphonesimulator
+    /// Keyboard" on, the keyboard never raises and every assertion passes
+    /// vacuously (`defaults write com.apple.iphonesimulator
     /// ConnectHardwareKeyboard -bool false` + relaunch Simulator to fix).
-    func testContinueBarClearsContentWithKeyboardUp() throws {
+    func testKeyboardCoversContinueBarUntilTypingEnds() throws {
         let app = XCUIApplication()
         app.launchArguments += ["-wipeStore", "-onboardingPage", "1"]
         app.launch()
 
-        // Toggle BEFORE focusing the field: interacting with controls after the
-        // keyboard is up can resign focus and silently turn every geometry
-        // assertion below into a keyboard-down (vacuously green) check.
-        let toggle = app.switches["Not born just yet"].firstMatch
-        XCTAssertTrue(toggle.waitForExistence(timeout: 30))
-        toggle.tap()
-
         let nameField = app.textFields.firstMatch
+        XCTAssertTrue(nameField.waitForExistence(timeout: 30))
         nameField.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5),
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 5),
                       "Tapping the name field should raise the keyboard")
         snapshot(app, "keyboard-up-at-rest")
+
+        // The bar must NOT have lifted above the keyboard: its top edge stays
+        // at or below the keyboard's top, i.e. covered — never mid-page.
+        let continueButton = app.buttons["Continue"].firstMatch
+        XCTAssertTrue(continueButton.exists)
+        XCTAssertGreaterThanOrEqual(continueButton.frame.minY, keyboard.frame.minY - 1,
+                                    "The Continue bar must stay behind the keyboard, not float mid-page")
 
         // Scroll the page up with a controlled upward drag — swipeUp/drag-down
         // trigger `.scrollDismissesKeyboard(.interactively)` and drop the keyboard.
@@ -58,19 +61,31 @@ final class OnboardingDueDateTests: XCTestCase {
         start.press(forDuration: 0.05, thenDragTo: end)
 
         // Guard against vacuous green: the whole point is keyboard-up geometry.
-        XCTAssertTrue(app.keyboards.firstMatch.exists,
+        XCTAssertTrue(keyboard.exists,
                       "Keyboard must still be up when the clearance is asserted")
 
-        let continueButton = app.buttons["Continue"].firstMatch
+        // At max scroll the page's last card must clear the KEYBOARD (the page
+        // still respects it even though the bar doesn't).
         let addPhoto = app.buttons["Add"].firstMatch
-        XCTAssertTrue(continueButton.exists && addPhoto.exists)
-        // At max scroll the page's last card must sit fully ABOVE the floating
-        // bar. Pre-fix, the page ignored the keyboard: its bar clearance sat
-        // behind the keyboard and the content wasn't even scrollable, so the
-        // card could only land under the bar or under the keyboard itself.
-        XCTAssertLessThanOrEqual(addPhoto.frame.maxY, continueButton.frame.minY,
-                                 "The photo card must scroll fully clear of the floating bar")
+        XCTAssertTrue(addPhoto.exists)
+        XCTAssertLessThanOrEqual(addPhoto.frame.maxY, keyboard.frame.minY,
+                                 "The photo card must scroll fully clear of the keyboard")
         snapshot(app, "keyboard-up-scrolled")
+
+        // Finish typing: submit drops the keyboard and reveals the bar in place.
+        nameField.tap()
+        nameField.typeText("Miller\n")
+        XCTAssertTrue(waitForKeyboardGone(app, timeout: 5),
+                      "Submitting should dismiss the keyboard")
+        XCTAssertTrue(continueButton.isHittable,
+                      "Continue must be tappable once typing ends")
+        snapshot(app, "keyboard-down-bar-revealed")
+    }
+
+    private func waitForKeyboardGone(_ app: XCUIApplication, timeout: TimeInterval) -> Bool {
+        let gone = NSPredicate(format: "exists == false")
+        let exp = XCTNSPredicateExpectation(predicate: gone, object: app.keyboards.firstMatch)
+        return XCTWaiter().wait(for: [exp], timeout: timeout) == .completed
     }
 
     private func snapshot(_ app: XCUIApplication, _ name: String) {

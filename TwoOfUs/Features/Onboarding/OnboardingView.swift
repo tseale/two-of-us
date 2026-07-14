@@ -121,12 +121,8 @@ struct OnboardingView: View {
                     .tag(Page.invite)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            // The pages MUST respect the keyboard like the bottom bar does:
-            // each page reserves `barClearance` at its bottom for the floating
-            // bar, and that reservation only lines up with where the bar
-            // actually floats if both share the same (keyboard-shrunk) frame.
-            // When the pages ignored the keyboard, the clearance sat uselessly
-            // behind it and the bar landed on mid-page content (the Photo card).
+            // The pages respect the keyboard (unlike the bar) so the focused
+            // field auto-scrolls clear of it while typing.
 
             VStack {
                 Spacer()
@@ -134,8 +130,11 @@ struct OnboardingView: View {
                     .opacity(chromeRevealed ? 1 : 0)
                     .allowsHitTesting(chromeRevealed)
             }
-            // Deliberately NOT ignoring the keyboard here, so "Continue" rides
-            // above the keyboard while typing a name instead of hiding behind it.
+            // The bar stays pinned to the screen bottom and lets the keyboard
+            // cover it — finish typing (Done, or drag to dismiss) and it's
+            // right there. Riding above the keyboard put it mid-page over live
+            // cards, which read as clutter, not help.
+            .ignoresSafeArea(.keyboard)
         }
         .onChange(of: page) { _, new in
             revealed.insert(new)
