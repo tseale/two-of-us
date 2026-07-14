@@ -32,6 +32,7 @@ struct StatsView: View {
     @State private var summary: String?
     @State private var summaryLoading = false
     @State private var showWrapped = false
+    @State private var showCareSummary = false
 
     var body: some View {
         NavigationStack {
@@ -48,6 +49,7 @@ struct StatsView: View {
                     nightShiftCard
                     contributionCard
                     cadenceCard
+                    if hasAnyData { careSummaryButton }
                 }
                 .padding(16)
                 // Kept on the always-present container (not on the conditionally
@@ -59,6 +61,10 @@ struct StatsView: View {
             .sheet(isPresented: $showWrapped) {
                 WrappedShareView(engine: engine, babyName: babyName,
                                  ageText: ageText, babyPhoto: babies.first?.photoData)
+            }
+            .sheet(isPresented: $showCareSummary) {
+                CareSummarySheet(babyName: babyName,
+                                 dateOfBirth: babies.first?.dateOfBirth, engine: engine)
             }
         }
     }
@@ -91,6 +97,32 @@ struct StatsView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Share \(babyName)'s week")
+    }
+
+    // MARK: Care summary (printable pediatrician report)
+
+    private var careSummaryButton: some View {
+        Button { showCareSummary = true } label: {
+            HStack(spacing: 12) {
+                Text("🩺")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Care summary")
+                        .font(.headline)
+                        .foregroundStyle(AppColor.text)
+                    Text("A printable report for \(babyName)'s checkups")
+                        .font(.caption)
+                        .foregroundStyle(AppColor.text2)
+                }
+                Spacer()
+                Image(systemName: "doc.text")
+                    .foregroundStyle(AppColor.accentFeed)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity)
+            .surfaceCard(cornerRadius: 18)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Care summary — a printable report for pediatrician visits")
     }
 
     // MARK: Insights (on-device AI)
