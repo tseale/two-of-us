@@ -50,10 +50,15 @@ App Store Connect). Everything below is ✅ done except the last two clicks.
   **App Store Connect** (TestFlight and App Store), start condition
   **Manual Start** only, Xcode "Latest Release" (26.5). Original "Default"
   workflow untouched.
-- **Build 67** ran on the new workflow (uploaded 9:09 AM PT, processed
-  `APP_STORE_ELIGIBLE`) and is **attached to version 1.0 and saved**.
-  (Builds 68+ from the "Default" workflow remain INTERNAL_ONLY — ignore them;
-  future App Store builds must come from the "App Store Release" workflow.)
+- **Build 72** (from the `v1.0` tag, commit `a9a3ae1`) is **attached to
+  version 1.0 and saved** — the tag-triggered release pipeline is proven
+  end-to-end. Default-workflow builds remain INTERNAL_ONLY; App Store builds
+  come from `v*` tags (docs/XCODE_CLOUD.md §2b).
+- TestFlight cleanup 2026-07-14: all stale builds expired; installable builds
+  are 70 (current internal) and 72 (release). Build 67 (earlier release
+  candidate) was expired along with the rest after 72 replaced it — note that
+  build 71, the first tag build, was accidentally expired during cleanup and
+  rebuilt as 72 (same commit).
 - "Sign-in required" unchecked and saved (no account needed for review).
 
 ---
