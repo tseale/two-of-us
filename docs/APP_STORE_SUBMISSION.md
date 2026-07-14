@@ -54,11 +54,11 @@ App Store Connect). Everything below is ✅ done except the last two clicks.
   version 1.0 and saved** — the tag-triggered release pipeline is proven
   end-to-end. Default-workflow builds remain INTERNAL_ONLY; App Store builds
   come from `v*` tags (docs/XCODE_CLOUD.md §2b).
-- TestFlight cleanup 2026-07-14: all stale builds expired; installable builds
-  are 70 (current internal) and 72 (release). Build 67 (earlier release
-  candidate) was expired along with the rest after 72 replaced it — note that
-  build 71, the first tag build, was accidentally expired during cleanup and
-  rebuilt as 72 (same commit).
+- TestFlight cleanup 2026-07-14: ~50 stale builds expired. Non-expired builds:
+  70 (current internal), 72 (release, attached), and 67 (earlier release
+  candidate, kept as fallback; self-expires in 90 days). Build 71 — the first
+  tag build — was accidentally expired during the cleanup sweep and rebuilt
+  as 72 from the same commit.
 - "Sign-in required" unchecked and saved (no account needed for review).
 
 ---
