@@ -45,11 +45,15 @@ enum TimeFormatting {
 
     /// Absolute local time, e.g. "2:14 PM".
     static func clock(_ date: Date) -> String {
+        clockFormatter.string(from: date)
+    }
+
+    private static let clockFormatter: DateFormatter = {
         let f = DateFormatter()
         f.timeStyle = .short
         f.dateStyle = .none
-        return f.string(from: date)
-    }
+        return f
+    }()
 
     /// Adaptive age string: days → weeks → months. A future date of birth is a
     /// due date (expecting parents set up before the arrival) and counts down
