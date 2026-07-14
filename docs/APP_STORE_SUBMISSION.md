@@ -50,20 +50,18 @@ App Store Connect). Everything below is ✅ done except the last two clicks.
   **App Store Connect** (TestFlight and App Store), start condition
   **Manual Start** only, Xcode "Latest Release" (26.5). Original "Default"
   workflow untouched.
-- **Build 67 started manually from `main` at 11:05 AM** on the new workflow.
+- **Build 67** ran on the new workflow (uploaded 9:09 AM PT, processed
+  `APP_STORE_ELIGIBLE`) and is **attached to version 1.0 and saved**.
+  (Builds 68+ from the "Default" workflow remain INTERNAL_ONLY — ignore them;
+  future App Store builds must come from the "App Store Release" workflow.)
+- "Sign-in required" unchecked and saved (no account needed for review).
 
 ---
 
-## 🖐️ What's left for Taylor (~2 minutes, once build 67 processes)
+## 🖐️ What's left for Taylor (one click)
 
-1. Version page → **Build** section → ＋ **Add Build** → select **build 67**
-   (the first App Store-eligible build; radios for 56–66 stay disabled —
-   that's expected) → Done → **Save**.
-2. Click **Add for Review** → confirm → **Submit to App Review**.
-   Auto-release is on, so approval = live on the App Store.
-
-> If Claude is driving again: it can do step 1 (build attach + Save); step 2
-> stays with Taylor by agreement.
+Open the 1.0 version page → **Add for Review** → confirm →
+**Submit to App Review**. Auto-release is on, so approval = live.
 
 ## Known v1 limitations (documented, not blockers)
 
