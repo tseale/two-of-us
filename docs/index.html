@@ -22,6 +22,12 @@
       --accent-sleep:  #8E8EFF;  /* periwinkle */
       --accent-diaper: #F5B971;  /* warm amber */
 
+      /* Darkened accents for text/glyphs on light surfaces (urgency*Text pattern;
+         diaper value is urgencyAmberText's light hex from Colors.swift) */
+      --accent-feed-text:   #1F8474;
+      --accent-sleep-text:  #5F5FD9;
+      --accent-diaper-text: #B87B1E;
+
       --indigo-hi: #2A2A4D;
       --indigo-lo: #1C1C2E;
       --cream:     #FFF4E8;
@@ -44,6 +50,11 @@
         --feed-tint:   rgba(90, 200, 184, 0.12);
         --sleep-tint:  rgba(142, 142, 255, 0.12);
         --diaper-tint: rgba(245, 185, 113, 0.12);
+
+        /* Raw accents are fine on dark surfaces */
+        --accent-feed-text:   #5AC8B8;
+        --accent-sleep-text:  #8E8EFF;
+        --accent-diaper-text: #F0B05A;  /* urgencyAmberText dark hex */
       }
     }
 
@@ -152,7 +163,7 @@
     .card p:last-child { margin-bottom: 0; }
     .card .muted { color: var(--text2); font-size: 0.95rem; }
 
-    a { color: var(--accent-feed); text-decoration: none; font-weight: 500; }
+    a { color: var(--accent-feed-text); text-decoration: none; font-weight: 500; }
     a:hover { text-decoration: underline; }
 
     .support-email {
@@ -166,7 +177,7 @@
       margin-top: 14px;
       font-size: 0.95rem;
       font-weight: 600;
-      color: var(--accent-feed);
+      color: var(--accent-feed-text);
       transition: opacity 0.15s ease;
     }
     .support-email:hover { opacity: 0.8; text-decoration: none; }
@@ -221,9 +232,9 @@
       justify-content: center;
       margin-top: 2px;
     }
-    .privacy-icon.feed   { background: var(--feed-tint);   color: var(--accent-feed); }
-    .privacy-icon.sleep  { background: var(--sleep-tint);  color: var(--accent-sleep); }
-    .privacy-icon.diaper { background: var(--diaper-tint); color: var(--accent-diaper); }
+    .privacy-icon.feed   { background: var(--feed-tint);   color: var(--accent-feed-text); }
+    .privacy-icon.sleep  { background: var(--sleep-tint);  color: var(--accent-sleep-text); }
+    .privacy-icon.diaper { background: var(--diaper-tint); color: var(--accent-diaper-text); }
 
     .privacy-label { font-weight: 600; font-size: 0.95rem; margin-bottom: 2px; }
     .privacy-desc  { font-size: 0.88rem; color: var(--text2); }
@@ -240,7 +251,7 @@
       flex-wrap: wrap;
     }
     footer a { color: var(--text3); font-weight: 400; }
-    footer a:hover { color: var(--accent-feed); }
+    footer a:hover { color: var(--accent-feed-text); }
   </style>
 </head>
 <body>
