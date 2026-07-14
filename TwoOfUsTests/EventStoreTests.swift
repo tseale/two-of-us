@@ -82,6 +82,34 @@ final class EventStoreTests: XCTestCase {
         XCTAssertNil(store.activeSleep)
     }
 
+    func testResumeSleepReversesAStop() throws {
+        let sleep = try XCTUnwrap(store.startSleep())
+        store.stopSleep(sleep)
+        store.resumeSleep(sleep)
+        XCTAssertNil(sleep.endedAt, "undoing Wake Up makes the sleep active again")
+        XCTAssertNotNil(store.activeSleep)
+    }
+
+    func testResumeSleepReversesADiscard() throws {
+        // The sub-minute wake path cancels (soft-deletes) instead of stopping.
+        let sleep = try XCTUnwrap(store.startSleep())
+        store.cancelSleep(sleep)
+        XCTAssertNil(store.activeSleep)
+        store.resumeSleep(sleep)
+        XCTAssertNil(sleep.deletedAt)
+        XCTAssertNil(sleep.endedAt)
+        XCTAssertNotNil(store.activeSleep)
+    }
+
+    func testResumeSleepRefusesWhenAnotherIsActive() throws {
+        let first = try XCTUnwrap(store.startSleep())
+        store.stopSleep(first)
+        let second = try XCTUnwrap(store.startSleep())
+        store.resumeSleep(first)
+        XCTAssertNotNil(first.endedAt, "resume must not create a second active sleep")
+        XCTAssertTrue(second.isActive)
+    }
+
     func testClearAllLogsSoftDeletesOnlyLiveEvents() throws {
         let feed = store.logFeed(amountOz: 3)
         store.logDiaper(.wet)

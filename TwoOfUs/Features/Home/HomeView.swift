@@ -60,7 +60,7 @@ struct HomeView: View {
                         VStack(spacing: 12) {
                             logButtons(now: ctx.date)
                             if let sleep = activeSleep {
-                                SleepActiveCard(sleep: sleep, now: ctx.date) { store.stopSleep(sleep) }
+                                SleepActiveCard(sleep: sleep, now: ctx.date) { endSleep(sleep) }
                                     .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
                             }
                         }
@@ -306,6 +306,26 @@ struct HomeView: View {
         // Undo must also end the Live Activity startSleep began — softDelete alone
         // would strand a running lock-screen timer.
         showToast("Started sleep", accent: AppColor.accentSleep) { store.cancelSleep(event) }
+    }
+
+    /// Wake Up is easy to mis-tap and ending a timer is otherwise unrecoverable
+    /// (nothing can make a sleep active again), so it gets the same Undo toast
+    /// every other action has. A sub-minute sleep is discarded instead of logged
+    /// — the edit sheet already treats "under a minute" as invalid, so persisting
+    /// one would create a row that can't be re-saved.
+    private func endSleep(_ sleep: SleepEvent) {
+        if Date.now.timeIntervalSince(sleep.startedAt) < 60 {
+            store.cancelSleep(sleep)
+            showToast("Under a minute — not saved", accent: AppColor.accentSleep) {
+                store.resumeSleep(sleep)
+            }
+        } else {
+            let duration = TimeFormatting.duration(from: sleep.startedAt, to: .now)
+            store.stopSleep(sleep)
+            showToast("Slept \(duration)", accent: AppColor.accentSleep) {
+                store.resumeSleep(sleep)
+            }
+        }
     }
 
     // MARK: Timeline

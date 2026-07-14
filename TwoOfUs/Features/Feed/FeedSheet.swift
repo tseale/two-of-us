@@ -91,6 +91,14 @@ struct FeedSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        // The initial amount must be one of the family's presets — with custom
+        // presets that skip 3 oz (e.g. 2/4/6), the hardcoded default left no
+        // chip highlighted while the confirm button still said "Log 3 oz".
+        .onAppear {
+            if !usingCustom, !presets.isEmpty, !presets.contains(amount) {
+                amount = presets[presets.count / 2]
+            }
+        }
     }
 
     private func presetChip(_ oz: Double) -> some View {

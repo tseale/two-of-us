@@ -131,6 +131,20 @@ struct EventStore {
         softDelete(event)
     }
 
+    /// Undo of a just-ended (or just-discarded) sleep: puts the timer back as if
+    /// Wake Up was never tapped — clears `endedAt`/`deletedAt` and restarts the
+    /// Live Activity. Refuses if another sleep started in the meantime, keeping
+    /// the single-active-sleep invariant.
+    func resumeSleep(_ event: SleepEvent) {
+        guard activeSleep == nil else { return }
+        event.endedAt = nil
+        event.deletedAt = nil
+        save()
+        sync(save: [event.id])
+        if !demo { SleepActivityManager.start(babyName: baby?.name ?? "Baby", at: event.startedAt) }
+        reloadWidgets()
+    }
+
     /// Best-effort Siri donation so Suggestions / Spotlight rank Two of Us
     /// actions by the family's real rhythm. Fire-and-forget; never blocks a log.
     private func donate(_ intent: some AppIntent) {
@@ -373,7 +387,7 @@ struct EventStore {
         ))) ?? []
         entries += feeds.map(TimelineEntry.feed)
 
-        // Sleeps: include if started within the window OR still active.
+        // Sleeps: only completed ones — the active sleep shows on its own card.
         let sleeps = (try? context.fetch(FetchDescriptor<SleepEvent>(
             predicate: #Predicate { $0.deletedAt == nil && $0.startedAt >= since }
         ))) ?? []
