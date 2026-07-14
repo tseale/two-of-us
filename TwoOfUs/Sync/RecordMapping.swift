@@ -80,6 +80,32 @@ enum RecordMapping {
         return nil
     }
 
+    /// Existence check that PROPAGATES store errors, unlike `record(forRecordName:)`
+    /// whose nil means both "model deleted" and "fetch failed". Callers that drop
+    /// queued sync work on nil (`SyncManager.nextRecordZoneChangeBatch`) need to
+    /// tell the two apart, or a transient fetch error silently loses the record.
+    static func modelExists(recordName: String, in context: ModelContext) throws -> Bool {
+        guard let uuid = UUID(uuidString: recordName) else { return false }
+        var feed = FetchDescriptor<FeedEvent>(predicate: #Predicate { $0.id == uuid })
+        feed.fetchLimit = 1
+        if try context.fetchCount(feed) > 0 { return true }
+        var sleep = FetchDescriptor<SleepEvent>(predicate: #Predicate { $0.id == uuid })
+        sleep.fetchLimit = 1
+        if try context.fetchCount(sleep) > 0 { return true }
+        var diaper = FetchDescriptor<DiaperEvent>(predicate: #Predicate { $0.id == uuid })
+        diaper.fetchLimit = 1
+        if try context.fetchCount(diaper) > 0 { return true }
+        var baby = FetchDescriptor<Baby>(predicate: #Predicate { $0.id == uuid })
+        baby.fetchLimit = 1
+        if try context.fetchCount(baby) > 0 { return true }
+        var participant = FetchDescriptor<Participant>(predicate: #Predicate { $0.id == uuid })
+        participant.fetchLimit = 1
+        if try context.fetchCount(participant) > 0 { return true }
+        var settings = FetchDescriptor<SharedSettings>(predicate: #Predicate { $0.id == uuid })
+        settings.fetchLimit = 1
+        return try context.fetchCount(settings) > 0
+    }
+
     private static func setCommon(_ r: CKRecord, loggedByID: UUID, name: String, color: String,
                                   deletedAt: Date?, editOfID: UUID?, babyID: UUID?) {
         r["loggedByID"] = loggedByID.uuidString

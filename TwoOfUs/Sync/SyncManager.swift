@@ -587,8 +587,20 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             // Events can land before their Baby record (no batch ordering
             // guarantee) — attach them once the baby exists.
             RecordMapping.relinkOrphanEvents(in: context)
-            do { try context.save() } catch {
-                AppLog.sync.error("Sync fetch apply failed to save: \(error.localizedDescription, privacy: .public)")
+            do {
+                try context.save()
+            } catch {
+                // The engine checkpoints this batch via the following .stateUpdate
+                // whether or not we stored it — a swallowed failure here would
+                // permanently lose the co-parent's changes (invariant 2). The
+                // applied-but-unsaved changes are still in the context, so retry
+                // once; if the store still refuses, reset this engine so a fresh
+                // fetch re-delivers the batch.
+                AppLog.sync.error("Sync fetch apply failed to save (retrying): \(error.localizedDescription, privacy: .public)")
+                do { try context.save() } catch {
+                    resetEngineAfterFetchApplyFailure(syncEngine)
+                    return
+                }
             }
             reconcileLiveActivity()
             WidgetCenter.shared.reloadAllTimelines()
@@ -728,6 +740,28 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         bootstrapReconcileIfNeeded()
     }
 
+    /// Recovery for a fetched batch the local store refused to save: the engine
+    /// checkpoints fetched changes regardless, so without intervention that batch
+    /// is never re-delivered. Discard this engine and its persisted state — the
+    /// replacement starts from a nil fetch token and re-fetches the whole zone,
+    /// which is safe because `RecordMapping.apply` upserts by record name. Unsent
+    /// local changes live in the same state file, so park them first (they drain
+    /// on the restart). The identity guard at the top of `handleEvent` keeps the
+    /// discarded engine's trailing `.stateUpdate` from resurrecting the file.
+    private func resetEngineAfterFetchApplyFailure(_ engine: CKSyncEngine) {
+        let scope = scope(for: engine)
+        AppLog.sync.fault("Fetched changes could not be saved; resetting \(scope == .shared ? "shared" : "private", privacy: .public) engine to re-fetch.")
+        parkUnsentChanges(engine.state.pendingRecordZoneChanges, scope: scope)
+        if scope == .shared {
+            sharedEngine = nil
+        } else {
+            privateEngine = nil
+            handledPrivateZoneDeletion = false
+        }
+        try? FileManager.default.removeItem(at: stateURL(scope))
+        start()
+    }
+
     func nextRecordZoneChangeBatch(_ context: CKSyncEngine.SendChangesContext, syncEngine: CKSyncEngine) async -> CKSyncEngine.RecordZoneChangeBatch? {
         let scope = context.options.scope
         let pending = syncEngine.state.pendingRecordZoneChanges.filter { scope.contains($0) }
@@ -739,9 +773,15 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             if case .saveRecord(let id) = change {
                 if let r = RecordMapping.record(forRecordName: id.recordName, recordID: id, in: self.context) {
                     records[id] = r
-                } else {
-                    // No live local model — drop the stale pending change.
+                } else if (try? RecordMapping.modelExists(recordName: id.recordName, in: self.context)) == false {
+                    // Confirmed absent — drop the stale pending change. Only a
+                    // positive "not in the store" answer may drop (invariant 2):
+                    // a nil record from a transient fetch error must stay queued.
                     syncEngine.state.remove(pendingRecordZoneChanges: [change])
+                } else {
+                    // Store fetch failed — leave the change pending; the engine
+                    // retries it on the next send cycle.
+                    AppLog.sync.error("Send of \(id.recordName, privacy: .public) skipped this batch — store fetch failed; will retry.")
                 }
             }
         }
@@ -786,7 +826,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
 
         let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: privateZoneID)
         if let existing = try? await db.record(for: shareID) as? CKShare {
-            LocalPrefs.shared.syncRole = .owner
+            Self.setRealRole(.owner)
             await refreshShareMetadata(existing, db: db)
             return existing
         }
@@ -803,13 +843,13 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         // a failed save shows as an error instead of hanging.
         if let result = results.saveResults[share.recordID],
            let saved = try result.get() as? CKShare {
-            LocalPrefs.shared.syncRole = .owner
+            Self.setRealRole(.owner)
             return saved
         }
         // Save reported success without returning our record (or another device
         // created the share concurrently) — fetch the canonical copy.
         if let fetched = try? await db.record(for: shareID) as? CKShare {
-            LocalPrefs.shared.syncRole = .owner
+            Self.setRealRole(.owner)
             return fetched
         }
         throw SyncError.iCloudUnavailable
@@ -1247,8 +1287,14 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
 
     private func saveState(_ state: CKSyncEngine.State.Serialization, scope: CKDatabase.Scope) {
         guard let data = try? JSONEncoder().encode(state) else { return }
-        // Atomic: a torn write here would decode as nil next launch, starting a
-        // fresh engine — full re-fetch, and every unsent pending change lost.
-        try? data.write(to: stateURL(scope), options: .atomic)
+        let url = stateURL(scope)
+        // iOS doesn't create Application Support automatically — today SwiftData's
+        // default store happens to make it first, but this write must not depend
+        // on that: a silently failed save here means a fresh engine next launch,
+        // full re-fetch, and every unsent pending change lost.
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        // Atomic: a torn write would decode as nil next launch — same cost.
+        try? data.write(to: url, options: .atomic)
     }
 }
