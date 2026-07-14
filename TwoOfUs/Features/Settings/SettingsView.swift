@@ -180,7 +180,7 @@ struct SettingsView: View {
                 if let share {
                     CloudShareView(
                         share: share,
-                        itemTitle: (baby?.name.isEmpty == false) ? "\(baby!.name) — Two of Us" : "Two of Us",
+                        itemTitle: baby.flatMap { $0.name.isEmpty ? nil : "\($0.name) — Two of Us" } ?? "Two of Us",
                         itemThumbnail: baby?.photoData
                     )
                 }
@@ -251,7 +251,7 @@ struct SettingsView: View {
             Avatar(photoData: baby?.photoData, name: baby?.name ?? "",
                    colorHex: ParticipantColors.babyHex, size: 64)
             VStack(alignment: .leading, spacing: 3) {
-                Text(baby?.name.isEmpty == false ? baby!.name : "Baby")
+                Text(baby.flatMap { $0.name.isEmpty ? nil : $0.name } ?? "Baby")
                     .font(AppFont.hero(26))
                     .foregroundStyle(AppColor.text)
                 if let baby {
@@ -281,7 +281,7 @@ struct SettingsView: View {
                 HStack(spacing: 12) {
                     Avatar(photoData: me?.photoData, name: me?.displayName ?? "",
                            colorHex: me?.colorHex ?? ParticipantColors.palette[0], size: 40)
-                    Text(me?.displayName.isEmpty == false ? me!.displayName : "Your name")
+                    Text(me.flatMap { $0.displayName.isEmpty ? nil : $0.displayName } ?? "Your name")
                         .foregroundStyle(AppColor.text)
                     Spacer()
                     Image(systemName: "chevron.right")

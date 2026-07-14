@@ -4,7 +4,7 @@ import Foundation
 
 /// One calendar day's rolled-up totals.
 struct DaySummary: Identifiable {
-    let id = UUID()
+    var id: Date { day }
     let day: Date              // start of day
     let feedOz: Double
     let feedCount: Int
@@ -16,14 +16,14 @@ struct DaySummary: Identifiable {
 
 /// A day's worth of ribbon marks, for the History swimlane.
 struct DayMarks: Identifiable {
-    let id = UUID()
+    var id: Date { day }
     let day: Date
     let marks: [RibbonMark]
 }
 
 /// One day's diaper counts split by type, for the diaper-trend chart.
 struct DiaperDay: Identifiable {
-    let id = UUID()
+    var id: Date { day }
     let day: Date
     let wet: Int
     let dirty: Int
@@ -35,7 +35,7 @@ struct DiaperDay: Identifiable {
 /// `dayIndex` is 0 for the oldest day in the window, so the chart can lay out rows
 /// by number instead of relying on categorical-axis ordering.
 struct FeedHeatCell: Identifiable {
-    let id = UUID()
+    var id: Int { dayIndex * 24 + hour }
     let day: Date
     let dayIndex: Int
     let hour: Int
@@ -52,7 +52,7 @@ struct LifetimeTotals {
 
 /// A single caregiver's share of night feeds.
 struct CaregiverShare: Identifiable {
-    let id = UUID()
+    var id: String { name }   // grouped by name, so unique per result set
     let name: String
     let colorHex: String
     let count: Int
@@ -66,7 +66,7 @@ struct SleepRecord {
 
 /// A reached milestone (first N-hour sleep, Nth bottle, …) and when it happened.
 struct Milestone: Identifiable {
-    let id = UUID()
+    var id: String { title }  // each milestone title is generated at most once
     let emoji: String
     let title: String
     let date: Date
@@ -74,7 +74,7 @@ struct Milestone: Identifiable {
 
 /// All-time share of logged events for one caregiver.
 struct CaregiverContribution: Identifiable {
-    let id = UUID()
+    var id: String { name }   // grouped by name, so unique per result set
     let name: String
     let colorHex: String
     let count: Int

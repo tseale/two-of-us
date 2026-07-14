@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 /// A clean, printable care summary for a pediatrician visit. Deliberately
 /// *clinical*, not the app's playful style: white page, legible system type, a
@@ -16,7 +15,7 @@ struct HealthReportView: View {
     /// One table row, pairing a day's feed/sleep totals with its diaper split.
     /// Wet/Dirty include "both" diapers (a "both" is both wet and dirty).
     private struct Row: Identifiable {
-        let id = UUID()
+        var id: Date { day }
         let day: Date
         let feeds: Int
         let oz: Double
@@ -73,11 +72,16 @@ struct HealthReportView: View {
                     .foregroundStyle(.secondary)
             }
             Text("\(days)-day summary"
-                 + (rows.isEmpty ? "" : " · \(Self.short(rows.first!.day)) – \(Self.short(rows.last!.day))")
+                 + dateRangeSuffix
                  + " · generated \(Self.long(.now))")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var dateRangeSuffix: String {
+        guard let first = rows.first, let last = rows.last else { return "" }
+        return " · \(Self.short(first.day)) – \(Self.short(last.day))"
     }
 
     // MARK: Metrics

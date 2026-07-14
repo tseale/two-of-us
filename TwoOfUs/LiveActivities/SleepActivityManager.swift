@@ -3,8 +3,6 @@ import Foundation
 
 /// Starts, updates, and ends the Sleep Live Activity. Called by EventStore.
 enum SleepActivityManager {
-    private static let activityIDKey = "sleepLiveActivityID"
-
     static func start(babyName: String, at startedAt: Date) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         Task {
@@ -19,12 +17,11 @@ enum SleepActivityManager {
             let content = ActivityContent(state: state, staleDate: startedAt.addingTimeInterval(3600))
 
             do {
-                let activity = try Activity<SleepActivityAttributes>.request(
+                _ = try Activity<SleepActivityAttributes>.request(
                     attributes: attributes,
                     content: content,
                     pushType: nil
                 )
-                AppGroup.userDefaults?.set(activity.id, forKey: activityIDKey)
             } catch {
                 // The next foreground reconcile() retries: it re-creates the
                 // activity whenever a sleep is active but none is running.
@@ -34,10 +31,7 @@ enum SleepActivityManager {
     }
 
     static func end() {
-        Task {
-            await endAll()
-            AppGroup.userDefaults?.removeObject(forKey: activityIDKey)
-        }
+        Task { await endAll() }
     }
 
     /// Brings the Live Activity in line with the data — used when the app

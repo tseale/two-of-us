@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import WidgetKit
+import os
 
 /// Minimal write path used by App Intents (widget buttons + Siri/Shortcuts).
 ///
@@ -14,6 +15,10 @@ import WidgetKit
 /// this process — only the main app drives sync; widget-process writes still
 /// persist locally and the app's syncing container picks them up).
 struct QuickLogger {
+    // Local logger (not AppLog): this file also compiles into the widget and
+    // notification-content extensions, which don't include AppLog.swift.
+    private static let log = Logger(subsystem: "com.taylorseale.twoofus", category: "quicklogger")
+
     let context: ModelContext
 
     static func make() -> QuickLogger? {
@@ -238,7 +243,7 @@ struct QuickLogger {
     }
 
     private func commit(syncing ids: [UUID]) {
-        do { try context.save() } catch { print("QuickLogger save error: \(error)") }
+        do { try context.save() } catch { Self.log.error("QuickLogger save error: \(error)") }
         // The extension can't reach the sync engine — queue the ids in the App
         // Group for the app to push (SyncManager.drainExtensionQueue) next launch.
         // ONE KEY PER WRITE, not a shared array: UserDefaults has no atomic

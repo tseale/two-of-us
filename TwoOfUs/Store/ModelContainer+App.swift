@@ -35,14 +35,14 @@ enum AppModelContainer {
             // CloudKit (CKSyncEngine) is the source of truth and re-bootstraps
             // (see SyncManager). So move the unreadable store aside and retry
             // rather than fatal-erroring at launch.
-            print("ModelContainer open failed (\(error)); quarantining store and retrying.")
+            AppLog.store.error("ModelContainer open failed (\(error)); quarantining store and retrying.")
             if let storeURL { quarantineStore(at: storeURL) }
             do {
                 return try open(schema: schema, config: config)
             } catch {
                 // Last resort: launch against an in-memory store so the app still
                 // opens; sync repopulates it from CloudKit on this run.
-                print("ModelContainer still failed after reset (\(error)); falling back to in-memory.")
+                AppLog.store.error("ModelContainer still failed after reset (\(error)); falling back to in-memory.")
                 return build(schema: schema, config: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true))
             }
         }

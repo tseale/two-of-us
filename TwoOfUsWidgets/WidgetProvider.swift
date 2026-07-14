@@ -34,7 +34,9 @@ struct WidgetProvider: TimelineProvider {
 
         // Reload ~15 min after the last staged entry; EventStore /
         // QuickLogger also push WidgetCenter.reloadAllTimelines() on each write.
-        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: entries.last?.date ?? base.date)!
+        let anchor = entries.last?.date ?? base.date
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: anchor)
+            ?? anchor.addingTimeInterval(15 * 60)
         completion(Timeline(entries: entries, policy: .after(nextUpdate)))
     }
 
