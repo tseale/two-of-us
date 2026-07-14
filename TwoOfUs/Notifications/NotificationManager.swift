@@ -320,11 +320,21 @@ enum NotificationManager {
     }
 
     /// After a background log: push the new record to CloudKit (if the app's sync
-    /// engine is live) and re-arm the gentle reminders off the new state.
+    /// engine is live) and re-arm the gentle reminders and feed alarm off the new state.
     @MainActor
     private static func flushAndRearm() {
         SyncManager.shared?.drainExtensionQueue()
         refreshScheduledReminders()
+        // Re-arm the AlarmKit feed alarm. Without this, logging a feed from the
+        // notification action button never reschedules the loud overnight alarm —
+        // the app foreground would eventually fix it, but the alarm fires at the
+        // wrong time if the parent doesn't open the app after a 2am notification log.
+        if let logger = QuickLogger.make() {
+            let babyName = logger.babyName ?? "Baby"
+            let lastFeed = logger.lastFeed?.timestamp
+            let interval = logger.targetFeedInterval
+            Task { await FeedAlarmManager.reschedule(babyName: babyName, lastFeed: lastFeed, interval: interval) }
+        }
     }
 
     // MARK: Content builder
