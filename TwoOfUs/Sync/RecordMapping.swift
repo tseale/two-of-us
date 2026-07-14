@@ -250,8 +250,9 @@ enum RecordMapping {
     }
 
     private static func applyBaby(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
-        let existed = Baby.fetchByID(uuid, in: context) != nil
-        let m = Baby.fetchByID(uuid, in: context)
+        let existing = Baby.fetchByID(uuid, in: context)
+        let existed = existing != nil
+        let m = existing
             ?? insert(Baby(name: "", dateOfBirth: .now), id: uuid, in: context)
         m.name = r["name"] as? String ?? m.name
         m.dateOfBirth = r["dateOfBirth"] as? Date ?? m.dateOfBirth
