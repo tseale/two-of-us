@@ -4,6 +4,10 @@ The path from the current TestFlight train to a public **App Store** release.
 Most of this is App Store Connect / Developer-portal work that lives outside the
 repo — this runbook is the checklist and the source of truth for "what's left."
 
+> **2026-07-14:** the last mile is now tracked in `APP_STORE_SUBMISSION.md` —
+> screenshots are captured (`screenshots/`), the listing/privacy/build items
+> below are done in ASC, and only a handful of manual ASC clicks remain.
+
 > Goal change: the project originally targeted **TestFlight only**. The first
 > public release adds submission-only requirements TestFlight never enforced.
 > See `RELEASE_POLISH_PLAN.md` §18.
@@ -28,10 +32,10 @@ repo — this runbook is the checklist and the source of truth for "what's left.
       child; it is not directed at children — re-confirm per `PRIVACY.md`).
 
 ## 2. Listing assets
-- [ ] Screenshots: iPhone (6.9"/6.5") and iPad, **light + dark**. Automated:
-      `scripts/capture_appstore_screenshots.sh` → `docs/appstore/screenshots/`
-      (shots 1–5); widget/Live Activity shots remain manual — see
-      `docs/appstore/SCREENSHOT_SHOTLIST.md`.
+- [x] Screenshots: iPhone (6.9"/6.5") and iPad, **light + dark** — captured
+      2026-07-14 into `screenshots/` (committed). Automated via
+      `scripts/capture_appstore_screenshots.sh`; widget/Live Activity shots
+      remain manual — see `docs/appstore/SCREENSHOT_SHOTLIST.md`.
 - [x] Description + promotional text — drafted in
       `docs/appstore/LISTING_COPY.md`. Two open picks: promo-text variant
       (named vs generic) and the app-name fallback if "Two of Us" is taken.
