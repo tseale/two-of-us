@@ -359,10 +359,14 @@ struct HistoryView: View {
         return TimeFormatting.duration(from: .now, to: .now.addingTimeInterval(seconds))
     }
 
-    private static func weekday(_ date: Date) -> String {
+    private static let weekdayFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "EEE"
-        return f.string(from: date)
+        return f
+    }()
+
+    private static func weekday(_ date: Date) -> String {
+        weekdayFormatter.string(from: date)
     }
 }
 

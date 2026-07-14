@@ -1,10 +1,13 @@
 import Foundation
 
-/// Formats ounce amounts, dropping a trailing ".0" but keeping half-ounces.
+/// Formats ounce amounts with the minimum decimal places needed.
+/// Integers drop the decimal entirely; 0.5-step values use one place; 0.25-step
+/// values (e.g. 0.25, 0.75) use two — so "0.25 oz" never silently rounds to "0.2".
 enum OzFormat {
     static func string(_ value: Double) -> String {
         if value == value.rounded() { return String(Int(value)) }
-        return String(format: "%.1f", value)
+        let s = String(format: "%.2f", value)
+        return s.hasSuffix("0") ? String(s.dropLast()) : s
     }
 }
 
