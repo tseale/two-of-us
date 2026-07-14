@@ -25,6 +25,9 @@ Distributed via TestFlight to 2 users (both parents).
   preparation (privacy manifest, nutrition label, screenshots, age rating, a
   second Xcode Cloud archive workflow) — see `docs/APP_STORE_RELEASE_RUNBOOK.md`
   and `docs/RELEASE_POLISH_PLAN.md` §18
-- CI/CD via Xcode Cloud — pushes to `main` archive and upload to TestFlight; `ci_scripts/ci_post_clone.sh` regenerates the gitignored .xcodeproj on the runner (see docs/XCODE_CLOUD.md)
+- CI/CD via Xcode Cloud, two workflows (see docs/XCODE_CLOUD.md):
+  - **"Default"** — pushes to `main` archive and upload to TestFlight (internal-only builds; these can NEVER be submitted to the App Store)
+  - **"App Store Release"** — tags matching `v*` (e.g. `git tag v1.0.1 && git push origin v1.0.1`) archive with App Store Connect distribution; only these builds can be attached to an App Store version. Tag the exact commit already proven on TestFlight, and make sure `MARKETING_VERSION` in project.yml matches the tag.
+  - `ci_scripts/ci_post_clone.sh` regenerates the gitignored .xcodeproj on the runner for both
 - Unit tests — `make test` runs TwoOfUsTests (CloudKit record mapping round-trips, sync hold-queues, store semantics) on the simulator; no iCloud account needed
 - TestFlight feedback automation — hourly GitHub Action polls App Store Connect for beta feedback/crashes and files them as issues labeled `testflight-feedback` (see docs/TESTFLIGHT_AUTOMATION.md)

@@ -67,6 +67,33 @@ Xcode Cloud attaches to an app record (TestFlight needs one anyway).
 5. Save, then **Start Build** to kick off build #1 manually. First build takes
    ~15–20 min (clean runners; `brew install xcodegen` adds a minute or so).
 
+### 2b. The "App Store Release" workflow (added 2026-07-14)
+
+The Default workflow's **TestFlight (Internal Testing Only)** distribution
+produces builds with `buildAudienceType: INTERNAL_ONLY` — App Store Connect
+silently disables them in the version page's *Add Build* dialog; they can
+never be submitted to the App Store. A second workflow exists for releases
+(created via ASC web → Xcode Cloud → Manage Workflows → Duplicate):
+
+- **Name**: App Store Release
+- **Start Conditions**: *Manual Start* (any branch) + *Tag Changes* for tags
+  **beginning with `v`**
+- **Action**: Archive — iOS, scheme TwoOfUs, deployment preparation
+  **App Store Connect** (these builds still reach internal TestFlight too)
+- **Post-Actions**: none
+
+**Release convention:** bake the build on TestFlight via normal `main`
+pushes, then tag that exact commit and push the tag:
+
+```sh
+git tag v1.0.1 && git push origin v1.0.1
+```
+
+The tag build is the only App-Store-eligible artifact. Keep
+`MARKETING_VERSION` in `project.yml` equal to the tag (minus the `v`) so the
+tag, the ASC version record, and the binary agree. Then in ASC: version page
+→ Add Build → pick it → Save → Add for Review.
+
 ### 3. Install on phones
 
 Both testers: accept the TestFlight email invite, install the TestFlight app,
