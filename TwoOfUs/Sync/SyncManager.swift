@@ -564,7 +564,13 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             })
             for mod in e.modifications {
                 if pendingSaves.contains(mod.record.recordID) {
-                    RecordMapping.absorbConflict(server: mod.record, in: context)
+                    let absorbed = RecordMapping.absorbConflict(server: mod.record, in: context)
+                    if !absorbed {
+                        // No local model — absorbConflict fell back to apply. Persist the
+                        // server's change tag now, or the next outbound send carries no tag
+                        // and re-conflicts immediately.
+                        RecordMapping.persistSystemFields(of: mod.record, in: context)
+                    }
                 } else {
                     RecordMapping.apply(mod.record, in: context)
                     // Cache the server change tag so a later local edit of this
