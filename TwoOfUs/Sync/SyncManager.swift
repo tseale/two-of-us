@@ -508,6 +508,8 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         ids += (try? context.fetch(FetchDescriptor<FeedEvent>()))?.map(\.id) ?? []
         ids += (try? context.fetch(FetchDescriptor<SleepEvent>()))?.map(\.id) ?? []
         ids += (try? context.fetch(FetchDescriptor<DiaperEvent>()))?.map(\.id) ?? []
+        ids += (try? context.fetch(FetchDescriptor<PlanSlot>()))?.map(\.id) ?? []
+        ids += (try? context.fetch(FetchDescriptor<PlanOverride>()))?.map(\.id) ?? []
         return ids
     }
 
@@ -707,6 +709,12 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     /// nothing — no store read happens unless something is actually scheduled.
     private func rearmFeedRemindersFromStore() {
         guard !LocalPrefs.shared.demoModeEnabled else { return }
+        // Slot reminders re-plan on every fetch regardless of the alarm prefs —
+        // this is THE cross-device path: the co-parent's swap or 2:50am logged
+        // feed syncs in here, and this device's pending "you're up" request
+        // moves or disappears accordingly.
+        NotificationManager.refreshScheduleReminders()
+        Task { await SlotAlarmManager.reschedule() }
         guard LocalPrefs.shared.feedReminderEnabled
             || LocalPrefs.shared.gentleRemindersEnabled
             || LocalPrefs.shared.notifyMilestones else { return }
@@ -1106,6 +1114,8 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         try? context.delete(model: FeedEvent.self)
         try? context.delete(model: SleepEvent.self)
         try? context.delete(model: DiaperEvent.self)
+        try? context.delete(model: PlanSlot.self)
+        try? context.delete(model: PlanOverride.self)
         try? context.delete(model: Participant.self)
         try? context.delete(model: SharedSettings.self)
         try? context.delete(model: Baby.self)

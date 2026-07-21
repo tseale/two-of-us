@@ -170,17 +170,19 @@ struct RootView: View {
     }
 }
 
-/// Home (glance + log), History (trends), Stats (records & fun numbers).
+/// Home (glance + log), Schedule (who's up), History (trends), Stats (records
+/// & fun numbers).
 struct MainTabView: View {
-    enum Tab: Hashable { case home, history, stats }
+    enum Tab: Hashable { case home, schedule, history, stats }
     @State private var selection: Tab = MainTabView.initialTab
     @State private var router = DeepLinkRouter.shared
 
-    /// DEBUG-only: `-uiScreen history|stats` launches straight into that tab, for
-    /// deterministic screenshot/QA captures. Mirrors the `-forceSpotlight` hook.
+    /// DEBUG-only: `-uiScreen schedule|history|stats` launches straight into that
+    /// tab, for deterministic screenshot/QA captures. Mirrors `-forceSpotlight`.
     static var initialTab: Tab {
         #if DEBUG
         switch UserDefaults.standard.string(forKey: "uiScreen") {
+        case "schedule": return .schedule
         case "history": return .history
         case "stats": return .stats
         default: return .home
@@ -195,6 +197,9 @@ struct MainTabView: View {
             HomeView()
                 .tag(Tab.home)
                 .tabItem { Label("Home", systemImage: "house.fill") }
+            ScheduleView()
+                .tag(Tab.schedule)
+                .tabItem { Label("Schedule", systemImage: "calendar.badge.clock") }
             HistoryView()
                 .tag(Tab.history)
                 .tabItem { Label("History", systemImage: "chart.bar.xaxis") }
@@ -208,6 +213,16 @@ struct MainTabView: View {
         // Home on screen first so it's mounted to present it.
         .onChange(of: router.pendingLog) { _, pending in
             if pending != nil { selection = .home }
+        }
+        // A slot-reminder tap (or Home's "up next" row) lands on its tab.
+        .onChange(of: router.pendingTab) { _, _ in consumePendingTab() }
+        .onAppear { consumePendingTab() }
+    }
+
+    private func consumePendingTab() {
+        switch router.consumeTab() {
+        case .schedule: selection = .schedule
+        case nil: break
         }
     }
 }

@@ -77,6 +77,30 @@ enum RecordMapping {
             r["defaultFeedOz"] = m.defaultFeedOz
             return r
         }
+        if let m = PlanSlot.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.planSlot, recordID: recordID, archived: m.ckSystemFields)
+            r["kindRaw"] = m.kindRaw
+            r["minuteOfDay"] = m.minuteOfDay
+            r["assignedToID"] = m.assignedToID?.uuidString
+            r["assignedToName"] = m.assignedToName
+            r["assignedToColorHex"] = m.assignedToColorHex
+            r["createdAt"] = m.createdAt
+            r["deletedAt"] = m.deletedAt
+            return r
+        }
+        if let m = PlanOverride.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.planOverride, recordID: recordID, archived: m.ckSystemFields)
+            r["slotID"] = m.slotID.uuidString
+            r["dayKey"] = m.dayKey
+            r["assignedToID"] = m.assignedToID?.uuidString
+            r["assignedToName"] = m.assignedToName
+            r["assignedToColorHex"] = m.assignedToColorHex
+            r["isSkipped"] = m.isSkipped ? 1 : 0
+            r["createdByID"] = m.createdByID.uuidString
+            r["createdAt"] = m.createdAt
+            r["deletedAt"] = m.deletedAt
+            return r
+        }
         return nil
     }
 
@@ -103,7 +127,13 @@ enum RecordMapping {
         if try context.fetchCount(participant) > 0 { return true }
         var settings = FetchDescriptor<SharedSettings>(predicate: #Predicate { $0.id == uuid })
         settings.fetchLimit = 1
-        return try context.fetchCount(settings) > 0
+        if try context.fetchCount(settings) > 0 { return true }
+        var slot = FetchDescriptor<PlanSlot>(predicate: #Predicate { $0.id == uuid })
+        slot.fetchLimit = 1
+        if try context.fetchCount(slot) > 0 { return true }
+        var override = FetchDescriptor<PlanOverride>(predicate: #Predicate { $0.id == uuid })
+        override.fetchLimit = 1
+        return try context.fetchCount(override) > 0
     }
 
     private static func setCommon(_ r: CKRecord, loggedByID: UUID, name: String, color: String,
@@ -174,6 +204,7 @@ enum RecordMapping {
         }
         clear(FeedEvent.self); clear(SleepEvent.self); clear(DiaperEvent.self)
         clear(Baby.self); clear(Participant.self); clear(SharedSettings.self)
+        clear(PlanSlot.self); clear(PlanOverride.self)
     }
 
     // MARK: Conflict resolution
@@ -191,9 +222,9 @@ enum RecordMapping {
             apply(server, in: context)
             return false
         }
-        if let event = model as? AnyEventModel, event.deletedAt == nil,
+        if let soft = model as? SoftDeletable, soft.deletedAt == nil,
            let serverDeleted = server["deletedAt"] as? Date {
-            event.deletedAt = serverDeleted
+            soft.deletedAt = serverDeleted
         }
         if let sleep = model as? SleepEvent, sleep.endedAt == nil,
            let serverEnded = server["endedAt"] as? Date {
@@ -214,6 +245,8 @@ enum RecordMapping {
         case SyncConstants.RecordType.baby:    applyBaby(record, uuid: uuid, in: context)
         case SyncConstants.RecordType.participant: applyParticipant(record, uuid: uuid, in: context)
         case SyncConstants.RecordType.settings: applySettings(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.planSlot: applyPlanSlot(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.planOverride: applyPlanOverride(record, uuid: uuid, in: context)
         default: break
         }
     }
@@ -228,6 +261,8 @@ enum RecordMapping {
         if let m = Participant.fetchByID(uuid, in: context) { context.delete(m); return }
         if let m = Baby.fetchByID(uuid, in: context) { context.delete(m); return }
         if let m = SharedSettings.fetchByID(uuid, in: context) { context.delete(m); return }
+        if let m = PlanSlot.fetchByID(uuid, in: context) { context.delete(m); return }
+        if let m = PlanOverride.fetchByID(uuid, in: context) { context.delete(m); return }
     }
 
     /// Attaches the baby to any events that synced in before the Baby record
@@ -310,6 +345,32 @@ enum RecordMapping {
         m.defaultFeedOz = r["defaultFeedOz"] as? Double ?? m.defaultFeedOz
     }
 
+    private static func applyPlanSlot(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
+        let m = PlanSlot.fetchByID(uuid, in: context)
+            ?? insert(PlanSlot(kind: .feed, minuteOfDay: 0), id: uuid, in: context)
+        m.kindRaw = r["kindRaw"] as? String ?? m.kindRaw
+        m.minuteOfDay = r["minuteOfDay"] as? Int ?? m.minuteOfDay
+        if let s = r["assignedToID"] as? String { m.assignedToID = UUID(uuidString: s) } else { m.assignedToID = nil }
+        m.assignedToName = r["assignedToName"] as? String ?? m.assignedToName
+        m.assignedToColorHex = r["assignedToColorHex"] as? String ?? m.assignedToColorHex
+        m.createdAt = r["createdAt"] as? Date ?? m.createdAt
+        m.deletedAt = r["deletedAt"] as? Date
+    }
+
+    private static func applyPlanOverride(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
+        let m = PlanOverride.fetchByID(uuid, in: context)
+            ?? insert(PlanOverride(slotID: UUID(), dayKey: 0, createdByID: UUID()), id: uuid, in: context)
+        if let s = r["slotID"] as? String, let sid = UUID(uuidString: s) { m.slotID = sid }
+        m.dayKey = r["dayKey"] as? Int ?? m.dayKey
+        if let s = r["assignedToID"] as? String { m.assignedToID = UUID(uuidString: s) } else { m.assignedToID = nil }
+        m.assignedToName = r["assignedToName"] as? String ?? m.assignedToName
+        m.assignedToColorHex = r["assignedToColorHex"] as? String ?? m.assignedToColorHex
+        m.isSkipped = (r["isSkipped"] as? Int ?? 0) != 0
+        if let s = r["createdByID"] as? String, let cid = UUID(uuidString: s) { m.createdByID = cid }
+        m.createdAt = r["createdAt"] as? Date ?? m.createdAt
+        m.deletedAt = r["deletedAt"] as? Date
+    }
+
     /// Shared event fields: logger identity, soft-delete, edit pointer, baby link.
     private static func applyCommon(_ r: CKRecord, into m: AnyEventModel, in context: ModelContext) {
         if let s = r["loggedByID"] as? String, let id = UUID(uuidString: s) { m.loggedByID = id }
@@ -386,6 +447,8 @@ enum RecordMapping {
         case SyncConstants.RecordType.baby:        Baby.fetchByID(id, in: context)
         case SyncConstants.RecordType.participant: Participant.fetchByID(id, in: context)
         case SyncConstants.RecordType.settings:    SharedSettings.fetchByID(id, in: context)
+        case SyncConstants.RecordType.planSlot:    PlanSlot.fetchByID(id, in: context)
+        case SyncConstants.RecordType.planOverride: PlanOverride.fetchByID(id, in: context)
         default: nil
         }
     }
@@ -398,6 +461,8 @@ enum RecordMapping {
             ?? Participant.fetchByID(id, in: context) as (any HasSyncID)?
             ?? Baby.fetchByID(id, in: context)
             ?? SharedSettings.fetchByID(id, in: context)
+            ?? PlanSlot.fetchByID(id, in: context)
+            ?? PlanOverride.fetchByID(id, in: context)
     }
 
     @discardableResult
@@ -456,6 +521,20 @@ extension Participant: HasSyncID {
 extension SharedSettings: HasSyncID {
     static func fetchByID(_ id: UUID, in context: ModelContext) -> SharedSettings? {
         var d = FetchDescriptor<SharedSettings>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try? context.fetch(d).first
+    }
+}
+extension PlanSlot: HasSyncID {
+    static func fetchByID(_ id: UUID, in context: ModelContext) -> PlanSlot? {
+        var d = FetchDescriptor<PlanSlot>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try? context.fetch(d).first
+    }
+}
+extension PlanOverride: HasSyncID {
+    static func fetchByID(_ id: UUID, in context: ModelContext) -> PlanOverride? {
+        var d = FetchDescriptor<PlanOverride>(predicate: #Predicate { $0.id == id })
         d.fetchLimit = 1
         return try? context.fetch(d).first
     }

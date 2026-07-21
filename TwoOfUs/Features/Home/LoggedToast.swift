@@ -8,7 +8,8 @@ struct ToastData: Identifiable, Equatable {
     /// Tint for the Undo button, so it matches the event that was logged
     /// (feed teal / diaper amber / sleep periwinkle) instead of always feed teal.
     var accent: Color = AppColor.accentFeed
-    let undo: () -> Void
+    /// Nil hides the Undo button — for confirmations with nothing to reverse.
+    let undo: (() -> Void)?
 
     static func == (lhs: ToastData, rhs: ToastData) -> Bool { lhs.id == rhs.id }
 }
@@ -25,13 +26,15 @@ private struct LoggedToastModifier: ViewModifier {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppColor.text)
                     Spacer()
-                    Button("Undo") {
-                        toast.undo()
-                        Haptics.tap()
-                        self.toast = nil
+                    if let undo = toast.undo {
+                        Button("Undo") {
+                            undo()
+                            Haptics.tap()
+                            self.toast = nil
+                        }
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(toast.accent)
                     }
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(toast.accent)
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 14)

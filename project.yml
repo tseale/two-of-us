@@ -104,6 +104,8 @@ targets:
       - path: TwoOfUs/Models/DiaperEvent.swift
       - path: TwoOfUs/Models/Participant.swift
       - path: TwoOfUs/Models/SharedSettings.swift
+      - path: TwoOfUs/Models/PlanSlot.swift
+      - path: TwoOfUs/Models/PlanOverride.swift
       - path: TwoOfUs/Models/Enums.swift
       - path: TwoOfUs/Store/Schema.swift
       - path: TwoOfUs/Support/AppGroup.swift
@@ -156,6 +158,8 @@ targets:
       - path: TwoOfUs/Models/DiaperEvent.swift
       - path: TwoOfUs/Models/Participant.swift
       - path: TwoOfUs/Models/SharedSettings.swift
+      - path: TwoOfUs/Models/PlanSlot.swift
+      - path: TwoOfUs/Models/PlanOverride.swift
       - path: TwoOfUs/Models/Enums.swift
       - path: TwoOfUs/Store/Schema.swift
       - path: TwoOfUs/Support/AppGroup.swift

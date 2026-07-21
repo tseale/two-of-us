@@ -12,6 +12,13 @@ final class DeepLinkRouter {
     /// component, e.g. `twoofus://log/feed`.
     enum LogTarget: String { case feed, diaper }
 
+    /// Tabs a deep link (or an in-app affordance like Home's "up next" row) can
+    /// land on, e.g. `twoofus://schedule` from a slot reminder notification.
+    enum TabTarget: String { case schedule }
+
+    /// The tab a deep link asked for. `MainTabView` observes and consumes it.
+    private(set) var pendingTab: TabTarget?
+
     /// Queue of log sheets widget taps asked us to present. `HomeView` dequeues
     /// one on each `onChange` / `onAppear`. Two fast taps no longer lose the first
     /// action (the second tap enqueues rather than overwriting the first).
@@ -23,11 +30,20 @@ final class DeepLinkRouter {
 
     private init() {}
 
-    /// Stages the action for a recognized `twoofus://log/<kind>` URL.
+    /// Stages the action for a recognized `twoofus://log/<kind>` or
+    /// `twoofus://<tab>` URL.
     /// - Returns: true if the URL was a deep link we handle, false otherwise.
     @discardableResult
     func handle(_ url: URL) -> Bool {
-        guard url.scheme == "twoofus", url.host == "log" else {
+        guard url.scheme == "twoofus" else {
+            AppLog.deeplink.debug("Ignored unrecognized URL: \(url.absoluteString, privacy: .public)")
+            return false
+        }
+        if let host = url.host, let tab = TabTarget(rawValue: host) {
+            pendingTab = tab
+            return true
+        }
+        guard url.host == "log" else {
             AppLog.deeplink.debug("Ignored unrecognized URL: \(url.absoluteString, privacy: .public)")
             return false
         }
@@ -47,6 +63,21 @@ final class DeepLinkRouter {
         return pendingLogs.removeFirst()
     }
 
+    /// Stages a tab switch from inside the app (Home's "up next" row taps
+    /// through the same door notification deep links use).
+    func requestTab(_ tab: TabTarget) {
+        pendingTab = tab
+    }
+
+    /// Consumes the pending tab request, or nil if there isn't one.
+    func consumeTab() -> TabTarget? {
+        defer { pendingTab = nil }
+        return pendingTab
+    }
+
     /// Clears all pending actions. Used in tests and teardown.
-    func clearAll() { pendingLogs.removeAll() }
+    func clearAll() {
+        pendingLogs.removeAll()
+        pendingTab = nil
+    }
 }

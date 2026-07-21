@@ -9,6 +9,10 @@ enum NotificationID {
     enum Category {
         static let reminderFeed = "REMINDER_FEED"
         static let reminderDiaper = "REMINDER_DIAPER"
+        /// "You're up" reminders for schedule slots assigned to this device's
+        /// parent. Split by kind so a sleep slot never offers "Log feed".
+        static let scheduleFeed = "SCHEDULE_FEED"
+        static let scheduleSleep = "SCHEDULE_SLEEP"
         /// Informational "the other parent just logged something" notifications.
         static let coParent = "COPARENT"
         static let milestone = "MILESTONE"
@@ -30,6 +34,13 @@ enum NotificationID {
         static let diaperReminder = "reminder.diaper"
         static let dailyMilestone = "milestone.daily"
         static func coParent(_ key: String) -> String { "coparent.\(key)" }
+        /// Prefix shared by every per-occurrence slot reminder, so a re-arm can
+        /// sweep them all without knowing which nights were pending.
+        static let scheduleSlotPrefix = "schedule.slot."
+        static func scheduleSlot(slotID: UUID, dayKey: Int) -> String {
+            "\(scheduleSlotPrefix)\(slotID.uuidString).\(dayKey)"
+        }
+        static let scheduleSnooze = "schedule.snooze"
     }
 
     /// `threadIdentifier`s group related notifications in the stack / summary.
@@ -38,5 +49,6 @@ enum NotificationID {
         static let diaper = "thread.diaper"
         static let sleep = "thread.sleep"
         static let milestone = "thread.milestone"
+        static let schedule = "thread.schedule"
     }
 }

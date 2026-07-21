@@ -108,10 +108,17 @@ struct SettingsView: View {
                     .onChange(of: prefs.feedReminderEnabled) { _, on in
                         Task { await updateFeedAlarm(enabled: on) }
                     }
+                    Toggle(isOn: $prefs.nightSlotAlarmEnabled) {
+                        SettingsIconLabel(title: "My slot alarm", systemImage: "alarm",
+                                          tint: AppColor.accentSleep)
+                    }
+                    .onChange(of: prefs.nightSlotAlarmEnabled) { _, on in
+                        Task { await updateSlotAlarm(enabled: on) }
+                    }
                 } header: {
                     Text("Reminders")
                 } footer: {
-                    Text("Alerts you when the next feed is due — even on Silent or Focus. This device only.")
+                    Text("Feed reminder alerts you when the next feed is due; My slot alarm wakes you for schedule slots assigned to you — both even on Silent or Focus, and only near your own slot one of them rings. This device only.")
                 }
 
                 Section {
@@ -490,6 +497,22 @@ struct SettingsView: View {
                                           lastFeed: lastFeedDate(),
                                           interval: settings?.targetFeedInterval ?? 0)
         NotificationManager.refreshScheduledReminders()      // stand the gentle feed nudge down
+    }
+
+    /// Arms or clears the loud "my slot" alarm when the toggle flips. Reverts
+    /// the toggle if the user declines alarm authorization. Also re-arms the
+    /// interval feed alarm, whose stand-down window depends on this state.
+    private func updateSlotAlarm(enabled: Bool) async {
+        if enabled {
+            guard await SlotAlarmManager.requestAuthorization() else {
+                prefs.nightSlotAlarmEnabled = false
+                return
+            }
+        }
+        await SlotAlarmManager.reschedule()   // arms when enabled, clears when not
+        await FeedAlarmManager.reschedule(babyName: baby?.name ?? "Baby",
+                                          lastFeed: lastFeedDate(),
+                                          interval: settings?.targetFeedInterval ?? 0)
     }
 
     /// Requests notification authorization (once) and re-applies the schedules

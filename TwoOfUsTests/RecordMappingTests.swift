@@ -365,4 +365,115 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertEqual(copy.baby?.id, baby.id,
                        "events fetched before their Baby record must attach once it lands")
     }
+
+    // MARK: Schedule plan (PlanSlot / PlanOverride)
+
+    func testPlanSlotRoundTrip() throws {
+        let assignee = UUID()
+        let original = PlanSlot(kind: .feed, minuteOfDay: 1380,
+                                assignedToID: assignee, assignedToName: "Katie",
+                                assignedToColorHex: "#FF8FA3")
+        context.insert(original)
+        try context.save()
+
+        let receiver = AppModelContainer.make(inMemory: true)
+        RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+
+        let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<PlanSlot>()).first)
+        XCTAssertEqual(copy.id, original.id)
+        XCTAssertEqual(copy.kind, .feed)
+        XCTAssertEqual(copy.minuteOfDay, 1380)
+        XCTAssertEqual(copy.assignedToID, assignee)
+        XCTAssertEqual(copy.assignedToName, "Katie")
+        XCTAssertEqual(copy.assignedToColorHex, "#FF8FA3")
+        XCTAssertEqual(copy.createdAt, original.createdAt)
+        XCTAssertNil(copy.deletedAt)
+    }
+
+    func testUnassignedPlanSlotRoundTripStaysUnassigned() throws {
+        let original = PlanSlot(kind: .sleep, minuteOfDay: 1170)
+        context.insert(original)
+        try context.save()
+
+        let receiver = AppModelContainer.make(inMemory: true)
+        RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+
+        let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<PlanSlot>()).first)
+        XCTAssertEqual(copy.kind, .sleep)
+        XCTAssertNil(copy.assignedToID, "unassigned must not become someone on the other phone")
+        XCTAssertEqual(copy.assignedToName, "")
+    }
+
+    func testPlanOverrideRoundTrip() throws {
+        let original = PlanOverride(slotID: UUID(), dayKey: 20_260_722,
+                                    assignedToID: UUID(), assignedToName: "Taylor",
+                                    assignedToColorHex: "#5AC8B8", isSkipped: false,
+                                    createdByID: UUID())
+        context.insert(original)
+        try context.save()
+
+        let receiver = AppModelContainer.make(inMemory: true)
+        RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+
+        let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<PlanOverride>()).first)
+        XCTAssertEqual(copy.slotID, original.slotID)
+        XCTAssertEqual(copy.dayKey, 20_260_722)
+        XCTAssertEqual(copy.assignedToID, original.assignedToID)
+        XCTAssertEqual(copy.assignedToName, "Taylor")
+        XCTAssertFalse(copy.isSkipped)
+        XCTAssertEqual(copy.createdByID, original.createdByID)
+    }
+
+    func testSkipOverrideRoundTripStaysSkipped() throws {
+        let original = PlanOverride(slotID: UUID(), dayKey: 20_260_722,
+                                    isSkipped: true, createdByID: UUID())
+        context.insert(original)
+        try context.save()
+
+        let receiver = AppModelContainer.make(inMemory: true)
+        RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+
+        let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<PlanOverride>()).first)
+        XCTAssertTrue(copy.isSkipped, "a skipped night must stay skipped on the other phone")
+        XCTAssertNil(copy.assignedToID)
+    }
+
+    /// Locks the `absorbConflict` generalization: a slot the other parent
+    /// deleted must not be resurrected by this device's concurrent edit.
+    func testPlanSlotConflictServerDeleteWins() throws {
+        let slot = PlanSlot(kind: .feed, minuteOfDay: 1380, assignedToName: "Katie")
+        context.insert(slot)
+        try context.save()
+
+        let server = CKRecord(recordType: SyncConstants.RecordType.planSlot, recordID: recordID(slot.id))
+        let deletedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        server["deletedAt"] = deletedAt
+
+        RecordMapping.absorbConflict(server: server, in: context)
+
+        XCTAssertEqual(slot.deletedAt, deletedAt,
+                       "a concurrently deleted slot must never be resurrected by the race loser")
+        XCTAssertNotNil(slot.ckSystemFields, "the server change tag is adopted so the re-save succeeds")
+    }
+
+    /// Documents the chosen policy for concurrent slot edits: last writer wins
+    /// on content — the local (about-to-re-upload) assignment survives.
+    func testPlanSlotConflictLocalAssignmentWins() throws {
+        let mine = UUID()
+        let slot = PlanSlot(kind: .feed, minuteOfDay: 1380,
+                            assignedToID: mine, assignedToName: "Taylor",
+                            assignedToColorHex: "#5AC8B8")
+        context.insert(slot)
+        try context.save()
+
+        let server = CKRecord(recordType: SyncConstants.RecordType.planSlot, recordID: recordID(slot.id))
+        server["assignedToID"] = UUID().uuidString
+        server["assignedToName"] = "Katie"
+
+        RecordMapping.absorbConflict(server: server, in: context)
+
+        XCTAssertEqual(slot.assignedToID, mine,
+                       "local content wins the conflict (it re-uploads next)")
+        XCTAssertEqual(slot.assignedToName, "Taylor")
+    }
 }
