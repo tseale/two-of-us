@@ -15,8 +15,9 @@ struct SlotEditSheet: View {
     /// Seeds for create mode (pinning a prediction pre-fills its time).
     var initialKind: EventKind = .feed
     var initialMinute: Int = 22 * 60
-    /// Reports the change back to the host for the toast (message, undo).
-    var onDone: ((String, (() -> Void)?) -> Void)? = nil
+    /// Reports the change back to the host for the toast (message, kind accent,
+    /// undo).
+    var onDone: ((String, Color, (() -> Void)?) -> Void)? = nil
 
     @State private var time: Date = .now
     @State private var kind: EventKind = .feed
@@ -140,16 +141,18 @@ struct SlotEditSheet: View {
         return (c.hour ?? 0) * 60 + (c.minute ?? 0)
     }
 
+    private var accent: Color { kind == .sleep ? AppColor.accentSleep : AppColor.accentFeed }
+
     private func saveAndDismiss() {
         let store = EventStore(context: context)
         let assignee = participants.first { $0.id == assignedToID }
         let clock = TimeFormatting.clock(time)
         if let slot {
             store.updatePlanSlot(slot, kind: kind, minuteOfDay: minuteOfDay, assignedTo: .some(assignee))
-            onDone?("Updated \(clock) \(kind == .sleep ? "sleep" : "bottle")", nil)
+            onDone?("Updated \(clock) \(kind == .sleep ? "sleep" : "bottle")", accent, nil)
         } else {
             let created = store.addPlanSlot(kind: kind, minuteOfDay: minuteOfDay, assignedTo: assignee)
-            onDone?("Added \(clock) \(kind == .sleep ? "sleep" : "bottle") to the plan") {
+            onDone?("Added \(clock) \(kind == .sleep ? "sleep" : "bottle") to the plan", accent) {
                 store.removePlanSlot(created)
             }
         }
@@ -160,7 +163,7 @@ struct SlotEditSheet: View {
     private func remove(_ slot: PlanSlot) {
         let store = EventStore(context: context)
         store.removePlanSlot(slot)
-        onDone?("Removed from the plan") { store.restorePlanSlot(slot) }
+        onDone?("Removed from the plan", accent) { store.restorePlanSlot(slot) }
         Haptics.warning()
         dismiss()
     }

@@ -302,8 +302,8 @@ struct ScheduleView: View {
         }
     }
 
-    private func showToast(_ message: String, undo: (() -> Void)?) {
-        toast = ToastData(message: message, accent: AppColor.accentFeed, undo: undo)
+    private func showToast(_ message: String, accent: Color, undo: (() -> Void)?) {
+        toast = ToastData(message: message, accent: accent, undo: undo)
     }
 }
 

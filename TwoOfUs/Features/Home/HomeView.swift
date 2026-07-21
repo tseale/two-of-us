@@ -67,14 +67,18 @@ struct HomeView: View {
                                 SleepActiveCard(sleep: sleep, now: ctx.date) { endSleep(sleep) }
                                     .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
                             }
+                            // Inside the ticking TimelineView so the row stays
+                            // honest on a phone left open overnight: 11pm passing
+                            // drops the 11pm row and surfaces the 3am one without
+                            // needing a log or sync to trigger a render.
+                            if let next = upNextOccurrence(now: ctx.date) {
+                                upNextRow(next)
+                            }
                         }
                         // Keyed to the sleep state (not withAnimation at the action
                         // sites) so CloudKit- and Siri-initiated starts animate too.
                         .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.8),
                                    value: activeSleep != nil)
-                    }
-                    if let next = upNextOccurrence {
-                        upNextRow(next)
                     }
                 }
                 .listRowBackground(Color.clear)
@@ -305,11 +309,11 @@ struct HomeView: View {
     /// The next *planned, assigned* slot within 8 hours — the one line that
     /// answers "who's up". Predictions and unassigned slots stay off Home; the
     /// Schedule tab owns the full picture.
-    private var upNextOccurrence: ScheduleOccurrence? {
+    private func upNextOccurrence(now: Date) -> ScheduleOccurrence? {
         guard !planSlots.isEmpty else { return nil }
         let engine = ScheduleEngine(slots: planSlots, overrides: planOverrides,
                                     feeds: feeds, sleeps: sleeps,
-                                    targetFeedInterval: targetFeed)
+                                    targetFeedInterval: targetFeed, now: now)
         // First *planned, assigned* occurrence — a nearer prediction or
         // unassigned slot must not hide the row.
         return engine.occurrences(lookback: 0, horizon: 8 * 3600)

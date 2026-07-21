@@ -14,14 +14,16 @@ struct SlotActionsSheet: View {
     let occurrence: ScheduleOccurrence
     /// Host opens the standing-slot editor after this sheet dismisses.
     var onEditSlot: ((PlanSlot) -> Void)? = nil
-    /// Reports the change back to the host for the toast (message, undo).
-    var onDone: ((String, (() -> Void)?) -> Void)? = nil
+    /// Reports the change back to the host for the toast (message, kind accent,
+    /// undo) — the accent keeps a sleep-slot Undo periwinkle, not feed teal.
+    var onDone: ((String, Color, (() -> Void)?) -> Void)? = nil
 
     private var store: EventStore { EventStore(context: context) }
     private var slot: PlanSlot? {
         occurrence.slotID.flatMap { PlanSlot.fetchByID($0, in: context) }
     }
     private var kindWord: String { occurrence.kind == .sleep ? "sleep" : "bottle" }
+    private var accent: Color { occurrence.kind == .sleep ? AppColor.accentSleep : AppColor.accentFeed }
     private var clock: String { TimeFormatting.clock(occurrence.date) }
 
     var body: some View {
@@ -121,7 +123,7 @@ struct SlotActionsSheet: View {
         }
         let override = store.overrideSlot(slot, dayKey: occurrence.dayKey, assignTo: p)
         Haptics.success()
-        onDone?("Tonight's \(clock) \(kindWord) is \(p.displayName)'s") { store.clearOverride(override) }
+        onDone?("Tonight's \(clock) \(kindWord) is \(p.displayName)'s", accent) { store.clearOverride(override) }
         dismiss()
     }
 
@@ -136,7 +138,7 @@ struct SlotActionsSheet: View {
             ScheduleEngine.materialize(minuteOfDay: created.minuteOfDay, on: occurrence.date,
                                        calendar: .current) ?? occurrence.date)
         let who = p.map { " · \($0.displayName)" } ?? ""
-        onDone?("Pinned \(clock) \(kindWord)\(who)") { store.removePlanSlot(created) }
+        onDone?("Pinned \(clock) \(kindWord)\(who)", accent) { store.removePlanSlot(created) }
         dismiss()
     }
 
@@ -144,7 +146,7 @@ struct SlotActionsSheet: View {
         guard let slot else { return }
         let override = store.skipSlot(slot, dayKey: occurrence.dayKey)
         Haptics.warning()
-        onDone?("Skipped tonight's \(clock) \(kindWord)") { store.clearOverride(override) }
+        onDone?("Skipped tonight's \(clock) \(kindWord)", accent) { store.clearOverride(override) }
         dismiss()
     }
 
@@ -153,14 +155,14 @@ struct SlotActionsSheet: View {
               let override = PlanOverride.fetchByID(id, in: context) else { return }
         store.clearOverride(override)
         Haptics.tap()
-        onDone?("Back to the standing plan", nil)
+        onDone?("Back to the standing plan", accent, nil)
         dismiss()
     }
 
     private func removeSlot(_ slot: PlanSlot) {
         store.removePlanSlot(slot)
         Haptics.warning()
-        onDone?("Removed \(clock) \(kindWord) from the plan") { store.restorePlanSlot(slot) }
+        onDone?("Removed \(clock) \(kindWord) from the plan", accent) { store.restorePlanSlot(slot) }
         dismiss()
     }
 }

@@ -23,8 +23,9 @@ enum SlotAlarmManager {
     /// Anything sooner is a slot already at hand — the schedule reminder (15m
     /// lead) covers it; an alarm firing in seconds would just startle.
     private static let minimumLead: TimeInterval = 60
-    /// App-Group-visible fire date of the armed alarm, read by
-    /// `FeedAlarmManager` to stand down its interval alarm near it.
+    /// Fire date of the armed alarm (UserDefaults.standard — both readers live
+    /// in the app process), read by `FeedAlarmManager` to stand down its
+    /// interval alarm near it.
     private static let fireDateKey = "alarms.slotFireDate"
 
     /// When the armed slot alarm fires, or nil while nothing is armed.

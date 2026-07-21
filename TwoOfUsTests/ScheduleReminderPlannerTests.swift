@@ -77,8 +77,11 @@ final class ScheduleReminderPlannerTests: XCTestCase {
         let planned = plan(many, myID: me)
 
         XCTAssertEqual(planned.count, ScheduleReminderPlanner.maxPending)
-        XCTAssertEqual(planned, planned.sorted { $0.fireDate < $1.fireDate },
-                       "the soonest slots make the cut")
+        XCTAssertEqual(planned.first?.fireDate,
+                       now.addingTimeInterval(1 * 3600 - ScheduleReminderPlanner.lead))
+        XCTAssertEqual(planned.last?.fireDate,
+                       now.addingTimeInterval(6 * 3600 - ScheduleReminderPlanner.lead),
+                       "the SOONEST slots make the cut, ascending — not just any sorted six")
     }
 
     /// Locks the product position: slot reminders bypass quiet hours entirely —
