@@ -61,18 +61,16 @@ struct ScheduleEngine {
                      horizon: TimeInterval = 24 * 3600) -> [ScheduleOccurrence] {
         let windowStart = now.addingTimeInterval(-lookback)
         let windowEnd = now.addingTimeInterval(horizon)
-        let pinned = materializedPinned(from: windowStart, to: windowEnd)
-        var result = pinned
+        // Fulfillment always matches against the same recent-past set no matter
+        // the caller's lookback — otherwise a lookback-0 caller (the reminder
+        // planner) and the 2h-lookback tab could disagree about which slot a
+        // bottle covered. The display window only filters the OUTPUT.
+        let matchStart = now.addingTimeInterval(-max(lookback, Self.overdueGrace + Self.fulfillmentWindow))
+        let pinned = materializedPinned(from: matchStart, to: windowEnd)
+        var result = pinned.filter { $0.date >= windowStart }
         result += feedPredictions(until: windowEnd, pinned: pinned)
         result += sleepPrediction(until: windowEnd, pinned: pinned)
         return result.sorted { $0.date < $1.date }
-    }
-
-    /// The next actionable instance — the "up next" hero / Home line.
-    func nextOccurrence(after date: Date? = nil) -> ScheduleOccurrence? {
-        let floor = date ?? now
-        return occurrences(lookback: 0)
-            .first { $0.status == .upcoming && $0.date >= floor }
     }
 
     /// Upcoming pinned occurrences assigned to one parent — the reminder
@@ -152,7 +150,13 @@ struct ScheduleEngine {
                 }
             }
         }
-        for pair in pairs.sorted(by: { $0.distance < $1.distance }) {
+        // Deterministic order all the way down: distance, then occurrence time,
+        // then event id — so both phones (and every call site, whatever order
+        // its fetch returned) resolve an exact tie identically.
+        for pair in pairs.sorted(by: {
+            ($0.distance, instances[$0.instanceIndex].date, $0.eventID.uuidString)
+                < ($1.distance, instances[$1.instanceIndex].date, $1.eventID.uuidString)
+        }) {
             guard fulfilledBy[pair.instanceIndex] == nil, !usedEvents.contains(pair.eventID) else { continue }
             fulfilledBy[pair.instanceIndex] = pair.eventID
             usedEvents.insert(pair.eventID)
@@ -199,9 +203,13 @@ struct ScheduleEngine {
         guard targetFeedInterval > 0,
               let lastFeed = feeds.filter({ $0.deletedAt == nil }).map(\.timestamp).max()
         else { return [] }
+        // Start at the first multiple after `now` — a days-stale last feed must
+        // not spend the iteration budget walking through past intervals.
+        let elapsed = now.timeIntervalSince(lastFeed)
+        var k = max(1, Int(floor(elapsed / targetFeedInterval)) + 1)
+        let maxK = k + 32   // bounds a tiny interval; real horizons need far fewer
         var result: [ScheduleOccurrence] = []
-        var k = 1
-        while k <= 32 {   // bounds a tiny interval; real horizons need far fewer
+        while k < maxK {
             let date = lastFeed.addingTimeInterval(Double(k) * targetFeedInterval)
             if date > windowEnd { break }
             defer { k += 1 }

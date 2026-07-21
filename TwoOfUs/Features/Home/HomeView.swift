@@ -310,9 +310,10 @@ struct HomeView: View {
         let engine = ScheduleEngine(slots: planSlots, overrides: planOverrides,
                                     feeds: feeds, sleeps: sleeps,
                                     targetFeedInterval: targetFeed)
-        guard let occ = engine.nextOccurrence(), occ.isPinned, occ.assignedToID != nil,
-              occ.date.timeIntervalSinceNow <= 8 * 3600 else { return nil }
-        return occ
+        // First *planned, assigned* occurrence — a nearer prediction or
+        // unassigned slot must not hide the row.
+        return engine.occurrences(lookback: 0, horizon: 8 * 3600)
+            .first { $0.isPinned && $0.status == .upcoming && $0.assignedToID != nil }
     }
 
     private func upNextRow(_ occ: ScheduleOccurrence) -> some View {

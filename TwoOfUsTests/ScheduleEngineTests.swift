@@ -272,6 +272,52 @@ final class ScheduleEngineTests: XCTestCase {
                       "after the swap the off-duty parent has nothing tonight")
     }
 
+    // MARK: Consistency across call sites
+
+    /// The Schedule tab (2h lookback) and the reminder planner / slot alarm
+    /// (lookback 0) must agree on which slot a bottle covered — fulfillment
+    /// matches against the same recent-past set regardless of display window.
+    func testFulfillmentAgreesAcrossLookbackWindows() {
+        let past = PlanSlot(kind: .feed, minuteOfDay: 22 * 60 + 30)
+        let future = PlanSlot(kind: .feed, minuteOfDay: 23 * 60 + 30)
+        let bottle = feed(at: date(2026, 7, 21, 22, 55))
+        let at = date(2026, 7, 21, 23, 5)
+        let futureID = "slot.\(future.id.uuidString).20260721"
+
+        let wide = engine(slots: [past, future], feeds: [bottle], now: at)
+            .occurrences().first { $0.id == futureID }?.status
+        let narrow = engine(slots: [past, future], feeds: [bottle], now: at)
+            .occurrences(lookback: 0).first { $0.id == futureID }?.status
+
+        XCTAssertEqual(wide, narrow)
+        XCTAssertEqual(narrow, .upcoming,
+                       "the 22:55 bottle belongs to the nearer 22:30 slot even when the past isn't displayed")
+    }
+
+    func testEqualDistanceFulfillmentTieIsDeterministic() {
+        // A bottle exactly between two slots (30m each side): the earlier slot
+        // claims it, regardless of input array order.
+        let ten = PlanSlot(kind: .feed, minuteOfDay: 22 * 60)
+        let eleven = PlanSlot(kind: .feed, minuteOfDay: 23 * 60)
+        let bottle = feed(at: date(2026, 7, 21, 22, 30))
+
+        let occs = engine(slots: [eleven, ten], feeds: [bottle],
+                          now: date(2026, 7, 21, 23, 30)).occurrences()
+        XCTAssertEqual(occs[0].status, .fulfilled(byEventID: bottle.id))
+        XCTAssertEqual(occs[1].status, .overdue)
+    }
+
+    func testStaleLastFeedStillPredicts() {
+        // Last feed 5+ days ago (interval budget would be exhausted walking the
+        // past): predictions must still project into the window.
+        let occs = engine(feeds: [feed(at: date(2026, 7, 16, 12, 0))]).occurrences()
+
+        XCTAssertFalse(occs.isEmpty, "a stale anchor must not silence predictions")
+        XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 21, 0),
+                       "first prediction is the first interval multiple after now")
+        XCTAssertTrue(occs.allSatisfy { $0.date > now })
+    }
+
     // MARK: dayKey helper
 
     func testDayKeyMatchesLocalCalendarDay() {

@@ -128,12 +128,12 @@ enum NotificationManager {
         guard prefs.gentleRemindersEnabled, let logger = QuickLogger.make() else { return }
 
         // Feed: only when the loud AlarmKit reminder is OFF (avoid double-firing)
-        // and no pinned schedule slot already covers that time — a planned 11pm
-        // bottle means the assigned parent's slot reminder is the one voice, and
-        // the off-duty parent's phone must stay quiet.
+        // and no assigned schedule slot already covers that time — a planned
+        // 11pm bottle means the assigned parent's slot reminder is the one
+        // voice, and the off-duty parent's phone must stay quiet.
         if !prefs.feedReminderEnabled, let last = logger.lastFeed?.timestamp {
             let fireDate = last.addingTimeInterval(logger.targetFeedInterval)
-            if !pinnedSlotNear(fireDate, kind: .feed, slots: logger.planSlots) {
+            if !assignedSlotCovers(fireDate, kind: .feed, logger: logger) {
                 scheduleReminder(
                     id: NotificationID.Request.feedReminder,
                     fireDate: fireDate,
@@ -213,6 +213,13 @@ enum NotificationManager {
 
     // MARK: Schedule slot reminders
 
+    /// Serializes schedule-reminder re-plans. Two invocations can land together
+    /// (an EventStore write and a sync fetch); if their sweep/add phases
+    /// interleaved, a request re-added from the STALER state could outlive the
+    /// sweep that should have killed it — a "you're up" ringing on the off-duty
+    /// phone. Chaining makes the last-queued re-plan (freshest state) run last.
+    @MainActor private static var scheduleRearmChain: Task<Void, Never>?
+
     /// Re-arms the "you're up" reminders for schedule slots assigned to THIS
     /// device's parent, replacing whatever was pending. Called from the same
     /// three points as every other reminder (log/plan write, sync fetch, app
@@ -224,59 +231,92 @@ enum NotificationManager {
     /// feature. Off-duty silence comes from the assignment filter, not muting.
     static func refreshScheduleReminders() {
         guard !prefs.demoModeEnabled else { return }
-        Task {
-            let pending = await center.pendingNotificationRequests()
-            let stale = pending.map(\.identifier)
-                .filter { $0.hasPrefix(NotificationID.Request.scheduleSlotPrefix) }
-            center.removePendingNotificationRequests(withIdentifiers: stale)
-
-            guard let logger = QuickLogger.make(), let myID = logger.myParticipantID else { return }
-            let slots = logger.planSlots
-            guard !slots.isEmpty else { return }
-
-            let engine = ScheduleEngine(
-                slots: slots, overrides: logger.planOverrides,
-                feeds: logger.recentFeeds(), sleeps: logger.recentSleeps(),
-                targetFeedInterval: logger.targetFeedInterval
-            )
-            let planned = ScheduleReminderPlanner.plan(
-                occurrences: engine.occurrences(lookback: 0),
-                myID: myID,
-                babyName: logger.babyName ?? "Baby",
-                now: .now
-            )
-            for reminder in planned {
-                let content = makeContent(
-                    title: reminder.title, body: reminder.body,
-                    category: reminder.kind == .sleep
-                        ? NotificationID.Category.scheduleSleep
-                        : NotificationID.Category.scheduleFeed,
-                    threadID: NotificationID.Thread.schedule,
-                    level: .timeSensitive, relevanceScore: 1.0
-                )
-                content.userInfo["deeplink"] = "twoofus://schedule"
-                let trigger = UNTimeIntervalNotificationTrigger(
-                    timeInterval: max(1, reminder.fireDate.timeIntervalSinceNow), repeats: false)
-                try? await center.add(UNNotificationRequest(
-                    identifier: reminder.requestID, content: content, trigger: trigger))
+        Task { @MainActor in
+            let previous = scheduleRearmChain
+            scheduleRearmChain = Task { @MainActor in
+                await previous?.value
+                await rearmScheduleReminders()
             }
         }
     }
 
-    /// True when a live pinned slot of `kind` lands within 30 minutes of `date`
-    /// on any adjacent day — the schedule speaks for that moment, so the generic
-    /// interval nudge stands down.
-    private static func pinnedSlotNear(_ date: Date, kind: EventKind, slots: [PlanSlot]) -> Bool {
-        let cal = Calendar.current
-        for slot in slots where slot.kind == kind && slot.deletedAt == nil {
-            for dayOffset in -1...1 {
-                guard let day = cal.date(byAdding: .day, value: dayOffset, to: date),
-                      let slotDate = ScheduleEngine.materialize(
-                        minuteOfDay: slot.minuteOfDay, on: day, calendar: cal) else { continue }
-                if abs(slotDate.timeIntervalSince(date)) <= 30 * 60 { return true }
+    /// Sweeps every pending schedule reminder without re-planning. For flows
+    /// that wipe the local data (leaving the household, delete everything) —
+    /// an ex-member's phone must not ring for slots that no longer exist.
+    static func cancelScheduleReminders() {
+        Task { @MainActor in
+            let previous = scheduleRearmChain
+            scheduleRearmChain = Task { @MainActor in
+                await previous?.value
+                let pending = await center.pendingNotificationRequests()
+                let ids = pending.map(\.identifier)
+                    .filter { $0.hasPrefix(NotificationID.Request.schedulePrefix) }
+                center.removePendingNotificationRequests(withIdentifiers: ids)
             }
         }
-        return false
+    }
+
+    @MainActor
+    private static func rearmScheduleReminders() async {
+        let pending = await center.pendingNotificationRequests()
+        // Sweep the whole schedule.* namespace, snooze included: a snoozed
+        // "you're up" must die with its slot when the feed gets logged or the
+        // night gets swapped away. (If the slot is still mine and upcoming,
+        // the standard reminder re-arms right below.)
+        let stale = pending.map(\.identifier)
+            .filter { $0.hasPrefix(NotificationID.Request.schedulePrefix) }
+        center.removePendingNotificationRequests(withIdentifiers: stale)
+
+        guard let logger = QuickLogger.make(), let myID = logger.myParticipantID else { return }
+        let slots = logger.planSlots
+        guard !slots.isEmpty else { return }
+
+        let engine = ScheduleEngine(
+            slots: slots, overrides: logger.planOverrides,
+            feeds: logger.recentFeeds(), sleeps: logger.recentSleeps(),
+            targetFeedInterval: logger.targetFeedInterval
+        )
+        let planned = ScheduleReminderPlanner.plan(
+            occurrences: engine.occurrences(lookback: 0),
+            myID: myID,
+            babyName: logger.babyName ?? "Baby",
+            now: .now
+        )
+        for reminder in planned {
+            let content = makeContent(
+                title: reminder.title, body: reminder.body,
+                category: reminder.kind == .sleep
+                    ? NotificationID.Category.scheduleSleep
+                    : NotificationID.Category.scheduleFeed,
+                threadID: NotificationID.Thread.schedule,
+                level: .timeSensitive, relevanceScore: 1.0
+            )
+            content.userInfo["deeplink"] = "twoofus://schedule"
+            let trigger = UNTimeIntervalNotificationTrigger(
+                timeInterval: max(1, reminder.fireDate.timeIntervalSinceNow), repeats: false)
+            try? await center.add(UNNotificationRequest(
+                identifier: reminder.requestID, content: content, trigger: trigger))
+        }
+    }
+
+    /// True when a live pinned occurrence of `kind` lands within 30 minutes of
+    /// `date`, is still upcoming, AND has an assigned parent — only then does
+    /// the schedule actually speak for that moment. A skipped or unassigned
+    /// night produces no slot reminder for anyone, so the generic nudge must
+    /// stay on duty rather than stand down against silence.
+    private static func assignedSlotCovers(_ date: Date, kind: EventKind, logger: QuickLogger) -> Bool {
+        let slots = logger.planSlots
+        guard !slots.isEmpty else { return false }
+        let engine = ScheduleEngine(
+            slots: slots, overrides: logger.planOverrides,
+            feeds: logger.recentFeeds(), sleeps: logger.recentSleeps(),
+            targetFeedInterval: logger.targetFeedInterval
+        )
+        let horizon = max(3600, date.timeIntervalSinceNow + 1800)
+        return engine.occurrences(lookback: 0, horizon: horizon).contains {
+            $0.isPinned && $0.kind == kind && $0.status == .upcoming && $0.assignedToID != nil
+                && abs($0.date.timeIntervalSince(date)) <= 30 * 60
+        }
     }
 
     // MARK: Daily milestone
@@ -436,7 +476,13 @@ enum NotificationManager {
             let babyName = logger.babyName ?? "Baby"
             let lastFeed = logger.lastFeed?.timestamp
             let interval = logger.targetFeedInterval
-            Task { await FeedAlarmManager.reschedule(babyName: babyName, lastFeed: lastFeed, interval: interval) }
+            Task {
+                // Slot alarm first: logging the 3am feed from its own reminder
+                // must disarm the slot alarm, and the feed alarm's stand-down
+                // check reads the slot alarm's published fire date.
+                await SlotAlarmManager.reschedule()
+                await FeedAlarmManager.reschedule(babyName: babyName, lastFeed: lastFeed, interval: interval)
+            }
         }
     }
 

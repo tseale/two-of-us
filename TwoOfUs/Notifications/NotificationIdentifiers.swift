@@ -34,11 +34,11 @@ enum NotificationID {
         static let diaperReminder = "reminder.diaper"
         static let dailyMilestone = "milestone.daily"
         static func coParent(_ key: String) -> String { "coparent.\(key)" }
-        /// Prefix shared by every per-occurrence slot reminder, so a re-arm can
-        /// sweep them all without knowing which nights were pending.
-        static let scheduleSlotPrefix = "schedule.slot."
+        /// Namespace for every schedule reminder (per-occurrence + snooze), so a
+        /// re-arm can sweep them all without knowing which nights were pending.
+        static let schedulePrefix = "schedule."
         static func scheduleSlot(slotID: UUID, dayKey: Int) -> String {
-            "\(scheduleSlotPrefix)\(slotID.uuidString).\(dayKey)"
+            "\(schedulePrefix)slot.\(slotID.uuidString).\(dayKey)"
         }
         static let scheduleSnooze = "schedule.snooze"
     }

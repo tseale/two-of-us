@@ -71,7 +71,6 @@ struct EventStore {
         save()
         sync(save: [event.id])
         reloadWidgets()
-        scheduleFeedReminder()
         refreshLocalReminders()
         donate(LogFeedIntent(amountOz: amountOz))
         return event
@@ -112,6 +111,8 @@ struct EventStore {
         sync(save: [event.id])
         if !demo { SleepActivityManager.start(babyName: baby?.name ?? "Baby", at: date) }
         reloadWidgets()
+        // A started sleep fulfills its schedule slot — sweep tonight's reminder.
+        refreshLocalReminders()
         donate(ToggleSleepIntent())
         return event
     }
@@ -122,6 +123,7 @@ struct EventStore {
         sync(save: [event.id])
         if !demo { SleepActivityManager.end() }
         reloadWidgets()
+        refreshLocalReminders()
         donate(ToggleSleepIntent())
     }
 
@@ -145,6 +147,7 @@ struct EventStore {
         sync(save: [event.id])
         if !demo { SleepActivityManager.start(babyName: baby?.name ?? "Baby", at: event.startedAt) }
         reloadWidgets()
+        refreshLocalReminders()
     }
 
     /// Best-effort Siri donation so Suggestions / Spotlight rank Two of Us
@@ -175,7 +178,6 @@ struct EventStore {
         save()
         sync(save: [original.id, replacement.id])
         reloadWidgets()
-        scheduleFeedReminder()
         refreshLocalReminders()
         return replacement
     }
@@ -224,9 +226,8 @@ struct EventStore {
         save()
         sync(save: [event.id])   // soft delete travels as a `deletedAt` update
         reloadWidgets()
-        // Re-arm/cancel the loud alarm too: deleting the latest feed must not leave
-        // a "feed due" alarm armed for an event that no longer exists.
-        scheduleFeedReminder()
+        // Re-arms/cancels the loud alarms too: deleting the latest feed must not
+        // leave a "feed due" alarm armed for an event that no longer exists.
         refreshLocalReminders()
     }
 
@@ -238,7 +239,6 @@ struct EventStore {
         save()
         sync(save: [event.id])
         reloadWidgets()
-        scheduleFeedReminder()
         refreshLocalReminders()
     }
 
@@ -260,9 +260,8 @@ struct EventStore {
         save()
         sync(save: ids)
         reloadWidgets()
-        // No feeds remain → these cancel the pending alarm and clear the gentle
+        // No feeds remain → this cancels the pending alarms and clears the
         // reminders/summary rather than leaving them armed for purged events.
-        scheduleFeedReminder()
         refreshLocalReminders()
     }
 
@@ -562,28 +561,25 @@ struct EventStore {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    /// Re-arms this device's AlarmKit feed reminder off the latest feed + the
-    /// shared target interval. Honors the per-device opt-in inside the manager.
-    private func scheduleFeedReminder() {
-        guard !demo else { return }
-        let interval = settings?.targetFeedInterval ?? 0
-        let last = lastEventDate(of: .feed)
-        let name = baby?.name ?? "Baby"
-        Task { await FeedAlarmManager.reschedule(babyName: name, lastFeed: last, interval: interval) }
-    }
-
-    /// Re-arms the gentle "feed/diaper due" local notifications off current state.
-    /// Distinct from `scheduleFeedReminder` (the loud AlarmKit alarm); no-ops in
-    /// demo and when the user hasn't opted into gentle reminders.
+    /// Re-arms every reminder surface off current state after a write: the
+    /// gentle nudges + daily summary, the slot "you're up" reminders (a logged
+    /// feed fulfills its slot and sweeps tonight's request; a plan edit moves it
+    /// — and, via sync, moves it to the right phone), and the two AlarmKit
+    /// alarms as a sequenced pair — the interval feed alarm's stand-down
+    /// decision reads the slot alarm's published fire date, so the slot alarm
+    /// must settle first. No-ops in demo.
     private func refreshLocalReminders() {
         guard !demo else { return }
         NotificationManager.refreshScheduledReminders()
         NotificationManager.refreshDailyMilestone()   // keep the summary's counts fresh
-        // Slot reminders + the opt-in slot alarm re-plan off every write: a
-        // logged feed fulfills its slot (sweeping tonight's request), and a plan
-        // edit moves both to the right time — and, via sync, the right phone.
         NotificationManager.refreshScheduleReminders()
-        Task { await SlotAlarmManager.reschedule() }
+        let interval = settings?.targetFeedInterval ?? 0
+        let last = lastEventDate(of: .feed)
+        let name = baby?.name ?? "Baby"
+        Task {
+            await SlotAlarmManager.reschedule()
+            await FeedAlarmManager.reschedule(babyName: name, lastFeed: last, interval: interval)
+        }
     }
 }
 

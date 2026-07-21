@@ -89,8 +89,12 @@ struct QuickLogger {
     var targetFeedInterval: TimeInterval { settings?.targetFeedInterval ?? TimeInterval(180 * 60) }
 
     /// This device's own participant id — the schedule-reminder planner filters
-    /// "my" assigned slots with it.
-    var myParticipantID: UUID? { owner?.id }
+    /// "my" assigned slots with it. Strictly the STORED identity, with no
+    /// first-participant fallback (unlike `owner`): guessing wrong could arm
+    /// the co-parent's 3am reminders on this phone. No identity → no reminders.
+    var myParticipantID: UUID? {
+        (AppGroup.userDefaults?.string(forKey: "sync.myParticipantID")).flatMap(UUID.init)
+    }
 
     /// Live standing plan, for the schedule reminder planner / widget glance.
     var planSlots: [PlanSlot] {

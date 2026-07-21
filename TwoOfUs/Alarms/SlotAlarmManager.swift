@@ -78,6 +78,10 @@ enum SlotAlarmManager {
             _ = try await AlarmManager.shared.schedule(id: alarmID, configuration: configuration)
         } catch {
             AppLog.alarms.error("Slot alarm schedule failed: \(error.localizedDescription, privacy: .public)")
+            // The fallback notification can't pierce Silent — retract the
+            // published fire date so the feed alarm doesn't stand down against
+            // an alarm that isn't actually armed.
+            UserDefaults.standard.removeObject(forKey: fireDateKey)
             await scheduleFallbackNotification(after: remaining, title: title)
         }
     }
