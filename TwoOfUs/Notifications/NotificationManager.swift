@@ -73,6 +73,20 @@ enum NotificationManager {
             intentIdentifiers: [],
             options: []
         )
+        // "You're up" slot reminders: a feed slot can be logged right from the
+        // lock screen; a sleep slot only snoozes (there's nothing to one-tap log).
+        let scheduleFeed = UNNotificationCategory(
+            identifier: NotificationID.Category.scheduleFeed,
+            actions: [logFeed, snooze],
+            intentIdentifiers: [],
+            options: []
+        )
+        let scheduleSleep = UNNotificationCategory(
+            identifier: NotificationID.Category.scheduleSleep,
+            actions: [snooze],
+            intentIdentifiers: [],
+            options: []
+        )
         // Informational categories: default tap opens the app, no extra buttons.
         let coParent = UNNotificationCategory(
             identifier: NotificationID.Category.coParent,
@@ -83,7 +97,7 @@ enum NotificationManager {
             actions: [], intentIdentifiers: [], options: []
         )
 
-        center.setNotificationCategories([feed, diaper, coParent, milestone])
+        center.setNotificationCategories([feed, diaper, scheduleFeed, scheduleSleep, coParent, milestone])
     }
 
     /// Requests alert + badge authorization (never sound — the app is silent).
@@ -113,16 +127,22 @@ enum NotificationManager {
         ])
         guard prefs.gentleRemindersEnabled, let logger = QuickLogger.make() else { return }
 
-        // Feed: only when the loud AlarmKit reminder is OFF (avoid double-firing).
+        // Feed: only when the loud AlarmKit reminder is OFF (avoid double-firing)
+        // and no assigned schedule slot already covers that time — a planned
+        // 11pm bottle means the assigned parent's slot reminder is the one
+        // voice, and the off-duty parent's phone must stay quiet.
         if !prefs.feedReminderEnabled, let last = logger.lastFeed?.timestamp {
-            scheduleReminder(
-                id: NotificationID.Request.feedReminder,
-                fireDate: last.addingTimeInterval(logger.targetFeedInterval),
-                category: NotificationID.Category.reminderFeed,
-                threadID: NotificationID.Thread.feed,
-                title: "\(logger.babyName ?? "Baby") — feed due",
-                body: "It's been about \(hoursLabel(logger.targetFeedInterval)) since the last bottle."
-            )
+            let fireDate = last.addingTimeInterval(logger.targetFeedInterval)
+            if !assignedSlotCovers(fireDate, kind: .feed, logger: logger) {
+                scheduleReminder(
+                    id: NotificationID.Request.feedReminder,
+                    fireDate: fireDate,
+                    category: NotificationID.Category.reminderFeed,
+                    threadID: NotificationID.Thread.feed,
+                    title: "\(logger.babyName ?? "Baby") — feed due",
+                    body: "It's been about \(hoursLabel(logger.targetFeedInterval)) since the last bottle."
+                )
+            }
         }
 
         // Diaper: AlarmKit doesn't cover diapers, so this is the only nudge.
@@ -179,8 +199,123 @@ enum NotificationManager {
                 title: "\(babyName) — diaper check", body: "Snoozed reminder.",
                 respectQuietHours: false
             )
+        case NotificationID.Category.scheduleFeed, NotificationID.Category.scheduleSleep:
+            scheduleReminder(
+                id: NotificationID.Request.scheduleSnooze, fireDate: fire,
+                category: category, threadID: NotificationID.Thread.schedule,
+                title: "\(babyName) — you're up", body: "Snoozed reminder.",
+                respectQuietHours: false
+            )
         default:
             break
+        }
+    }
+
+    // MARK: Schedule slot reminders
+
+    /// Serializes schedule-reminder re-plans. Two invocations can land together
+    /// (an EventStore write and a sync fetch); if their sweep/add phases
+    /// interleaved, a request re-added from the STALER state could outlive the
+    /// sweep that should have killed it — a "you're up" ringing on the off-duty
+    /// phone. Chaining makes the last-queued re-plan (freshest state) run last.
+    @MainActor private static var scheduleRearmChain: Task<Void, Never>?
+
+    /// Re-arms the "you're up" reminders for schedule slots assigned to THIS
+    /// device's parent, replacing whatever was pending. Called from the same
+    /// three points as every other reminder (log/plan write, sync fetch, app
+    /// foreground) — which is exactly what makes a co-parent's swap silence the
+    /// off-duty phone: their override syncs in, this re-plans, and the now-
+    /// unassigned night's request is swept.
+    ///
+    /// Deliberately ignores quiet hours: a 3am assigned-feed reminder is the
+    /// feature. Off-duty silence comes from the assignment filter, not muting.
+    static func refreshScheduleReminders() {
+        guard !prefs.demoModeEnabled else { return }
+        Task { @MainActor in
+            let previous = scheduleRearmChain
+            scheduleRearmChain = Task { @MainActor in
+                await previous?.value
+                await rearmScheduleReminders()
+            }
+        }
+    }
+
+    /// Sweeps every pending schedule reminder without re-planning. For flows
+    /// that wipe the local data (leaving the household, delete everything) —
+    /// an ex-member's phone must not ring for slots that no longer exist.
+    static func cancelScheduleReminders() {
+        Task { @MainActor in
+            let previous = scheduleRearmChain
+            scheduleRearmChain = Task { @MainActor in
+                await previous?.value
+                let pending = await center.pendingNotificationRequests()
+                let ids = pending.map(\.identifier)
+                    .filter { $0.hasPrefix(NotificationID.Request.schedulePrefix) }
+                center.removePendingNotificationRequests(withIdentifiers: ids)
+            }
+        }
+    }
+
+    @MainActor
+    private static func rearmScheduleReminders() async {
+        let pending = await center.pendingNotificationRequests()
+        // Sweep the whole schedule.* namespace, snooze included: a snoozed
+        // "you're up" must die with its slot when the feed gets logged or the
+        // night gets swapped away. (If the slot is still mine and upcoming,
+        // the standard reminder re-arms right below.)
+        let stale = pending.map(\.identifier)
+            .filter { $0.hasPrefix(NotificationID.Request.schedulePrefix) }
+        center.removePendingNotificationRequests(withIdentifiers: stale)
+
+        guard let logger = QuickLogger.make(), let myID = logger.myParticipantID else { return }
+        let slots = logger.planSlots
+        guard !slots.isEmpty else { return }
+
+        let engine = ScheduleEngine(
+            slots: slots, overrides: logger.planOverrides,
+            feeds: logger.recentFeeds(), sleeps: logger.recentSleeps(),
+            targetFeedInterval: logger.targetFeedInterval
+        )
+        let planned = ScheduleReminderPlanner.plan(
+            occurrences: engine.occurrences(lookback: 0),
+            myID: myID,
+            babyName: logger.babyName ?? "Baby",
+            now: .now
+        )
+        for reminder in planned {
+            let content = makeContent(
+                title: reminder.title, body: reminder.body,
+                category: reminder.kind == .sleep
+                    ? NotificationID.Category.scheduleSleep
+                    : NotificationID.Category.scheduleFeed,
+                threadID: NotificationID.Thread.schedule,
+                level: .timeSensitive, relevanceScore: 1.0
+            )
+            content.userInfo["deeplink"] = "twoofus://schedule"
+            let trigger = UNTimeIntervalNotificationTrigger(
+                timeInterval: max(1, reminder.fireDate.timeIntervalSinceNow), repeats: false)
+            try? await center.add(UNNotificationRequest(
+                identifier: reminder.requestID, content: content, trigger: trigger))
+        }
+    }
+
+    /// True when a live pinned occurrence of `kind` lands within 30 minutes of
+    /// `date`, is still upcoming, AND has an assigned parent — only then does
+    /// the schedule actually speak for that moment. A skipped or unassigned
+    /// night produces no slot reminder for anyone, so the generic nudge must
+    /// stay on duty rather than stand down against silence.
+    private static func assignedSlotCovers(_ date: Date, kind: EventKind, logger: QuickLogger) -> Bool {
+        let slots = logger.planSlots
+        guard !slots.isEmpty else { return false }
+        let engine = ScheduleEngine(
+            slots: slots, overrides: logger.planOverrides,
+            feeds: logger.recentFeeds(), sleeps: logger.recentSleeps(),
+            targetFeedInterval: logger.targetFeedInterval
+        )
+        let horizon = max(3600, date.timeIntervalSinceNow + 1800)
+        return engine.occurrences(lookback: 0, horizon: horizon).contains {
+            $0.isPinned && $0.kind == kind && $0.status == .upcoming && $0.assignedToID != nil
+                && abs($0.date.timeIntervalSince(date)) <= 30 * 60
         }
     }
 
@@ -315,7 +450,12 @@ enum NotificationManager {
         case NotificationID.Action.snooze:
             snooze(category: category)
         default:
-            break   // default / dismiss — opening the app is enough
+            // Default tap on a slot reminder lands on the Schedule tab; every
+            // other notification just opens the app.
+            if category == NotificationID.Category.scheduleFeed
+                || category == NotificationID.Category.scheduleSleep {
+                DeepLinkRouter.shared.requestTab(.schedule)
+            }
         }
     }
 
@@ -325,6 +465,9 @@ enum NotificationManager {
     private static func flushAndRearm() {
         SyncManager.shared?.drainExtensionQueue()
         refreshScheduledReminders()
+        // A feed logged from a 3am slot reminder fulfills that occurrence —
+        // re-planning sweeps the now-covered night's pending request.
+        refreshScheduleReminders()
         // Re-arm the AlarmKit feed alarm. Without this, logging a feed from the
         // notification action button never reschedules the loud overnight alarm —
         // the app foreground would eventually fix it, but the alarm fires at the
@@ -333,7 +476,13 @@ enum NotificationManager {
             let babyName = logger.babyName ?? "Baby"
             let lastFeed = logger.lastFeed?.timestamp
             let interval = logger.targetFeedInterval
-            Task { await FeedAlarmManager.reschedule(babyName: babyName, lastFeed: lastFeed, interval: interval) }
+            Task {
+                // Slot alarm first: logging the 3am feed from its own reminder
+                // must disarm the slot alarm, and the feed alarm's stand-down
+                // check reads the slot alarm's published fire date.
+                await SlotAlarmManager.reschedule()
+                await FeedAlarmManager.reschedule(babyName: babyName, lastFeed: lastFeed, interval: interval)
+            }
         }
     }
 

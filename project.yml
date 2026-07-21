@@ -8,9 +8,9 @@ options:
 
 settings:
   base:
-    # 1.0 matches the version train already uploaded to TestFlight (build 1 went
-    # up as 1.0); a lower train would sort as older than what's already there.
-    MARKETING_VERSION: "1.0"
+    # 1.1 opens the schedule-feature train; 1.0 (build 72) is the tagged App
+    # Store submission. A lower train would sort as older than what's uploaded.
+    MARKETING_VERSION: "1.1"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: Q58H65DQ64
@@ -104,6 +104,8 @@ targets:
       - path: TwoOfUs/Models/DiaperEvent.swift
       - path: TwoOfUs/Models/Participant.swift
       - path: TwoOfUs/Models/SharedSettings.swift
+      - path: TwoOfUs/Models/PlanSlot.swift
+      - path: TwoOfUs/Models/PlanOverride.swift
       - path: TwoOfUs/Models/Enums.swift
       - path: TwoOfUs/Store/Schema.swift
       - path: TwoOfUs/Support/AppGroup.swift
@@ -156,6 +158,8 @@ targets:
       - path: TwoOfUs/Models/DiaperEvent.swift
       - path: TwoOfUs/Models/Participant.swift
       - path: TwoOfUs/Models/SharedSettings.swift
+      - path: TwoOfUs/Models/PlanSlot.swift
+      - path: TwoOfUs/Models/PlanOverride.swift
       - path: TwoOfUs/Models/Enums.swift
       - path: TwoOfUs/Store/Schema.swift
       - path: TwoOfUs/Support/AppGroup.swift

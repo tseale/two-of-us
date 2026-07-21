@@ -11,6 +11,8 @@ protocol SoftDeletable: AnyObject {
 extension FeedEvent: SoftDeletable {}
 extension SleepEvent: SoftDeletable {}
 extension DiaperEvent: SoftDeletable {}
+extension PlanSlot: SoftDeletable {}
+extension PlanOverride: SoftDeletable {}
 
 /// Thin layer over `ModelContext` so views never hand-roll predicates.
 /// Stamps every write with the local user's identity (denormalized) and hands
@@ -69,7 +71,6 @@ struct EventStore {
         save()
         sync(save: [event.id])
         reloadWidgets()
-        scheduleFeedReminder()
         refreshLocalReminders()
         donate(LogFeedIntent(amountOz: amountOz))
         return event
@@ -110,6 +111,8 @@ struct EventStore {
         sync(save: [event.id])
         if !demo { SleepActivityManager.start(babyName: baby?.name ?? "Baby", at: date) }
         reloadWidgets()
+        // A started sleep fulfills its schedule slot — sweep tonight's reminder.
+        refreshLocalReminders()
         donate(ToggleSleepIntent())
         return event
     }
@@ -120,6 +123,7 @@ struct EventStore {
         sync(save: [event.id])
         if !demo { SleepActivityManager.end() }
         reloadWidgets()
+        refreshLocalReminders()
         donate(ToggleSleepIntent())
     }
 
@@ -143,6 +147,7 @@ struct EventStore {
         sync(save: [event.id])
         if !demo { SleepActivityManager.start(babyName: baby?.name ?? "Baby", at: event.startedAt) }
         reloadWidgets()
+        refreshLocalReminders()
     }
 
     /// Best-effort Siri donation so Suggestions / Spotlight rank Two of Us
@@ -173,7 +178,6 @@ struct EventStore {
         save()
         sync(save: [original.id, replacement.id])
         reloadWidgets()
-        scheduleFeedReminder()
         refreshLocalReminders()
         return replacement
     }
@@ -222,9 +226,8 @@ struct EventStore {
         save()
         sync(save: [event.id])   // soft delete travels as a `deletedAt` update
         reloadWidgets()
-        // Re-arm/cancel the loud alarm too: deleting the latest feed must not leave
-        // a "feed due" alarm armed for an event that no longer exists.
-        scheduleFeedReminder()
+        // Re-arms/cancels the loud alarms too: deleting the latest feed must not
+        // leave a "feed due" alarm armed for an event that no longer exists.
         refreshLocalReminders()
     }
 
@@ -236,7 +239,6 @@ struct EventStore {
         save()
         sync(save: [event.id])
         reloadWidgets()
-        scheduleFeedReminder()
         refreshLocalReminders()
     }
 
@@ -258,9 +260,8 @@ struct EventStore {
         save()
         sync(save: ids)
         reloadWidgets()
-        // No feeds remain → these cancel the pending alarm and clear the gentle
+        // No feeds remain → this cancels the pending alarms and clears the
         // reminders/summary rather than leaving them armed for purged events.
-        scheduleFeedReminder()
         refreshLocalReminders()
     }
 
@@ -332,6 +333,20 @@ struct EventStore {
         rewrite(FeedEvent.self)
         rewrite(SleepEvent.self)
         rewrite(DiaperEvent.self)
+        // Plan slots/overrides carry the same denormalized identity under a
+        // different name (assignedTo*), so a rename/recolor relabels them too.
+        for slot in (try? context.fetch(FetchDescriptor<PlanSlot>())) ?? []
+        where slot.assignedToID == loggerID {
+            slot.assignedToName = name
+            slot.assignedToColorHex = colorHex
+            ids.append(slot.id)
+        }
+        for override in (try? context.fetch(FetchDescriptor<PlanOverride>())) ?? []
+        where override.assignedToID == loggerID {
+            override.assignedToName = name
+            override.assignedToColorHex = colorHex
+            ids.append(override.id)
+        }
         return ids
     }
 
@@ -340,6 +355,124 @@ struct EventStore {
         participant.role = role
         save()
         sync(save: [participant.id])
+    }
+
+    // MARK: Schedule plan
+    //
+    // The standing plan is configuration, not history: slots are edited in place
+    // (their id is load-bearing — overrides and reminder request ids reference
+    // it), while per-night changes are append-only `PlanOverride` inserts so
+    // concurrent swaps by both parents can never conflict in CloudKit.
+
+    @discardableResult
+    func addPlanSlot(kind: EventKind, minuteOfDay: Int, assignedTo: Participant?) -> PlanSlot {
+        let slot = PlanSlot(
+            kind: kind,
+            minuteOfDay: EventBounds.wrapMinuteOfDay(minuteOfDay),
+            assignedToID: assignedTo?.id,
+            assignedToName: assignedTo?.displayName ?? "",
+            assignedToColorHex: assignedTo?.colorHex ?? ""
+        )
+        context.insert(slot)
+        save()
+        sync(save: [slot.id])
+        refreshLocalReminders()
+        return slot
+    }
+
+    /// Edits a standing slot in place. `assignedTo: .some(nil)` unassigns;
+    /// `.none` (the default) leaves the assignment untouched.
+    func updatePlanSlot(_ slot: PlanSlot, kind: EventKind? = nil, minuteOfDay: Int? = nil,
+                        assignedTo: Participant?? = .none) {
+        if let kind { slot.kind = kind }
+        if let minuteOfDay { slot.minuteOfDay = EventBounds.wrapMinuteOfDay(minuteOfDay) }
+        if case let .some(participant) = assignedTo {
+            slot.assignedToID = participant?.id
+            slot.assignedToName = participant?.displayName ?? ""
+            slot.assignedToColorHex = participant?.colorHex ?? ""
+        }
+        save()
+        sync(save: [slot.id])
+        refreshLocalReminders()
+    }
+
+    /// Removes a slot from the plan (soft delete) along with any live overrides
+    /// still pointing at it from today onward — a swap for a slot that no longer
+    /// exists must not linger and resurrect an occurrence.
+    func removePlanSlot(_ slot: PlanSlot, asOf now: Date = .now) {
+        var ids = [slot.id]
+        slot.deletedAt = now
+        let todayKey = ScheduleEngine.dayKey(for: now, calendar: .current)
+        let slotID = slot.id
+        let overrides = (try? context.fetch(FetchDescriptor<PlanOverride>(
+            predicate: #Predicate { $0.slotID == slotID && $0.deletedAt == nil && $0.dayKey >= todayKey }
+        ))) ?? []
+        for o in overrides {
+            o.deletedAt = now
+            ids.append(o.id)
+        }
+        save()
+        sync(save: ids)
+        refreshLocalReminders()
+    }
+
+    /// Reverses `removePlanSlot` — the Undo path. (Its overrides stay deleted;
+    /// the standing plan resumes clean.)
+    func restorePlanSlot(_ slot: PlanSlot) {
+        slot.deletedAt = nil
+        save()
+        sync(save: [slot.id])
+        refreshLocalReminders()
+    }
+
+    /// Reassigns one night of a slot ("Katie takes tonight's 3am") without
+    /// touching the standing plan. Replaces any earlier live override for the
+    /// same night so at most one override per (slot, night) is authored here.
+    @discardableResult
+    func overrideSlot(_ slot: PlanSlot, dayKey: Int, assignTo participant: Participant?) -> PlanOverride {
+        insertOverride(slot, dayKey: dayKey, assignedTo: participant, isSkipped: false)
+    }
+
+    /// Skips one night of a slot — no occurrence, no reminder on either phone.
+    @discardableResult
+    func skipSlot(_ slot: PlanSlot, dayKey: Int) -> PlanOverride {
+        insertOverride(slot, dayKey: dayKey, assignedTo: nil, isSkipped: true)
+    }
+
+    /// Undoes a swap/skip — the standing assignment resumes for that night.
+    func clearOverride(_ override: PlanOverride) {
+        override.deletedAt = .now
+        save()
+        sync(save: [override.id])
+        refreshLocalReminders()
+    }
+
+    private func insertOverride(_ slot: PlanSlot, dayKey: Int, assignedTo participant: Participant?,
+                                isSkipped: Bool) -> PlanOverride {
+        var ids: [UUID] = []
+        let slotID = slot.id
+        let priors = (try? context.fetch(FetchDescriptor<PlanOverride>(
+            predicate: #Predicate { $0.slotID == slotID && $0.dayKey == dayKey && $0.deletedAt == nil }
+        ))) ?? []
+        for prior in priors {
+            prior.deletedAt = .now
+            ids.append(prior.id)
+        }
+        let override = PlanOverride(
+            slotID: slot.id,
+            dayKey: dayKey,
+            assignedToID: participant?.id,
+            assignedToName: participant?.displayName ?? "",
+            assignedToColorHex: participant?.colorHex ?? "",
+            isSkipped: isSkipped,
+            createdByID: owner?.id ?? UUID()
+        )
+        context.insert(override)
+        ids.append(override.id)
+        save()
+        sync(save: ids)
+        refreshLocalReminders()
+        return override
     }
 
     // MARK: Time-since
@@ -428,23 +561,25 @@ struct EventStore {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    /// Re-arms this device's AlarmKit feed reminder off the latest feed + the
-    /// shared target interval. Honors the per-device opt-in inside the manager.
-    private func scheduleFeedReminder() {
-        guard !demo else { return }
-        let interval = settings?.targetFeedInterval ?? 0
-        let last = lastEventDate(of: .feed)
-        let name = baby?.name ?? "Baby"
-        Task { await FeedAlarmManager.reschedule(babyName: name, lastFeed: last, interval: interval) }
-    }
-
-    /// Re-arms the gentle "feed/diaper due" local notifications off current state.
-    /// Distinct from `scheduleFeedReminder` (the loud AlarmKit alarm); no-ops in
-    /// demo and when the user hasn't opted into gentle reminders.
+    /// Re-arms every reminder surface off current state after a write: the
+    /// gentle nudges + daily summary, the slot "you're up" reminders (a logged
+    /// feed fulfills its slot and sweeps tonight's request; a plan edit moves it
+    /// — and, via sync, moves it to the right phone), and the two AlarmKit
+    /// alarms as a sequenced pair — the interval feed alarm's stand-down
+    /// decision reads the slot alarm's published fire date, so the slot alarm
+    /// must settle first. No-ops in demo.
     private func refreshLocalReminders() {
         guard !demo else { return }
         NotificationManager.refreshScheduledReminders()
         NotificationManager.refreshDailyMilestone()   // keep the summary's counts fresh
+        NotificationManager.refreshScheduleReminders()
+        let interval = settings?.targetFeedInterval ?? 0
+        let last = lastEventDate(of: .feed)
+        let name = baby?.name ?? "Baby"
+        Task {
+            await SlotAlarmManager.reschedule()
+            await FeedAlarmManager.reschedule(babyName: name, lastFeed: last, interval: interval)
+        }
     }
 }
 
@@ -466,6 +601,12 @@ enum EventBounds {
     /// bad parse) is pinned to now so it can't sort ahead of reality.
     static func clampPast(_ date: Date, now: Date = .now) -> Date {
         min(date, now)
+    }
+
+    /// Normalizes a plan-slot time into 0..<1440 minutes-from-midnight, wrapping
+    /// rather than clamping — 1440 is midnight again, -60 is 11pm.
+    static func wrapMinuteOfDay(_ minute: Int) -> Int {
+        ((minute % 1440) + 1440) % 1440
     }
 
     /// Longest note we keep — generous for "spit up, fussy, left side" jottings

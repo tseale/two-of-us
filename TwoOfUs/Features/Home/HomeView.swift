@@ -14,6 +14,10 @@ struct HomeView: View {
     private var sleeps: [SleepEvent]
     @Query(filter: #Predicate<DiaperEvent> { $0.deletedAt == nil }, sort: \DiaperEvent.timestamp, order: .reverse)
     private var diapers: [DiaperEvent]
+    @Query(filter: #Predicate<PlanSlot> { $0.deletedAt == nil })
+    private var planSlots: [PlanSlot]
+    @Query(filter: #Predicate<PlanOverride> { $0.deletedAt == nil })
+    private var planOverrides: [PlanOverride]
 
     @State private var activeSheet: ActiveSheet?
     @State private var editing: TimelineEntry?
@@ -62,6 +66,13 @@ struct HomeView: View {
                             if let sleep = activeSleep {
                                 SleepActiveCard(sleep: sleep, now: ctx.date) { endSleep(sleep) }
                                     .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
+                            }
+                            // Inside the ticking TimelineView so the row stays
+                            // honest on a phone left open overnight: 11pm passing
+                            // drops the 11pm row and surfaces the 3am one without
+                            // needing a log or sync to trigger a render.
+                            if let next = upNextOccurrence(now: ctx.date) {
+                                upNextRow(next)
                             }
                         }
                         // Keyed to the sleep state (not withAnimation at the action
@@ -291,6 +302,56 @@ struct HomeView: View {
         return next < now
             ? "nap was due ~\(TimeFormatting.clock(next))"
             : "next nap ~\(TimeFormatting.clock(next))"
+    }
+
+    // MARK: Up next (schedule glance)
+
+    /// The next *planned, assigned* slot within 8 hours — the one line that
+    /// answers "who's up". Predictions and unassigned slots stay off Home; the
+    /// Schedule tab owns the full picture.
+    private func upNextOccurrence(now: Date) -> ScheduleOccurrence? {
+        guard !planSlots.isEmpty else { return nil }
+        let engine = ScheduleEngine(slots: planSlots, overrides: planOverrides,
+                                    feeds: feeds, sleeps: sleeps,
+                                    targetFeedInterval: targetFeed, now: now)
+        // First *planned, assigned* occurrence — a nearer prediction or
+        // unassigned slot must not hide the row.
+        return engine.occurrences(lookback: 0, horizon: 8 * 3600)
+            .first { $0.isPinned && $0.status == .upcoming && $0.assignedToID != nil }
+    }
+
+    private func upNextRow(_ occ: ScheduleOccurrence) -> some View {
+        let mine = occ.assignedToID == prefs.myParticipantID
+        return Button {
+            router.requestTab(.schedule)
+        } label: {
+            HStack(spacing: 8) {
+                Text(occ.kind.emoji).font(.callout)
+                Text("Up next").sectionLabelStyle()
+                Text(TimeFormatting.clock(occ.date))
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(AppColor.text)
+                Text("·").foregroundStyle(AppColor.text3)
+                Avatar(photoData: occ.assignedToID.flatMap { loggerPhoto[$0] },
+                       name: occ.assignedToName, colorHex: occ.assignedToColorHex, size: 18)
+                Text(mine ? "You" : occ.assignedToName)
+                    .font(.subheadline)
+                    .foregroundStyle(AppColor.text2)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(AppColor.text3)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .surfaceCard(cornerRadius: 14)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(mine
+            ? "Up next: your \(occ.kind == .sleep ? "sleep" : "bottle") at \(TimeFormatting.clock(occ.date))"
+            : "Up next: \(occ.kind == .sleep ? "sleep" : "bottle") at \(TimeFormatting.clock(occ.date)), \(occ.assignedToName)'s turn")
+        .accessibilityHint("Opens the schedule")
     }
 
     private func tileStatus(since date: Date?, now: Date, target: TimeInterval) -> TileStatus? {

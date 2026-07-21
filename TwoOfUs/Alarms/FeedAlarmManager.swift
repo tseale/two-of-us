@@ -54,6 +54,11 @@ enum FeedAlarmManager {
 
         let remaining = lastFeed.addingTimeInterval(interval).timeIntervalSinceNow
         guard remaining > 0 else { return }              // already due — nothing to count down
+        // Stand down when the armed slot alarm (SlotAlarmManager) covers the
+        // same stretch of night — assigned-slot wake-ups own that window, and
+        // two loud 3am alarms is exactly the thing the schedule exists to end.
+        if let slotFire = SlotAlarmManager.armedFireDate,
+           abs(slotFire.timeIntervalSinceNow - remaining) < 90 * 60 { return }
         guard await requestAuthorization() else { return }
 
         let alert = AlarmPresentation.Alert(

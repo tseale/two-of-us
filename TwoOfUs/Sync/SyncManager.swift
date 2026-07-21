@@ -508,6 +508,8 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         ids += (try? context.fetch(FetchDescriptor<FeedEvent>()))?.map(\.id) ?? []
         ids += (try? context.fetch(FetchDescriptor<SleepEvent>()))?.map(\.id) ?? []
         ids += (try? context.fetch(FetchDescriptor<DiaperEvent>()))?.map(\.id) ?? []
+        ids += (try? context.fetch(FetchDescriptor<PlanSlot>()))?.map(\.id) ?? []
+        ids += (try? context.fetch(FetchDescriptor<PlanOverride>()))?.map(\.id) ?? []
         return ids
     }
 
@@ -707,14 +709,28 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     /// nothing — no store read happens unless something is actually scheduled.
     private func rearmFeedRemindersFromStore() {
         guard !LocalPrefs.shared.demoModeEnabled else { return }
-        guard LocalPrefs.shared.feedReminderEnabled
+        // Slot reminders re-plan on every fetch regardless of the alarm prefs —
+        // this is THE cross-device path: the co-parent's swap or 2:50am logged
+        // feed syncs in here, and this device's pending "you're up" request
+        // moves or disappears accordingly.
+        NotificationManager.refreshScheduleReminders()
+        let rearmFeedAlarm = LocalPrefs.shared.feedReminderEnabled
             || LocalPrefs.shared.gentleRemindersEnabled
-            || LocalPrefs.shared.notifyMilestones else { return }
-        guard let logger = QuickLogger.make() else { return }
-        let babyName = logger.babyName ?? "Baby"
-        let lastFeed = logger.lastFeed?.timestamp
-        let interval = logger.targetFeedInterval
-        Task { await FeedAlarmManager.reschedule(babyName: babyName, lastFeed: lastFeed, interval: interval) }
+            || LocalPrefs.shared.notifyMilestones
+        let logger = rearmFeedAlarm ? QuickLogger.make() : nil
+        let haveLogger = logger != nil
+        let babyName = logger?.babyName ?? "Baby"
+        let lastFeed = logger?.lastFeed?.timestamp
+        let interval = logger?.targetFeedInterval ?? 0
+        Task {
+            // Sequenced pair: the feed alarm's stand-down check reads the slot
+            // alarm's published fire date, so the slot alarm settles first.
+            await SlotAlarmManager.reschedule()
+            if rearmFeedAlarm, haveLogger {
+                await FeedAlarmManager.reschedule(babyName: babyName, lastFeed: lastFeed, interval: interval)
+            }
+        }
+        guard rearmFeedAlarm, haveLogger else { return }
         NotificationManager.refreshScheduledReminders()
         NotificationManager.refreshDailyMilestone()
     }
@@ -1066,6 +1082,13 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         Self.setRealRole(.solo)
         LocalPrefs.shared.myParticipantID = nil
         DemoSession.noteRealParticipantID(nil)
+        // Nothing remains to remind about — cancel both alarms and sweep any
+        // pending "you're up" slot reminders.
+        Task {
+            await FeedAlarmManager.cancel()
+            await SlotAlarmManager.cancel()
+        }
+        NotificationManager.cancelScheduleReminders()
         WidgetCenter.shared.reloadAllTimelines()
         // Fresh start in-session: onboarding runs next, and its commits need a
         // live engine (previously writes were silently dropped until relaunch).
@@ -1106,6 +1129,8 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         try? context.delete(model: FeedEvent.self)
         try? context.delete(model: SleepEvent.self)
         try? context.delete(model: DiaperEvent.self)
+        try? context.delete(model: PlanSlot.self)
+        try? context.delete(model: PlanOverride.self)
         try? context.delete(model: Participant.self)
         try? context.delete(model: SharedSettings.self)
         try? context.delete(model: Baby.self)
@@ -1211,10 +1236,16 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         Self.setRealRole(.solo)
         LocalPrefs.shared.myParticipantID = nil
         DemoSession.noteRealParticipantID(nil)
-        // Cancel any pending feed alarm — the baby data is gone, so nothing to
-        // count down to. The user's reminder preference is preserved so it
-        // auto-arms if they join or create a new household.
-        Task { await FeedAlarmManager.cancel() }
+        // Cancel any pending alarms and slot reminders — the baby data is gone,
+        // so nothing to count down to, and an ex-member's phone must not ring
+        // at 3am for a household they left. The user's reminder preferences are
+        // preserved so everything auto-arms if they join or create a new
+        // household.
+        Task {
+            await FeedAlarmManager.cancel()
+            await SlotAlarmManager.cancel()
+        }
+        NotificationManager.cancelScheduleReminders()
         WidgetCenter.shared.reloadAllTimelines()
         start()
     }

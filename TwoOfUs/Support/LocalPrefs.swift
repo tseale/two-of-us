@@ -43,6 +43,7 @@ final class LocalPrefs {
         static let notifySleep = "notify.sleep"
         static let notifyDiaper = "notify.diaper"
         static let feedReminder = "notify.feedReminder"
+        static let slotAlarm = "notify.slotAlarm"
         static let gentleReminders = "notify.gentleReminders"
         static let notifyMilestones = "notify.milestones"
         static let quietHoursEnabled = "notify.quietHours.enabled"
@@ -89,6 +90,14 @@ final class LocalPrefs {
         didSet { defaults.set(feedReminderEnabled, forKey: Key.feedReminder) }
     }
 
+    /// Loud AlarmKit alarm for the next *schedule slot assigned to me* — the
+    /// "actually wake me at 3am through Silent" opt-in. Device-local like the
+    /// feed alarm; the interval feed alarm stands down around an armed slot so
+    /// a night never rings twice.
+    var nightSlotAlarmEnabled: Bool {
+        didSet { defaults.set(nightSlotAlarmEnabled, forKey: Key.slotAlarm) }
+    }
+
     /// Soft, snoozable "feed/diaper due" nudges (distinct from the loud AlarmKit
     /// feed alarm). When on, the gentle feed reminder defers to AlarmKit if that's
     /// also on, so you never get two feed reminders.
@@ -123,6 +132,7 @@ final class LocalPrefs {
         // permission prompt on the first feed. Existing installs keep their stored
         // choice (this default only applies when nothing was ever written).
         feedReminderEnabled = defaults.object(forKey: Key.feedReminder) as? Bool ?? false
+        nightSlotAlarmEnabled = defaults.object(forKey: Key.slotAlarm) as? Bool ?? false
         gentleRemindersEnabled = defaults.object(forKey: Key.gentleReminders) as? Bool ?? false
         notifyMilestones = defaults.object(forKey: Key.notifyMilestones) as? Bool ?? false
         quietHoursEnabled = defaults.object(forKey: Key.quietHoursEnabled) as? Bool ?? false

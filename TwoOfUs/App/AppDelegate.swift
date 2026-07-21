@@ -72,11 +72,17 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // feeds logged via widget/Siri or synced from the co-parent's device.
         let lastFeed = logger.lastFeed?.timestamp
         let interval = logger.targetFeedInterval
-        Task { await FeedAlarmManager.reschedule(babyName: babyName, lastFeed: lastFeed, interval: interval) }
+        Task {
+            // Slot alarm first: the feed alarm's stand-down check reads the slot
+            // alarm's published fire date.
+            await SlotAlarmManager.reschedule()
+            await FeedAlarmManager.reschedule(babyName: babyName, lastFeed: lastFeed, interval: interval)
+        }
 
         // Re-arm the gentle local reminders + daily summary off the same state.
         NotificationManager.refreshScheduledReminders()
         NotificationManager.refreshDailyMilestone()
+        NotificationManager.refreshScheduleReminders()
     }
 
     // MARK: UNUserNotificationCenterDelegate

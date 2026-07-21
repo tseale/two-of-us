@@ -20,6 +20,8 @@ enum SyncConstants {
         static let diaper = "DiaperEvent"
         static let participant = "Participant"
         static let settings = "SharedSettings"
+        static let planSlot = "PlanSlot"
+        static let planOverride = "PlanOverride"
     }
 
     static var container: CKContainer { CKContainer(identifier: containerID) }

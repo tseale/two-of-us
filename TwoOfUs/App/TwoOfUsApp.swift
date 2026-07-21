@@ -25,6 +25,8 @@ struct TwoOfUsApp: App {
             try? ctx.delete(model: FeedEvent.self)
             try? ctx.delete(model: SleepEvent.self)
             try? ctx.delete(model: DiaperEvent.self)
+            try? ctx.delete(model: PlanSlot.self)
+            try? ctx.delete(model: PlanOverride.self)
             try? ctx.delete(model: Participant.self)
             try? ctx.delete(model: SharedSettings.self)
             try? ctx.delete(model: Baby.self)

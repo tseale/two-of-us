@@ -88,6 +88,43 @@ struct QuickLogger {
     /// the AlarmKit feed reminder on app foreground.
     var targetFeedInterval: TimeInterval { settings?.targetFeedInterval ?? TimeInterval(180 * 60) }
 
+    /// This device's own participant id — the schedule-reminder planner filters
+    /// "my" assigned slots with it. Strictly the STORED identity, with no
+    /// first-participant fallback (unlike `owner`): guessing wrong could arm
+    /// the co-parent's 3am reminders on this phone. No identity → no reminders.
+    var myParticipantID: UUID? {
+        (AppGroup.userDefaults?.string(forKey: "sync.myParticipantID")).flatMap(UUID.init)
+    }
+
+    /// Live standing plan, for the schedule reminder planner / widget glance.
+    var planSlots: [PlanSlot] {
+        (try? context.fetch(FetchDescriptor<PlanSlot>(
+            predicate: #Predicate { $0.deletedAt == nil }
+        ))) ?? []
+    }
+
+    var planOverrides: [PlanOverride] {
+        (try? context.fetch(FetchDescriptor<PlanOverride>(
+            predicate: #Predicate { $0.deletedAt == nil }
+        ))) ?? []
+    }
+
+    /// Live feeds/sleeps from the last couple of days — enough for the schedule
+    /// engine's fulfillment matching and predictions without loading the log.
+    func recentFeeds(hours: Int = 48) -> [FeedEvent] {
+        let since = Date.now.addingTimeInterval(TimeInterval(-hours * 3600))
+        return (try? context.fetch(FetchDescriptor<FeedEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= since }
+        ))) ?? []
+    }
+
+    func recentSleeps(hours: Int = 48) -> [SleepEvent] {
+        let since = Date.now.addingTimeInterval(TimeInterval(-hours * 3600))
+        return (try? context.fetch(FetchDescriptor<SleepEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.startedAt >= since }
+        ))) ?? []
+    }
+
     /// Most recent live diaper (by timestamp).
     var lastDiaper: DiaperEvent? {
         var d = FetchDescriptor<DiaperEvent>(
