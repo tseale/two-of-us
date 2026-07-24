@@ -6,6 +6,15 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+- The loud interval feed alarm now stays dark on the off-duty parent's phone
+  when the schedule pins that feed to their co-parent. Previously only the
+  gentle nudge consulted the schedule; the AlarmKit "feed due" alarm checked
+  only this device's own armed slot alarm, so a parent with the classic feed
+  reminder enabled was still woken during the other parent's assigned slot.
+  Fail-safe unchanged: unassigned slots, skipped nights, unknown identity, or
+  no schedule all keep the alarm armed for everyone.
+
 ### Release-polish pass (toward the first App Store release)
 
 #### Reliability — silent failures now surface

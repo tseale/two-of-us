@@ -81,6 +81,24 @@ struct ScheduleEngine {
             .filter { $0.isPinned && $0.status == .upcoming && $0.assignedToID == participantID }
     }
 
+    /// True when a pinned, upcoming occurrence of `kind` within `window` of
+    /// `date` is assigned to a participant other than `me` — i.e. the schedule
+    /// says that moment is somebody else's, so this device's generic reminders
+    /// should stay dark. Biases toward reminding: an unknown local identity, an
+    /// unassigned slot, or no nearby slot all return false (keep the reminder) —
+    /// a phone that can't prove the night belongs to the other parent must
+    /// never silently skip a feed alarm.
+    func assignedElsewhere(near date: Date, kind: EventKind, me: UUID?,
+                           window: TimeInterval = 30 * 60) -> Bool {
+        guard let me else { return false }
+        let horizon = max(3600, date.timeIntervalSince(now) + window)
+        return occurrences(lookback: 0, horizon: horizon).contains {
+            $0.isPinned && $0.kind == kind && $0.status == .upcoming
+                && $0.assignedToID != nil && $0.assignedToID != me
+                && abs($0.date.timeIntervalSince(date)) <= window
+        }
+    }
+
     // MARK: Helpers shared with the store/UI
 
     /// yyyymmdd of the local calendar day `date` falls on — the override key.
