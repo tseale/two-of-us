@@ -6,6 +6,22 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Feed schedule — per-slot reminder routing
+- New shared **Feed schedule** (Settings → Feed schedule, Full role): recurring
+  overnight slots, each assigned to one parent or Both. When the next feed
+  lands in a slot, only the assigned parent's phone arms the AlarmKit alarm,
+  its fallback notification, and the gentle feed nudge — the other parent
+  sleeps through. Unassigned slots and uncovered times alert everyone.
+- Routing is fail-safe by design: an unknown local identity, a slot assigned
+  to a revoked participant, or corrupt schedule data all degrade to "remind
+  everyone" — a silently skipped overnight feed is the one unacceptable outcome.
+- The schedule syncs on the existing settings record (`feedSlotsData`);
+  records from older app versions leave a local schedule untouched, and a
+  synced-in assignment change immediately re-arms (or disarms) this device's
+  alarm via the existing post-fetch re-arm path.
+- Changing the target feed interval or the schedule in Settings now re-arms
+  the pending alarm immediately (previously waited for the next foreground).
+
 ### Release-polish pass (toward the first App Store release)
 
 #### Reliability — silent failures now surface

@@ -88,6 +88,17 @@ struct QuickLogger {
     /// the AlarmKit feed reminder on app foreground.
     var targetFeedInterval: TimeInterval { settings?.targetFeedInterval ?? TimeInterval(180 * 60) }
 
+    /// The shared feed schedule (empty when none is configured). Together with
+    /// `activeParticipantIDs` these are the inputs to `FeedSchedule.shouldRemind`.
+    var feedSlots: [FeedSlot] { settings?.feedSlots ?? [] }
+
+    /// Ids of participants who still have access — a slot assigned to a revoked
+    /// participant is treated as unassigned so the reminder can't vanish for both.
+    var activeParticipantIDs: Set<UUID> {
+        let all = (try? context.fetch(FetchDescriptor<Participant>())) ?? []
+        return Set(all.filter(\.isActive).map(\.id))
+    }
+
     /// Most recent live diaper (by timestamp).
     var lastDiaper: DiaperEvent? {
         var d = FetchDescriptor<DiaperEvent>(

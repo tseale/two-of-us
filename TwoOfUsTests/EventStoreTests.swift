@@ -40,6 +40,21 @@ final class EventStoreTests: XCTestCase {
         super.tearDown()
     }
 
+    func testUpdateSettingsPersistsFeedSchedule() throws {
+        let slots = [FeedSlot(startMinutes: 60, endMinutes: 240, assignedParticipantID: UUID())]
+        store.updateSettings(feedSlots: slots)
+
+        let saved = try XCTUnwrap(container.mainContext.fetch(FetchDescriptor<SharedSettings>()).first)
+        XCTAssertEqual(saved.feedSlots, slots)
+
+        // Reassigning replaces, never accumulates.
+        var reassigned = slots
+        reassigned[0].assignedParticipantID = nil
+        store.updateSettings(feedSlots: reassigned)
+        XCTAssertEqual(saved.feedSlots, reassigned)
+        XCTAssertEqual(saved.feedSlots.count, 1)
+    }
+
     func testLogFeedStampsLoggerIdentity() {
         let feed = store.logFeed(amountOz: 3)
         XCTAssertEqual(feed.loggedByName, "Taylor")

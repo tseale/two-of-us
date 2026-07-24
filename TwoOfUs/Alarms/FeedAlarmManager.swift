@@ -52,8 +52,24 @@ enum FeedAlarmManager {
         guard LocalPrefs.shared.feedReminderEnabled,
               let lastFeed, interval >= minimumInterval else { return }
 
-        let remaining = lastFeed.addingTimeInterval(interval).timeIntervalSinceNow
+        let fireDate = lastFeed.addingTimeInterval(interval)
+        let remaining = fireDate.timeIntervalSinceNow
         guard remaining > 0 else { return }              // already due — nothing to count down
+
+        // Feed-schedule routing: when the fire time lands in a slot assigned to
+        // the other parent, this device stays dark — their phone arms its own
+        // alarm off the same shared state. `cancel()` above already cleared any
+        // previously-armed alarm, so a slot that changed hands can't leave a
+        // stale alarm behind. The fallback notification sits below this guard
+        // and inherits the same routing.
+        if let logger = QuickLogger.make() {
+            guard FeedSchedule.shouldRemind(
+                slots: logger.feedSlots, at: fireDate,
+                myParticipantID: LocalPrefs.shared.myParticipantID,
+                activeParticipantIDs: logger.activeParticipantIDs
+            ) else { return }
+        }
+
         guard await requestAuthorization() else { return }
 
         let alert = AlarmPresentation.Alert(

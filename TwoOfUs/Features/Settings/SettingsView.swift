@@ -27,6 +27,9 @@ struct SettingsView: View {
     @State private var showLeaveConfirm = false
     @State private var showStopSharingConfirm = false
     @State private var participantToRemove: Participant?
+    // Feed-schedule slot editor. `editingSlotIsNew` decides upsert-vs-append copy.
+    @State private var editingSlot: FeedSlot?
+    @State private var editingSlotIsNew = false
 
     private var baby: Baby? { babies.first }
     private var settings: SharedSettings? { settingsList.first }
@@ -85,6 +88,8 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.plain)
                     }
+
+                    feedScheduleSection(settings)
                 }
 
                 Section("Appearance") {
@@ -204,7 +209,85 @@ struct SettingsView: View {
                 case .reminders: RemindersQuestSheet()
                 }
             }
+            .sheet(item: $editingSlot) { slot in
+                FeedSlotEditSheet(
+                    slot: slot, isNew: editingSlotIsNew,
+                    participants: participants.filter(\.isActive),
+                    onSave: { upsertSlot($0) },
+                    onDelete: editingSlotIsNew ? nil : { removeSlot(id: slot.id) }
+                )
+            }
         }
+    }
+
+    // MARK: Feed schedule
+
+    /// The overnight split: recurring windows each assigned to one parent (or
+    /// Both). Rendered only for Full-role users, like the rest of Feeding.
+    @ViewBuilder private func feedScheduleSection(_ settings: SharedSettings) -> some View {
+        Section {
+            ForEach(settings.feedSlots) { slot in
+                Button {
+                    editingSlotIsNew = false
+                    editingSlot = slot
+                } label: {
+                    HStack {
+                        Text("\(timeLabel(slot.startMinutes)) – \(timeLabel(slot.endMinutes))")
+                            .foregroundStyle(AppColor.text)
+                        Spacer()
+                        Text(assigneeName(slot.assignedParticipantID))
+                            .foregroundStyle(AppColor.text2)
+                    }
+                }
+                .accessibilityLabel("\(timeLabel(slot.startMinutes)) to \(timeLabel(slot.endMinutes)), \(assigneeName(slot.assignedParticipantID))")
+            }
+            .onDelete { offsets in
+                var slots = settings.feedSlots
+                slots.remove(atOffsets: offsets)
+                store.updateSettings(feedSlots: slots)
+            }
+            Button {
+                editingSlotIsNew = true
+                editingSlot = FeedSlot(startMinutes: 1 * 60, endMinutes: 4 * 60,
+                                       assignedParticipantID: nil)
+            } label: {
+                SettingsIconLabel(title: "Add slot", systemImage: "plus.circle.fill",
+                                  tint: AppColor.accentFeed)
+            }
+        } header: {
+            Text("Feed schedule")
+        } footer: {
+            Text("Split the night: when the next feed lands in a slot, only the assigned parent's phone alarms — the other sleeps through. Times outside any slot, and slots set to Both, alert everyone.")
+        }
+    }
+
+    private func upsertSlot(_ slot: FeedSlot) {
+        var slots = settings?.feedSlots ?? []
+        if let i = slots.firstIndex(where: { $0.id == slot.id }) {
+            slots[i] = slot
+        } else {
+            slots.append(slot)
+        }
+        slots.sort { $0.startMinutes < $1.startMinutes }
+        store.updateSettings(feedSlots: slots)
+    }
+
+    private func removeSlot(id: UUID) {
+        guard var slots = settings?.feedSlots else { return }
+        slots.removeAll { $0.id == id }
+        store.updateSettings(feedSlots: slots)
+    }
+
+    private func assigneeName(_ id: UUID?) -> String {
+        guard let id else { return "Both" }
+        guard let p = participants.first(where: { $0.id == id }), p.isActive else {
+            return "Both"   // matches routing: an orphaned assignee alerts everyone
+        }
+        return p.displayName.isEmpty ? "Parent" : p.displayName
+    }
+
+    private func timeLabel(_ minutes: Int) -> String {
+        Self.date(fromMinutes: minutes).formatted(date: .omitted, time: .shortened)
     }
 
     // MARK: Finish setting up

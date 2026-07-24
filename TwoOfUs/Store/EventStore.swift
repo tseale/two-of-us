@@ -286,8 +286,10 @@ struct EventStore {
         SyncManager.shared?.refreshShareTitleIfOwner()
     }
 
-    /// Updates the shared feeding rhythm and syncs it. Nil fields stay as-is.
-    func updateSettings(targetFeedIntervalMinutes: Int? = nil, ozPresets: [Double]? = nil) {
+    /// Updates the shared feeding rhythm / schedule and syncs it. Nil fields
+    /// stay as-is.
+    func updateSettings(targetFeedIntervalMinutes: Int? = nil, ozPresets: [Double]? = nil,
+                        feedSlots: [FeedSlot]? = nil) {
         guard let settings else { return }
         if let targetFeedIntervalMinutes {
             settings.targetFeedIntervalMinutes = targetFeedIntervalMinutes
@@ -298,8 +300,16 @@ struct EventStore {
             // rule as `SeedData.createBaby`.
             settings.defaultFeedOz = settings.ozPresets.max() ?? settings.defaultFeedOz
         }
+        if let feedSlots {
+            settings.feedSlots = feedSlots
+        }
         save()
         sync(save: [settings.id])
+        // A changed interval moves the pending alarm's fire time; a changed
+        // slot assignment can hand it to (or take it from) this device. Re-arm
+        // immediately — the next foreground is too late for tonight.
+        scheduleFeedReminder()
+        refreshLocalReminders()
     }
 
     /// Updates the local user's own name + color and **backfills** that identity

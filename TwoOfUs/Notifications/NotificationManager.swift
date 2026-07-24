@@ -113,16 +113,25 @@ enum NotificationManager {
         ])
         guard prefs.gentleRemindersEnabled, let logger = QuickLogger.make() else { return }
 
-        // Feed: only when the loud AlarmKit reminder is OFF (avoid double-firing).
+        // Feed: only when the loud AlarmKit reminder is OFF (avoid double-firing),
+        // and only when the feed schedule routes this fire time to this parent
+        // (same rule the AlarmKit alarm applies — see FeedSchedule.shouldRemind).
         if !prefs.feedReminderEnabled, let last = logger.lastFeed?.timestamp {
-            scheduleReminder(
-                id: NotificationID.Request.feedReminder,
-                fireDate: last.addingTimeInterval(logger.targetFeedInterval),
-                category: NotificationID.Category.reminderFeed,
-                threadID: NotificationID.Thread.feed,
-                title: "\(logger.babyName ?? "Baby") — feed due",
-                body: "It's been about \(hoursLabel(logger.targetFeedInterval)) since the last bottle."
-            )
+            let fireDate = last.addingTimeInterval(logger.targetFeedInterval)
+            if FeedSchedule.shouldRemind(
+                slots: logger.feedSlots, at: fireDate,
+                myParticipantID: prefs.myParticipantID,
+                activeParticipantIDs: logger.activeParticipantIDs
+            ) {
+                scheduleReminder(
+                    id: NotificationID.Request.feedReminder,
+                    fireDate: fireDate,
+                    category: NotificationID.Category.reminderFeed,
+                    threadID: NotificationID.Thread.feed,
+                    title: "\(logger.babyName ?? "Baby") — feed due",
+                    body: "It's been about \(hoursLabel(logger.targetFeedInterval)) since the last bottle."
+                )
+            }
         }
 
         // Diaper: AlarmKit doesn't cover diapers, so this is the only nudge.

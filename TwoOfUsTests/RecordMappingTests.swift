@@ -179,6 +179,9 @@ final class RecordMappingTests: XCTestCase {
     func testSettingsRoundTrip() throws {
         let original = SharedSettings(targetFeedIntervalMinutes: 150,
                                       ozPresets: [2, 2.5, 5], defaultFeedOz: 5)
+        let slots = [FeedSlot(startMinutes: 60, endMinutes: 240, assignedParticipantID: UUID()),
+                     FeedSlot(startMinutes: 240, endMinutes: 420, assignedParticipantID: nil)]
+        original.feedSlots = slots
         context.insert(original)
         try context.save()
 
@@ -189,6 +192,42 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertEqual(copy.targetFeedIntervalMinutes, 150)
         XCTAssertEqual(copy.ozPresets, [2, 2.5, 5])
         XCTAssertEqual(copy.defaultFeedOz, 5)
+        XCTAssertEqual(copy.feedSlots, slots, "the feed schedule travels with the settings record")
+    }
+
+    func testSettingsRecordWithoutFeedSlotsKeepsLocalSchedule() throws {
+        // A record written by an app version that predates feed schedules has no
+        // feedSlotsData field at all — applying it must not wipe a local schedule.
+        let local = SharedSettings()
+        let slots = [FeedSlot(startMinutes: 60, endMinutes: 240, assignedParticipantID: UUID())]
+        local.feedSlots = slots
+        context.insert(local)
+        try context.save()
+
+        let legacy = CKRecord(recordType: SyncConstants.RecordType.settings, recordID: recordID(local.id))
+        legacy["targetFeedIntervalMinutes"] = 120
+        RecordMapping.apply(legacy, in: context)
+
+        XCTAssertEqual(local.targetFeedIntervalMinutes, 120)
+        XCTAssertEqual(local.feedSlots, slots, "absent field ≠ cleared schedule")
+    }
+
+    func testClearedFeedScheduleTravels() throws {
+        // The co-parent deleting every slot must actually clear this device's
+        // copy — an empty schedule is a value, not an absence.
+        let sender = SharedSettings()
+        sender.feedSlots = []
+        context.insert(sender)
+        try context.save()
+
+        let receiver = AppModelContainer.make(inMemory: true)
+        let stale = SharedSettings(id: sender.id)
+        stale.feedSlots = [FeedSlot(startMinutes: 60, endMinutes: 240, assignedParticipantID: UUID())]
+        receiver.mainContext.insert(stale)
+        try receiver.mainContext.save()
+
+        RecordMapping.apply(try outbound(sender.id), in: receiver.mainContext)
+        XCTAssertEqual(stale.feedSlots, [], "an emptied schedule overwrites the stale copy")
     }
 
     // MARK: Sync semantics

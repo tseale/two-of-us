@@ -75,6 +75,7 @@ enum RecordMapping {
             r["targetFeedIntervalMinutes"] = m.targetFeedIntervalMinutes
             r["ozPresets"] = m.ozPresets
             r["defaultFeedOz"] = m.defaultFeedOz
+            r["feedSlotsData"] = m.feedSlotsData
             return r
         }
         return nil
@@ -308,6 +309,9 @@ enum RecordMapping {
         m.targetFeedIntervalMinutes = r["targetFeedIntervalMinutes"] as? Int ?? m.targetFeedIntervalMinutes
         m.ozPresets = r["ozPresets"] as? [Double] ?? m.ozPresets
         m.defaultFeedOz = r["defaultFeedOz"] as? Double ?? m.defaultFeedOz
+        // Absent (not just empty) means the record came from an app version
+        // without feed schedules — keep whatever this device has.
+        if let slots = r["feedSlotsData"] as? Data { m.feedSlotsData = slots }
     }
 
     /// Shared event fields: logger identity, soft-delete, edit pointer, baby link.

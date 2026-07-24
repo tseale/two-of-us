@@ -40,6 +40,10 @@ CloudKit. Snooze reschedules the reminder. The default tap just opens the app.
 
 ## Safeguards
 
+- **Feed-schedule routing** — when the shared feed schedule assigns the next
+  feed's slot to the other parent, this device arms neither the AlarmKit alarm
+  nor the gentle feed nudge. Full rules, fail-safe biases, and sync behavior:
+  `NOTIFICATION_SYSTEM.md` → "Feed-schedule routing".
 - **Never notify yourself** — co-parent posts skip events whose `loggedByID`
   is the local participant.
 - **Dedupe** — posted keys are tracked in App Group `UserDefaults`
