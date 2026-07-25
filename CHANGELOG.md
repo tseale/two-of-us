@@ -6,6 +6,20 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+- ITMS-90473 upload warning (build 76): the notification-content extension's
+  Info.plist hardcoded version 1.0/1 instead of wiring `$(MARKETING_VERSION)` /
+  `$(CURRENT_PROJECT_VERSION)` like the app and widget targets — every version
+  bump would trip the mismatch warning. Now wired; future bumps carry through.
+- The unremovable "?" person in Settings → People. A ghost participant record
+  (leaked by the same pre-SyncGate dev runs as the ghost logs) was never a
+  member of the iCloud share, so Remove threw "Couldn't match this person" and
+  stranded the row. Removal now purges record-only participants — synced, so
+  the row disappears on both phones — and only touches the CKShare when the
+  member's identity is certain. This also defuses the old fallback that could
+  have removed the *real* co-parent from the share when removing a ghost, and
+  stops `nil == nil` from ever matching a pending invitee.
+
 ### Fixed — ghost logs from dev/test runs syncing into the family zone
 - Sync is now refused outright in simulator builds and in any launch carrying
   a store-mutating fixture argument (`-seedSampleData`, `-wipeStore`, …).

@@ -979,16 +979,71 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             throw SyncError.shareUnavailable
         }
         let removable = share.participants.filter { $0.role != .owner }
-        guard let target = removable.first(where: { $0.userIdentity.userRecordID?.recordName == participant.cloudUserID })
-            ?? (removable.count == 1 ? removable.first : nil) else {
-            throw SyncError.participantNotFound
+        let plan = Self.removalPlan(
+            cloudUserID: participant.cloudUserID,
+            shareMemberIDs: removable.map { $0.userIdentity.userRecordID?.recordName },
+            isSoleCoParticipant: isSoleCoParticipant(participant)
+        )
+
+        switch plan {
+        case .removeShareMember(let index):
+            share.removeParticipant(removable[index])
+            let results = try await db.modifyRecords(saving: [share], deleting: [])
+            if let result = results.saveResults[share.recordID] { _ = try result.get() }
+            participant.isActive = false
+            try? context.save()
+            enqueueSave([participant.id])
+
+        case .purgeRecordOnly:
+            // No share member corresponds to this record: a ghost participant
+            // (a leaked dev-fixture record that was never on the share) or
+            // someone who already left. The share needs no change — delete the
+            // record itself, synced, so the row disappears on every device.
+            // Events keep their denormalized logger name/color.
+            let id = participant.id
+            context.delete(participant)
+            try? context.save()
+            enqueueDelete([id])
         }
-        share.removeParticipant(target)
-        let results = try await db.modifyRecords(saving: [share], deleting: [])
-        if let result = results.saveResults[share.recordID] { _ = try result.get() }
-        participant.isActive = false
-        try? context.save()
-        enqueueSave([participant.id])
+    }
+
+    /// Which action removing a participant should take — pure so the ghost /
+    /// pending-invitee cases are unit-testable.
+    ///
+    /// The old logic had two traps this table closes: `nil == nil` counted as
+    /// an identity match (a pending invitee's userRecordID can be nil, and a
+    /// ghost record's cloudUserID always is), and an identity-less removal
+    /// fell back to "the sole non-owner member" unconditionally — so removing
+    /// a ghost row could kick the REAL co-parent off the share.
+    static func removalPlan(
+        cloudUserID: String?,
+        shareMemberIDs: [String?],
+        isSoleCoParticipant: Bool
+    ) -> ParticipantRemovalPlan {
+        if let cloudUserID, let index = shareMemberIDs.firstIndex(of: cloudUserID) {
+            return .removeShareMember(index: index)
+        }
+        // Identity never captured, but both sides agree there's exactly one
+        // other person — they must be the same one. Any ambiguity falls
+        // through: touching the wrong share member is unrecoverable, deleting
+        // an app record is not (the member's own device re-syncs it).
+        if cloudUserID == nil, shareMemberIDs.count == 1, isSoleCoParticipant {
+            return .removeShareMember(index: 0)
+        }
+        return .purgeRecordOnly
+    }
+
+    enum ParticipantRemovalPlan: Equatable {
+        case removeShareMember(index: Int)
+        case purgeRecordOnly
+    }
+
+    /// True when `participant` is the only active participant besides "me" in
+    /// the local store — the precondition for the identity-less fallback above.
+    private func isSoleCoParticipant(_ participant: Participant) -> Bool {
+        let all = (try? context.fetch(FetchDescriptor<Participant>())) ?? []
+        let others = all.filter { $0.isActive && $0.id != LocalPrefs.shared.myParticipantID }
+        return others.count == 1 && others.first?.id == participant.id
     }
 
     /// Permanently deletes ALL data and resets this device to a fresh solo install.
