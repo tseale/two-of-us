@@ -265,6 +265,40 @@ struct EventStore {
         refreshLocalReminders()
     }
 
+    /// Live events whose logger isn't (and never was) a participant of this
+    /// household — the signature of dev fixture data that leaked in via sync:
+    /// `SeedData.seedSampleEvents` stamps a fresh random UUID on every row, so
+    /// no Participant record can ever match. Real events always carry a real
+    /// participant's id (revoked participants keep their record, `isActive`
+    /// false, so their history stays untouched).
+    func ghostEvents() -> [any SoftDeletable] {
+        let known = Set(((try? context.fetch(FetchDescriptor<Participant>())) ?? []).map(\.id))
+        var ghosts: [any SoftDeletable] = []
+        func collect<T: PersistentModel & SoftDeletable & AnyEventModel>(_ type: T.Type) {
+            let all = (try? context.fetch(FetchDescriptor<T>())) ?? []
+            ghosts += all.filter { $0.deletedAt == nil && !known.contains($0.loggedByID) }
+        }
+        collect(FeedEvent.self)
+        collect(SleepEvent.self)
+        collect(DiaperEvent.self)
+        return ghosts
+    }
+
+    /// Soft-deletes every ghost event (see `ghostEvents`), syncing the deletions
+    /// to the co-parent like any other removal. Returns how many were removed.
+    @discardableResult
+    func purgeGhostEvents() -> Int {
+        let ghosts = ghostEvents()
+        guard !ghosts.isEmpty else { return 0 }
+        for e in ghosts { e.deletedAt = .now }
+        save()
+        sync(save: ghosts.map(\.id))
+        reloadWidgets()
+        // The newest feed may have been a ghost — re-derive alarms/reminders.
+        refreshLocalReminders()
+        return ghosts.count
+    }
+
     // MARK: Profile / baby / settings edits
     //
     // All sync-aware: each routes the change through `sync(...)` so it reaches the
