@@ -171,6 +171,12 @@ targets:
       path: TwoOfUsNotificationContent/Info.plist
       properties:
         CFBundleDisplayName: TwoOfUsNotificationContent
+        # Wire versions to the project-level build settings like the app and
+        # widget targets do. Without these, XcodeGen writes literal 1.0/1 into
+        # the plist and every MARKETING_VERSION bump trips ITMS-90473
+        # (CFBundleShortVersionString mismatch) on upload — as build 76 did.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.content-extension
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationViewController
