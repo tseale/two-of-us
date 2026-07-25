@@ -6,6 +6,12 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Added
+- Resend an invite link to someone who already has access (lost link, new
+  phone): swipe their row in Settings → People → **Resend link**. Shares the
+  standing zone-wide invite URL through the plain share sheet — never creates
+  a new person or touches the participant list.
+
 ### Fixed
 - ITMS-90473 upload warning (build 76): the notification-content extension's
   Info.plist hardcoded version 1.0/1 instead of wiring `$(MARKETING_VERSION)` /

@@ -27,6 +27,14 @@ struct SettingsView: View {
     @State private var showLeaveConfirm = false
     @State private var showStopSharingConfirm = false
     @State private var participantToRemove: Participant?
+    /// The share URL staged for "Resend link" on an existing person's row —
+    /// non-nil drives the plain share sheet (no people management, no new invite).
+    @State private var resendLink: ResendLink?
+
+    struct ResendLink: Identifiable {
+        let url: URL
+        var id: URL { url }
+    }
 
     private var baby: Baby? { babies.first }
     private var settings: SharedSettings? { settingsList.first }
@@ -199,6 +207,10 @@ struct SettingsView: View {
             } message: {
                 Text(shareError ?? "")
             }
+            .sheet(item: $resendLink) { link in
+                ActivityShareSheet(items: [link.url])
+                    .presentationDetents([.medium, .large])
+            }
             .sheet(isPresented: $showBabyEdit) {
                 if let baby { BabyEditSheet(baby: baby) }
             }
@@ -344,7 +356,7 @@ struct SettingsView: View {
                 .accessibilityLabel("People, \(count) member\(count == 1 ? "" : "s")")
         } footer: {
             if prefs.syncRole != .participant {
-                Text("Inviting someone? Have them install Two of Us first — the invite link only works once the app is on their iPhone.")
+                Text("Inviting someone? Have them install Two of Us first — the invite link only works once the app is on their iPhone. If someone already here lost their link, swipe their row to resend it.")
             }
         }
         // Confirm the irreversible sharing actions — each runs CloudKit teardown
@@ -419,7 +431,41 @@ struct SettingsView: View {
                 // local row once the server actually dropped them) runs from the
                 // dialog on the section.
                 Button("Remove", role: .destructive) { participantToRemove = p }
+                if p.isActive {
+                    // Re-share the standing invite URL with someone who already
+                    // has access (lost the link, new phone). The zone-wide
+                    // share's URL is stable, so this never creates a new person
+                    // or touches the participant list — the link simply lets an
+                    // existing member reconnect.
+                    Button { Task { await prepareResendLink() } } label: {
+                        Label("Resend link", systemImage: "link.badge.plus")
+                    }
+                    .tint(AppColor.accentSleep)
+                    .disabled(preparingShare)
+                }
             }
+        }
+    }
+
+    /// Fetches the existing zone-wide share and stages its URL for the plain
+    /// share sheet. Reuses `makeShare` (returns the existing share when one
+    /// exists) and the invite flow's error surfacing.
+    private func prepareResendLink() async {
+        preparingShare = true
+        defer { preparingShare = false }
+        do {
+            guard let manager = SyncManager.shared else {
+                shareError = "Sync isn't running on this device."
+                return
+            }
+            let share = try await manager.makeShare()
+            guard let url = share.url else {
+                shareError = "The invite link isn't ready yet — try again in a moment."
+                return
+            }
+            resendLink = ResendLink(url: url)
+        } catch {
+            shareError = (error as NSError).localizedDescription
         }
     }
 
