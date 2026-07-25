@@ -272,6 +272,68 @@ final class ScheduleEngineTests: XCTestCase {
                       "after the swap the off-duty parent has nothing tonight")
     }
 
+    // MARK: assignedElsewhere (the off-duty phone's generic-alarm stand-down)
+
+    func testAssignedElsewhereTrueOnlyForTheOtherParentsSlot() {
+        let me = UUID(), other = UUID()
+        let theirs = PlanSlot(kind: .feed, minuteOfDay: 23 * 60, assignedToID: other, assignedToName: "K")
+        let eleven = date(2026, 7, 21, 23, 0)
+
+        XCTAssertTrue(engine(slots: [theirs]).assignedElsewhere(near: eleven, kind: .feed, me: me),
+                      "the off-duty phone must recognize the other parent's slot")
+        XCTAssertFalse(engine(slots: [theirs]).assignedElsewhere(near: eleven, kind: .feed, me: other),
+                       "the assigned parent keeps their own generic alarm")
+    }
+
+    func testAssignedElsewhereFailSafesToFalse() {
+        let me = UUID(), other = UUID()
+        let unassigned = PlanSlot(kind: .feed, minuteOfDay: 23 * 60)
+        let theirs = PlanSlot(kind: .feed, minuteOfDay: 23 * 60, assignedToID: other, assignedToName: "K")
+        let eleven = date(2026, 7, 21, 23, 0)
+
+        XCTAssertFalse(engine(slots: [unassigned]).assignedElsewhere(near: eleven, kind: .feed, me: me),
+                       "an unassigned slot is everyone's — keep the alarm")
+        XCTAssertFalse(engine(slots: [theirs]).assignedElsewhere(near: eleven, kind: .feed, me: nil),
+                       "unknown local identity must never silently skip the alarm")
+        XCTAssertFalse(engine(slots: []).assignedElsewhere(near: eleven, kind: .feed, me: me),
+                       "no schedule → no stand-down")
+        XCTAssertFalse(engine(slots: [theirs])
+            .assignedElsewhere(near: date(2026, 7, 22, 1, 0), kind: .feed, me: me),
+                       "a fire time outside the ±window isn't covered by the slot")
+        XCTAssertFalse(engine(slots: [theirs]).assignedElsewhere(near: eleven, kind: .sleep, me: me),
+                       "kind must match — a feed slot doesn't silence sleep reminders")
+    }
+
+    func testAssignedElsewhereRespectsTonightsSwapAndSkip() {
+        let me = UUID(), other = UUID()
+        let theirs = PlanSlot(kind: .feed, minuteOfDay: 23 * 60, assignedToID: other, assignedToName: "K")
+        let eleven = date(2026, 7, 21, 23, 0)
+
+        let swapToMe = PlanOverride(slotID: theirs.id, dayKey: 20_260_721,
+                                    assignedToID: me, assignedToName: "T", createdByID: me)
+        XCTAssertFalse(engine(slots: [theirs], overrides: [swapToMe])
+            .assignedElsewhere(near: eleven, kind: .feed, me: me),
+                       "after tonight's swap to me, my alarm must come back")
+
+        let skipped = PlanOverride(slotID: theirs.id, dayKey: 20_260_721,
+                                   isSkipped: true, createdByID: other)
+        XCTAssertFalse(engine(slots: [theirs], overrides: [skipped])
+            .assignedElsewhere(near: eleven, kind: .feed, me: me),
+                       "a skipped night belongs to nobody — the generic alarm stays on duty")
+    }
+
+    func testAssignedElsewhereIgnoresFulfilledSlots() {
+        // Their 8:30pm slot, fed 35 minutes early — the slot is spoken for, so
+        // it must not silence this phone's generic alarm for the NEXT interval.
+        let me = UUID(), other = UUID()
+        let theirs = PlanSlot(kind: .feed, minuteOfDay: 20 * 60 + 30, assignedToID: other, assignedToName: "K")
+        let bottle = feed(at: date(2026, 7, 21, 19, 55))
+
+        XCTAssertFalse(engine(slots: [theirs], feeds: [bottle])
+            .assignedElsewhere(near: date(2026, 7, 21, 20, 30), kind: .feed, me: me),
+                       "a slot their bottle already covered can't silence the next interval alarm")
+    }
+
     // MARK: Consistency across call sites
 
     /// The Schedule tab (2h lookback) and the reminder planner / slot alarm

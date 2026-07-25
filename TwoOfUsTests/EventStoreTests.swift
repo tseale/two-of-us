@@ -40,6 +40,49 @@ final class EventStoreTests: XCTestCase {
         super.tearDown()
     }
 
+    func testPurgeGhostEventsRemovesOnlyUnknownLoggers() throws {
+        // Real entries by the household participant…
+        let mine = store.logFeed(amountOz: 3)
+        let myDiaper = store.logDiaper(.wet)
+
+        // …and ghost entries stamped with logger ids no Participant matches —
+        // the shape of leaked SeedData sample events.
+        let ctx = container.mainContext
+        let baby = try XCTUnwrap(ctx.fetch(FetchDescriptor<Baby>()).first)
+        ctx.insert(FeedEvent(baby: baby, amountOz: 3, timestamp: .now,
+                             loggedByID: UUID(), loggedByName: "Mom", loggedByColorHex: ""))
+        ctx.insert(SleepEvent(baby: baby, startedAt: .now.addingTimeInterval(-3600),
+                              endedAt: .now,
+                              loggedByID: UUID(), loggedByName: "Dad", loggedByColorHex: ""))
+        ctx.insert(DiaperEvent(baby: baby, type: .wet, timestamp: .now,
+                               loggedByID: UUID(), loggedByName: "Dad", loggedByColorHex: ""))
+        try ctx.save()
+
+        XCTAssertEqual(store.ghostEvents().count, 3)
+        XCTAssertEqual(store.purgeGhostEvents(), 3)
+
+        XCTAssertNil(mine.deletedAt, "the household's own entries are untouched")
+        XCTAssertNil(myDiaper.deletedAt)
+        XCTAssertTrue(store.ghostEvents().isEmpty, "purge is complete")
+        XCTAssertEqual(store.purgeGhostEvents(), 0, "second run finds nothing")
+    }
+
+    func testRevokedParticipantsEventsAreNotGhosts() throws {
+        // A removed caregiver keeps their Participant record (isActive false) —
+        // their history must never be treated as ghost data.
+        let ctx = container.mainContext
+        let nanny = Participant(displayName: "Nanny", colorHex: "#123456",
+                                role: .logger, isActive: false)
+        ctx.insert(nanny)
+        let baby = try XCTUnwrap(ctx.fetch(FetchDescriptor<Baby>()).first)
+        ctx.insert(FeedEvent(baby: baby, amountOz: 2, timestamp: .now,
+                             loggedByID: nanny.id, loggedByName: "Nanny", loggedByColorHex: "#123456"))
+        try ctx.save()
+
+        XCTAssertTrue(store.ghostEvents().isEmpty)
+        XCTAssertEqual(store.purgeGhostEvents(), 0)
+    }
+
     func testLogFeedStampsLoggerIdentity() {
         let feed = store.logFeed(amountOz: 3)
         XCTAssertEqual(feed.loggedByName, "Taylor")

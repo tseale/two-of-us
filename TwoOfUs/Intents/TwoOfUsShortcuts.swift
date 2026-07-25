@@ -34,15 +34,28 @@ struct TwoOfUsShortcuts: AppShortcutsProvider {
             shortTitle: "Log Diaper",
             systemImageName: "leaf.fill"
         )
+        // Start/Stop are separate, idempotent intents — the phrases used to
+        // share one blind toggle, so "start sleep" while a sleep was running
+        // silently STOPPED it. (ToggleSleepIntent still exists for Shortcuts.)
         AppShortcut(
-            intent: ToggleSleepIntent(),
+            intent: StartSleepIntent(),
             phrases: [
                 "Start sleep in \(.applicationName)",
-                "Stop sleep in \(.applicationName)",
+                "\(.applicationName) start sleep",
                 "\(.applicationName) sleep"
             ],
-            shortTitle: "Sleep",
+            shortTitle: "Start Sleep",
             systemImageName: "moon.fill"
+        )
+        AppShortcut(
+            intent: StopSleepIntent(),
+            phrases: [
+                "Stop sleep in \(.applicationName)",
+                "\(.applicationName) stop sleep",
+                "Wake up in \(.applicationName)"
+            ],
+            shortTitle: "Stop Sleep",
+            systemImageName: "sun.max.fill"
         )
 
         // MARK: Queries ("ask Two of Us")

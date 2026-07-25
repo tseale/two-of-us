@@ -39,9 +39,12 @@ struct QuickLogRow: View {
                                tint: AppColor.accentFeed, intent: LogFeedIntent())
             WidgetActionButton(title: "Diaper", emoji: "💩",
                                tint: AppColor.accentDiaper, intent: LogDiaperIntent())
+            // State-explicit, not ToggleSleepIntent: the tap must mean the
+            // label the parent saw, even off a stale timeline snapshot.
             WidgetActionButton(title: isSleeping ? "Wake" : "Sleep",
                                emoji: isSleeping ? "☀️" : "💤",
-                               tint: AppColor.accentSleep, intent: ToggleSleepIntent())
+                               tint: AppColor.accentSleep,
+                               intent: SetSleepIntent.driving(asleep: !isSleeping))
         }
     }
 }

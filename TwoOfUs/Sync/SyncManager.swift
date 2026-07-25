@@ -27,6 +27,14 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     /// including a background launch for a silent push, where no SwiftUI scene
     /// ever connects — so sync never depends on the UI appearing first.
     static func bootstrap(container: ModelContainer) {
+        // With `shared` never built, every `SyncManager.shared?` call site
+        // no-ops — nothing uploads, nothing parks in the pending queues, and
+        // the one-shot bootstrapReconcile can't sweep fixture data into the
+        // family's zone. See SyncGate for why this is load-bearing.
+        if let reason = SyncGate.blockReason {
+            AppLog.sync.warning("Sync disabled for this process: \(reason, privacy: .public)")
+            return
+        }
         if shared == nil { shared = SyncManager(modelContainer: container) }
         shared?.start()
         // Sweep any outbound asset temp files a previous run left behind (a save

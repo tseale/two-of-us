@@ -7,9 +7,7 @@ import AppIntents
 /// intent runs in-process against the shared App Group store, same as the
 /// widget quick-log buttons.
 private func wakeIntent() -> SetSleepIntent {
-    var intent = SetSleepIntent()
-    intent.value = false
-    return intent
+    .driving(asleep: false)
 }
 
 // MARK: - Lock Screen View

@@ -92,3 +92,16 @@ struct SetSleepIntent: SetValueIntent {
         return .result()
     }
 }
+
+extension SetSleepIntent {
+    /// A copy driven to a specific state. Widget buttons pass the OPPOSITE of
+    /// the state they rendered, so a tap means what the parent saw on screen —
+    /// a stale "Wake ☀️" tapped after the co-parent already stopped the sleep
+    /// is a no-op, where a blind `ToggleSleepIntent` would start a phantom
+    /// session nobody asked for.
+    static func driving(asleep: Bool) -> SetSleepIntent {
+        var intent = SetSleepIntent()
+        intent.value = asleep
+        return intent
+    }
+}

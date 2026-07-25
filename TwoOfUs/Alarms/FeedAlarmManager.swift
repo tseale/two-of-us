@@ -52,13 +52,29 @@ enum FeedAlarmManager {
         guard LocalPrefs.shared.feedReminderEnabled,
               let lastFeed, interval >= minimumInterval else { return }
 
-        let remaining = lastFeed.addingTimeInterval(interval).timeIntervalSinceNow
+        let fireDate = lastFeed.addingTimeInterval(interval)
+        let remaining = fireDate.timeIntervalSinceNow
         guard remaining > 0 else { return }              // already due — nothing to count down
         // Stand down when the armed slot alarm (SlotAlarmManager) covers the
         // same stretch of night — assigned-slot wake-ups own that window, and
         // two loud 3am alarms is exactly the thing the schedule exists to end.
         if let slotFire = SlotAlarmManager.armedFireDate,
            abs(slotFire.timeIntervalSinceNow - remaining) < 90 * 60 { return }
+        // Stand down on the OFF-DUTY phone too: the armed-slot check above is
+        // device-local, so without this the other parent's loud interval alarm
+        // still fires into a night the schedule pinned to their co-parent —
+        // the exact wake-up assignments exist to end. A slot assigned to ME
+        // keeps the alarm (the local check above already prevents doubling),
+        // and `assignedElsewhere` biases to reminding whenever it can't prove
+        // the slot belongs to someone else.
+        if let logger = QuickLogger.make(), let myID = logger.myParticipantID {
+            let engine = ScheduleEngine(
+                slots: logger.planSlots, overrides: logger.planOverrides,
+                feeds: logger.recentFeeds(), sleeps: logger.recentSleeps(),
+                targetFeedInterval: logger.targetFeedInterval
+            )
+            if engine.assignedElsewhere(near: fireDate, kind: .feed, me: myID) { return }
+        }
         guard await requestAuthorization() else { return }
 
         let alert = AlarmPresentation.Alert(
