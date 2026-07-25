@@ -1038,6 +1038,16 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         case purgeRecordOnly
     }
 
+    /// Whether a participant record corresponds to a current share member.
+    /// Nil-safe like `removalPlan`: an unknown identity never matches, so a
+    /// ghost record (nil cloudUserID) is correctly reported as off-share.
+    /// Drives "Resend link" — the invite URL only works for current members,
+    /// so anyone else must be re-ADDED via the sharing sheet instead.
+    static func shareHasMember(cloudUserID: String?, memberIDs: [String?]) -> Bool {
+        guard let cloudUserID else { return false }
+        return memberIDs.contains(cloudUserID)
+    }
+
     /// True when `participant` is the only active participant besides "me" in
     /// the local store — the precondition for the identity-less fallback above.
     private func isSoleCoParticipant(_ participant: Participant) -> Bool {

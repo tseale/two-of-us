@@ -30,6 +30,10 @@ struct SettingsView: View {
     /// The share URL staged for "Resend link" on an existing person's row —
     /// non-nil drives the plain share sheet (no people management, no new invite).
     @State private var resendLink: ResendLink?
+    /// Set when "Resend link" finds the person is no longer on the CKShare —
+    /// the URL would dead-end with "Item Unavailable" on THEIR phone, so this
+    /// drives an alert that routes to re-adding them via the sharing sheet.
+    @State private var reinviteNeeded: Participant?
 
     struct ResendLink: Identifiable {
         let url: URL
@@ -210,6 +214,20 @@ struct SettingsView: View {
             .sheet(item: $resendLink) { link in
                 ActivityShareSheet(items: [link.url])
                     .presentationDetents([.medium, .large])
+            }
+            .alert(
+                "\(reinviteNeeded?.displayName.isEmpty == false ? reinviteNeeded!.displayName : "This person") isn't on the iCloud share",
+                isPresented: Binding(get: { reinviteNeeded != nil },
+                                     set: { if !$0 { reinviteNeeded = nil } }),
+                presenting: reinviteNeeded
+            ) { _ in
+                Button("Re-add them") {
+                    reinviteNeeded = nil
+                    showShareSheet = true
+                }
+                Button("Cancel", role: .cancel) { reinviteNeeded = nil }
+            } message: { p in
+                Text("\(p.displayName.isEmpty ? "They" : p.displayName) may have been removed or sharing was reset, so the link alone won't work for them. Re-add them from the sharing sheet — their history comes right back once they accept.")
             }
             .sheet(isPresented: $showBabyEdit) {
                 if let baby { BabyEditSheet(baby: baby) }
@@ -436,8 +454,10 @@ struct SettingsView: View {
                     // has access (lost the link, new phone). The zone-wide
                     // share's URL is stable, so this never creates a new person
                     // or touches the participant list — the link simply lets an
-                    // existing member reconnect.
-                    Button { Task { await prepareResendLink() } } label: {
+                    // existing member reconnect. If they're no longer ON the
+                    // share, the URL is useless to them ("Item Unavailable"),
+                    // so the flow routes to re-adding instead.
+                    Button { Task { await prepareResendLink(for: p) } } label: {
                         Label("Resend link", systemImage: "link.badge.plus")
                     }
                     .tint(AppColor.accentSleep)
@@ -448,9 +468,12 @@ struct SettingsView: View {
     }
 
     /// Fetches the existing zone-wide share and stages its URL for the plain
-    /// share sheet. Reuses `makeShare` (returns the existing share when one
-    /// exists) and the invite flow's error surfacing.
-    private func prepareResendLink() async {
+    /// share sheet — but only after confirming `p` is actually a member of the
+    /// share. The invite-only URL does nothing for a non-member (their phone
+    /// shows Apple's "Item Unavailable"), so anyone off the share is routed to
+    /// the proper re-add flow instead. Reuses `makeShare` (returns the existing
+    /// share when one exists) and the invite flow's error surfacing.
+    private func prepareResendLink(for p: Participant) async {
         preparingShare = true
         defer { preparingShare = false }
         do {
@@ -458,8 +481,16 @@ struct SettingsView: View {
                 shareError = "Sync isn't running on this device."
                 return
             }
-            let share = try await manager.makeShare()
-            guard let url = share.url else {
+            let fetched = try await manager.makeShare()
+            let memberIDs = fetched.participants
+                .filter { $0.role != .owner }
+                .map { $0.userIdentity.userRecordID?.recordName }
+            guard SyncManager.shareHasMember(cloudUserID: p.cloudUserID, memberIDs: memberIDs) else {
+                share = fetched            // stage for the sharing sheet the alert offers
+                reinviteNeeded = p
+                return
+            }
+            guard let url = fetched.url else {
                 shareError = "The invite link isn't ready yet — try again in a moment."
                 return
             }

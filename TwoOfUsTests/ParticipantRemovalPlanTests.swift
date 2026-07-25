@@ -64,6 +64,21 @@ final class ParticipantRemovalPlanTests: XCTestCase {
         )
     }
 
+    // MARK: shareHasMember (the Resend-link membership gate)
+
+    func testResendRequiresCurrentShareMembership() {
+        // On the share → the standing URL works, resend it.
+        XCTAssertTrue(SyncManager.shareHasMember(cloudUserID: "_katie",
+                                                 memberIDs: [nil, "_katie"]))
+        // Off the share (removed / sharing reset) → the URL dead-ends with
+        // "Item Unavailable" on their phone; the flow must re-add instead.
+        XCTAssertFalse(SyncManager.shareHasMember(cloudUserID: "_katie",
+                                                  memberIDs: ["_someoneElse"]))
+        XCTAssertFalse(SyncManager.shareHasMember(cloudUserID: "_katie", memberIDs: []))
+        // Unknown identity never matches — nil == nil is not membership.
+        XCTAssertFalse(SyncManager.shareHasMember(cloudUserID: nil, memberIDs: [nil, "_katie"]))
+    }
+
     func testAlreadyLeftMemberCleansUpTheRecord() {
         // cloudUserID known but no longer on the share — they left on their
         // own. Finish the removal instead of throwing and stranding the row.

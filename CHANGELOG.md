@@ -6,6 +6,12 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+- "Resend link" now verifies the person is actually a member of the iCloud
+  share before offering the URL. A non-member tapping the bare link hits
+  Apple's "Item Unavailable" dead end — the flow now explains they need
+  re-adding and opens the sharing sheet instead.
+
 ### Added
 - Resend an invite link to someone who already has access (lost link, new
   phone): swipe their row in Settings → People → **Resend link**. Shares the
