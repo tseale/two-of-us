@@ -56,7 +56,9 @@ struct SmallEventWidgetView: View {
                 tileContent
                     .widgetURL(deepLinkURL)
             case .sleep:
-                Button(intent: ToggleSleepIntent()) { tileContent }
+                // State-explicit (see SetSleepIntent.driving): a tap on a stale
+                // tile can be a no-op, but never a phantom start/stop.
+                Button(intent: SetSleepIntent.driving(asleep: !entry.isActiveSleep)) { tileContent }
                     .buttonStyle(.plain)
             }
         }
