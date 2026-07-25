@@ -14,6 +14,14 @@ All notable changes to Two of Us are recorded here. The format loosely follows
   reminder enabled was still woken during the other parent's assigned slot.
   Fail-safe unchanged: unassigned slots, skipped nights, unknown identity, or
   no schedule all keep the alarm armed for everyone.
+- Phantom sleep sessions from stale widget taps. The widget Sleep/Wake buttons
+  (quick-log row and the small sleep tile) ran a blind toggle rendered from a
+  timeline snapshot — tapping "Wake" after the co-parent had already stopped
+  the sleep started a brand-new session. They now drive sleep to the state
+  the button showed (same idempotent intent as the Control Center toggle and
+  Live Activity Wake button), so a stale tap is a no-op, never a phantom log.
+- "Hey Siri, start sleep" no longer *stops* a running sleep: the start/stop
+  phrases now map to separate idempotent intents instead of sharing the toggle.
 
 ### Release-polish pass (toward the first App Store release)
 
