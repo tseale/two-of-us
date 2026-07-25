@@ -6,6 +6,18 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Fixed — ghost logs from dev/test runs syncing into the family zone
+- Sync is now refused outright in simulator builds and in any launch carrying
+  a store-mutating fixture argument (`-seedSampleData`, `-wipeStore`, …).
+  Previously a UI-test or App Store screenshot run seeded a week of fake
+  "Mom"/"Dad" feeds/sleeps/diapers into the real store, and the sync layer's
+  one-shot bootstrap uploaded all of it to the family's CloudKit zone — both
+  parents then pulled them as ghost logs nobody had tapped for (`SyncGate`).
+- Manage data gains a one-tap **Remove unknown entries** cleanup: soft-deletes
+  every event whose logger was never a household participant (the signature
+  of leaked sample data), synced to both parents like any normal deletion.
+  The section only appears when such entries exist.
+
 ### Release-polish pass (toward the first App Store release)
 
 #### Reliability — silent failures now surface

@@ -15,6 +15,9 @@ struct ManageDataView: View {
     @State private var exportRetry = 0
     @State private var showClearConfirm = false
     @State private var showDeleteFlow = false
+    @State private var ghostCount = 0
+    @State private var showGhostConfirm = false
+    @State private var ghostsPurged: Int?
 
     private var store: EventStore { EventStore(context: context) }
 
@@ -65,6 +68,27 @@ struct ManageDataView: View {
                 }
             }
 
+            if canEditShared, ghostCount > 0 || ghostsPurged != nil {
+                Section {
+                    if let purged = ghostsPurged {
+                        Label("Removed \(purged) unknown \(purged == 1 ? "entry" : "entries")",
+                              systemImage: "checkmark.circle")
+                            .foregroundStyle(AppColor.text2)
+                    } else {
+                        Button(role: .destructive) {
+                            showGhostConfirm = true
+                        } label: {
+                            Label("Remove \(ghostCount) unknown \(ghostCount == 1 ? "entry" : "entries")",
+                                  systemImage: "person.fill.questionmark")
+                        }
+                    }
+                } header: {
+                    Text("Unknown entries")
+                } footer: {
+                    Text("Entries logged by someone who isn't part of your household — usually stray sample data. Removing them syncs to both parents.")
+                }
+            }
+
             if canDeleteEverything {
                 Section {
                     Button(role: .destructive) {
@@ -87,6 +111,19 @@ struct ManageDataView: View {
             let url = LogExporter.writeTempFile(in: context)
             exportURL = url
             exportFailed = (url == nil)
+        }
+        .onAppear {
+            // Cheap count (three fetches) — the section only renders when > 0,
+            // so a healthy household never sees it.
+            if !prefs.demoModeEnabled { ghostCount = store.ghostEvents().count }
+        }
+        .confirmationDialog("Remove unknown entries?", isPresented: $showGhostConfirm, titleVisibility: .visible) {
+            Button("Remove \(ghostCount) \(ghostCount == 1 ? "entry" : "entries")", role: .destructive) {
+                ghostsPurged = store.purgeGhostEvents()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Removes every feed, sleep, and diaper entry whose logger isn't one of your household's participants. Your own entries are untouched. This syncs to the other parent.")
         }
         .confirmationDialog("Clear all logs?", isPresented: $showClearConfirm, titleVisibility: .visible) {
             Button("Clear all logs", role: .destructive) { store.clearAllLogs() }
