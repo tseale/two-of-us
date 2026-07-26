@@ -1,10 +1,10 @@
 import SwiftUI
 import SwiftData
 
-/// The two-tap sheet behind every schedule row. Pinned occurrence: tap the
-/// other parent's face → tonight is swapped, done. Predicted occurrence: tap a
-/// face → the prediction is pinned into the standing plan, assigned. Everything
-/// else (skip, undo, edit, remove) is a row below the faces.
+/// The two-tap sheet behind every schedule row. Tap the other parent's face →
+/// tonight is swapped, done. Below the faces: move tonight to a different
+/// time, skip it, undo tonight's change, or step into the standing-slot
+/// editor — every occurrence is editable, any night, any time.
 struct SlotActionsSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -18,9 +18,12 @@ struct SlotActionsSheet: View {
     /// undo) — the accent keeps a sleep-slot Undo periwinkle, not feed teal.
     var onDone: ((String, Color, (() -> Void)?) -> Void)? = nil
 
+    @State private var showMovePicker = false
+    @State private var moveTime: Date = .now
+
     private var store: EventStore { EventStore(context: context) }
     private var slot: PlanSlot? {
-        occurrence.slotID.flatMap { PlanSlot.fetchByID($0, in: context) }
+        PlanSlot.fetchByID(occurrence.slotID, in: context)
     }
     private var kindWord: String { occurrence.kind == .sleep ? "sleep" : "bottle" }
     private var accent: Color { occurrence.kind == .sleep ? AppColor.accentSleep : AppColor.accentFeed }
@@ -29,7 +32,7 @@ struct SlotActionsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(occurrence.isPinned ? whoSectionTitle : "Pin into the plan") {
+                Section(whoSectionTitle) {
                     HStack(spacing: 12) {
                         ForEach(participants) { p in
                             personButton(p)
@@ -38,15 +41,7 @@ struct SlotActionsSheet: View {
                     .frame(maxWidth: .infinity)
                 }
 
-                if occurrence.isPinned {
-                    pinnedActions
-                } else {
-                    Section {
-                        Button("Pin without assigning") { pin(to: nil) }
-                    } footer: {
-                        Text("Predicted from recent \(kindWord)s. Pinning makes it a standing \(clock) slot every day.")
-                    }
-                }
+                actions
             }
             .navigationTitle("\(occurrence.kind.emoji) \(clock)")
             .navigationBarTitleDisplayMode(.inline)
@@ -56,8 +51,9 @@ struct SlotActionsSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .onAppear { moveTime = occurrence.date }
     }
 
     private var whoSectionTitle: String {
@@ -67,7 +63,7 @@ struct SlotActionsSheet: View {
     private func personButton(_ p: Participant) -> some View {
         let current = occurrence.status != .skipped && occurrence.assignedToID == p.id
         return Button {
-            occurrence.isPinned ? assignTonight(to: p) : pin(to: p)
+            assignTonight(to: p)
         } label: {
             VStack(spacing: 6) {
                 Avatar(photoData: p.photoData, name: p.displayName, colorHex: p.colorHex, size: 56)
@@ -92,7 +88,35 @@ struct SlotActionsSheet: View {
     }
 
     @ViewBuilder
-    private var pinnedActions: some View {
+    private var actions: some View {
+        if occurrence.status != .skipped {
+            Section {
+                Button {
+                    withAnimation { showMovePicker.toggle() }
+                } label: {
+                    HStack {
+                        Text("Move tonight…")
+                        Spacer()
+                        Image(systemName: showMovePicker ? "chevron.up" : "chevron.down")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(AppColor.text3)
+                    }
+                }
+                if showMovePicker {
+                    DatePicker("Tonight at", selection: $moveTime, displayedComponents: .hourAndMinute)
+                    if minuteOfDay(moveTime) != minuteOfDay(occurrence.date) {
+                        Button("Move to \(TimeFormatting.clock(moveTime))") { moveTonight() }
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(accent)
+                    }
+                }
+            } footer: {
+                if showMovePicker {
+                    Text("Moves tonight only — the standing \(kindWord) keeps its usual time tomorrow.")
+                }
+            }
+        }
+
         Section {
             if occurrence.activeOverrideID != nil {
                 Button("Undo tonight's change") { undoOverride() }
@@ -108,7 +132,7 @@ struct SlotActionsSheet: View {
                 Button("Remove from plan", role: .destructive) { removeSlot(slot) }
             }
         } footer: {
-            Text("Swaps and skips apply to tonight only — the standing plan stays put.")
+            Text("Swaps, moves, and skips apply to tonight only — the standing plan stays put.")
         }
     }
 
@@ -127,18 +151,16 @@ struct SlotActionsSheet: View {
         dismiss()
     }
 
-    private func pin(to p: Participant?) {
-        // Predictions land on odd minutes ("~2:47 AM"); a standing slot wants a
-        // round one.
-        let c = Calendar.current.dateComponents([.hour, .minute], from: occurrence.date)
-        let minute = ((c.hour ?? 0) * 60 + (c.minute ?? 0) + 2) / 5 * 5
-        let created = store.addPlanSlot(kind: occurrence.kind, minuteOfDay: minute, assignedTo: p)
+    private func moveTonight() {
+        guard let slot else { return }
+        // Preserve tonight's effective assignee — a move must never drop a swap.
+        let assignee = participants.first { $0.id == occurrence.assignedToID }
+        let override = store.moveSlot(slot, dayKey: occurrence.dayKey,
+                                      toMinuteOfDay: minuteOfDay(moveTime), assignedTo: assignee)
         Haptics.success()
-        let clock = TimeFormatting.clock(
-            ScheduleEngine.materialize(minuteOfDay: created.minuteOfDay, on: occurrence.date,
-                                       calendar: .current) ?? occurrence.date)
-        let who = p.map { " · \($0.displayName)" } ?? ""
-        onDone?("Pinned \(clock) \(kindWord)\(who)", accent) { store.removePlanSlot(created) }
+        onDone?("Moved tonight's \(kindWord) to \(TimeFormatting.clock(moveTime))", accent) {
+            store.clearOverride(override)
+        }
         dismiss()
     }
 
@@ -164,5 +186,10 @@ struct SlotActionsSheet: View {
         Haptics.warning()
         onDone?("Removed \(clock) \(kindWord) from the plan", accent) { store.restorePlanSlot(slot) }
         dismiss()
+    }
+
+    private func minuteOfDay(_ date: Date) -> Int {
+        let c = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return (c.hour ?? 0) * 60 + (c.minute ?? 0)
     }
 }

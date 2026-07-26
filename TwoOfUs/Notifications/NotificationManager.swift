@@ -273,8 +273,7 @@ enum NotificationManager {
 
         let engine = ScheduleEngine(
             slots: slots, overrides: logger.planOverrides,
-            feeds: logger.recentFeeds(), sleeps: logger.recentSleeps(),
-            targetFeedInterval: logger.targetFeedInterval
+            feeds: logger.recentFeeds(), sleeps: logger.recentSleeps()
         )
         let planned = ScheduleReminderPlanner.plan(
             occurrences: engine.occurrences(lookback: 0),
@@ -309,12 +308,11 @@ enum NotificationManager {
         guard !slots.isEmpty else { return false }
         let engine = ScheduleEngine(
             slots: slots, overrides: logger.planOverrides,
-            feeds: logger.recentFeeds(), sleeps: logger.recentSleeps(),
-            targetFeedInterval: logger.targetFeedInterval
+            feeds: logger.recentFeeds(), sleeps: logger.recentSleeps()
         )
         let horizon = max(3600, date.timeIntervalSinceNow + 1800)
         return engine.occurrences(lookback: 0, horizon: horizon).contains {
-            $0.isPinned && $0.kind == kind && $0.status == .upcoming && $0.assignedToID != nil
+            $0.kind == kind && $0.status == .upcoming && $0.assignedToID != nil
                 && abs($0.date.timeIntervalSince(date)) <= 30 * 60
         }
     }

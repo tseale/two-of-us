@@ -2,9 +2,9 @@ import XCTest
 @testable import TwoOfUs
 
 /// Pure-logic tests for `ScheduleEngine`: slot materialization (incl. midnight
-/// and DST), override precedence, fulfillment matching, overdue handling, and
-/// predictions. No store, no CloudKit — models are built standalone and the
-/// calendar + `now` are pinned so every run sees the same night.
+/// and DST), override precedence (swap/skip/move), fulfillment matching, and
+/// overdue handling. No store, no CloudKit — models are built standalone and
+/// the calendar + `now` are pinned so every run sees the same night.
 final class ScheduleEngineTests: XCTestCase {
     /// Fixed zone with a 2026 DST transition we can aim at (Mar 8, 02:00→03:00).
     private var calendar: Calendar = {
@@ -23,10 +23,10 @@ final class ScheduleEngineTests: XCTestCase {
     private func engine(
         slots: [PlanSlot] = [], overrides: [PlanOverride] = [],
         feeds: [FeedEvent] = [], sleeps: [SleepEvent] = [],
-        interval: TimeInterval = 3 * 3600, now: Date? = nil
+        now: Date? = nil
     ) -> ScheduleEngine {
         ScheduleEngine(slots: slots, overrides: overrides, feeds: feeds, sleeps: sleeps,
-                       targetFeedInterval: interval, calendar: calendar, now: now ?? self.now)
+                       calendar: calendar, now: now ?? self.now)
     }
 
     private func feed(at date: Date, deleted: Bool = false) -> FeedEvent {
@@ -140,6 +140,59 @@ final class ScheduleEngineTests: XCTestCase {
         XCTAssertEqual(occ.status, .skipped)
     }
 
+    // MARK: Per-night moves
+
+    func testMoveOverrideChangesTonightsTimeOnly() {
+        let katie = UUID()
+        let slot = PlanSlot(kind: .feed, minuteOfDay: 23 * 60,
+                            assignedToID: katie, assignedToName: "Katie")
+        let move = PlanOverride(slotID: slot.id, dayKey: 20_260_721,
+                                assignedToID: katie, assignedToName: "Katie",
+                                minuteOfDayOverride: 23 * 60 + 30, createdByID: katie)
+
+        let occs = engine(slots: [slot], overrides: [move]).occurrences(horizon: 30 * 3600)
+
+        XCTAssertEqual(occs[0].date, date(2026, 7, 21, 23, 30), "tonight moves to 11:30")
+        XCTAssertEqual(occs[0].dayKey, 20_260_721, "the override key stays on the standing night")
+        XCTAssertEqual(occs[0].assignedToID, katie, "a move keeps the assignment")
+        XCTAssertEqual(occs[1].date, date(2026, 7, 22, 23, 0), "tomorrow the standing time resumes")
+    }
+
+    func testMoveForwardAcrossMidnightStaysTonight() {
+        // 11:30pm moved "to 12:15" means fifteen past midnight tonight — 45
+        // minutes later — never this morning.
+        let slot = PlanSlot(kind: .feed, minuteOfDay: 23 * 60 + 30)
+        let move = PlanOverride(slotID: slot.id, dayKey: 20_260_721,
+                                minuteOfDayOverride: 15, createdByID: UUID())
+
+        let occ = engine(slots: [slot], overrides: [move]).occurrences()[0]
+        XCTAssertEqual(occ.date, date(2026, 7, 22, 0, 15))
+    }
+
+    func testMoveBackwardAcrossMidnightStaysTonight() {
+        // A 12:15am slot (materializes tomorrow morning) moved "to 11:45"
+        // means tonight, half an hour earlier — not tomorrow evening.
+        let slot = PlanSlot(kind: .feed, minuteOfDay: 15)
+        let move = PlanOverride(slotID: slot.id, dayKey: 20_260_722,
+                                minuteOfDayOverride: 23 * 60 + 45, createdByID: UUID())
+
+        let occs = engine(slots: [slot], overrides: [move]).occurrences()
+        XCTAssertTrue(occs.contains { $0.date == date(2026, 7, 21, 23, 45) })
+    }
+
+    func testFulfillmentMatchesTheMovedTime() {
+        // Slot at 8:30pm moved to 9:30pm; a 9:20 bottle covers it even though
+        // it's ~50 minutes from the standing time (outside the window).
+        let slot = PlanSlot(kind: .feed, minuteOfDay: 20 * 60 + 30)
+        let move = PlanOverride(slotID: slot.id, dayKey: 20_260_721,
+                                minuteOfDayOverride: 21 * 60 + 30, createdByID: UUID())
+        let bottle = feed(at: date(2026, 7, 21, 21, 20))
+
+        let occ = engine(slots: [slot], overrides: [move], feeds: [bottle],
+                         now: date(2026, 7, 21, 21, 45)).occurrences()[0]
+        XCTAssertEqual(occ.status, .fulfilled(byEventID: bottle.id))
+    }
+
     // MARK: Fulfillment
 
     func testFeedNearSlotFulfillsIt() {
@@ -197,51 +250,6 @@ final class ScheduleEngineTests: XCTestCase {
             .filter { $0.dayKey == 20_260_721 }
         XCTAssertTrue(longAfter.isEmpty,
                       "past the grace window a stale 'was due 11pm' row helps no one")
-    }
-
-    // MARK: Predictions
-
-    func testFeedPredictionsProjectFromLastFeed() {
-        let occs = engine(feeds: [feed(at: date(2026, 7, 21, 19, 0))]).occurrences()
-
-        XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 22, 0),
-                       "next bottle = last feed + target interval, same math as Home")
-        XCTAssertEqual(occs.first?.source, .predicted)
-        XCTAssertNil(occs.first?.assignedToID, "predictions are never assigned")
-        XCTAssertEqual(occs.first?.id, "pred.feed.1")
-    }
-
-    func testPredictionSuppressedNearPinnedSlot() {
-        let slot = PlanSlot(kind: .feed, minuteOfDay: 22 * 60 + 30)   // 10:30pm pinned
-        let occs = engine(slots: [slot], feeds: [feed(at: date(2026, 7, 21, 19, 0))]).occurrences()
-
-        // The 10pm prediction sits within the merge window of the pinned 10:30
-        // slot — the plan wins; the 1am prediction survives.
-        XCTAssertFalse(occs.contains { $0.source == .predicted && $0.date == date(2026, 7, 21, 22, 0) })
-        XCTAssertTrue(occs.contains { $0.source == .predicted && $0.date == date(2026, 7, 22, 1, 0) })
-    }
-
-    func testNoPredictionsWithoutIntervalOrFeeds() {
-        XCTAssertTrue(engine(feeds: [feed(at: date(2026, 7, 21, 19, 0))], interval: 0)
-            .occurrences().isEmpty)
-        XCTAssertTrue(engine().occurrences().isEmpty)
-    }
-
-    func testSleepPredictionFromLastWakeSuppressedWhileAsleep() {
-        let woke = SleepEvent(baby: nil, startedAt: date(2026, 7, 21, 17, 0),
-                              loggedByID: UUID(), loggedByName: "", loggedByColorHex: "")
-        woke.endedAt = date(2026, 7, 21, 18, 30)
-
-        let occs = engine(sleeps: [woke]).occurrences()
-        XCTAssertTrue(occs.contains {
-            $0.kind == .sleep && $0.date == date(2026, 7, 21, 18, 30).addingTimeInterval(UrgencyDefaults.sleep)
-        })
-
-        let active = SleepEvent(baby: nil, startedAt: date(2026, 7, 21, 19, 45),
-                                loggedByID: UUID(), loggedByName: "", loggedByColorHex: "")
-        let quiet = engine(sleeps: [woke, active]).occurrences()
-        XCTAssertFalse(quiet.contains { $0.kind == .sleep },
-                       "no 'next sleep' while the baby is asleep")
     }
 
     // MARK: Assigned filtering (the notification planner's input)
@@ -367,17 +375,6 @@ final class ScheduleEngineTests: XCTestCase {
                           now: date(2026, 7, 21, 23, 30)).occurrences()
         XCTAssertEqual(occs[0].status, .fulfilled(byEventID: bottle.id))
         XCTAssertEqual(occs[1].status, .overdue)
-    }
-
-    func testStaleLastFeedStillPredicts() {
-        // Last feed 5+ days ago (interval budget would be exhausted walking the
-        // past): predictions must still project into the window.
-        let occs = engine(feeds: [feed(at: date(2026, 7, 16, 12, 0))]).occurrences()
-
-        XCTAssertFalse(occs.isEmpty, "a stale anchor must not silence predictions")
-        XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 21, 0),
-                       "first prediction is the first interval multiple after now")
-        XCTAssertTrue(occs.allSatisfy { $0.date > now })
     }
 
     // MARK: dayKey helper

@@ -12,7 +12,7 @@ struct PlannedReminder: Equatable {
 
 /// Pure decision layer for slot reminders: which upcoming occurrences deserve a
 /// notification *on this device*. The whole feature's promise lives in the
-/// filter — only pinned, still-upcoming slots assigned to *me* qualify, so the
+/// filter — only still-upcoming slots assigned to *me* qualify, so the
 /// off-duty parent's phone stays silent by construction. Deliberately knows
 /// nothing about UNUserNotificationCenter (tests cover it directly), and
 /// deliberately never consults quiet hours: a 3am assigned-feed reminder IS the
@@ -29,16 +29,15 @@ enum ScheduleReminderPlanner {
     ) -> [PlannedReminder] {
         guard let myID else { return [] }
         let mine = occurrences
-            .filter { $0.isPinned && $0.status == .upcoming && $0.assignedToID == myID }
+            .filter { $0.status == .upcoming && $0.assignedToID == myID }
             .compactMap { occ -> PlannedReminder? in
-                guard let slotID = occ.slotID else { return nil }
                 let fireDate = occ.date.addingTimeInterval(-lead)
-                // A swap made inside the lead window schedules nothing rather
+                // A change made inside the lead window schedules nothing rather
                 // than firing instantly — an immediate "you're up in 0 minutes"
                 // would re-fire on every subsequent re-arm.
                 guard fireDate > now else { return nil }
                 return PlannedReminder(
-                    requestID: NotificationID.Request.scheduleSlot(slotID: slotID, dayKey: occ.dayKey),
+                    requestID: NotificationID.Request.scheduleSlot(slotID: occ.slotID, dayKey: occ.dayKey),
                     fireDate: fireDate,
                     kind: occ.kind,
                     occurrenceDate: occ.date,

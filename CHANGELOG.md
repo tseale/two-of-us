@@ -6,6 +6,16 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Changed — the schedule is fully manual now
+- Predicted rows are gone from the Schedule tab (and Home's up-next line).
+  The schedule shows exactly the slots you defined — parent-authored, nothing
+  derived from the log — and every row is editable.
+- New per-night **Move tonight…** in the slot sheet: slide tonight's slot to a
+  different time without touching the standing plan. Times near midnight snap
+  to the sensible night (11:30pm "moved to 12:15" means 45 minutes later).
+  Moves combine with swaps (assigning after moving keeps the moved time),
+  sync like any override, and reminders/alarms follow the moved time.
+
 ### Fixed
 - "Resend link" now verifies the person is actually a member of the iCloud
   share before offering the URL. A non-member tapping the bare link hits

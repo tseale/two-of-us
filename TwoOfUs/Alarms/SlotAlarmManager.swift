@@ -48,8 +48,7 @@ enum SlotAlarmManager {
         guard !slots.isEmpty else { return }
         let engine = ScheduleEngine(
             slots: slots, overrides: logger.planOverrides,
-            feeds: logger.recentFeeds(), sleeps: logger.recentSleeps(),
-            targetFeedInterval: logger.targetFeedInterval
+            feeds: logger.recentFeeds(), sleeps: logger.recentSleeps()
         )
         guard let next = engine.upcomingAssigned(to: myID, horizon: 24 * 3600).first else { return }
         let remaining = next.date.timeIntervalSinceNow

@@ -15,6 +15,7 @@ final class PlanOverride {
     var assignedToName: String = ""     // denormalized so it renders if participant removed
     var assignedToColorHex: String = ""
     var isSkipped: Bool = false         // "skip tonight" — no occurrence, no reminder
+    var minuteOfDayOverride: Int?       // "move tonight" — wall-clock minutes; nil keeps the slot's time
     var createdByID: UUID = UUID()      // who made the swap → "Swapped by Katie"
     var createdAt: Date = Date()
     var deletedAt: Date?                // soft delete; nil == live (undo → standing plan resumes)
@@ -28,6 +29,7 @@ final class PlanOverride {
         assignedToName: String = "",
         assignedToColorHex: String = "",
         isSkipped: Bool = false,
+        minuteOfDayOverride: Int? = nil,
         createdByID: UUID,
         createdAt: Date = Date(),
         deletedAt: Date? = nil
@@ -39,6 +41,7 @@ final class PlanOverride {
         self.assignedToName = assignedToName
         self.assignedToColorHex = assignedToColorHex
         self.isSkipped = isSkipped
+        self.minuteOfDayOverride = minuteOfDayOverride
         self.createdByID = createdByID
         self.createdAt = createdAt
         self.deletedAt = deletedAt

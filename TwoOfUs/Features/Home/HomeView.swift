@@ -312,12 +312,10 @@ struct HomeView: View {
     private func upNextOccurrence(now: Date) -> ScheduleOccurrence? {
         guard !planSlots.isEmpty else { return nil }
         let engine = ScheduleEngine(slots: planSlots, overrides: planOverrides,
-                                    feeds: feeds, sleeps: sleeps,
-                                    targetFeedInterval: targetFeed, now: now)
-        // First *planned, assigned* occurrence — a nearer prediction or
-        // unassigned slot must not hide the row.
+                                    feeds: feeds, sleeps: sleeps, now: now)
+        // First *assigned* occurrence — an unassigned slot must not hide the row.
         return engine.occurrences(lookback: 0, horizon: 8 * 3600)
-            .first { $0.isPinned && $0.status == .upcoming && $0.assignedToID != nil }
+            .first { $0.status == .upcoming && $0.assignedToID != nil }
     }
 
     private func upNextRow(_ occ: ScheduleOccurrence) -> some View {

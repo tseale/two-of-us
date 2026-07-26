@@ -70,8 +70,7 @@ enum FeedAlarmManager {
         if let logger = QuickLogger.make(), let myID = logger.myParticipantID {
             let engine = ScheduleEngine(
                 slots: logger.planSlots, overrides: logger.planOverrides,
-                feeds: logger.recentFeeds(), sleeps: logger.recentSleeps(),
-                targetFeedInterval: logger.targetFeedInterval
+                feeds: logger.recentFeeds(), sleeps: logger.recentSleeps()
             )
             if engine.assignedElsewhere(near: fireDate, kind: .feed, me: myID) { return }
         }
