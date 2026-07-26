@@ -457,6 +457,22 @@ struct EventStore {
         reloadWidgets()
     }
 
+    /// Folds a duplicate People row into another (Settings → People, owner
+    /// only). The auto-merge handles rows that share a captured iCloud
+    /// identity; this is the explicit path for legacy duplicates that predate
+    /// the capture (nil `cloudUserID`). Entries, plan assignments, and any
+    /// missing profile bits move to `survivor`; the duplicate deactivates.
+    func mergeParticipant(_ duplicate: Participant, into survivor: Participant) {
+        let changed = ParticipantMerger.merge(duplicate, into: survivor, in: context)
+        guard !changed.isEmpty else { return }
+        save()
+        sync(save: changed)
+        reloadWidgets()
+        // Slot assignments may have moved to the survivor's id — re-arm the
+        // "you're up" reminders so they filter on the right identity.
+        refreshLocalReminders()
+    }
+
     /// Rewrites denormalized logger identity on every event logged by `loggerID`.
     /// Returns the ids of the events it changed.
     private func backfillIdentity(loggerID: UUID, name: String, colorHex: String) -> [UUID] {
