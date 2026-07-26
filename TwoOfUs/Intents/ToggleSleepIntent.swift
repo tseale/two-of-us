@@ -25,6 +25,9 @@ struct StartSleepIntent: AppIntent {
                 view: ConfirmationSnippet(emoji: "💤", title: "Already asleep", subtitle: name)
             )
         }
+        guard logger.isTrackingEnabled(.sleep) else {
+            return .result(dialog: "Sleep logging is currently turned off in Two of Us.")
+        }
         guard logger.toggleSleep() != nil else {
             return .result(dialog: "Couldn't start that sleep — open Two of Us and try again.")
         }
@@ -86,6 +89,11 @@ struct ToggleSleepIntent: AppIntent {
         let name = logger.babyName ?? "Baby"
         // Grab the running sleep (if any) BEFORE toggling so we can report its length.
         let runningStart = logger.activeSleep?.startedAt
+        // Only a *start* needs sleep tracking on — stopping a running sleep is
+        // always allowed.
+        guard runningStart != nil || logger.isTrackingEnabled(.sleep) else {
+            return .result(dialog: "Sleep logging is currently turned off in Two of Us.")
+        }
         guard let started = logger.toggleSleep() else {
             return .result(dialog: "Couldn't start that sleep — open Two of Us and try again.")
         }

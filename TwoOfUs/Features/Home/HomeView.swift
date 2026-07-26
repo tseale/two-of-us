@@ -39,6 +39,11 @@ struct HomeView: View {
 
     private var baby: Baby? { babies.first }
     private var store: EventStore { EventStore(context: context) }
+
+    /// Shared per-kind tracker switch (defaults on pre-sync/pre-onboarding).
+    private func isTracked(_ kind: EventKind) -> Bool {
+        settingsList.first?.isEnabled(kind) ?? true
+    }
     private var activeSleep: SleepEvent? { sleeps.first { $0.isActive } }
     private var targetFeed: TimeInterval {
         TimeInterval((settingsList.first?.targetFeedIntervalMinutes ?? 180) * 60)
@@ -56,7 +61,10 @@ struct HomeView: View {
                         marks: todayMarks,
                         feedCount: todaySummary?.feedCount ?? 0,
                         sleepSeconds: todaySummary?.sleepSeconds ?? 0,
-                        diaperCount: todaySummary?.diaperCount ?? 0
+                        diaperCount: todaySummary?.diaperCount ?? 0,
+                        showFeed: isTracked(.feed),
+                        showSleep: isTracked(.sleep),
+                        showDiaper: isTracked(.diaper)
                     )
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         // 12pt matches the tile grid spacing, so the active sleep
@@ -187,8 +195,10 @@ struct HomeView: View {
     private func consumeDeepLink() {
         guard let target = router.dequeue() else { return }
         switch target {
-        case .feed:   activeSheet = .feed
-        case .diaper: activeSheet = .diaper
+        // A stale widget can deep-link into a tracker that's been turned off —
+        // don't open a log sheet the Home buttons no longer offer.
+        case .feed:   if isTracked(.feed) { activeSheet = .feed }
+        case .diaper: if isTracked(.diaper) { activeSheet = .diaper }
         }
     }
 
@@ -258,6 +268,9 @@ struct HomeView: View {
             sleepDetail: lastNapDetail,
             sleepActive: activeSleep != nil,
             feedReminderArmed: feedReminderArmed(now: now),
+            showFeed: isTracked(.feed),
+            showSleep: isTracked(.sleep),
+            showDiaper: isTracked(.diaper),
             onFeed: { activeSheet = .feed },
             onSleep: startSleep,
             onDiaper: { activeSheet = .diaper }
@@ -313,9 +326,10 @@ struct HomeView: View {
         guard !planSlots.isEmpty else { return nil }
         let engine = ScheduleEngine(slots: planSlots, overrides: planOverrides,
                                     feeds: feeds, sleeps: sleeps, now: now)
-        // First *assigned* occurrence — an unassigned slot must not hide the row.
+        // First *assigned* occurrence — an unassigned slot must not hide the
+        // row. Slots for a paused tracker stay off the glance too.
         return engine.occurrences(lookback: 0, horizon: 8 * 3600)
-            .first { $0.status == .upcoming && $0.assignedToID != nil }
+            .first { $0.status == .upcoming && $0.assignedToID != nil && isTracked($0.kind) }
     }
 
     private func upNextRow(_ occ: ScheduleOccurrence) -> some View {

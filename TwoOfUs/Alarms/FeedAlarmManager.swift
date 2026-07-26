@@ -51,6 +51,9 @@ enum FeedAlarmManager {
         await cancel()
         guard LocalPrefs.shared.feedReminderEnabled,
               let lastFeed, interval >= minimumInterval else { return }
+        // Feed tracking off (shared setting) means no feed alarm — there's
+        // nothing to log when it rings.
+        guard QuickLogger.make()?.isTrackingEnabled(.feed) ?? true else { return }
 
         let fireDate = lastFeed.addingTimeInterval(interval)
         let remaining = fireDate.timeIntervalSinceNow

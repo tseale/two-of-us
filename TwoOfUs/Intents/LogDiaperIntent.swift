@@ -38,6 +38,9 @@ struct LogDiaperIntent: AppIntent {
             return .result(dialog: "Couldn't reach Two of Us.")
         }
         let name = logger.babyName ?? "Baby"
+        guard logger.isTrackingEnabled(.diaper) else {
+            return .result(dialog: "Diaper logging is currently turned off in Two of Us.")
+        }
         guard let event = logger.logDiaper(type.diaperType) else {
             return .result(dialog: "Couldn't log that diaper — open Two of Us and try again.")
         }

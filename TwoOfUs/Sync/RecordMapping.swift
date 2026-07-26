@@ -75,6 +75,9 @@ enum RecordMapping {
             r["targetFeedIntervalMinutes"] = m.targetFeedIntervalMinutes
             r["ozPresets"] = m.ozPresets
             r["defaultFeedOz"] = m.defaultFeedOz
+            r["feedLoggingEnabled"] = m.feedLoggingEnabled ? 1 : 0
+            r["diaperLoggingEnabled"] = m.diaperLoggingEnabled ? 1 : 0
+            r["sleepLoggingEnabled"] = m.sleepLoggingEnabled ? 1 : 0
             return r
         }
         if let m = PlanSlot.fetchByID(uuid, in: context) {
@@ -403,6 +406,10 @@ enum RecordMapping {
         m.targetFeedIntervalMinutes = r["targetFeedIntervalMinutes"] as? Int ?? m.targetFeedIntervalMinutes
         m.ozPresets = r["ozPresets"] as? [Double] ?? m.ozPresets
         m.defaultFeedOz = r["defaultFeedOz"] as? Double ?? m.defaultFeedOz
+        // Absent field (a record written pre-trackers) keeps the local value.
+        m.feedLoggingEnabled = (r["feedLoggingEnabled"] as? Int).map { $0 != 0 } ?? m.feedLoggingEnabled
+        m.diaperLoggingEnabled = (r["diaperLoggingEnabled"] as? Int).map { $0 != 0 } ?? m.diaperLoggingEnabled
+        m.sleepLoggingEnabled = (r["sleepLoggingEnabled"] as? Int).map { $0 != 0 } ?? m.sleepLoggingEnabled
     }
 
     private static func applyPlanSlot(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {

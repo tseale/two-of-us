@@ -17,12 +17,58 @@ struct SmallEventWidgetView: View {
     let entry: WidgetEntry
     @Environment(\.widgetFamily) private var family
 
+    /// A paused tracker keeps its sleep tile live while a sleep is running —
+    /// the started timer must stay stoppable.
+    private var trackerOff: Bool {
+        !entry.isEnabled(kind) && !showingActiveSleep
+    }
+
     var body: some View {
-        if family == .accessoryRectangular {
+        if trackerOff {
+            offBody
+        } else if family == .accessoryRectangular {
             lockScreenBody
                 .widgetURL(deepLinkURL)
         } else {
             homeTile
+        }
+    }
+
+    /// Quiet placeholder for a paused tracker — says why the tile is idle
+    /// instead of showing a stale "13h ago", and taps nowhere.
+    @ViewBuilder private var offBody: some View {
+        if family == .accessoryRectangular {
+            HStack(spacing: 6) {
+                Text(kind.emoji).font(.title3).opacity(0.5)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.caption2.weight(.semibold))
+                        .textCase(.uppercase)
+                        .tracking(0.6)
+                        .foregroundStyle(.secondary)
+                    Text("Tracking off")
+                        .font(.system(.headline, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .containerBackground(.fill.tertiary, for: .widget)
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(kind.emoji).font(.system(size: 30)).opacity(0.5)
+                Spacer(minLength: 0)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.system(.title3, design: .rounded).weight(.bold))
+                        .foregroundStyle(AppColor.text2)
+                    Text("tracking is off")
+                        .font(.caption)
+                        .foregroundStyle(AppColor.text3)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .padding(16)
+            .containerBackground(AppColor.card, for: .widget)
         }
     }
 

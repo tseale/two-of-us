@@ -131,7 +131,8 @@ enum NotificationManager {
         // and no assigned schedule slot already covers that time — a planned
         // 11pm bottle means the assigned parent's slot reminder is the one
         // voice, and the off-duty parent's phone must stay quiet.
-        if !prefs.feedReminderEnabled, let last = logger.lastFeed?.timestamp {
+        if logger.isTrackingEnabled(.feed),
+           !prefs.feedReminderEnabled, let last = logger.lastFeed?.timestamp {
             let fireDate = last.addingTimeInterval(logger.targetFeedInterval)
             if !assignedSlotCovers(fireDate, kind: .feed, logger: logger) {
                 scheduleReminder(
@@ -146,7 +147,7 @@ enum NotificationManager {
         }
 
         // Diaper: AlarmKit doesn't cover diapers, so this is the only nudge.
-        if let last = logger.lastDiaper?.timestamp {
+        if logger.isTrackingEnabled(.diaper), let last = logger.lastDiaper?.timestamp {
             scheduleReminder(
                 id: NotificationID.Request.diaperReminder,
                 fireDate: last.addingTimeInterval(diaperReminderInterval),
@@ -281,7 +282,9 @@ enum NotificationManager {
             babyName: logger.babyName ?? "Baby",
             now: .now
         )
-        for reminder in planned {
+        // A slot for a kind whose tracker is off must not ring — the plan may
+        // still hold sleep slots from before sleep logging was paused.
+        for reminder in planned where logger.isTrackingEnabled(reminder.kind) {
             let content = makeContent(
                 title: reminder.title, body: reminder.body,
                 category: reminder.kind == .sleep

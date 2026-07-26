@@ -50,7 +50,10 @@ enum SlotAlarmManager {
             slots: slots, overrides: logger.planOverrides,
             feeds: logger.recentFeeds(), sleeps: logger.recentSleeps()
         )
-        guard let next = engine.upcomingAssigned(to: myID, horizon: 24 * 3600).first else { return }
+        // Skip slots for kinds whose shared tracker is off — a paused sleep
+        // tracker must not keep waking the on-duty parent.
+        guard let next = engine.upcomingAssigned(to: myID, horizon: 24 * 3600)
+            .first(where: { logger.isTrackingEnabled($0.kind) }) else { return }
         let remaining = next.date.timeIntervalSinceNow
         guard remaining >= minimumLead else { return }
         guard await requestAuthorization() else { return }

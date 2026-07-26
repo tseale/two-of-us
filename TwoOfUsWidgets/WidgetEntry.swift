@@ -4,7 +4,7 @@ import Foundation
 /// Data snapshot the widget renders. Produced by WidgetProvider from a SwiftData
 /// fetch; safe to pass across the widget/app boundary (no SwiftData objects).
 struct WidgetEntry: TimelineEntry {
-    let date: Date
+    var date: Date
 
     /// The baby's name as entered during onboarding, for widget headers.
     let babyName: String
@@ -28,23 +28,29 @@ struct WidgetEntry: TimelineEntry {
     /// constructors don't need to pass it.
     var relevance: TimelineEntryRelevance? = nil
 
+    /// Shared per-kind tracker switches (SharedSettings) — a widget must not
+    /// show "time since last sleep" for a tracker the parents paused. Defaulted
+    /// on so placeholders/previews keep every surface visible.
+    var feedEnabled: Bool = true
+    var sleepEnabled: Bool = true
+    var diaperEnabled: Bool = true
+
+    func isEnabled(_ kind: EventKind) -> Bool {
+        switch kind {
+        case .feed:   return feedEnabled
+        case .sleep:  return sleepEnabled
+        case .diaper: return diaperEnabled
+        }
+    }
+
     /// A copy of this snapshot re-dated to a future threshold, with its own
     /// relevance score. Used to stage urgency transitions in the timeline so the
     /// dot/accent color flips at the exact moment with no extra reloads.
     func redated(to date: Date, relevance: TimelineEntryRelevance?) -> WidgetEntry {
-        WidgetEntry(
-            date: date,
-            babyName: babyName,
-            lastFeedDate: lastFeedDate,
-            lastSleepDate: lastSleepDate,
-            lastDiaperDate: lastDiaperDate,
-            feedTargetInterval: feedTargetInterval,
-            isActiveSleep: isActiveSleep,
-            activeSleepStartedAt: activeSleepStartedAt,
-            recentItems: recentItems,
-            todayMarks: todayMarks,
-            relevance: relevance
-        )
+        var copy = self
+        copy.date = date
+        copy.relevance = relevance
+        return copy
     }
 
     static let placeholder = WidgetEntry(

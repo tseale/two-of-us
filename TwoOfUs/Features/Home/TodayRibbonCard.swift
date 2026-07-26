@@ -9,6 +9,11 @@ struct TodayRibbonCard: View {
     let feedCount: Int
     let sleepSeconds: TimeInterval
     let diaperCount: Int
+    /// Tracker switches — a paused tracker's glance column hides (its historical
+    /// marks stay on the ribbon; only the running tally is clutter).
+    var showFeed: Bool = true
+    var showSleep: Bool = true
+    var showDiaper: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -18,17 +23,31 @@ struct TodayRibbonCard: View {
                 .frame(height: 40)
 
             HStack(spacing: 0) {
-                metric(emoji: "🍼", value: "\(feedCount)", label: Plural.unit(feedCount, "feed"), color: AppColor.accentFeed)
-                metricDivider
-                metric(emoji: "💤", value: sleepSummary, label: "sleep", color: AppColor.accentSleep)
-                metricDivider
-                metric(emoji: "💩", value: "\(diaperCount)", label: Plural.unit(diaperCount, "change"), color: AppColor.accentDiaper)
+                if showFeed {
+                    metric(emoji: "🍼", value: "\(feedCount)", label: Plural.unit(feedCount, "feed"), color: AppColor.accentFeed)
+                }
+                if showSleep {
+                    if showFeed { metricDivider }
+                    metric(emoji: "💤", value: sleepSummary, label: "sleep", color: AppColor.accentSleep)
+                }
+                if showDiaper {
+                    if showFeed || showSleep { metricDivider }
+                    metric(emoji: "💩", value: "\(diaperCount)", label: Plural.unit(diaperCount, "change"), color: AppColor.accentDiaper)
+                }
             }
         }
         .padding(16)
         .surfaceCard(cornerRadius: 20)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Today: \(Plural.count(feedCount, "feed")), \(sleepSummary) sleep, \(Plural.count(diaperCount, "diaper"))")
+        .accessibilityLabel(accessibilitySummary)
+    }
+
+    private var accessibilitySummary: String {
+        var parts: [String] = []
+        if showFeed { parts.append(Plural.count(feedCount, "feed")) }
+        if showSleep { parts.append("\(sleepSummary) sleep") }
+        if showDiaper { parts.append(Plural.count(diaperCount, "diaper")) }
+        return "Today: \(parts.joined(separator: ", "))"
     }
 
     private func metric(emoji: String, value: String, label: String, color: Color) -> some View {

@@ -74,9 +74,20 @@ struct EventStore {
         return owner
     }
 
+    /// Whether new events of `kind` may be created. Off-trackers hide their
+    /// buttons, but deep links, Siri, and stale widgets can still reach the
+    /// store — refuse there too so "no new events while off" actually holds.
+    private func requireTracking(_ kind: EventKind) -> Bool {
+        guard settings?.isEnabled(kind) ?? true else {
+            AppLog.store.error("Write refused: \(kind.rawValue) logging is turned off")
+            return false
+        }
+        return true
+    }
+
     @discardableResult
     func logFeed(amountOz: Double, at date: Date = .now, notes: String? = nil) -> FeedEvent? {
-        guard let owner = requireOwner() else { return nil }
+        guard requireTracking(.feed), let owner = requireOwner() else { return nil }
         // A bottle of nothing is never a real feed — reject instead of clamping
         // a bad parse/tap into a "0 oz" timeline row.
         guard EventBounds.isLoggableOz(amountOz) else {
@@ -103,7 +114,7 @@ struct EventStore {
 
     @discardableResult
     func logDiaper(_ type: DiaperType, at date: Date = .now, notes: String? = nil) -> DiaperEvent? {
-        guard let owner = requireOwner() else { return nil }
+        guard requireTracking(.diaper), let owner = requireOwner() else { return nil }
         let date = EventBounds.clampPast(date)
         let event = DiaperEvent(
             baby: baby, type: type, timestamp: date,
@@ -124,7 +135,7 @@ struct EventStore {
     /// Starts a sleep timer. Refuses if one is already active (single-timer guard).
     @discardableResult
     func startSleep(at date: Date = .now) -> SleepEvent? {
-        guard activeSleep == nil, let owner = requireOwner() else { return nil }
+        guard requireTracking(.sleep), activeSleep == nil, let owner = requireOwner() else { return nil }
         let date = EventBounds.clampPast(date)
         let event = SleepEvent(
             baby: baby, startedAt: date,
@@ -399,7 +410,9 @@ struct EventStore {
     }
 
     /// Updates the shared feeding rhythm and syncs it. Nil fields stay as-is.
-    func updateSettings(targetFeedIntervalMinutes: Int? = nil, ozPresets: [Double]? = nil) {
+    func updateSettings(targetFeedIntervalMinutes: Int? = nil, ozPresets: [Double]? = nil,
+                        feedLoggingEnabled: Bool? = nil, diaperLoggingEnabled: Bool? = nil,
+                        sleepLoggingEnabled: Bool? = nil) {
         guard let settings else { return }
         if let targetFeedIntervalMinutes {
             settings.targetFeedIntervalMinutes = targetFeedIntervalMinutes
@@ -410,8 +423,23 @@ struct EventStore {
             // rule as `SeedData.createBaby`.
             settings.defaultFeedOz = settings.ozPresets.max() ?? settings.defaultFeedOz
         }
+        let before = EventKind.allCases.map(settings.isEnabled)
+        if let feedLoggingEnabled { settings.feedLoggingEnabled = feedLoggingEnabled }
+        if let diaperLoggingEnabled { settings.diaperLoggingEnabled = diaperLoggingEnabled }
+        if let sleepLoggingEnabled { settings.sleepLoggingEnabled = sleepLoggingEnabled }
+        // Never let the last tracker go dark (the UI disables that toggle; this
+        // backstops a race with the co-parent turning another one off).
+        if settings.enabledTrackerCount == 0 {
+            settings.feedLoggingEnabled = true
+        }
         save()
         sync(save: [settings.id])
+        if EventKind.allCases.map(settings.isEnabled) != before {
+            // Tracker flips change what the widgets show and which reminders
+            // may fire — refresh both off the new state.
+            reloadWidgets()
+            refreshLocalReminders()
+        }
     }
 
     /// Updates the local user's own name + color and **backfills** that identity

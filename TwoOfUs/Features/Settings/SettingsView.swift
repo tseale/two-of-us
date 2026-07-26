@@ -99,6 +99,21 @@ struct SettingsView: View {
                     }
                 }
 
+                if let settings, canEditShared {
+                    Section {
+                        trackerToggle(.feed, title: "Feed", systemImage: "drop.fill",
+                                      tint: AppColor.accentFeed, settings: settings)
+                        trackerToggle(.sleep, title: "Sleep", systemImage: "moon.fill",
+                                      tint: AppColor.accentSleep, settings: settings)
+                        trackerToggle(.diaper, title: "Diaper", systemImage: "leaf.fill",
+                                      tint: AppColor.accentDiaper, settings: settings)
+                    } header: {
+                        Text("What to track")
+                    } footer: {
+                        Text("Turn a tracker off to hide its button and stop logging that event — handy when logging one of them isn't worth it for a while. Existing entries are preserved, both parents see the same trackers, and at least one always stays on.")
+                    }
+                }
+
                 Section("Appearance") {
                     Picker(selection: $prefs.appearance) {
                         ForEach(Appearance.allCases) { mode in
@@ -551,6 +566,33 @@ struct SettingsView: View {
             .padding(.vertical, 8)
             .listRowBackground(Color.clear)
         }
+    }
+
+    // MARK: What to track
+
+    /// One "What to track" row. The last enabled tracker's toggle locks on —
+    /// with all three off the app would have nothing to log. Alarm/nudge/widget
+    /// refresh rides on `EventStore.updateSettings`, so a co-parent's flip
+    /// (which arrives through sync, not this view) behaves identically.
+    private func trackerToggle(_ kind: EventKind, title: String, systemImage: String,
+                               tint: Color, settings: SharedSettings) -> some View {
+        let isLastEnabled = settings.isEnabled(kind) && settings.enabledTrackerCount == 1
+        return Toggle(isOn: Binding(
+            get: { settings.isEnabled(kind) },
+            set: { on in
+                switch kind {
+                case .feed:   store.updateSettings(feedLoggingEnabled: on)
+                case .sleep:  store.updateSettings(sleepLoggingEnabled: on)
+                case .diaper: store.updateSettings(diaperLoggingEnabled: on)
+                }
+            }
+        )) {
+            SettingsIconLabel(title: title, systemImage: systemImage, tint: tint)
+        }
+        .disabled(isLastEnabled)
+        .accessibilityHint(isLastEnabled
+            ? "At least one tracker stays on"
+            : "Turn off to hide the \(title.lowercased()) button and stop logging \(title.lowercased()) events. Existing entries are preserved.")
     }
 
     // MARK: Feed reminder
