@@ -304,9 +304,12 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         guard let myID = LocalPrefs.shared.myParticipantID else { return }
         let babyName = (try? context.fetch(FetchDescriptor<Baby>()))?.first?.name ?? "Baby"
 
+        let knownParticipants = Set(((try? context.fetch(FetchDescriptor<Participant>())) ?? []).map(\.id))
+
         for r in records {
             guard let loggedBy = (r["loggedByID"] as? String).flatMap(UUID.init),
                   loggedBy != myID,                    // never notify yourself
+                  knownParticipants.contains(loggedBy), // never notify for ghost-shaped records
                   r["deletedAt"] == nil,               // skip soft-deletes
                   r["editOfID"] == nil,                // skip edits
                   let eventID = UUID(uuidString: r.recordID.recordName)
@@ -572,27 +575,37 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             let pendingSaves = Set(syncEngine.state.pendingRecordZoneChanges.compactMap {
                 if case .saveRecord(let id) = $0 { id } else { nil }
             })
-            for mod in e.modifications {
-                if pendingSaves.contains(mod.record.recordID) {
-                    let absorbed = RecordMapping.absorbConflict(server: mod.record, in: context)
-                    if !absorbed {
-                        // No local model — absorbConflict fell back to apply. Persist the
-                        // server's change tag now, or the next outbound send carries no tag
-                        // and re-conflicts immediately.
+            do {
+                for mod in e.modifications {
+                    if pendingSaves.contains(mod.record.recordID) {
+                        let absorbed = RecordMapping.absorbConflict(server: mod.record, in: context)
+                        if !absorbed {
+                            // No local model — absorbConflict fell back to apply. Persist the
+                            // server's change tag now, or the next outbound send carries no tag
+                            // and re-conflicts immediately.
+                            RecordMapping.persistSystemFields(of: mod.record, in: context)
+                        }
+                    } else {
+                        try RecordMapping.apply(mod.record, in: context)
+                        // Cache the server change tag so a later local edit of this
+                        // record saves cleanly instead of conflicting.
                         RecordMapping.persistSystemFields(of: mod.record, in: context)
                     }
-                } else {
-                    RecordMapping.apply(mod.record, in: context)
-                    // Cache the server change tag so a later local edit of this
-                    // record saves cleanly instead of conflicting.
-                    RecordMapping.persistSystemFields(of: mod.record, in: context)
+                    if syncEngine === sharedEngine, sharedZoneID == nil {
+                        setSharedZone(mod.record.recordID.zoneID)
+                    }
                 }
-                if syncEngine === sharedEngine, sharedZoneID == nil {
-                    setSharedZone(mod.record.recordID.zoneID)
+                for del in e.deletions {
+                    try RecordMapping.delete(recordName: del.recordID.recordName, in: context)
                 }
-            }
-            for del in e.deletions {
-                RecordMapping.delete(recordName: del.recordID.recordName, in: context)
+            } catch {
+                // A store error during upsert. The old path swallowed it and
+                // blind-inserted, minting duplicate placeholder rows ("?" ghost
+                // events). Same recovery as a failed batch save: reset this
+                // engine so the whole batch is re-fetched and re-applied.
+                AppLog.sync.error("Sync fetch apply hit a store error: \(error.localizedDescription, privacy: .public)")
+                resetEngineAfterFetchApplyFailure(syncEngine)
+                return
             }
             // Events can land before their Baby record (no batch ordering
             // guarantee) — attach them once the baby exists.
@@ -612,6 +625,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
                     return
                 }
             }
+            sweepGhostsIfNeeded(from: e.modifications.map(\.record))
             reconcileLiveActivity()
             WidgetCenter.shared.reloadAllTimelines()
             notifyCoParentActivity(from: e.modifications.map(\.record))
@@ -693,6 +707,23 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             AppLog.sync.error("Sync sent-changes bookkeeping failed to save: \(error.localizedDescription, privacy: .public)")
         }
         if detach { detachFromShare() }
+    }
+
+    /// Runs the self-healing ghost sweep after a fetch batch that carried an
+    /// event record with the ghost signature (empty logger name) — a ghost
+    /// created elsewhere must not take up residence in this store, and the
+    /// sweep's synced soft-deletes clean the zone for both phones. Gated so
+    /// routine batches don't pay for three table scans.
+    private func sweepGhostsIfNeeded(from records: [CKRecord]) {
+        guard !LocalPrefs.shared.demoModeEnabled else { return }
+        let eventTypes = [SyncConstants.RecordType.feed, SyncConstants.RecordType.sleep,
+                          SyncConstants.RecordType.diaper]
+        let sawGhost = records.contains { r in
+            eventTypes.contains(r.recordType)
+                && ((r["loggedByName"] as? String)?.isEmpty ?? true)
+        }
+        guard sawGhost else { return }
+        EventStore(context: context).autoPurgeGhostEvents()
     }
 
     /// Keeps the sleep Live Activity truthful when the change arrives via sync:

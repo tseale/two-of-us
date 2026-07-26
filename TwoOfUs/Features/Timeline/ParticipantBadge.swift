@@ -1,6 +1,9 @@
 import SwiftUI
 
 /// A colored circle with a participant's initial. Scales to N people.
+/// A nameless logger (shouldn't happen — writes now require attribution, and
+/// the ghost sweep clears legacy rows) falls back to a neutral silhouette
+/// rather than an alarming "?".
 struct ParticipantBadge: View {
     let name: String
     let colorHex: String
@@ -10,11 +13,18 @@ struct ParticipantBadge: View {
     }
 
     var body: some View {
-        Text(initial.isEmpty ? "?" : initial)
-            .font(.caption.weight(.bold))
-            .foregroundStyle(.white)
-            .frame(width: 24, height: 24)
-            .background(Color(hex: colorHex.isEmpty ? "636366" : colorHex), in: Circle())
-            .accessibilityLabel("Logged by \(name.isEmpty ? "unknown" : name)")
+        Group {
+            if initial.isEmpty {
+                Image(systemName: "person.fill")
+                    .font(.system(size: 11, weight: .bold))
+            } else {
+                Text(initial)
+                    .font(.caption.weight(.bold))
+            }
+        }
+        .foregroundStyle(.white)
+        .frame(width: 24, height: 24)
+        .background(Color(hex: colorHex.isEmpty ? "636366" : colorHex), in: Circle())
+        .accessibilityLabel("Logged by \(name.isEmpty ? "unknown" : name)")
     }
 }

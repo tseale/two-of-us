@@ -127,7 +127,12 @@ struct FeedSheet: View {
 
     private func log() {
         let store = EventStore(context: context)
-        let event = store.logFeed(amountOz: amount, at: date, notes: note)
+        // A refused log (no attributable owner, bad amount) already surfaced a
+        // banner via StoreErrorCenter — just close without a success toast.
+        guard let event = store.logFeed(amountOz: amount, at: date, notes: note) else {
+            dismiss()
+            return
+        }
         Haptics.success()
         onLogged("Logged feed · \(OzFormat.string(amount)) oz") {
             store.softDelete(event)

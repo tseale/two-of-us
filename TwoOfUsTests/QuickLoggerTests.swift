@@ -98,10 +98,10 @@ final class QuickLoggerTests: XCTestCase {
 
     // MARK: Sleep toggle
 
-    func testToggleSleepStartsThenStops() {
-        XCTAssertTrue(logger.toggleSleep(), "no sleep running → starts one")
+    func testToggleSleepStartsThenStops() throws {
+        XCTAssertEqual(logger.toggleSleep(), true, "no sleep running → starts one")
         XCTAssertNotNil(logger.activeSleep)
-        XCTAssertFalse(logger.toggleSleep(), "one running → stops it")
+        XCTAssertEqual(logger.toggleSleep(), false, "one running → stops it")
         XCTAssertNil(logger.activeSleep)
     }
 
@@ -124,13 +124,51 @@ final class QuickLoggerTests: XCTestCase {
         XCTAssertEqual(logger.defaultFeedOz, 4)
     }
 
+    // MARK: Ghost-event regressions
+
+    func testWritesAreRefusedWithoutAnyParticipant() throws {
+        // Mid-wipe / mid-join the shared store can have no participants. The
+        // old fallback stamped a random logger UUID with an empty name — the
+        // "?" ghost rows. Now the write is refused outright.
+        let empty = AppModelContainer.make(inMemory: true)
+        empty.mainContext.insert(Baby(name: "Miller", dateOfBirth: .now))
+        try empty.mainContext.save()
+        let orphan = QuickLogger(context: ModelContext(empty))
+
+        XCTAssertNil(orphan.logFeed(amountOz: 3))
+        XCTAssertNil(orphan.logDiaper(.wet))
+        XCTAssertNil(orphan.toggleSleep(), "starting a sleep needs an owner")
+        XCTAssertTrue(try empty.mainContext.fetch(FetchDescriptor<FeedEvent>()).isEmpty)
+        XCTAssertTrue(try empty.mainContext.fetch(FetchDescriptor<DiaperEvent>()).isEmpty)
+        XCTAssertTrue(try empty.mainContext.fetch(FetchDescriptor<SleepEvent>()).isEmpty)
+    }
+
+    func testStoppingASleepNeedsNoOwner() throws {
+        // Stopping only completes an existing event — it must keep working even
+        // if the participant lookup breaks mid-session.
+        XCTAssertEqual(logger.toggleSleep(), true)
+        // Remove all participants, then stop.
+        let ctx = container.mainContext
+        for p in try ctx.fetch(FetchDescriptor<Participant>()) { ctx.delete(p) }
+        try ctx.save()
+        XCTAssertEqual(logger.toggleSleep(), false, "stop still works without an owner")
+        XCTAssertNil(logger.activeSleep)
+    }
+
+    func testZeroOunceFeedIsRefused() throws {
+        XCTAssertNil(logger.logFeed(amountOz: 0), "a 0 oz bottle is never a real feed")
+        XCTAssertNil(logger.logFeed(amountOz: -1))
+        XCTAssertNil(logger.logFeed(amountOz: .infinity))
+        XCTAssertTrue(try container.mainContext.fetch(FetchDescriptor<FeedEvent>()).isEmpty)
+    }
+
     // MARK: Extension → app sync hand-off
 
     func testWritesQueueForTheAppToSync() throws {
         guard AppGroup.userDefaults != nil else {
             throw XCTSkip("App Group suite unavailable in this test host")
         }
-        let feed = logger.logFeed(amountOz: 3)
+        let feed = try XCTUnwrap(logger.logFeed(amountOz: 3))
         XCTAssertEqual(queuedIDs(), [feed.id.uuidString],
                        "the widget process can't reach CKSyncEngine; ids must queue for the app")
     }
@@ -139,8 +177,8 @@ final class QuickLoggerTests: XCTestCase {
         guard AppGroup.userDefaults != nil else {
             throw XCTSkip("App Group suite unavailable in this test host")
         }
-        let feed = logger.logFeed(amountOz: 3)
-        let diaper = logger.logDiaper(.wet)
+        let feed = try XCTUnwrap(logger.logFeed(amountOz: 3))
+        let diaper = try XCTUnwrap(logger.logDiaper(.wet))
         XCTAssertEqual(Set(queuedIDs()), [feed.id.uuidString, diaper.id.uuidString],
                        "one key per write — a shared array could drop an append that races the app's drain")
     }

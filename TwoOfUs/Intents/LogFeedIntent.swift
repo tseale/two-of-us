@@ -19,7 +19,9 @@ struct LogFeedIntent: AppIntent {
             return .result(dialog: "Couldn't reach Two of Us.")
         }
         let name = logger.babyName ?? "Baby"
-        let event = logger.logFeed(amountOz: amountOz ?? logger.defaultFeedOz)
+        guard let event = logger.logFeed(amountOz: amountOz ?? logger.defaultFeedOz) else {
+            return .result(dialog: "Couldn't log that feed — open Two of Us and try again.")
+        }
         let oz = OzFormat.string(event.amountOz)
         return .result(
             dialog: "Logged \(oz) oz for \(name).",

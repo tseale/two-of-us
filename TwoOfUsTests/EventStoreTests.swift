@@ -42,8 +42,8 @@ final class EventStoreTests: XCTestCase {
 
     func testPurgeGhostEventsRemovesOnlyUnknownLoggers() throws {
         // Real entries by the household participant…
-        let mine = store.logFeed(amountOz: 3)
-        let myDiaper = store.logDiaper(.wet)
+        let mine = try XCTUnwrap(store.logFeed(amountOz: 3))
+        let myDiaper = try XCTUnwrap(store.logDiaper(.wet))
 
         // …and ghost entries stamped with logger ids no Participant matches —
         // the shape of leaked SeedData sample events.
@@ -83,15 +83,15 @@ final class EventStoreTests: XCTestCase {
         XCTAssertEqual(store.purgeGhostEvents(), 0)
     }
 
-    func testLogFeedStampsLoggerIdentity() {
-        let feed = store.logFeed(amountOz: 3)
+    func testLogFeedStampsLoggerIdentity() throws {
+        let feed = try XCTUnwrap(store.logFeed(amountOz: 3))
         XCTAssertEqual(feed.loggedByName, "Taylor")
         XCTAssertEqual(feed.loggedByColorHex, "#AABBCC")
         XCTAssertEqual(feed.baby?.name, "Miller")
     }
 
-    func testEditFeedIsAppendOnly() {
-        let original = store.logFeed(amountOz: 2)
+    func testEditFeedIsAppendOnly() throws {
+        let original = try XCTUnwrap(store.logFeed(amountOz: 2))
         let replacement = store.editFeed(original, amountOz: 4, timestamp: original.timestamp, notes: nil)
 
         XCTAssertNotNil(original.deletedAt, "the edited original is soft-deleted, not mutated")
@@ -105,7 +105,7 @@ final class EventStoreTests: XCTestCase {
     }
 
     func testSoftDeleteHidesFromTimelineButKeepsTheRow() throws {
-        let feed = store.logFeed(amountOz: 3)
+        let feed = try XCTUnwrap(store.logFeed(amountOz: 3))
         store.softDelete(feed)
 
         XCTAssertTrue(store.timeline(since: .distantPast).isEmpty)
@@ -154,9 +154,9 @@ final class EventStoreTests: XCTestCase {
     }
 
     func testClearAllLogsSoftDeletesOnlyLiveEvents() throws {
-        let feed = store.logFeed(amountOz: 3)
+        let feed = try XCTUnwrap(store.logFeed(amountOz: 3))
         store.logDiaper(.wet)
-        let alreadyGone = store.logFeed(amountOz: 1)
+        let alreadyGone = try XCTUnwrap(store.logFeed(amountOz: 1))
         store.softDelete(alreadyGone)
         let priorDeletion = alreadyGone.deletedAt
 
@@ -169,10 +169,81 @@ final class EventStoreTests: XCTestCase {
         XCTAssertNotNil(store.owner, "…or the participants")
     }
 
-    func testUpdateMyProfileBackfillsPastEvents() {
-        let feed = store.logFeed(amountOz: 3)
+    func testUpdateMyProfileBackfillsPastEvents() throws {
+        let feed = try XCTUnwrap(store.logFeed(amountOz: 3))
         store.updateMyProfile(name: "Tay", colorHex: "#001122")
         XCTAssertEqual(feed.loggedByName, "Tay")
         XCTAssertEqual(feed.loggedByColorHex, "#001122")
+    }
+
+    // MARK: Ghost-event regressions
+
+    func testWritesAreRefusedWithoutAnyParticipant() throws {
+        // A store with no participants (mid-wipe, mid-join re-fetch) must refuse
+        // to log rather than mint an unattributed "?" ghost event.
+        let empty = AppModelContainer.make(inMemory: true)
+        empty.mainContext.insert(Baby(name: "Miller", dateOfBirth: .now))
+        try empty.mainContext.save()
+        let orphanStore = EventStore(context: empty.mainContext)
+
+        XCTAssertNil(orphanStore.logFeed(amountOz: 3))
+        XCTAssertNil(orphanStore.logDiaper(.wet))
+        XCTAssertNil(orphanStore.startSleep())
+        XCTAssertTrue(try empty.mainContext.fetch(FetchDescriptor<FeedEvent>()).isEmpty)
+        XCTAssertTrue(try empty.mainContext.fetch(FetchDescriptor<DiaperEvent>()).isEmpty)
+        XCTAssertTrue(try empty.mainContext.fetch(FetchDescriptor<SleepEvent>()).isEmpty)
+    }
+
+    func testZeroOunceFeedIsRefused() throws {
+        XCTAssertNil(store.logFeed(amountOz: 0), "a 0 oz bottle is never a real feed")
+        XCTAssertNil(store.logFeed(amountOz: -2))
+        XCTAssertNil(store.logFeed(amountOz: .nan))
+        XCTAssertTrue(try container.mainContext.fetch(FetchDescriptor<FeedEvent>()).isEmpty)
+    }
+
+    func testAutoPurgeSweepsGhostSignatureEvents() throws {
+        let mine = try XCTUnwrap(store.logFeed(amountOz: 3))
+        let ctx = container.mainContext
+        let baby = try XCTUnwrap(ctx.fetch(FetchDescriptor<Baby>()).first)
+        // The exact ghost shape: empty logger name + a logger id no Participant
+        // matches (what the old `owner?.id ?? UUID()` fallback and the inbound
+        // placeholder inserts produced).
+        ctx.insert(FeedEvent(baby: baby, amountOz: 0, timestamp: .now,
+                             loggedByID: UUID(), loggedByName: "", loggedByColorHex: ""))
+        ctx.insert(DiaperEvent(baby: baby, type: .wet, timestamp: .now,
+                               loggedByID: UUID(), loggedByName: "", loggedByColorHex: ""))
+        // A named event from an unknown logger (e.g. a caregiver whose record
+        // hasn't synced in yet) must NOT be auto-swept.
+        ctx.insert(FeedEvent(baby: baby, amountOz: 4, timestamp: .now,
+                             loggedByID: UUID(), loggedByName: "Katie", loggedByColorHex: "#112233"))
+        try ctx.save()
+
+        XCTAssertEqual(store.autoPurgeGhostEvents(), 2)
+        XCTAssertNil(mine.deletedAt)
+        XCTAssertEqual(store.timeline(since: .distantPast).count, 2,
+                       "my feed and the named unknown-logger feed survive")
+        XCTAssertEqual(store.autoPurgeGhostEvents(), 0, "second run finds nothing")
+    }
+
+    func testAutoPurgeCollapsesDuplicateRowsSharingAnID() throws {
+        let ctx = container.mainContext
+        let baby = try XCTUnwrap(ctx.fetch(FetchDescriptor<Baby>()).first)
+        let sharedID = UUID()
+        let me = try XCTUnwrap(store.owner)
+        // The real row and a placeholder duplicate minted under the same id (the
+        // swallowed-store-error upsert bug).
+        ctx.insert(FeedEvent(id: sharedID, baby: baby, amountOz: 3, timestamp: .now,
+                             loggedByID: me.id, loggedByName: me.displayName,
+                             loggedByColorHex: me.colorHex))
+        ctx.insert(FeedEvent(id: sharedID, baby: baby, amountOz: 0, timestamp: .now,
+                             loggedByID: UUID(), loggedByName: "", loggedByColorHex: ""))
+        try ctx.save()
+
+        XCTAssertEqual(store.autoPurgeGhostEvents(), 1)
+        let remaining = try ctx.fetch(FetchDescriptor<FeedEvent>())
+        XCTAssertEqual(remaining.count, 1, "duplicates collapse to one row")
+        XCTAssertEqual(remaining.first?.amountOz, 3, "the attributed row wins")
+        XCTAssertNil(remaining.first?.deletedAt,
+                     "the surviving real row is not soft-deleted — a synced delete would kill the co-parent's copy")
     }
 }

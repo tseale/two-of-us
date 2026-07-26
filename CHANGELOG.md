@@ -6,6 +6,32 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Fixed — ghost "?" events, duplicates, and 0 oz feeds
+- Timeline rows with a grey "?" avatar, batches of identical events stamped
+  the same minute, and impossible "Feed · 0 oz" entries are eliminated at
+  every source:
+  - **Creation requires attribution.** Every write path (app, widget, Siri,
+    Control Center, notification action buttons) refuses to log when the
+    local participant can't be resolved — the old fallback stamped a random
+    logger UUID with an empty name, which rendered as "?" and synced to both
+    phones. Widget/Siri now answer "Couldn't log — open Two of Us and try
+    again" instead of persisting an unattributed event.
+  - **0 oz feeds are rejected** at creation everywhere (a bottle of nothing is
+    never a real feed).
+  - **Inbound sync can no longer mint placeholders.** Applying a fetched
+    CloudKit record used to swallow store errors and blind-insert a
+    placeholder row (0 oz / wet / "now" / random logger — exactly the ghost
+    shape), duplicating events under one id. Upserts now propagate store
+    errors (the engine re-fetches the batch, same recovery as a failed save),
+    and a record missing its required fields is skipped, never materialized.
+  - **Self-healing sweep.** On every app foreground (and after any sync batch
+    that carries a ghost-shaped record), ghost events — empty logger name AND
+    a logger no participant matches — are soft-deleted and synced so both
+    phones and the CloudKit zone clean up; duplicate rows sharing one id are
+    collapsed locally to the attributed copy.
+  - If a nameless event ever slips through again, the timeline shows a neutral
+    person silhouette instead of an alarming "?".
+
 ### Changed — the schedule is fully manual now
 - Predicted rows are gone from the Schedule tab (and Home's up-next line).
   The schedule shows exactly the slots you defined — parent-authored, nothing

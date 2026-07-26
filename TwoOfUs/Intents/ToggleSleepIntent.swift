@@ -25,13 +25,18 @@ struct StartSleepIntent: AppIntent {
                 view: ConfirmationSnippet(emoji: "💤", title: "Already asleep", subtitle: name)
             )
         }
-        logger.toggleSleep()
+        guard logger.toggleSleep() != nil else {
+            return .result(dialog: "Couldn't start that sleep — open Two of Us and try again.")
+        }
         return .result(
             dialog: "\(name) is down for sleep.",
             view: ConfirmationSnippet(emoji: "💤", title: "Sleep started", subtitle: name)
         )
     }
 }
+
+// Note: `StopSleepIntent` below calls `toggleSleep()` only while a sleep is
+// running, where it completes the existing event and never needs an owner.
 
 /// Stops the running sleep — and is a calm no-op if none is running. Backs the
 /// "Stop sleep" Siri phrase; also sweeps any stray Live Activity so a stale
@@ -81,7 +86,9 @@ struct ToggleSleepIntent: AppIntent {
         let name = logger.babyName ?? "Baby"
         // Grab the running sleep (if any) BEFORE toggling so we can report its length.
         let runningStart = logger.activeSleep?.startedAt
-        let started = logger.toggleSleep()
+        guard let started = logger.toggleSleep() else {
+            return .result(dialog: "Couldn't start that sleep — open Two of Us and try again.")
+        }
         if started {
             return .result(
                 dialog: "\(name) is down for sleep.",
