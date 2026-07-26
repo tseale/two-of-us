@@ -49,6 +49,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func applicationDidBecomeActive(_ application: UIApplication) {
         WidgetCenter.shared.reloadAllTimelines()
         MainActor.assumeIsolated {
+            // Self-healing: sweep ghost events (unattributed "?" rows and
+            // duplicate rows sharing an id) before anything else reads the
+            // store. Cheap when there's nothing to do; skipped during demo
+            // because its EventStore suppresses the synced deletes.
+            if !LocalPrefs.shared.demoModeEnabled {
+                EventStore(context: AppModelContainer.shared.mainContext).autoPurgeGhostEvents()
+            }
             // Silent pushes are heavily throttled/coalesced by iOS — a manual
             // fetch on every foreground keeps "within ~10 seconds" honest. Also
             // restarts engines if iCloud was signed into while we were inactive.

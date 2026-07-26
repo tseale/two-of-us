@@ -38,7 +38,9 @@ struct LogDiaperIntent: AppIntent {
             return .result(dialog: "Couldn't reach Two of Us.")
         }
         let name = logger.babyName ?? "Baby"
-        let event = logger.logDiaper(type.diaperType)
+        guard let event = logger.logDiaper(type.diaperType) else {
+            return .result(dialog: "Couldn't log that diaper — open Two of Us and try again.")
+        }
         let label = event.type.label.lowercased()
         return .result(
             dialog: "Logged a \(label) diaper for \(name).",

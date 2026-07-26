@@ -13,7 +13,7 @@ struct Avatar: View {
 
     private var initial: String {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
-        return trimmed.isEmpty ? "?" : String(trimmed.prefix(1)).uppercased()
+        return String(trimmed.prefix(1)).uppercased()
     }
 
     private var tint: Color { Color(hex: colorHex.isEmpty ? "636366" : colorHex) }
@@ -26,9 +26,17 @@ struct Avatar: View {
                     .scaledToFill()
             } else {
                 tint.overlay {
-                    Text(initial)
-                        .font(.system(size: size * 0.44, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                    // Nameless → neutral silhouette, not a "?" (same rationale
+                    // as ParticipantBadge).
+                    if initial.isEmpty {
+                        Image(systemName: "person.fill")
+                            .font(.system(size: size * 0.4, weight: .bold))
+                            .foregroundStyle(.white)
+                    } else {
+                        Text(initial)
+                            .font(.system(size: size * 0.44, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                    }
                 }
             }
         }

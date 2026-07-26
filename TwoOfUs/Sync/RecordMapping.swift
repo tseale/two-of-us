@@ -220,7 +220,10 @@ enum RecordMapping {
     static func absorbConflict(server: CKRecord, in context: ModelContext) -> Bool {
         guard let uuid = UUID(uuidString: server.recordID.recordName),
               let model = model(ofType: server.recordType, id: uuid, in: context) else {
-            apply(server, in: context)
+            // A store error here is tolerable to swallow: the pending local save
+            // re-pushes the record either way, and the fetch handler's throwing
+            // path covers the batch-apply case.
+            try? apply(server, in: context)
             return false
         }
         if let soft = model as? SoftDeletable, soft.deletedAt == nil,
@@ -237,33 +240,43 @@ enum RecordMapping {
 
     // MARK: Inbound (CKRecord → local model, upsert by id)
 
-    static func apply(_ record: CKRecord, in context: ModelContext) {
+    /// Upserts a fetched record into the local store, keyed by record name (the
+    /// model's `id`). Throws when the store itself errored on the existence
+    /// check: the old `try?` there silently turned a transient SQLite hiccup
+    /// into a blind INSERT — a second row with the same id whose placeholder
+    /// values (0 oz, "wet", `.now`, a random logger UUID, an empty name)
+    /// rendered as the "?" ghost events. Callers treat a throw like a failed
+    /// batch save (reset the engine and re-fetch) so the record is re-delivered
+    /// instead of duplicated or dropped.
+    static func apply(_ record: CKRecord, in context: ModelContext) throws {
         guard let uuid = UUID(uuidString: record.recordID.recordName) else { return }
         switch record.recordType {
-        case SyncConstants.RecordType.feed:    applyFeed(record, uuid: uuid, in: context)
-        case SyncConstants.RecordType.sleep:   applySleep(record, uuid: uuid, in: context)
-        case SyncConstants.RecordType.diaper:  applyDiaper(record, uuid: uuid, in: context)
-        case SyncConstants.RecordType.baby:    applyBaby(record, uuid: uuid, in: context)
-        case SyncConstants.RecordType.participant: applyParticipant(record, uuid: uuid, in: context)
-        case SyncConstants.RecordType.settings: applySettings(record, uuid: uuid, in: context)
-        case SyncConstants.RecordType.planSlot: applyPlanSlot(record, uuid: uuid, in: context)
-        case SyncConstants.RecordType.planOverride: applyPlanOverride(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.feed:    try applyFeed(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.sleep:   try applySleep(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.diaper:  try applyDiaper(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.baby:    try applyBaby(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.participant: try applyParticipant(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.settings: try applySettings(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.planSlot: try applyPlanSlot(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.planOverride: try applyPlanOverride(record, uuid: uuid, in: context)
         default: break
         }
     }
 
     /// Hard-deletes the local model with this record name (used for true CloudKit
-    /// deletions; routine removals travel as `deletedAt` updates).
-    static func delete(recordName: String, in context: ModelContext) {
+    /// deletions; routine removals travel as `deletedAt` updates). Throws on a
+    /// store error so the caller can re-fetch instead of silently dropping the
+    /// deletion (the engine checkpoints the batch either way).
+    static func delete(recordName: String, in context: ModelContext) throws {
         guard let uuid = UUID(uuidString: recordName) else { return }
-        if let m = FeedEvent.fetchByID(uuid, in: context) { context.delete(m); return }
-        if let m = SleepEvent.fetchByID(uuid, in: context) { context.delete(m); return }
-        if let m = DiaperEvent.fetchByID(uuid, in: context) { context.delete(m); return }
-        if let m = Participant.fetchByID(uuid, in: context) { context.delete(m); return }
-        if let m = Baby.fetchByID(uuid, in: context) { context.delete(m); return }
-        if let m = SharedSettings.fetchByID(uuid, in: context) { context.delete(m); return }
-        if let m = PlanSlot.fetchByID(uuid, in: context) { context.delete(m); return }
-        if let m = PlanOverride.fetchByID(uuid, in: context) { context.delete(m); return }
+        if let m = try FeedEvent.findByID(uuid, in: context) { context.delete(m); return }
+        if let m = try SleepEvent.findByID(uuid, in: context) { context.delete(m); return }
+        if let m = try DiaperEvent.findByID(uuid, in: context) { context.delete(m); return }
+        if let m = try Participant.findByID(uuid, in: context) { context.delete(m); return }
+        if let m = try Baby.findByID(uuid, in: context) { context.delete(m); return }
+        if let m = try SharedSettings.findByID(uuid, in: context) { context.delete(m); return }
+        if let m = try PlanSlot.findByID(uuid, in: context) { context.delete(m); return }
+        if let m = try PlanOverride.findByID(uuid, in: context) { context.delete(m); return }
     }
 
     /// Attaches the baby to any events that synced in before the Baby record
@@ -280,39 +293,85 @@ enum RecordMapping {
     }
 
     // MARK: Inbound per-type
+    //
+    // Event inserts are built FROM the record's own values — never from
+    // placeholder defaults. A record missing its required fields (timestamp +
+    // logger identity; every build has always uploaded them) is skipped and
+    // logged: materializing it as "0 oz / wet / now / random logger" is exactly
+    // the ghost-event shape, and junk on the server must not become a local row.
 
-    private static func applyFeed(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
-        let m = FeedEvent.fetchByID(uuid, in: context)
-            ?? insert(FeedEvent(baby: nil, amountOz: 0, timestamp: .now,
-                                loggedByID: UUID(), loggedByName: "", loggedByColorHex: ""), id: uuid, in: context)
+    /// The shared event identity fields, required before an insert is allowed.
+    private static func loggerIdentity(_ r: CKRecord) -> (id: UUID, name: String, color: String)? {
+        guard let id = (r["loggedByID"] as? String).flatMap(UUID.init) else { return nil }
+        return (id, r["loggedByName"] as? String ?? "", r["loggedByColorHex"] as? String ?? "")
+    }
+
+    private static func skip(_ r: CKRecord, missing: String) {
+        AppLog.sync.error("Skipped inbound \(r.recordType, privacy: .public) \(r.recordID.recordName, privacy: .public): missing \(missing, privacy: .public) — refusing to materialize a placeholder event")
+    }
+
+    private static func applyFeed(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let m: FeedEvent
+        if let existing = try FeedEvent.findByID(uuid, in: context) {
+            m = existing
+        } else {
+            guard let timestamp = r["timestamp"] as? Date,
+                  let amountOz = r["amountOz"] as? Double,
+                  let logger = loggerIdentity(r) else {
+                skip(r, missing: "timestamp/amountOz/loggedByID"); return
+            }
+            m = insert(FeedEvent(baby: nil, amountOz: amountOz, timestamp: timestamp,
+                                 loggedByID: logger.id, loggedByName: logger.name,
+                                 loggedByColorHex: logger.color), id: uuid, in: context)
+        }
         m.amountOz = r["amountOz"] as? Double ?? m.amountOz
         m.timestamp = r["timestamp"] as? Date ?? m.timestamp
         m.notes = r["notes"] as? String
         applyCommon(r, into: m, in: context)
     }
 
-    private static func applySleep(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
-        let m = SleepEvent.fetchByID(uuid, in: context)
-            ?? insert(SleepEvent(baby: nil, startedAt: .now,
-                                 loggedByID: UUID(), loggedByName: "", loggedByColorHex: ""), id: uuid, in: context)
+    private static func applySleep(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let m: SleepEvent
+        if let existing = try SleepEvent.findByID(uuid, in: context) {
+            m = existing
+        } else {
+            guard let startedAt = r["startedAt"] as? Date,
+                  let logger = loggerIdentity(r) else {
+                skip(r, missing: "startedAt/loggedByID"); return
+            }
+            m = insert(SleepEvent(baby: nil, startedAt: startedAt,
+                                  loggedByID: logger.id, loggedByName: logger.name,
+                                  loggedByColorHex: logger.color), id: uuid, in: context)
+        }
         m.startedAt = r["startedAt"] as? Date ?? m.startedAt
         m.endedAt = r["endedAt"] as? Date
         m.notes = r["notes"] as? String
         applyCommon(r, into: m, in: context)
     }
 
-    private static func applyDiaper(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
-        let m = DiaperEvent.fetchByID(uuid, in: context)
-            ?? insert(DiaperEvent(baby: nil, type: .wet, timestamp: .now,
-                                  loggedByID: UUID(), loggedByName: "", loggedByColorHex: ""), id: uuid, in: context)
+    private static func applyDiaper(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let m: DiaperEvent
+        if let existing = try DiaperEvent.findByID(uuid, in: context) {
+            m = existing
+        } else {
+            guard let timestamp = r["timestamp"] as? Date,
+                  let typeRaw = r["typeRaw"] as? String,
+                  let type = DiaperType(rawValue: typeRaw),
+                  let logger = loggerIdentity(r) else {
+                skip(r, missing: "timestamp/typeRaw/loggedByID"); return
+            }
+            m = insert(DiaperEvent(baby: nil, type: type, timestamp: timestamp,
+                                   loggedByID: logger.id, loggedByName: logger.name,
+                                   loggedByColorHex: logger.color), id: uuid, in: context)
+        }
         m.typeRaw = r["typeRaw"] as? String ?? m.typeRaw
         m.timestamp = r["timestamp"] as? Date ?? m.timestamp
         m.notes = r["notes"] as? String
         applyCommon(r, into: m, in: context)
     }
 
-    private static func applyBaby(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
-        let existing = Baby.fetchByID(uuid, in: context)
+    private static func applyBaby(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let existing = try Baby.findByID(uuid, in: context)
         let existed = existing != nil
         let m = existing
             ?? insert(Baby(name: "", dateOfBirth: .now), id: uuid, in: context)
@@ -326,8 +385,8 @@ enum RecordMapping {
         if !existed { relinkOrphanEvents(in: context) }
     }
 
-    private static func applyParticipant(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
-        let m = Participant.fetchByID(uuid, in: context)
+    private static func applyParticipant(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let m = try Participant.findByID(uuid, in: context)
             ?? insert(Participant(displayName: "", colorHex: ""), id: uuid, in: context)
         m.displayName = r["displayName"] as? String ?? m.displayName
         m.colorHex = r["colorHex"] as? String ?? m.colorHex
@@ -338,16 +397,16 @@ enum RecordMapping {
         if let resolved = inboundPhoto(r["photoData"]) { m.photoData = resolved }
     }
 
-    private static func applySettings(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
-        let m = SharedSettings.fetchByID(uuid, in: context)
+    private static func applySettings(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let m = try SharedSettings.findByID(uuid, in: context)
             ?? insert(SharedSettings(), id: uuid, in: context)
         m.targetFeedIntervalMinutes = r["targetFeedIntervalMinutes"] as? Int ?? m.targetFeedIntervalMinutes
         m.ozPresets = r["ozPresets"] as? [Double] ?? m.ozPresets
         m.defaultFeedOz = r["defaultFeedOz"] as? Double ?? m.defaultFeedOz
     }
 
-    private static func applyPlanSlot(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
-        let m = PlanSlot.fetchByID(uuid, in: context)
+    private static func applyPlanSlot(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let m = try PlanSlot.findByID(uuid, in: context)
             ?? insert(PlanSlot(kind: .feed, minuteOfDay: 0), id: uuid, in: context)
         m.kindRaw = r["kindRaw"] as? String ?? m.kindRaw
         m.minuteOfDay = r["minuteOfDay"] as? Int ?? m.minuteOfDay
@@ -358,8 +417,8 @@ enum RecordMapping {
         m.deletedAt = r["deletedAt"] as? Date
     }
 
-    private static func applyPlanOverride(_ r: CKRecord, uuid: UUID, in context: ModelContext) {
-        let m = PlanOverride.fetchByID(uuid, in: context)
+    private static func applyPlanOverride(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let m = try PlanOverride.findByID(uuid, in: context)
             ?? insert(PlanOverride(slotID: UUID(), dayKey: 0, createdByID: UUID()), id: uuid, in: context)
         if let s = r["slotID"] as? String, let sid = UUID(uuidString: s) { m.slotID = sid }
         m.dayKey = r["dayKey"] as? Int ?? m.dayKey
@@ -479,69 +538,78 @@ enum RecordMapping {
 }
 
 /// Lets RecordMapping set the id and cached server system fields on synced models.
+/// `findByID` PROPAGATES store errors; `fetchByID` is the convenience form whose
+/// nil means "not found" only for callers that don't need to tell the two apart
+/// (the inbound upserts do — see `RecordMapping.apply`).
 protocol HasSyncID: AnyObject {
     var id: UUID { get set }
     var ckSystemFields: Data? { get set }
-    static func fetchByID(_ id: UUID, in context: ModelContext) -> Self?
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> Self?
+}
+
+extension HasSyncID {
+    static func fetchByID(_ id: UUID, in context: ModelContext) -> Self? {
+        try? findByID(id, in: context)
+    }
 }
 
 // Each conformance hand-rolls the predicate fetch: #Predicate needs the concrete
 // type (a protocol-generic key path won't compile), and an indexed fetchLimit-1
 // lookup replaces the old load-the-whole-table scan.
 extension Baby: HasSyncID {
-    static func fetchByID(_ id: UUID, in context: ModelContext) -> Baby? {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> Baby? {
         var d = FetchDescriptor<Baby>(predicate: #Predicate { $0.id == id })
         d.fetchLimit = 1
-        return try? context.fetch(d).first
+        return try context.fetch(d).first
     }
 }
 extension FeedEvent: HasSyncID {
-    static func fetchByID(_ id: UUID, in context: ModelContext) -> FeedEvent? {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> FeedEvent? {
         var d = FetchDescriptor<FeedEvent>(predicate: #Predicate { $0.id == id })
         d.fetchLimit = 1
-        return try? context.fetch(d).first
+        return try context.fetch(d).first
     }
 }
 extension SleepEvent: HasSyncID {
-    static func fetchByID(_ id: UUID, in context: ModelContext) -> SleepEvent? {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> SleepEvent? {
         var d = FetchDescriptor<SleepEvent>(predicate: #Predicate { $0.id == id })
         d.fetchLimit = 1
-        return try? context.fetch(d).first
+        return try context.fetch(d).first
     }
 }
 extension DiaperEvent: HasSyncID {
-    static func fetchByID(_ id: UUID, in context: ModelContext) -> DiaperEvent? {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> DiaperEvent? {
         var d = FetchDescriptor<DiaperEvent>(predicate: #Predicate { $0.id == id })
         d.fetchLimit = 1
-        return try? context.fetch(d).first
+        return try context.fetch(d).first
     }
 }
 extension Participant: HasSyncID {
-    static func fetchByID(_ id: UUID, in context: ModelContext) -> Participant? {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> Participant? {
         var d = FetchDescriptor<Participant>(predicate: #Predicate { $0.id == id })
         d.fetchLimit = 1
-        return try? context.fetch(d).first
+        return try context.fetch(d).first
     }
 }
 extension SharedSettings: HasSyncID {
-    static func fetchByID(_ id: UUID, in context: ModelContext) -> SharedSettings? {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> SharedSettings? {
         var d = FetchDescriptor<SharedSettings>(predicate: #Predicate { $0.id == id })
         d.fetchLimit = 1
-        return try? context.fetch(d).first
+        return try context.fetch(d).first
     }
 }
 extension PlanSlot: HasSyncID {
-    static func fetchByID(_ id: UUID, in context: ModelContext) -> PlanSlot? {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> PlanSlot? {
         var d = FetchDescriptor<PlanSlot>(predicate: #Predicate { $0.id == id })
         d.fetchLimit = 1
-        return try? context.fetch(d).first
+        return try context.fetch(d).first
     }
 }
 extension PlanOverride: HasSyncID {
-    static func fetchByID(_ id: UUID, in context: ModelContext) -> PlanOverride? {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> PlanOverride? {
         var d = FetchDescriptor<PlanOverride>(predicate: #Predicate { $0.id == id })
         d.fetchLimit = 1
-        return try? context.fetch(d).first
+        return try context.fetch(d).first
     }
 }
 

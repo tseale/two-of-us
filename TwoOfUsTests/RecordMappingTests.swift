@@ -52,8 +52,8 @@ final class RecordMappingTests: XCTestCase {
 
         let receiver = AppModelContainer.make(inMemory: true)
         // Baby must land before the feed for the relationship to resolve.
-        RecordMapping.apply(try outbound(baby.id), in: receiver.mainContext)
-        RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+        try RecordMapping.apply(try outbound(baby.id), in: receiver.mainContext)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
 
         let feeds = try receiver.mainContext.fetch(FetchDescriptor<FeedEvent>())
         XCTAssertEqual(feeds.count, 1)
@@ -79,7 +79,7 @@ final class RecordMappingTests: XCTestCase {
         try context.save()
 
         let receiver = AppModelContainer.make(inMemory: true)
-        RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
 
         let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<SleepEvent>()).first)
         XCTAssertEqual(copy.startedAt, original.startedAt)
@@ -96,7 +96,7 @@ final class RecordMappingTests: XCTestCase {
         try context.save()
 
         let receiver = AppModelContainer.make(inMemory: true)
-        RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
 
         let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<DiaperEvent>()).first)
         XCTAssertEqual(copy.type, .both)
@@ -110,7 +110,7 @@ final class RecordMappingTests: XCTestCase {
         try context.save()
 
         let receiver = AppModelContainer.make(inMemory: true)
-        RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
 
         let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<Baby>()).first)
         XCTAssertEqual(copy.name, "Miller")
@@ -132,7 +132,7 @@ final class RecordMappingTests: XCTestCase {
         r["name"] = "Miller"
         r["dateOfBirth"] = local.dateOfBirth
         r["photoData"] = CKAsset(fileURL: URL(fileURLWithPath: NSTemporaryDirectory() + "missing-\(UUID().uuidString)"))
-        RecordMapping.apply(r, in: receiver.mainContext)
+        try RecordMapping.apply(r, in: receiver.mainContext)
 
         let copy = try XCTUnwrap(Baby.fetchByID(local.id, in: receiver.mainContext))
         XCTAssertEqual(copy.photoData, Data([0x01, 0x02, 0x03]),
@@ -152,7 +152,7 @@ final class RecordMappingTests: XCTestCase {
         r["name"] = "Miller"
         r["dateOfBirth"] = local.dateOfBirth
         // no photoData field → the photo was cleared
-        RecordMapping.apply(r, in: receiver.mainContext)
+        try RecordMapping.apply(r, in: receiver.mainContext)
 
         let copy = try XCTUnwrap(Baby.fetchByID(local.id, in: receiver.mainContext))
         XCTAssertNil(copy.photoData, "an absent photo field should clear the local avatar")
@@ -165,7 +165,7 @@ final class RecordMappingTests: XCTestCase {
         try context.save()
 
         let receiver = AppModelContainer.make(inMemory: true)
-        RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
 
         let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<Participant>()).first)
         XCTAssertEqual(copy.displayName, "Katie")
@@ -183,7 +183,7 @@ final class RecordMappingTests: XCTestCase {
         try context.save()
 
         let receiver = AppModelContainer.make(inMemory: true)
-        RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
 
         let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<SharedSettings>()).first)
         XCTAssertEqual(copy.targetFeedIntervalMinutes, 150)
@@ -193,6 +193,56 @@ final class RecordMappingTests: XCTestCase {
 
     // MARK: Sync semantics
 
+    /// A record without the fields every real event carries (timestamp, amount,
+    /// logger identity) must be skipped, not materialized: the old placeholder
+    /// insert minted "0 oz / wet / now / random logger" rows — the "?" ghost
+    /// events — from any junk record in the zone.
+    func testApplySkipsEventRecordsMissingRequiredFields() throws {
+        let receiver = AppModelContainer.make(inMemory: true)
+
+        let bareFeed = CKRecord(recordType: SyncConstants.RecordType.feed, recordID: recordID(UUID()))
+        try RecordMapping.apply(bareFeed, in: receiver.mainContext)
+
+        let bareDiaper = CKRecord(recordType: SyncConstants.RecordType.diaper, recordID: recordID(UUID()))
+        try RecordMapping.apply(bareDiaper, in: receiver.mainContext)
+
+        let bareSleep = CKRecord(recordType: SyncConstants.RecordType.sleep, recordID: recordID(UUID()))
+        try RecordMapping.apply(bareSleep, in: receiver.mainContext)
+
+        XCTAssertTrue(try receiver.mainContext.fetch(FetchDescriptor<FeedEvent>()).isEmpty,
+                      "a field-less feed record must not become a 0 oz ghost row")
+        XCTAssertTrue(try receiver.mainContext.fetch(FetchDescriptor<DiaperEvent>()).isEmpty)
+        XCTAssertTrue(try receiver.mainContext.fetch(FetchDescriptor<SleepEvent>()).isEmpty)
+    }
+
+    /// A partially-populated event record (timestamp but no logger identity)
+    /// is also refused — attribution is required to materialize.
+    func testApplySkipsEventRecordsMissingLoggerIdentity() throws {
+        let receiver = AppModelContainer.make(inMemory: true)
+        let r = CKRecord(recordType: SyncConstants.RecordType.feed, recordID: recordID(UUID()))
+        r["amountOz"] = 3.0
+        r["timestamp"] = Date()
+        // no loggedByID
+        try RecordMapping.apply(r, in: receiver.mainContext)
+        XCTAssertTrue(try receiver.mainContext.fetch(FetchDescriptor<FeedEvent>()).isEmpty)
+    }
+
+    /// Updates to an EXISTING row keep working even when the incoming record is
+    /// sparse (only the changed fields matter once the row exists).
+    func testSparseUpdateStillAppliesToExistingRow() throws {
+        let receiver = AppModelContainer.make(inMemory: true)
+        let existing = FeedEvent(baby: nil, amountOz: 2, timestamp: .now,
+                                 loggedByID: UUID(), loggedByName: "T", loggedByColorHex: "#000000")
+        receiver.mainContext.insert(existing)
+        try receiver.mainContext.save()
+
+        let r = CKRecord(recordType: SyncConstants.RecordType.feed, recordID: recordID(existing.id))
+        r["amountOz"] = 4.0
+        r["loggedByName"] = "T"
+        try RecordMapping.apply(r, in: receiver.mainContext)
+        XCTAssertEqual(existing.amountOz, 4)
+    }
+
     func testApplyIsAnUpsertNotAnInsert() throws {
         let original = FeedEvent(baby: nil, amountOz: 2, timestamp: .now,
                                  loggedByID: UUID(), loggedByName: "T", loggedByColorHex: "#000000")
@@ -201,8 +251,8 @@ final class RecordMappingTests: XCTestCase {
         let record = try outbound(original.id)
 
         let receiver = AppModelContainer.make(inMemory: true)
-        RecordMapping.apply(record, in: receiver.mainContext)
-        RecordMapping.apply(record, in: receiver.mainContext)
+        try RecordMapping.apply(record, in: receiver.mainContext)
+        try RecordMapping.apply(record, in: receiver.mainContext)
 
         XCTAssertEqual(try receiver.mainContext.fetch(FetchDescriptor<FeedEvent>()).count, 1)
     }
@@ -214,12 +264,12 @@ final class RecordMappingTests: XCTestCase {
         try context.save()
 
         let receiver = AppModelContainer.make(inMemory: true)
-        RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
 
         // The co-parent soft-deletes; the change syncs as a deletedAt update.
         original.deletedAt = .now
         try context.save()
-        RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
 
         let feeds = try receiver.mainContext.fetch(FetchDescriptor<FeedEvent>())
         XCTAssertEqual(feeds.count, 1)
@@ -232,7 +282,7 @@ final class RecordMappingTests: XCTestCase {
         context.insert(original)
         try context.save()
 
-        RecordMapping.delete(recordName: original.id.uuidString, in: context)
+        try RecordMapping.delete(recordName: original.id.uuidString, in: context)
         XCTAssertEqual(try context.fetch(FetchDescriptor<DiaperEvent>()).count, 0)
     }
 
@@ -355,10 +405,10 @@ final class RecordMappingTests: XCTestCase {
 
         let receiver = AppModelContainer.make(inMemory: true)
         // Feed first — its babyID can't resolve yet, so it lands orphaned.
-        RecordMapping.apply(try outbound(feed.id), in: receiver.mainContext)
+        try RecordMapping.apply(try outbound(feed.id), in: receiver.mainContext)
         XCTAssertNil(try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<FeedEvent>()).first).baby)
 
-        RecordMapping.apply(try outbound(baby.id), in: receiver.mainContext)
+        try RecordMapping.apply(try outbound(baby.id), in: receiver.mainContext)
         RecordMapping.relinkOrphanEvents(in: receiver.mainContext)
 
         let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<FeedEvent>()).first)
@@ -377,7 +427,7 @@ final class RecordMappingTests: XCTestCase {
         try context.save()
 
         let receiver = AppModelContainer.make(inMemory: true)
-        RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
 
         let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<PlanSlot>()).first)
         XCTAssertEqual(copy.id, original.id)
@@ -396,7 +446,7 @@ final class RecordMappingTests: XCTestCase {
         try context.save()
 
         let receiver = AppModelContainer.make(inMemory: true)
-        RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
 
         let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<PlanSlot>()).first)
         XCTAssertEqual(copy.kind, .sleep)
@@ -414,7 +464,7 @@ final class RecordMappingTests: XCTestCase {
         try context.save()
 
         let receiver = AppModelContainer.make(inMemory: true)
-        RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
 
         let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<PlanOverride>()).first)
         XCTAssertEqual(copy.slotID, original.slotID)
@@ -433,7 +483,7 @@ final class RecordMappingTests: XCTestCase {
         try context.save()
 
         let receiver = AppModelContainer.make(inMemory: true)
-        RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
 
         let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<PlanOverride>()).first)
         XCTAssertTrue(copy.isSkipped, "a skipped night must stay skipped on the other phone")

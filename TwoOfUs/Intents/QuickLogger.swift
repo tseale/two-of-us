@@ -189,18 +189,32 @@ struct QuickLogger {
     }
 
     // MARK: Writes
+    //
+    // Every write requires a resolved owner. The old `owner?.id ?? UUID()`
+    // fallback stamped a participant that never existed (grey "?" ghost rows,
+    // synced to the co-parent) whenever the store was mid-rebuild or a lookup
+    // failed — e.g. a 1am notification-action log on a locked phone. Refusing
+    // is strictly better: the intent reports failure and nothing persists.
 
     @discardableResult
-    func logFeed(amountOz: Double) -> FeedEvent {
-        // Shortcuts/Siri can hand us a negative or absurd amount; clamp to a sane
-        // single-feed range so the widget/Siri path can never persist nonsense.
+    func logFeed(amountOz: Double) -> FeedEvent? {
+        guard let owner else {
+            Self.log.error("logFeed refused: no participant to attribute the event to")
+            return nil
+        }
+        // Shortcuts/Siri can hand us a bad amount. A zero/negative/non-finite
+        // bottle is never a real feed — refuse; clamp only the absurdly large.
         // (Mirrors EventBounds in the app target, which the extension can't see.)
-        let amountOz = amountOz.isFinite ? min(max(amountOz, 0), 32) : 0
+        guard amountOz.isFinite, amountOz > 0 else {
+            Self.log.error("logFeed refused: amount \(amountOz) is not loggable")
+            return nil
+        }
+        let amountOz = min(amountOz, 32)
         let event = FeedEvent(
             baby: baby, amountOz: amountOz, timestamp: .now,
-            loggedByID: owner?.id ?? UUID(),
-            loggedByName: owner?.displayName ?? "",
-            loggedByColorHex: owner?.colorHex ?? ""
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex
         )
         context.insert(event)
         commit(syncing: [event.id])
@@ -208,12 +222,16 @@ struct QuickLogger {
     }
 
     @discardableResult
-    func logDiaper(_ type: DiaperType) -> DiaperEvent {
+    func logDiaper(_ type: DiaperType) -> DiaperEvent? {
+        guard let owner else {
+            Self.log.error("logDiaper refused: no participant to attribute the event to")
+            return nil
+        }
         let event = DiaperEvent(
             baby: baby, type: type, timestamp: .now,
-            loggedByID: owner?.id ?? UUID(),
-            loggedByName: owner?.displayName ?? "",
-            loggedByColorHex: owner?.colorHex ?? ""
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex
         )
         context.insert(event)
         commit(syncing: [event.id])
@@ -260,19 +278,25 @@ struct QuickLogger {
     /// The Live Activity is reconciled by the app on next foreground
     /// (`SleepActivityManager.reconcile`) since it can't reliably start from a
     /// widget-extension process.
-    /// - Returns: true if a sleep was started, false if one was stopped.
+    /// - Returns: true if a sleep was started, false if one was stopped, nil if
+    ///   a start was refused (no owner to attribute it to). Stopping needs no
+    ///   owner — it only completes an existing event.
     @discardableResult
-    func toggleSleep() -> Bool {
+    func toggleSleep() -> Bool? {
         if let active = activeSleep {
             active.endedAt = .now
             commit(syncing: [active.id])
             return false
         }
+        guard let owner else {
+            Self.log.error("toggleSleep refused: no participant to attribute the sleep to")
+            return nil
+        }
         let event = SleepEvent(
             baby: baby, startedAt: .now,
-            loggedByID: owner?.id ?? UUID(),
-            loggedByName: owner?.displayName ?? "",
-            loggedByColorHex: owner?.colorHex ?? ""
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex
         )
         context.insert(event)
         commit(syncing: [event.id])

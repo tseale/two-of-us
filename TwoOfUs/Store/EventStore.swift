@@ -55,17 +55,42 @@ struct EventStore {
     }
 
     // MARK: Logging
+    //
+    // Every creation requires a resolved owner. The old `owner?.id ?? UUID()`
+    // fallback minted events attributed to a participant that never existed —
+    // rendered as the grey "?" ghost rows — and synced them to the co-parent.
+    // If the owner can't be resolved something is broken enough that refusing
+    // (with a banner) is strictly better than persisting an unattributed event.
+
+    /// The resolved local user, surfacing a banner when the lookup fails.
+    private func requireOwner() -> Participant? {
+        guard let owner else {
+            AppLog.store.error("Write refused: no participant to attribute the event to")
+            if !demo {
+                StoreErrorCenter.shared.report("That didn't save — couldn't tell who's logging. Open the app and try again.")
+            }
+            return nil
+        }
+        return owner
+    }
 
     @discardableResult
-    func logFeed(amountOz: Double, at date: Date = .now, notes: String? = nil) -> FeedEvent {
+    func logFeed(amountOz: Double, at date: Date = .now, notes: String? = nil) -> FeedEvent? {
+        guard let owner = requireOwner() else { return nil }
+        // A bottle of nothing is never a real feed — reject instead of clamping
+        // a bad parse/tap into a "0 oz" timeline row.
+        guard EventBounds.isLoggableOz(amountOz) else {
+            AppLog.store.error("Write refused: feed amount \(amountOz) is not loggable")
+            return nil
+        }
         let amountOz = EventBounds.clampOz(amountOz)
         let date = EventBounds.clampPast(date)
         let event = FeedEvent(
             baby: baby, amountOz: amountOz, timestamp: date,
             notes: EventBounds.cleanNote(notes),
-            loggedByID: owner?.id ?? UUID(),
-            loggedByName: owner?.displayName ?? "",
-            loggedByColorHex: owner?.colorHex ?? ""
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex
         )
         context.insert(event)
         save()
@@ -77,14 +102,15 @@ struct EventStore {
     }
 
     @discardableResult
-    func logDiaper(_ type: DiaperType, at date: Date = .now, notes: String? = nil) -> DiaperEvent {
+    func logDiaper(_ type: DiaperType, at date: Date = .now, notes: String? = nil) -> DiaperEvent? {
+        guard let owner = requireOwner() else { return nil }
         let date = EventBounds.clampPast(date)
         let event = DiaperEvent(
             baby: baby, type: type, timestamp: date,
             notes: EventBounds.cleanNote(notes),
-            loggedByID: owner?.id ?? UUID(),
-            loggedByName: owner?.displayName ?? "",
-            loggedByColorHex: owner?.colorHex ?? ""
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex
         )
         context.insert(event)
         save()
@@ -98,13 +124,13 @@ struct EventStore {
     /// Starts a sleep timer. Refuses if one is already active (single-timer guard).
     @discardableResult
     func startSleep(at date: Date = .now) -> SleepEvent? {
-        guard activeSleep == nil else { return nil }
+        guard activeSleep == nil, let owner = requireOwner() else { return nil }
         let date = EventBounds.clampPast(date)
         let event = SleepEvent(
             baby: baby, startedAt: date,
-            loggedByID: owner?.id ?? UUID(),
-            loggedByName: owner?.displayName ?? "",
-            loggedByColorHex: owner?.colorHex ?? ""
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex
         )
         context.insert(event)
         save()
@@ -297,6 +323,57 @@ struct EventStore {
         // The newest feed may have been a ghost — re-derive alarms/reminders.
         refreshLocalReminders()
         return ghosts.count
+    }
+
+    /// Self-healing sweep, safe to run automatically (launch, foreground, after
+    /// sync fetches). Two passes, narrower than the manual `purgeGhostEvents`:
+    ///
+    /// 1. Rows sharing one `id` are collapsed to a single row. Duplicates can
+    ///    only be minted locally (a swallowed store error during the inbound
+    ///    upsert used to blind-insert) and all map to ONE CloudKit record, so
+    ///    the extras are hard-deleted locally, never synced — a synced delete
+    ///    would soft-delete the co-parent's one real copy. The row with real
+    ///    attribution wins.
+    /// 2. Events carrying the exact ghost signature — EMPTY denormalized logger
+    ///    name AND a logger id no Participant matches — are soft-deleted and
+    ///    synced, so both phones (and the zone) clean up. Real events always
+    ///    carry the logger's display name, and a removed caregiver keeps their
+    ///    Participant record, so neither is ever swept.
+    @discardableResult
+    func autoPurgeGhostEvents() -> Int {
+        let known = Set(((try? context.fetch(FetchDescriptor<Participant>())) ?? []).map(\.id))
+        var syncedDeletes: [UUID] = []
+        var removed = 0
+
+        func sweep<T: PersistentModel & SoftDeletable & AnyEventModel>(_ type: T.Type) {
+            let all = (try? context.fetch(FetchDescriptor<T>())) ?? []
+            var byID: [UUID: [T]] = [:]
+            for e in all { byID[e.id, default: []].append(e) }
+            for (_, rows) in byID {
+                let keep = rows.first { !$0.loggedByName.isEmpty } ?? rows[0]
+                for row in rows where row !== keep {
+                    context.delete(row)
+                    removed += 1
+                }
+                if keep.deletedAt == nil, keep.loggedByName.isEmpty, !known.contains(keep.loggedByID) {
+                    keep.deletedAt = .now
+                    syncedDeletes.append(keep.id)
+                    removed += 1
+                }
+            }
+        }
+        sweep(FeedEvent.self)
+        sweep(SleepEvent.self)
+        sweep(DiaperEvent.self)
+
+        guard removed > 0 else { return 0 }
+        AppLog.store.warning("Ghost sweep removed \(removed) event row(s) (\(syncedDeletes.count) synced)")
+        save()
+        sync(save: syncedDeletes)
+        reloadWidgets()
+        // The newest feed may have been a ghost — re-derive alarms/reminders.
+        refreshLocalReminders()
+        return removed
     }
 
     // MARK: Profile / baby / settings edits
@@ -651,6 +728,14 @@ enum EventBounds {
     static func clampOz(_ oz: Double) -> Double {
         guard oz.isFinite else { return 0 }
         return min(max(oz, ozRange.lowerBound), ozRange.upperBound)
+    }
+
+    /// Whether an amount is acceptable for a NEW feed log. Unlike `clampOz`
+    /// (which sanitizes edits of existing rows), creation rejects zero/negative
+    /// outright: a "0 oz" bottle is never a real feed, only the residue of a
+    /// bad parse or a defaulted placeholder.
+    static func isLoggableOz(_ oz: Double) -> Bool {
+        oz.isFinite && oz > 0
     }
 
     /// Events happen in the past or right now; a future timestamp (clock skew, a

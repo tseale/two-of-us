@@ -75,7 +75,12 @@ struct DiaperSheet: View {
 
     private func log(_ type: DiaperType) {
         let store = EventStore(context: context)
-        let event = store.logDiaper(type, at: date, notes: note)
+        // A refused log (no attributable owner) already surfaced a banner via
+        // StoreErrorCenter — just close without a success toast.
+        guard let event = store.logDiaper(type, at: date, notes: note) else {
+            dismiss()
+            return
+        }
         Haptics.success()
         onLogged("Logged diaper · \(type.label)") {
             store.softDelete(event)
