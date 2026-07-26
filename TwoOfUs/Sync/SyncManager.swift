@@ -626,6 +626,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
                 }
             }
             sweepGhostsIfNeeded(from: e.modifications.map(\.record))
+            mergeDuplicateParticipantsIfNeeded(from: e.modifications.map(\.record))
             reconcileLiveActivity()
             WidgetCenter.shared.reloadAllTimelines()
             notifyCoParentActivity(from: e.modifications.map(\.record))
@@ -724,6 +725,40 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         }
         guard sawGhost else { return }
         EventStore(context: context).autoPurgeGhostEvents()
+    }
+
+    /// Collapses duplicate People rows after a fetch batch that carried a
+    /// participant record — a re-join by the same iCloud account creates a
+    /// fresh row and strands the old one, showing one person twice. Gated so
+    /// routine event batches don't pay for the table scans. Runs even when the
+    /// merge already happened on the other phone: this device may still need
+    /// to adopt the survivor as its own identity.
+    private func mergeDuplicateParticipantsIfNeeded(from records: [CKRecord]) {
+        guard !LocalPrefs.shared.demoModeEnabled else { return }
+        guard records.contains(where: { $0.recordType == SyncConstants.RecordType.participant })
+        else { return }
+        let changed = ParticipantMerger.mergeDuplicates(in: context)
+        adoptSurvivorIdentityIfNeeded()
+        guard !changed.isEmpty else { return }
+        AppLog.sync.log("Merged duplicate participant rows (\(changed.count) records touched)")
+        do { try context.save() } catch {
+            AppLog.sync.error("Participant merge failed to save: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        enqueueSave(changed)
+    }
+
+    /// If this device's own Participant row was merged away (here or on the
+    /// other phone), re-point `myParticipantID` at the surviving row for the
+    /// same iCloud account so writes keep attributing to the right person.
+    private func adoptSurvivorIdentityIfNeeded() {
+        guard let myID = LocalPrefs.shared.myParticipantID,
+              let me = Participant.fetchByID(myID, in: context), !me.isActive,
+              let cid = me.cloudUserID else { return }
+        let all = (try? context.fetch(FetchDescriptor<Participant>())) ?? []
+        guard let survivor = all.first(where: { $0.isActive && $0.cloudUserID == cid }) else { return }
+        LocalPrefs.shared.myParticipantID = survivor.id
+        AppLog.sync.log("Adopted surviving participant identity \(survivor.id, privacy: .public) after merge")
     }
 
     /// Keeps the sleep Live Activity truthful when the change arrives via sync:
@@ -1266,8 +1301,13 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
                 }
                 guard let me = Participant.fetchByID(participantID, in: context), me.cloudUserID != recordName else { return }
                 me.cloudUserID = recordName
+                // A re-join creates a fresh row; if this same iCloud account
+                // already has another active row (the pre-reinstall profile),
+                // fold the two into one person right away.
+                let merged = ParticipantMerger.mergeDuplicates(in: context)
+                adoptSurvivorIdentityIfNeeded()
                 try? context.save()
-                enqueueSave([me.id])
+                enqueueSave([me.id] + merged)
                 return
             }
         }

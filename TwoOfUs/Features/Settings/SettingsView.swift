@@ -27,6 +27,9 @@ struct SettingsView: View {
     @State private var showLeaveConfirm = false
     @State private var showStopSharingConfirm = false
     @State private var participantToRemove: Participant?
+    /// The row the owner swiped "Merge" on — the duplicate to fold into another
+    /// person. Drives a dialog listing the possible targets.
+    @State private var participantToMerge: Participant?
     /// The share URL staged for "Resend link" on an existing person's row —
     /// non-nil drives the plain share sheet (no people management, no new invite).
     @State private var resendLink: ResendLink?
@@ -433,6 +436,23 @@ struct SettingsView: View {
         } message: { p in
             Text("\(p.displayName.isEmpty ? "This person" : p.displayName) loses access to the shared log. You can invite them again later.")
         }
+        .confirmationDialog(
+            "Merge \(participantToMerge?.displayName.isEmpty == false ? participantToMerge!.displayName : "this person") into…",
+            isPresented: Binding(get: { participantToMerge != nil },
+                                 set: { if !$0 { participantToMerge = nil } }),
+            titleVisibility: .visible, presenting: participantToMerge
+        ) { dup in
+            ForEach(participants.filter { $0.isActive && $0.id != dup.id }) { target in
+                Button(target.id == prefs.myParticipantID
+                       ? "Merge into \(target.displayName.isEmpty ? "you" : target.displayName) (you)"
+                       : "Merge into \(target.displayName.isEmpty ? "—" : target.displayName)") {
+                    store.mergeParticipant(dup, into: target)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { dup in
+            Text("Use this when the same person shows up twice (usually after they reinstalled and re-joined). Everything \(dup.displayName.isEmpty ? "they" : dup.displayName) logged moves to the profile you pick, and the duplicate disappears. This can't be undone.")
+        }
     }
 
     /// One co-parent row: avatar + name + a role pill. The owner can change another
@@ -477,6 +497,13 @@ struct SettingsView: View {
                     }
                     .tint(AppColor.accentSleep)
                     .disabled(preparingShare)
+                    // Fold a duplicate row into another person. Auto-merge
+                    // handles rows that share a captured iCloud identity; this
+                    // is the escape hatch for older rows it can't attribute.
+                    Button { participantToMerge = p } label: {
+                        Label("Merge", systemImage: "person.crop.circle.badge.checkmark")
+                    }
+                    .tint(AppColor.accentFeed)
                 }
             }
         }
