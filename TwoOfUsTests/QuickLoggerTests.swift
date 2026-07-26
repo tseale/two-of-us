@@ -71,6 +71,38 @@ final class QuickLoggerTests: XCTestCase {
         return d
     }
 
+    // MARK: Tracker switches
+
+    private func insertSettings(feed: Bool = true, diaper: Bool = true, sleep: Bool = true) {
+        container.mainContext.insert(SharedSettings(
+            feedLoggingEnabled: feed, diaperLoggingEnabled: diaper, sleepLoggingEnabled: sleep))
+        try? container.mainContext.save()
+    }
+
+    func testDisabledTrackersRefuseWidgetAndSiriWrites() {
+        insertSettings(feed: false, diaper: false)
+        XCTAssertFalse(logger.isTrackingEnabled(.feed))
+        XCTAssertNil(logger.logFeed(amountOz: 3), "feed tracker off must refuse the widget/Siri write")
+        XCTAssertNil(logger.logDiaper(.wet), "diaper tracker off must refuse the widget/Siri write")
+        XCTAssertEqual(logger.toggleSleep(), true, "the still-on sleep tracker keeps logging")
+    }
+
+    func testSleepTrackerOffRefusesStartButAllowsStop() throws {
+        _ = try XCTUnwrap(logger.toggleSleep())      // start while tracking is on
+        insertSettings(sleep: false)
+
+        XCTAssertEqual(logger.toggleSleep(), false,
+                       "stopping the running sleep must survive the tracker pausing")
+        XCTAssertNil(logger.toggleSleep(), "a new start is refused while the tracker is off")
+    }
+
+    func testMissingSettingsRecordMeansEverythingTracks() {
+        // Pre-onboarding / pre-sync stores have no SharedSettings row yet.
+        XCTAssertTrue(logger.isTrackingEnabled(.feed))
+        XCTAssertTrue(logger.isTrackingEnabled(.sleep))
+        XCTAssertTrue(logger.isTrackingEnabled(.diaper))
+    }
+
     // MARK: Undo
 
     func testUndoRemovesTheMostRecentEventAcrossKinds() throws {

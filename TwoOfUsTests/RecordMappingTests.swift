@@ -178,7 +178,8 @@ final class RecordMappingTests: XCTestCase {
 
     func testSettingsRoundTrip() throws {
         let original = SharedSettings(targetFeedIntervalMinutes: 150,
-                                      ozPresets: [2, 2.5, 5], defaultFeedOz: 5)
+                                      ozPresets: [2, 2.5, 5], defaultFeedOz: 5,
+                                      sleepLoggingEnabled: false)
         context.insert(original)
         try context.save()
 
@@ -189,6 +190,28 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertEqual(copy.targetFeedIntervalMinutes, 150)
         XCTAssertEqual(copy.ozPresets, [2, 2.5, 5])
         XCTAssertEqual(copy.defaultFeedOz, 5)
+        XCTAssertTrue(copy.feedLoggingEnabled)
+        XCTAssertTrue(copy.diaperLoggingEnabled)
+        XCTAssertFalse(copy.sleepLoggingEnabled, "the paused sleep tracker must travel to the co-parent")
+    }
+
+    /// A settings record written by an app version that predates the tracker
+    /// switches carries none of the fields — applying it must leave the local
+    /// flags alone (default on), not reset a paused tracker.
+    func testSettingsRecordWithoutTrackerFieldsKeepsLocalFlags() throws {
+        let receiver = AppModelContainer.make(inMemory: true)
+        let local = SharedSettings(diaperLoggingEnabled: false)
+        receiver.mainContext.insert(local)
+        try receiver.mainContext.save()
+
+        let r = CKRecord(recordType: SyncConstants.RecordType.settings, recordID: recordID(local.id))
+        r["targetFeedIntervalMinutes"] = 120
+        try RecordMapping.apply(r, in: receiver.mainContext)
+
+        let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<SharedSettings>()).first)
+        XCTAssertEqual(copy.targetFeedIntervalMinutes, 120)
+        XCTAssertTrue(copy.feedLoggingEnabled)
+        XCTAssertFalse(copy.diaperLoggingEnabled, "an absent field must not flip a local tracker back on")
     }
 
     // MARK: Sync semantics

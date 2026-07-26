@@ -91,7 +91,16 @@ struct NextFeedGaugeView: View {
 
     var body: some View {
         Group {
-            if let last = entry.lastFeedDate, let due {
+            if !entry.feedEnabled {
+                // Feed tracking paused — a countdown to a bottle nobody will
+                // log is noise. Same idle gauge as the pre-first-feed state.
+                Gauge(value: 0) {
+                    Image(systemName: "drop.slash")
+                } currentValueLabel: {
+                    Text("off")
+                }
+                .gaugeStyle(.accessoryCircularCapacity)
+            } else if let last = entry.lastFeedDate, let due {
                 ProgressView(timerInterval: last...due, countsDown: false) {
                     Image(systemName: "drop.fill")
                 } currentValueLabel: {

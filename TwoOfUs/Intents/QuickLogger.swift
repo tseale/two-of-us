@@ -62,6 +62,14 @@ struct QuickLogger {
 
     var babyName: String? { baby?.name }
 
+    /// Whether new events of `kind` may be logged (shared tracker switches in
+    /// SharedSettings). Intents check this first so Siri can explain *why* a
+    /// log was refused; the write methods below also guard on it as a backstop
+    /// for surfaces with no dialog (widget buttons, notification actions).
+    func isTrackingEnabled(_ kind: EventKind) -> Bool {
+        settings?.isEnabled(kind) ?? true
+    }
+
     var activeSleep: SleepEvent? {
         try? context.fetch(FetchDescriptor<SleepEvent>(
             predicate: #Predicate { $0.endedAt == nil && $0.deletedAt == nil }
@@ -198,6 +206,10 @@ struct QuickLogger {
 
     @discardableResult
     func logFeed(amountOz: Double) -> FeedEvent? {
+        guard isTrackingEnabled(.feed) else {
+            Self.log.error("logFeed refused: feed logging is turned off")
+            return nil
+        }
         guard let owner else {
             Self.log.error("logFeed refused: no participant to attribute the event to")
             return nil
@@ -223,6 +235,10 @@ struct QuickLogger {
 
     @discardableResult
     func logDiaper(_ type: DiaperType) -> DiaperEvent? {
+        guard isTrackingEnabled(.diaper) else {
+            Self.log.error("logDiaper refused: diaper logging is turned off")
+            return nil
+        }
         guard let owner else {
             Self.log.error("logDiaper refused: no participant to attribute the event to")
             return nil
@@ -284,9 +300,16 @@ struct QuickLogger {
     @discardableResult
     func toggleSleep() -> Bool? {
         if let active = activeSleep {
+            // Stopping only completes an existing event — always allowed, even
+            // with sleep tracking off (a sleep started before the toggle flip
+            // must remain endable).
             active.endedAt = .now
             commit(syncing: [active.id])
             return false
+        }
+        guard isTrackingEnabled(.sleep) else {
+            Self.log.error("toggleSleep refused: sleep logging is turned off")
+            return nil
         }
         guard let owner else {
             Self.log.error("toggleSleep refused: no participant to attribute the sleep to")

@@ -19,6 +19,9 @@ struct LogFeedIntent: AppIntent {
             return .result(dialog: "Couldn't reach Two of Us.")
         }
         let name = logger.babyName ?? "Baby"
+        guard logger.isTrackingEnabled(.feed) else {
+            return .result(dialog: "Feed logging is currently turned off in Two of Us.")
+        }
         guard let event = logger.logFeed(amountOz: amountOz ?? logger.defaultFeedOz) else {
             return .result(dialog: "Couldn't log that feed — open Two of Us and try again.")
         }

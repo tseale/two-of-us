@@ -40,6 +40,36 @@ final class EventStoreTests: XCTestCase {
         super.tearDown()
     }
 
+    // MARK: Tracker switches
+
+    func testDisabledTrackersRefuseNewEventsButKeepHistory() throws {
+        let feed = try XCTUnwrap(store.logFeed(amountOz: 3))
+
+        store.updateSettings(feedLoggingEnabled: false, sleepLoggingEnabled: false)
+
+        XCTAssertNil(store.logFeed(amountOz: 3), "feed tracker off must refuse a new feed")
+        XCTAssertNil(store.startSleep(), "sleep tracker off must refuse a new sleep")
+        XCTAssertNotNil(store.logDiaper(.wet), "the still-on tracker keeps logging")
+        XCTAssertNil(feed.deletedAt, "pausing a tracker must not touch existing events")
+    }
+
+    func testStopSleepStillWorksAfterSleepTrackerTurnsOff() throws {
+        let sleep = try XCTUnwrap(store.startSleep())
+        store.updateSettings(sleepLoggingEnabled: false)
+
+        store.stopSleep(sleep)
+        XCTAssertNotNil(sleep.endedAt, "a running sleep must stay stoppable after the tracker pauses")
+    }
+
+    func testUpdateSettingsNeverLeavesEveryTrackerOff() throws {
+        store.updateSettings(feedLoggingEnabled: false, diaperLoggingEnabled: false,
+                             sleepLoggingEnabled: false)
+
+        let settings = try XCTUnwrap(store.settings)
+        XCTAssertGreaterThan(settings.enabledTrackerCount, 0,
+                             "the store must backstop the UI's last-tracker rule")
+    }
+
     func testPurgeGhostEventsRemovesOnlyUnknownLoggers() throws {
         // Real entries by the household participant…
         let mine = try XCTUnwrap(store.logFeed(amountOz: 3))

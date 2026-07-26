@@ -75,7 +75,8 @@ struct WidgetProvider: TimelineProvider {
         }
 
         let ctx = ModelContext(container)
-        let feedTarget = (try? ctx.fetch(FetchDescriptor<SharedSettings>()))?.first?.targetFeedInterval ?? 10800
+        let settings = (try? ctx.fetch(FetchDescriptor<SharedSettings>()))?.first
+        let feedTarget = settings?.targetFeedInterval ?? 10800
         let babyName = (try? ctx.fetch(FetchDescriptor<Baby>()))?.first?.name ?? "Baby"
 
         // Last feed
@@ -120,7 +121,10 @@ struct WidgetProvider: TimelineProvider {
             isActiveSleep: isActive,
             activeSleepStartedAt: isActive ? lastSleepEvent?.startedAt : nil,
             recentItems: recentItems,
-            todayMarks: todayMarks
+            todayMarks: todayMarks,
+            feedEnabled: settings?.isEnabled(.feed) ?? true,
+            sleepEnabled: settings?.isEnabled(.sleep) ?? true,
+            diaperEnabled: settings?.isEnabled(.diaper) ?? true
         )
     }
 

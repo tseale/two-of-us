@@ -39,25 +39,37 @@ struct LogButtons: View {
     /// True when a feed alarm is armed on this device — shows a bell affordance
     /// on the Feed tile so parents know a reminder is counting down.
     var feedReminderArmed: Bool = false
+    /// Per-kind tracker switches (SharedSettings) — a hidden tile is how a
+    /// paused tracker reads on Home. With one of the square pair off, the
+    /// survivor stretches to full width on its own (it's the sole HStack child).
+    var showFeed: Bool = true
+    var showSleep: Bool = true
+    var showDiaper: Bool = true
     let onFeed: () -> Void
     let onSleep: () -> Void
     let onDiaper: () -> Void
 
     var body: some View {
         VStack(spacing: 12) {
-            GlassEffectContainer(spacing: 12) {
-                HStack(spacing: 12) {
-                    tile(title: "Feed", hint: feedHint, emoji: "🍼", color: AppColor.accentFeed,
-                         status: feedStatus, reminderArmed: feedReminderArmed, action: onFeed)
-                    tile(title: "Diaper", hint: "wet · dirty · both", emoji: "💩", color: AppColor.accentDiaper,
-                         status: diaperStatus, action: onDiaper)
+            if showFeed || showDiaper {
+                GlassEffectContainer(spacing: 12) {
+                    HStack(spacing: 12) {
+                        if showFeed {
+                            tile(title: "Feed", hint: feedHint, emoji: "🍼", color: AppColor.accentFeed,
+                                 status: feedStatus, reminderArmed: feedReminderArmed, action: onFeed)
+                        }
+                        if showDiaper {
+                            tile(title: "Diaper", hint: "wet · dirty · both", emoji: "💩", color: AppColor.accentDiaper,
+                                 status: diaperStatus, action: onDiaper)
+                        }
+                    }
                 }
             }
             // Deliberately OUTSIDE the GlassEffectContainer: a glass view removed
             // from a container morphs into its nearest glass sibling, which sent
             // this tile's glass flying into the Feed tile on sleep start.
             // Standalone glass just fades with the view transition.
-            if !sleepActive {
+            if showSleep && !sleepActive {
                 tile(title: "Sleep", hint: sleepHint, emoji: "💤", color: AppColor.accentSleep,
                      status: sleepStatus, detail: sleepDetail, action: onSleep)
                     .transition(.opacity.combined(with: .scale(0.96, anchor: .bottom)))

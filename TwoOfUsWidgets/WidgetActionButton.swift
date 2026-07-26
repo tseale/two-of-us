@@ -30,21 +30,30 @@ struct WidgetActionButton<I: AppIntent>: View {
 }
 
 /// The Feed · Diaper · Sleep quick-log row used by the medium and large widgets.
+/// Paused trackers drop their button — the survivors share the row's width.
 struct QuickLogRow: View {
-    let isSleeping: Bool
+    let entry: WidgetEntry
 
     var body: some View {
         HStack(spacing: 6) {
-            WidgetActionButton(title: "Feed", emoji: "🍼",
-                               tint: AppColor.accentFeed, intent: LogFeedIntent())
-            WidgetActionButton(title: "Diaper", emoji: "💩",
-                               tint: AppColor.accentDiaper, intent: LogDiaperIntent())
-            // State-explicit, not ToggleSleepIntent: the tap must mean the
-            // label the parent saw, even off a stale timeline snapshot.
-            WidgetActionButton(title: isSleeping ? "Wake" : "Sleep",
-                               emoji: isSleeping ? "☀️" : "💤",
-                               tint: AppColor.accentSleep,
-                               intent: SetSleepIntent.driving(asleep: !isSleeping))
+            if entry.feedEnabled {
+                WidgetActionButton(title: "Feed", emoji: "🍼",
+                                   tint: AppColor.accentFeed, intent: LogFeedIntent())
+            }
+            if entry.diaperEnabled {
+                WidgetActionButton(title: "Diaper", emoji: "💩",
+                                   tint: AppColor.accentDiaper, intent: LogDiaperIntent())
+            }
+            // The Wake button survives a paused sleep tracker while a sleep is
+            // running — a started timer must always be stoppable.
+            if entry.sleepEnabled || entry.isActiveSleep {
+                // State-explicit, not ToggleSleepIntent: the tap must mean the
+                // label the parent saw, even off a stale timeline snapshot.
+                WidgetActionButton(title: entry.isActiveSleep ? "Wake" : "Sleep",
+                                   emoji: entry.isActiveSleep ? "☀️" : "💤",
+                                   tint: AppColor.accentSleep,
+                                   intent: SetSleepIntent.driving(asleep: !entry.isActiveSleep))
+            }
         }
     }
 }
@@ -56,16 +65,23 @@ struct WidgetMetricColumns: View {
     let entry: WidgetEntry
 
     var body: some View {
+        // Paused trackers drop their column; the rest re-share the width.
         HStack(spacing: 0) {
-            column(emoji: "🍼", label: "feed",
-                   value: value(for: entry.lastFeedDate),
-                   urgency: Urgency.from(since: entry.lastFeedDate, target: entry.feedTargetInterval))
-            hairline
-            sleepColumn
-            hairline
-            column(emoji: "💩", label: "diaper",
-                   value: value(for: entry.lastDiaperDate),
-                   urgency: Urgency.from(since: entry.lastDiaperDate, target: UrgencyDefaults.diaper))
+            if entry.feedEnabled {
+                column(emoji: "🍼", label: "feed",
+                       value: value(for: entry.lastFeedDate),
+                       urgency: Urgency.from(since: entry.lastFeedDate, target: entry.feedTargetInterval))
+            }
+            if entry.sleepEnabled {
+                if entry.feedEnabled { hairline }
+                sleepColumn
+            }
+            if entry.diaperEnabled {
+                if entry.feedEnabled || entry.sleepEnabled { hairline }
+                column(emoji: "💩", label: "diaper",
+                       value: value(for: entry.lastDiaperDate),
+                       urgency: Urgency.from(since: entry.lastDiaperDate, target: UrgencyDefaults.diaper))
+            }
         }
     }
 

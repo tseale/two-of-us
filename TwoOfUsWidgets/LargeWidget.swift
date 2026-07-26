@@ -42,7 +42,7 @@ struct LargeWidgetView: View {
                 }
             }
             Spacer(minLength: 8)
-            QuickLogRow(isSleeping: entry.isActiveSleep)
+            QuickLogRow(entry: entry)
         }
         .padding(14)
         .containerBackground(AppColor.card, for: .widget)
