@@ -1,10 +1,11 @@
 import SwiftUI
 import SwiftData
 
-/// The Schedule tab: who's up next, the next 24 hours of pinned and predicted
-/// feeds/sleeps on a rail, and the standing plan editor. The whole point lives
-/// in one glance — "Katie's got the 11pm, I'm the 3am" — so the hero card leads
-/// with the assignee and every row carries their face.
+/// The Schedule tab: who's up next, the next 24 hours of the plan on a rail,
+/// and the standing plan editor. Every row is parent-authored (no predictions)
+/// and editable — swap, move, or skip any night; edit or remove any slot. The
+/// whole point lives in one glance — "Katie's got the 11pm, I'm the 3am" — so
+/// the hero card leads with the assignee and every row carries their face.
 struct ScheduleView: View {
     @Environment(\.modelContext) private var context
 
@@ -65,11 +66,7 @@ struct ScheduleView: View {
     }
 
     private func engine(now: Date) -> ScheduleEngine {
-        ScheduleEngine(
-            slots: slots, overrides: overrides, feeds: feeds, sleeps: sleeps,
-            targetFeedInterval: TimeInterval((settingsList.first?.targetFeedIntervalMinutes ?? 180) * 60),
-            now: now
-        )
+        ScheduleEngine(slots: slots, overrides: overrides, feeds: feeds, sleeps: sleeps, now: now)
     }
 
     // MARK: Hero
@@ -176,7 +173,7 @@ struct ScheduleView: View {
         .contentShape(Rectangle())
         .onTapGesture { actionTarget = occ }
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint(occ.isPinned ? "Reassign or change this slot" : "Pin this into the plan")
+        .accessibilityHint("Reassign, move, or change this slot")
     }
 
     private func caption(for occ: ScheduleOccurrence) -> String? {
@@ -191,7 +188,7 @@ struct ScheduleView: View {
         case .upcoming:
             guard occ.activeOverrideID != nil else { return nil }
             let name = participants.first { $0.id == occ.overrideCreatedByID }?.displayName ?? ""
-            return name.isEmpty ? "Swapped for tonight" : "Swapped by \(name)"
+            return name.isEmpty ? "Changed for tonight" : "Changed by \(name)"
         }
     }
 
@@ -210,7 +207,7 @@ struct ScheduleView: View {
             EmptyStateView(
                 emoji: "🌙",
                 title: "No plan yet",
-                message: "Predicted feeds show up here as you log. Pin the night bottles and split them up — so one of you can actually sleep."
+                message: "Add the night bottles and sleeps below and split them up — so one of you can actually sleep. Every slot stays editable, any night, any time."
             )
             .listRowBackground(Color.clear)
         }

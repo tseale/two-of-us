@@ -44,6 +44,44 @@ final class PlanStoreTests: XCTestCase {
 
     private var tonightKey: Int { ScheduleEngine.dayKey(for: .now, calendar: .current) }
 
+    // MARK: Per-night moves
+
+    func testMoveSlotCreatesOverrideCarryingAssignee() {
+        let slot = store.addPlanSlot(kind: .feed, minuteOfDay: 23 * 60, assignedTo: taylor)
+        let override = store.moveSlot(slot, dayKey: tonightKey, toMinuteOfDay: 23 * 60 + 30,
+                                      assignedTo: taylor)
+
+        XCTAssertEqual(override.minuteOfDayOverride, 23 * 60 + 30)
+        XCTAssertEqual(override.assignedToID, taylor.id, "a move never drops the assignment")
+        XCTAssertFalse(override.isSkipped)
+    }
+
+    func testSwapAfterMoveKeepsTheMovedTime() {
+        // Move tonight to 11:30, then hand it to Katie: the replacing override
+        // must carry the move along — "assign to Katie" silently snapping the
+        // night back to 11:00 would betray "edit anything at any time".
+        let katie = Participant(displayName: "Katie", colorHex: "#112233")
+        context.insert(katie)
+        let slot = store.addPlanSlot(kind: .feed, minuteOfDay: 23 * 60, assignedTo: taylor)
+
+        let moved = store.moveSlot(slot, dayKey: tonightKey, toMinuteOfDay: 23 * 60 + 30,
+                                   assignedTo: taylor)
+        let swapped = store.overrideSlot(slot, dayKey: tonightKey, assignTo: katie)
+
+        XCTAssertNotNil(moved.deletedAt, "one live override per night")
+        XCTAssertEqual(swapped.assignedToID, katie.id)
+        XCTAssertEqual(swapped.minuteOfDayOverride, 23 * 60 + 30, "the move survives the swap")
+    }
+
+    func testSkipAfterMoveDropsTheMove() {
+        let slot = store.addPlanSlot(kind: .feed, minuteOfDay: 23 * 60, assignedTo: taylor)
+        store.moveSlot(slot, dayKey: tonightKey, toMinuteOfDay: 23 * 60 + 30, assignedTo: taylor)
+        let skipped = store.skipSlot(slot, dayKey: tonightKey)
+
+        XCTAssertTrue(skipped.isSkipped)
+        XCTAssertNil(skipped.minuteOfDayOverride, "a skipped night has no time to move")
+    }
+
     // MARK: Slots
 
     func testAddPlanSlotStampsDenormalizedAssignment() {

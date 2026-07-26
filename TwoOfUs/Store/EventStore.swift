@@ -461,16 +461,30 @@ struct EventStore {
 
     /// Reassigns one night of a slot ("Katie takes tonight's 3am") without
     /// touching the standing plan. Replaces any earlier live override for the
-    /// same night so at most one override per (slot, night) is authored here.
+    /// same night so at most one override per (slot, night) is authored here;
+    /// a time move already made for that night is carried forward, so swapping
+    /// after moving keeps both edits.
     @discardableResult
     func overrideSlot(_ slot: PlanSlot, dayKey: Int, assignTo participant: Participant?) -> PlanOverride {
-        insertOverride(slot, dayKey: dayKey, assignedTo: participant, isSkipped: false)
+        insertOverride(slot, dayKey: dayKey, assignedTo: participant, isSkipped: false,
+                       minuteOfDayOverride: nil, inheritPriorMove: true)
+    }
+
+    /// Moves one night of a slot to a different time ("tonight's 11pm at 11:30
+    /// instead") without touching the standing plan. `assignedTo` carries the
+    /// night's current effective assignee so a move never drops a swap.
+    @discardableResult
+    func moveSlot(_ slot: PlanSlot, dayKey: Int, toMinuteOfDay minute: Int,
+                  assignedTo participant: Participant?) -> PlanOverride {
+        insertOverride(slot, dayKey: dayKey, assignedTo: participant, isSkipped: false,
+                       minuteOfDayOverride: minute, inheritPriorMove: false)
     }
 
     /// Skips one night of a slot — no occurrence, no reminder on either phone.
     @discardableResult
     func skipSlot(_ slot: PlanSlot, dayKey: Int) -> PlanOverride {
-        insertOverride(slot, dayKey: dayKey, assignedTo: nil, isSkipped: true)
+        insertOverride(slot, dayKey: dayKey, assignedTo: nil, isSkipped: true,
+                       minuteOfDayOverride: nil, inheritPriorMove: false)
     }
 
     /// Undoes a swap/skip — the standing assignment resumes for that night.
@@ -482,12 +496,19 @@ struct EventStore {
     }
 
     private func insertOverride(_ slot: PlanSlot, dayKey: Int, assignedTo participant: Participant?,
-                                isSkipped: Bool) -> PlanOverride {
+                                isSkipped: Bool, minuteOfDayOverride: Int?,
+                                inheritPriorMove: Bool) -> PlanOverride {
         var ids: [UUID] = []
         let slotID = slot.id
         let priors = (try? context.fetch(FetchDescriptor<PlanOverride>(
             predicate: #Predicate { $0.slotID == slotID && $0.dayKey == dayKey && $0.deletedAt == nil }
         ))) ?? []
+        // A swap replaces the night's single live override, so it must carry
+        // the prior move along or "assign to Katie" would silently snap a
+        // moved 11:30 back to 11:00. Skips drop the move (no occurrence).
+        let inheritedMinute = inheritPriorMove
+            ? priors.first { !$0.isSkipped }?.minuteOfDayOverride
+            : nil
         for prior in priors {
             prior.deletedAt = .now
             ids.append(prior.id)
@@ -499,6 +520,7 @@ struct EventStore {
             assignedToName: participant?.displayName ?? "",
             assignedToColorHex: participant?.colorHex ?? "",
             isSkipped: isSkipped,
+            minuteOfDayOverride: minuteOfDayOverride ?? inheritedMinute,
             createdByID: owner?.id ?? UUID()
         )
         context.insert(override)

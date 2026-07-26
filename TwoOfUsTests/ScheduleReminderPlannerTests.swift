@@ -11,13 +11,12 @@ final class ScheduleReminderPlannerTests: XCTestCase {
 
     private func occurrence(
         in interval: TimeInterval, assignedTo: UUID?, kind: EventKind = .feed,
-        source: ScheduleOccurrence.Source? = nil,
         status: ScheduleOccurrence.Status = .upcoming,
         slotID: UUID = UUID(), dayKey: Int = 20_260_721
     ) -> ScheduleOccurrence {
         ScheduleOccurrence(
-            id: "test", kind: kind, date: now.addingTimeInterval(interval), dayKey: dayKey,
-            source: source ?? .pinned(slotID: slotID), status: status,
+            id: "test", slotID: slotID, kind: kind,
+            date: now.addingTimeInterval(interval), dayKey: dayKey, status: status,
             assignedToID: assignedTo, assignedToName: "", assignedToColorHex: "",
             activeOverrideID: nil, overrideCreatedByID: nil
         )
@@ -41,12 +40,11 @@ final class ScheduleReminderPlannerTests: XCTestCase {
         XCTAssertTrue(plan([occurrence(in: 2 * 3600, assignedTo: me)], myID: nil).isEmpty)
     }
 
-    func testSkipsNonUpcomingAndPredicted() {
+    func testSkipsNonUpcoming() {
         let planned = plan([
             occurrence(in: 2 * 3600, assignedTo: me, status: .fulfilled(byEventID: UUID())),
             occurrence(in: 3 * 3600, assignedTo: me, status: .skipped),
-            occurrence(in: -1 * 3600, assignedTo: me, status: .overdue),
-            occurrence(in: 4 * 3600, assignedTo: me, source: .predicted)
+            occurrence(in: -1 * 3600, assignedTo: me, status: .overdue)
         ], myID: me)
 
         XCTAssertTrue(planned.isEmpty)

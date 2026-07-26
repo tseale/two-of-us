@@ -1,15 +1,11 @@
 import Foundation
 
 /// One concrete instance on the upcoming schedule — a standing `PlanSlot`
-/// materialized onto a real day (with any per-night override applied), or a
-/// transient prediction derived from the log. Predictions are never persisted:
-/// both phones sync identical inputs, so both derive identical predictions,
-/// and only human decisions (pin / assign / swap / skip) become records.
+/// materialized onto a real day, with any per-night override (swap / skip /
+/// move) applied. Every row is parent-authored: the schedule shows exactly
+/// what was defined, nothing derived (log-based predictions were removed
+/// 2026-07-25 — the plan is manual by design, and every row is editable).
 struct ScheduleOccurrence: Identifiable, Equatable {
-    enum Source: Equatable {
-        case pinned(slotID: UUID)
-        case predicted
-    }
     enum Status: Equatable {
         case upcoming
         case fulfilled(byEventID: UUID)   // a logged event near the slot time covered it
@@ -17,20 +13,17 @@ struct ScheduleOccurrence: Identifiable, Equatable {
         case skipped                      // per-night skip override
     }
 
-    let id: String                        // stable: "slot.<slotID>.<dayKey>" / "pred.<kind>.<k>"
+    let id: String                        // stable: "slot.<slotID>.<dayKey>"
+    let slotID: UUID                      // → the standing PlanSlot
     let kind: EventKind                   // .feed or .sleep only
-    let date: Date
-    let dayKey: Int                       // key for creating a same-night override
-    let source: Source
+    let date: Date                        // override-adjusted (a moved night reflects its moved time)
+    let dayKey: Int                       // keyed to the STANDING time's day, so lookup and undo agree
     let status: Status
     let assignedToID: UUID?
     let assignedToName: String
     let assignedToColorHex: String
-    let activeOverrideID: UUID?           // non-nil when a live override applied (drives "swapped" + undo)
-    let overrideCreatedByID: UUID?        // who made tonight's swap
-
-    var isPinned: Bool { if case .pinned = source { return true }; return false }
-    var slotID: UUID? { if case let .pinned(id) = source { return id }; return nil }
+    let activeOverrideID: UUID?           // non-nil when a live override applied (drives "changed" + undo)
+    let overrideCreatedByID: UUID?        // who made tonight's change
 }
 
 /// Pure merge of the standing plan, per-night overrides, and the event log into
@@ -42,7 +35,6 @@ struct ScheduleEngine {
     let overrides: [PlanOverride]
     let feeds: [FeedEvent]
     let sleeps: [SleepEvent]
-    let targetFeedInterval: TimeInterval  // from SharedSettings; <= 0 disables feed predictions
     var calendar: Calendar = .current
     var now: Date = .now
 
@@ -50,9 +42,6 @@ struct ScheduleEngine {
     static let fulfillmentWindow: TimeInterval = 45 * 60
     /// Unfulfilled past occurrences linger this long as "overdue", then drop.
     static let overdueGrace: TimeInterval = 90 * 60
-    /// Predictions this close to a pinned occurrence of the same kind are
-    /// suppressed — the pinned plan wins.
-    static let predictionMergeWindow: TimeInterval = 60 * 60
 
     // MARK: Public API
 
@@ -66,22 +55,20 @@ struct ScheduleEngine {
         // planner) and the 2h-lookback tab could disagree about which slot a
         // bottle covered. The display window only filters the OUTPUT.
         let matchStart = now.addingTimeInterval(-max(lookback, Self.overdueGrace + Self.fulfillmentWindow))
-        let pinned = materializedPinned(from: matchStart, to: windowEnd)
-        var result = pinned.filter { $0.date >= windowStart }
-        result += feedPredictions(until: windowEnd, pinned: pinned)
-        result += sleepPrediction(until: windowEnd, pinned: pinned)
-        return result.sorted { $0.date < $1.date }
+        return materializedPinned(from: matchStart, to: windowEnd)
+            .filter { $0.date >= windowStart }
+            .sorted { $0.date < $1.date }
     }
 
-    /// Upcoming pinned occurrences assigned to one parent — the reminder
-    /// planner's input (each device passes its own `myParticipantID`).
+    /// Upcoming occurrences assigned to one parent — the reminder planner's
+    /// input (each device passes its own `myParticipantID`).
     func upcomingAssigned(to participantID: UUID,
                           horizon: TimeInterval = 12 * 3600) -> [ScheduleOccurrence] {
         occurrences(lookback: 0, horizon: horizon)
-            .filter { $0.isPinned && $0.status == .upcoming && $0.assignedToID == participantID }
+            .filter { $0.status == .upcoming && $0.assignedToID == participantID }
     }
 
-    /// True when a pinned, upcoming occurrence of `kind` within `window` of
+    /// True when a live, upcoming occurrence of `kind` within `window` of
     /// `date` is assigned to a participant other than `me` — i.e. the schedule
     /// says that moment is somebody else's, so this device's generic reminders
     /// should stay dark. Biases toward reminding: an unknown local identity, an
@@ -93,7 +80,7 @@ struct ScheduleEngine {
         guard let me else { return false }
         let horizon = max(3600, date.timeIntervalSince(now) + window)
         return occurrences(lookback: 0, horizon: horizon).contains {
-            $0.isPinned && $0.kind == kind && $0.status == .upcoming
+            $0.kind == kind && $0.status == .upcoming
                 && $0.assignedToID != nil && $0.assignedToID != me
                 && abs($0.date.timeIntervalSince(date)) <= window
         }
@@ -102,8 +89,8 @@ struct ScheduleEngine {
     // MARK: Helpers shared with the store/UI
 
     /// yyyymmdd of the local calendar day `date` falls on — the override key.
-    /// Computed from the same materialized instant the occurrence uses, so
-    /// creation and lookup can never disagree about "which night" 3am is.
+    /// Computed from the STANDING materialized instant (never the moved one),
+    /// so creation and lookup can never disagree about "which night" 3am is.
     static func dayKey(for date: Date, calendar: Calendar) -> Int {
         let c = calendar.dateComponents([.year, .month, .day], from: date)
         return (c.year ?? 0) * 10_000 + (c.month ?? 0) * 100 + (c.day ?? 0)
@@ -127,22 +114,23 @@ struct ScheduleEngine {
         // Every (slot × day) instant inside the window, override applied.
         struct Instance {
             let slot: PlanSlot
-            let date: Date
-            let dayKey: Int
+            let date: Date                // override-adjusted (moved nights)
+            let dayKey: Int               // from the STANDING instant
             let override: PlanOverride?
         }
         var instances: [Instance] = []
         var day = calendar.startOfDay(for: windowStart)
         while day <= windowEnd {
             for slot in liveSlots {
-                guard let date = Self.materialize(minuteOfDay: slot.minuteOfDay, on: day, calendar: calendar),
-                      date >= windowStart, date <= windowEnd else { continue }
-                let key = Self.dayKey(for: date, calendar: calendar)
-                // Concurrent swaps land as separate records; pick a
+                guard let standing = Self.materialize(minuteOfDay: slot.minuteOfDay, on: day, calendar: calendar),
+                      standing >= windowStart, standing <= windowEnd else { continue }
+                let key = Self.dayKey(for: standing, calendar: calendar)
+                // Concurrent overrides land as separate records; pick a
                 // deterministic winner so both phones agree.
                 let winner = liveOverrides
                     .filter { $0.slotID == slot.id && $0.dayKey == key }
                     .max { ($0.createdAt, $0.id.uuidString) < ($1.createdAt, $1.id.uuidString) }
+                let date = movedDate(standing: standing, on: day, override: winner) ?? standing
                 instances.append(Instance(slot: slot, date: date, dayKey: key, override: winner))
             }
             guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
@@ -197,10 +185,10 @@ struct ScheduleEngine {
             let override = instance.override
             return ScheduleOccurrence(
                 id: "slot.\(instance.slot.id.uuidString).\(instance.dayKey)",
+                slotID: instance.slot.id,
                 kind: instance.slot.kind,
                 date: instance.date,
                 dayKey: instance.dayKey,
-                source: .pinned(slotID: instance.slot.id),
                 status: status,
                 assignedToID: override != nil ? override?.assignedToID : instance.slot.assignedToID,
                 assignedToName: override?.assignedToName ?? instance.slot.assignedToName,
@@ -211,58 +199,23 @@ struct ScheduleEngine {
         }
     }
 
-    // MARK: Predictions (transient, future-only, always unassigned)
-
-    /// Projects `lastFeed + k·interval` — deliberately the same arithmetic as
-    /// Home's `feedHint` and the next-feed widget gauge, so every surface names
-    /// the same time. Future-only: "the feed is due *now*" is Home's urgency
-    /// language, not a schedule row.
-    private func feedPredictions(until windowEnd: Date, pinned: [ScheduleOccurrence]) -> [ScheduleOccurrence] {
-        guard targetFeedInterval > 0,
-              let lastFeed = feeds.filter({ $0.deletedAt == nil }).map(\.timestamp).max()
-        else { return [] }
-        // Start at the first multiple after `now` — a days-stale last feed must
-        // not spend the iteration budget walking through past intervals.
-        let elapsed = now.timeIntervalSince(lastFeed)
-        var k = max(1, Int(floor(elapsed / targetFeedInterval)) + 1)
-        let maxK = k + 32   // bounds a tiny interval; real horizons need far fewer
-        var result: [ScheduleOccurrence] = []
-        while k < maxK {
-            let date = lastFeed.addingTimeInterval(Double(k) * targetFeedInterval)
-            if date > windowEnd { break }
-            defer { k += 1 }
-            guard date > now else { continue }
-            if nearPinned(date, kind: .feed, in: pinned) { continue }
-            result.append(prediction(kind: .feed, date: date, id: "pred.feed.\(k)"))
+    /// The moved instant for a night whose override carries a time change, or
+    /// nil to keep the standing time. Wall-clock minutes materialize on the
+    /// standing occurrence's day, then snap to the interpretation nearest the
+    /// standing time — so moving an 11:30pm slot "to 12:15" means fifteen past
+    /// midnight TONIGHT (45 minutes later), never this morning (23 hours ago).
+    private func movedDate(standing: Date, on day: Date, override: PlanOverride?) -> Date? {
+        guard let minute = override?.minuteOfDayOverride,
+              var moved = Self.materialize(minuteOfDay: minute, on: day, calendar: calendar)
+        else { return nil }
+        let half: TimeInterval = 12 * 3600
+        if moved.timeIntervalSince(standing) > half,
+           let back = calendar.date(byAdding: .day, value: -1, to: moved) {
+            moved = back
+        } else if moved.timeIntervalSince(standing) < -half,
+                  let forward = calendar.date(byAdding: .day, value: 1, to: moved) {
+            moved = forward
         }
-        return result
-    }
-
-    /// One expected next sleep: `lastWake + UrgencyDefaults.sleep`. Silent while
-    /// a sleep is running or when the plan already pins one nearby.
-    private func sleepPrediction(until windowEnd: Date, pinned: [ScheduleOccurrence]) -> [ScheduleOccurrence] {
-        let liveSleeps = sleeps.filter { $0.deletedAt == nil }
-        guard !liveSleeps.contains(where: { $0.endedAt == nil }),
-              let lastWake = liveSleeps.compactMap(\.endedAt).max()
-        else { return [] }
-        let date = lastWake.addingTimeInterval(UrgencyDefaults.sleep)
-        guard date > now, date <= windowEnd, !nearPinned(date, kind: .sleep, in: pinned) else { return [] }
-        return [prediction(kind: .sleep, date: date, id: "pred.sleep.1")]
-    }
-
-    private func nearPinned(_ date: Date, kind: EventKind, in pinned: [ScheduleOccurrence]) -> Bool {
-        pinned.contains {
-            $0.kind == kind && abs($0.date.timeIntervalSince(date)) <= Self.predictionMergeWindow
-        }
-    }
-
-    private func prediction(kind: EventKind, date: Date, id: String) -> ScheduleOccurrence {
-        ScheduleOccurrence(
-            id: id, kind: kind, date: date,
-            dayKey: Self.dayKey(for: date, calendar: calendar),
-            source: .predicted, status: .upcoming,
-            assignedToID: nil, assignedToName: "", assignedToColorHex: "",
-            activeOverrideID: nil, overrideCreatedByID: nil
-        )
+        return moved
     }
 }

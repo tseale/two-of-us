@@ -408,6 +408,7 @@ final class RecordMappingTests: XCTestCase {
         let original = PlanOverride(slotID: UUID(), dayKey: 20_260_722,
                                     assignedToID: UUID(), assignedToName: "Taylor",
                                     assignedToColorHex: "#5AC8B8", isSkipped: false,
+                                    minuteOfDayOverride: 23 * 60 + 30,
                                     createdByID: UUID())
         context.insert(original)
         try context.save()
@@ -421,6 +422,7 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertEqual(copy.assignedToID, original.assignedToID)
         XCTAssertEqual(copy.assignedToName, "Taylor")
         XCTAssertFalse(copy.isSkipped)
+        XCTAssertEqual(copy.minuteOfDayOverride, 23 * 60 + 30, "a tonight-move travels with the override")
         XCTAssertEqual(copy.createdByID, original.createdByID)
     }
 

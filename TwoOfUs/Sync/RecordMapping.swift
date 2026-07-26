@@ -96,6 +96,7 @@ enum RecordMapping {
             r["assignedToName"] = m.assignedToName
             r["assignedToColorHex"] = m.assignedToColorHex
             r["isSkipped"] = m.isSkipped ? 1 : 0
+            r["minuteOfDayOverride"] = m.minuteOfDayOverride
             r["createdByID"] = m.createdByID.uuidString
             r["createdAt"] = m.createdAt
             r["deletedAt"] = m.deletedAt
@@ -366,6 +367,10 @@ enum RecordMapping {
         m.assignedToName = r["assignedToName"] as? String ?? m.assignedToName
         m.assignedToColorHex = r["assignedToColorHex"] as? String ?? m.assignedToColorHex
         m.isSkipped = (r["isSkipped"] as? Int ?? 0) != 0
+        // Absent means either "no move" or a pre-move app version; both read as
+        // nil — override records are immutable after creation (only deletedAt
+        // changes), so absence can't clobber a real move.
+        m.minuteOfDayOverride = r["minuteOfDayOverride"] as? Int
         if let s = r["createdByID"] as? String, let cid = UUID(uuidString: s) { m.createdByID = cid }
         m.createdAt = r["createdAt"] as? Date ?? m.createdAt
         m.deletedAt = r["deletedAt"] as? Date

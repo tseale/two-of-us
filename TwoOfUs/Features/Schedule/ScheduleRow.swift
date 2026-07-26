@@ -72,7 +72,7 @@ struct ScheduleRow: View {
     }
 
     private var timeText: String {
-        (occurrence.isPinned ? "" : "~") + TimeFormatting.clock(occurrence.date)
+        TimeFormatting.clock(occurrence.date)
     }
 
     private var title: String {
@@ -83,8 +83,7 @@ struct ScheduleRow: View {
         occurrence.status == .overdue ? AppColor.urgencyRedText : AppColor.text2
     }
 
-    /// The continuous rail plus this row's node: solid = pinned in the plan,
-    /// hollow = predicted from the log, dimmed once settled.
+    /// The continuous rail plus this row's node, dimmed once settled.
     private var rail: some View {
         ZStack {
             Rectangle()
@@ -96,19 +95,11 @@ struct ScheduleRow: View {
         .frame(width: 16)
     }
 
-    @ViewBuilder
     private var node: some View {
-        if occurrence.isPinned {
-            Circle()
-                .fill(accent.opacity(settled ? 0.35 : 1))
-                .frame(width: 11, height: 11)
-                .overlay(Circle().strokeBorder(AppColor.card, lineWidth: 2))
-        } else {
-            Circle()
-                .strokeBorder(accent, lineWidth: 2)
-                .frame(width: 11, height: 11)
-                .background(Circle().fill(AppColor.bg))
-        }
+        Circle()
+            .fill(accent.opacity(settled ? 0.35 : 1))
+            .frame(width: 11, height: 11)
+            .overlay(Circle().strokeBorder(AppColor.card, lineWidth: 2))
     }
 
     /// Assigned parent's avatar, ringed in their color when it's *you* — the
@@ -136,7 +127,6 @@ struct ScheduleRow: View {
 
     private var accessibilityLabel: String {
         var label = "\(title), \(TimeFormatting.clock(occurrence.date))"
-        label += occurrence.isPinned ? ", planned" : ", predicted"
         if !occurrence.assignedToName.isEmpty {
             label += isMine ? ", assigned to you" : ", assigned to \(occurrence.assignedToName)"
         }
