@@ -398,7 +398,7 @@ struct HomeView: View {
         Button {
             router.requestTab(.schedule)
         } label: {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 8) {
                     Text("🌙").font(.callout)
                     Text("Tonight's Schedule").sectionLabelStyle()
@@ -407,13 +407,24 @@ struct HomeView: View {
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(AppColor.text3)
                 }
-                ForEach(occurrences) { occ in
-                    tonightRow(occ, now: now)
+                .padding(.bottom, 10)
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(occurrences.enumerated()), id: \.element.id) { index, occ in
+                        tonightRow(occ, now: now)
+                        if index < occurrences.count - 1 {
+                            Divider().overlay(AppColor.separator.opacity(0.5))
+                        }
+                    }
                 }
-                if let summary = tonightSummary {
-                    Text(summary)
-                        .font(.caption2)
-                        .foregroundStyle(AppColor.text3)
+                if let parts = tonightSummaryParts {
+                    HStack(spacing: 6) {
+                        Label(parts.interval, systemImage: "clock")
+                        Text("·").foregroundStyle(AppColor.text3)
+                        Label(parts.window, systemImage: "moon.stars.fill")
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(AppColor.text3)
+                    .padding(.top, 10)
                 }
             }
             .padding(.horizontal, 14)
@@ -429,24 +440,14 @@ struct HomeView: View {
         let mine = occ.assignedToID == prefs.myParticipantID
         let done = { if case .fulfilled = occ.status { return true }; return false }()
         return HStack(spacing: 8) {
-            Text(TimeFormatting.clock(occ.date))
-                .font(.subheadline.weight(occ.date >= now && !done ? .semibold : .regular).monospacedDigit())
-                .foregroundStyle(done ? AppColor.text3 : AppColor.text)
-                .frame(width: 76, alignment: .leading)
-            Text(occ.kind.emoji).font(.footnote)
-            if occ.assignedToID != nil {
-                Avatar(photoData: occ.assignedToID.flatMap { loggerPhoto[$0] },
-                       name: occ.assignedToName, colorHex: occ.assignedToColorHex, size: 16)
-                Text(mine ? "You" : occ.assignedToName)
-                    .font(.footnote)
-                    .foregroundStyle(done ? AppColor.text3 : AppColor.text2)
-                    .lineLimit(1)
-            } else {
-                Text("Unassigned")
-                    .font(.footnote)
-                    .foregroundStyle(AppColor.text3)
+            HStack(spacing: 6) {
+                Text(occ.kind.emoji).font(.footnote)
+                Text(TimeFormatting.clock(occ.date))
+                    .font(.subheadline.weight(occ.date >= now && !done ? .semibold : .regular).monospacedDigit())
+                    .foregroundStyle(done ? AppColor.text3 : AppColor.text)
             }
-            Spacer(minLength: 8)
+            .frame(width: 108, alignment: .leading)
+
             if done {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.footnote)
@@ -456,7 +457,23 @@ struct HomeView: View {
                     .font(.caption2)
                     .foregroundStyle(AppColor.urgencyAmber)
             }
+
+            Spacer(minLength: 8)
+
+            if occ.assignedToID != nil {
+                Text(mine ? "You" : occ.assignedToName)
+                    .font(.footnote)
+                    .foregroundStyle(done ? AppColor.text3 : AppColor.text2)
+                    .lineLimit(1)
+                Avatar(photoData: occ.assignedToID.flatMap { loggerPhoto[$0] },
+                       name: occ.assignedToName, colorHex: occ.assignedToColorHex, size: 18)
+            } else {
+                Text("Unassigned")
+                    .font(.footnote)
+                    .foregroundStyle(AppColor.text3)
+            }
         }
+        .padding(.vertical, 9)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(tonightRowLabel(occ, mine: mine, done: done))
     }
@@ -468,12 +485,14 @@ struct HomeView: View {
         return "\(TimeFormatting.clock(occ.date)) \(kind), \(who)\(status)"
     }
 
-    /// "Every 3h · Night 8:00 PM–8:00 AM" — same summary the schedule tab shows.
-    private var tonightSummary: String? {
+    /// "Every 3h" / "8:00 PM–8:00 AM" — same summary the schedule tab shows, split
+    /// so the footer can lay each half out under its own icon.
+    private var tonightSummaryParts: (interval: String, window: String)? {
         guard let s = settingsList.first else { return nil }
-        return "Every \(NightScheduleSettingsSheet.spacingLabel(s.nightFeedSpacingMinutes))"
-            + " · Night \(NightScheduleSettingsSheet.clock(minuteOfDay: s.nightStartMinute))"
+        let interval = "Every \(NightScheduleSettingsSheet.spacingLabel(s.nightFeedSpacingMinutes))"
+        let window = "\(NightScheduleSettingsSheet.clock(minuteOfDay: s.nightStartMinute))"
             + "–\(NightScheduleSettingsSheet.clock(minuteOfDay: s.nightEndMinute))"
+        return (interval, window)
     }
 
     private func minuteOfDay(_ date: Date) -> Int {
