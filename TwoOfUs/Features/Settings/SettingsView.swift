@@ -148,7 +148,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Reminders")
                 } footer: {
-                    Text("Feed reminder alerts you when the next feed is due; My slot alarm wakes you for schedule slots assigned to you — both even on Silent or Focus, and only near your own slot one of them rings. This device only.")
+                    Text("Feed reminder alerts you when the next feed is due; My slot alarm wakes you for nighttime-schedule slots that are yours (an unassigned slot wakes both of you) — both even on Silent or Focus, and only near your own slot one of them rings. This device only.")
                 }
 
                 Section {

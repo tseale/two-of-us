@@ -179,7 +179,9 @@ final class RecordMappingTests: XCTestCase {
     func testSettingsRoundTrip() throws {
         let original = SharedSettings(targetFeedIntervalMinutes: 150,
                                       ozPresets: [2, 2.5, 5], defaultFeedOz: 5,
-                                      sleepLoggingEnabled: false)
+                                      sleepLoggingEnabled: false,
+                                      nightStartMinute: 21 * 60, nightEndMinute: 7 * 60,
+                                      nightFirstFeedMinute: 22 * 60, nightFeedSpacingMinutes: 210)
         context.insert(original)
         try context.save()
 
@@ -193,6 +195,28 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertTrue(copy.feedLoggingEnabled)
         XCTAssertTrue(copy.diaperLoggingEnabled)
         XCTAssertFalse(copy.sleepLoggingEnabled, "the paused sleep tracker must travel to the co-parent")
+        XCTAssertEqual(copy.nightStartMinute, 21 * 60, "the night window is a shared setting")
+        XCTAssertEqual(copy.nightEndMinute, 7 * 60)
+        XCTAssertEqual(copy.nightFirstFeedMinute, 22 * 60)
+        XCTAssertEqual(copy.nightFeedSpacingMinutes, 210)
+    }
+
+    /// A settings record written by an app version that predates the nighttime
+    /// schedule carries none of its fields — applying it must keep the local
+    /// night window, not zero it into a midnight–midnight nothing.
+    func testSettingsRecordWithoutNightFieldsKeepsLocalWindow() throws {
+        let receiver = AppModelContainer.make(inMemory: true)
+        let local = SharedSettings(nightStartMinute: 19 * 60, nightFeedSpacingMinutes: 240)
+        receiver.mainContext.insert(local)
+        try receiver.mainContext.save()
+
+        let r = CKRecord(recordType: SyncConstants.RecordType.settings, recordID: recordID(local.id))
+        r["targetFeedIntervalMinutes"] = 120
+        try RecordMapping.apply(r, in: receiver.mainContext)
+
+        let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<SharedSettings>()).first)
+        XCTAssertEqual(copy.nightStartMinute, 19 * 60)
+        XCTAssertEqual(copy.nightFeedSpacingMinutes, 240)
     }
 
     /// A settings record written by an app version that predates the tracker

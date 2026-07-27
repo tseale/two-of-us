@@ -2,8 +2,9 @@ import XCTest
 @testable import TwoOfUs
 
 /// Tests the pure decision layer behind slot reminders. The one invariant that
-/// IS the feature: a device plans reminders only for occurrences assigned to
-/// its own parent — the off-duty phone stays silent by construction.
+/// IS the feature: a device plans reminders for its own parent's occurrences
+/// plus unassigned ones (nobody claimed it → both phones ring) — a slot pinned
+/// to the co-parent keeps the off-duty phone silent by construction.
 final class ScheduleReminderPlannerTests: XCTestCase {
     private let me = UUID()
     private let coParent = UUID()
@@ -26,14 +27,27 @@ final class ScheduleReminderPlannerTests: XCTestCase {
         ScheduleReminderPlanner.plan(occurrences: occurrences, myID: myID, babyName: "Miller", now: now)
     }
 
-    func testPlansOnlyMyAssignedOccurrences() {
+    func testPlansMineAndUnassignedButNeverCoParents() {
         let planned = plan([
             occurrence(in: 2 * 3600, assignedTo: me),
             occurrence(in: 4 * 3600, assignedTo: coParent),
             occurrence(in: 6 * 3600, assignedTo: nil)
         ], myID: me)
 
-        XCTAssertEqual(planned.count, 1, "the co-parent's and unassigned slots stay silent here")
+        XCTAssertEqual(planned.count, 2,
+                       "mine rings me, unassigned rings everyone, the co-parent's stays silent here")
+        XCTAssertEqual(planned.map(\.occurrenceDate), [
+            now.addingTimeInterval(2 * 3600), now.addingTimeInterval(6 * 3600)
+        ])
+    }
+
+    func testUnassignedReminderSaysSo() {
+        let planned = plan([occurrence(in: 2 * 3600, assignedTo: nil)], myID: me)
+
+        XCTAssertEqual(planned.count, 1)
+        XCTAssertTrue(planned[0].title.contains("unclaimed"),
+                      "an unassigned wake-up must not read as \"your\" slot")
+        XCTAssertFalse(planned[0].title.contains("your"))
     }
 
     func testNoIdentityPlansNothing() {

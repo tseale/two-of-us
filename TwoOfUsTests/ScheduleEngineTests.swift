@@ -75,6 +75,20 @@ final class ScheduleEngineTests: XCTestCase {
         XCTAssertTrue(engine(slots: [slot]).occurrences().isEmpty)
     }
 
+    // MARK: Alarm routing
+
+    func testUpcomingAlarmableIncludesMineAndUnassignedOnly() {
+        let me = UUID(), coParent = UUID()
+        let mine = PlanSlot(kind: .feed, minuteOfDay: 23 * 60, assignedToID: me)
+        let theirs = PlanSlot(kind: .feed, minuteOfDay: 1 * 60, assignedToID: coParent)
+        let unclaimed = PlanSlot(kind: .feed, minuteOfDay: 3 * 60)
+
+        let alarmable = engine(slots: [mine, theirs, unclaimed]).upcomingAlarmable(for: me)
+
+        XCTAssertEqual(alarmable.map(\.slotID), [mine.id, unclaimed.id],
+                       "my slot and the unclaimed one ring here; the co-parent's must not")
+    }
+
     // MARK: Override precedence
 
     func testOverrideReplacesAssignmentForItsNightOnly() {

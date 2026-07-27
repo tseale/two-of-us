@@ -25,6 +25,28 @@ per-device (prefs live in `LocalPrefs`, never synced), and honors per-user
   while the AlarmKit feed alarm is on** so you're never reminded twice.
 - **Daily summary** — a `.passive` end-of-day recap (`notifyMilestones`).
 
+## Nighttime schedule routing
+
+The nighttime schedule (feed slots generated from the shared night window +
+spacing in `SharedSettings`, alternating parents by default) routes its
+"you're up" reminders and the loud slot alarm **by assignment** — this is the
+feature's entire point:
+
+| Slot assignment | Taylor's phone | Co-parent's phone |
+|---|---|---|
+| Taylor | rings | silent |
+| Co-parent | silent | rings |
+| Unassigned | rings | rings |
+
+The filter lives in `ScheduleReminderPlanner.plan` (15-min-lead Time Sensitive
+notification) and `ScheduleEngine.upcomingAlarmable` (the AlarmKit slot alarm,
+`SlotAlarmManager`, opt-in per device via `nightSlotAlarmEnabled`). Silence is
+earned by an assignment, never by default: an unclaimed slot rings both
+phones. Slot reminders deliberately ignore quiet hours — a 3am assigned-feed
+wake-up IS the feature. Generic feed nudges and the interval feed alarm stand
+down near any upcoming slot occurrence so one night never rings twice
+(`NotificationManager.assignedSlotCovers`, `FeedAlarmManager.reschedule`).
+
 ## Actionable (background logging)
 
 Reminder notifications carry action buttons (`registerCategories`):

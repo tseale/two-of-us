@@ -16,6 +16,15 @@ final class SharedSettings {
     var feedLoggingEnabled: Bool = true
     var diaperLoggingEnabled: Bool = true
     var sleepLoggingEnabled: Bool = true
+    // Nighttime schedule — the shared overnight rotation both parents see.
+    // Wall-clock minutes-from-midnight (same convention as PlanSlot.minuteOfDay)
+    // so the window survives DST and renders identically on both phones.
+    // Defaulted (not optional) so pre-upgrade stores and records that predate
+    // the fields read as the standard 8pm–8am night.
+    var nightStartMinute: Int = 1200           // night starts 8:00 PM
+    var nightEndMinute: Int = 480              // night ends 8:00 AM
+    var nightFirstFeedMinute: Int = 1260       // first feed 9:00 PM
+    var nightFeedSpacingMinutes: Int = 180     // 3h between night feeds
     var ckSystemFields: Data?                  // archived CKRecord system fields (see Baby.ckSystemFields)
 
     init(
@@ -25,7 +34,11 @@ final class SharedSettings {
         defaultFeedOz: Double = 4,
         feedLoggingEnabled: Bool = true,
         diaperLoggingEnabled: Bool = true,
-        sleepLoggingEnabled: Bool = true
+        sleepLoggingEnabled: Bool = true,
+        nightStartMinute: Int = 1200,
+        nightEndMinute: Int = 480,
+        nightFirstFeedMinute: Int = 1260,
+        nightFeedSpacingMinutes: Int = 180
     ) {
         self.id = id
         self.targetFeedIntervalMinutes = targetFeedIntervalMinutes
@@ -34,6 +47,10 @@ final class SharedSettings {
         self.feedLoggingEnabled = feedLoggingEnabled
         self.diaperLoggingEnabled = diaperLoggingEnabled
         self.sleepLoggingEnabled = sleepLoggingEnabled
+        self.nightStartMinute = nightStartMinute
+        self.nightEndMinute = nightEndMinute
+        self.nightFirstFeedMinute = nightFirstFeedMinute
+        self.nightFeedSpacingMinutes = nightFeedSpacingMinutes
     }
 
     var targetFeedInterval: TimeInterval { TimeInterval(targetFeedIntervalMinutes * 60) }

@@ -75,11 +75,17 @@ struct HomeView: View {
                                 SleepActiveCard(sleep: sleep, now: ctx.date) { endSleep(sleep) }
                                     .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
                             }
-                            // Inside the ticking TimelineView so the row stays
+                            // Inside the ticking TimelineView so the rows stay
                             // honest on a phone left open overnight: 11pm passing
                             // drops the 11pm row and surfaces the 3am one without
-                            // needing a log or sync to trigger a render.
-                            if let next = upNextOccurrence(now: ctx.date) {
+                            // needing a log or sync to trigger a render. During
+                            // the night window the glance grows into the full
+                            // "Tonight" card; daytime keeps the one-line up-next.
+                            if isNight(now: ctx.date),
+                               case let tonight = tonightOccurrences(now: ctx.date),
+                               !tonight.isEmpty {
+                                tonightCard(tonight, now: ctx.date)
+                            } else if let next = upNextOccurrence(now: ctx.date) {
                                 upNextRow(next)
                             }
                         }
@@ -315,6 +321,130 @@ struct HomeView: View {
         return next < now
             ? "nap was due ~\(TimeFormatting.clock(next))"
             : "next nap ~\(TimeFormatting.clock(next))"
+    }
+
+    // MARK: Tonight (nighttime schedule card)
+
+    /// True while `now` sits inside the shared night window — the hours where
+    /// the schedule (not ad-hoc daytime logging) runs the show.
+    private func isNight(now: Date) -> Bool {
+        guard let s = settingsList.first else { return false }
+        let c = Calendar.current.dateComponents([.hour, .minute], from: now)
+        return NightScheduleGenerator.isWithinNight(
+            minuteOfDay: (c.hour ?? 0) * 60 + (c.minute ?? 0),
+            nightStartMinute: s.nightStartMinute,
+            nightEndMinute: s.nightEndMinute
+        )
+    }
+
+    /// The whole night at a glance: every occurrence from night start to night
+    /// end, ticked-off ones included — the card is tonight's roster, not just
+    /// what's left. Lookback reaches to the night's start so a fulfilled 9pm
+    /// still shows its check at 2am.
+    private func tonightOccurrences(now: Date) -> [ScheduleOccurrence] {
+        guard let s = settingsList.first, !planSlots.isEmpty else { return [] }
+        let c = Calendar.current.dateComponents([.hour, .minute], from: now)
+        let nowMinute = (c.hour ?? 0) * 60 + (c.minute ?? 0)
+        let sinceNightStart = TimeInterval(((nowMinute - s.nightStartMinute + 1440) % 1440) * 60)
+        let untilNightEnd = TimeInterval(((s.nightEndMinute - nowMinute + 1440) % 1440) * 60)
+        let engine = ScheduleEngine(slots: planSlots, overrides: planOverrides,
+                                    feeds: feeds, sleeps: sleeps, now: now)
+        return engine.occurrences(lookback: sinceNightStart, horizon: untilNightEnd)
+            .filter { occ in
+                isTracked(occ.kind) && occ.status != .skipped
+                    && NightScheduleGenerator.isWithinNight(
+                        minuteOfDay: minuteOfDay(occ.date),
+                        nightStartMinute: s.nightStartMinute,
+                        nightEndMinute: s.nightEndMinute
+                    )
+            }
+    }
+
+    private func tonightCard(_ occurrences: [ScheduleOccurrence], now: Date) -> some View {
+        Button {
+            router.requestTab(.schedule)
+        } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Text("🌙").font(.callout)
+                    Text("Tonight's Schedule").sectionLabelStyle()
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(AppColor.text3)
+                }
+                ForEach(occurrences) { occ in
+                    tonightRow(occ, now: now)
+                }
+                if let summary = tonightSummary {
+                    Text(summary)
+                        .font(.caption2)
+                        .foregroundStyle(AppColor.text3)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .surfaceCard(cornerRadius: 14)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Tonight's schedule, \(occurrences.count) slots")
+        .accessibilityHint("Opens the nighttime schedule")
+    }
+
+    private func tonightRow(_ occ: ScheduleOccurrence, now: Date) -> some View {
+        let mine = occ.assignedToID == prefs.myParticipantID
+        let done = { if case .fulfilled = occ.status { return true }; return false }()
+        return HStack(spacing: 8) {
+            Text(TimeFormatting.clock(occ.date))
+                .font(.subheadline.weight(occ.date >= now && !done ? .semibold : .regular).monospacedDigit())
+                .foregroundStyle(done ? AppColor.text3 : AppColor.text)
+                .frame(width: 76, alignment: .leading)
+            Text(occ.kind.emoji).font(.footnote)
+            if occ.assignedToID != nil {
+                Avatar(photoData: occ.assignedToID.flatMap { loggerPhoto[$0] },
+                       name: occ.assignedToName, colorHex: occ.assignedToColorHex, size: 16)
+                Text(mine ? "You" : occ.assignedToName)
+                    .font(.footnote)
+                    .foregroundStyle(done ? AppColor.text3 : AppColor.text2)
+                    .lineLimit(1)
+            } else {
+                Text("Unassigned")
+                    .font(.footnote)
+                    .foregroundStyle(AppColor.text3)
+            }
+            Spacer(minLength: 8)
+            if done {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(AppColor.accentSleep)
+            } else if occ.status == .overdue {
+                Text("overdue")
+                    .font(.caption2)
+                    .foregroundStyle(AppColor.urgencyAmber)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(tonightRowLabel(occ, mine: mine, done: done))
+    }
+
+    private func tonightRowLabel(_ occ: ScheduleOccurrence, mine: Bool, done: Bool) -> String {
+        let kind = occ.kind == .sleep ? "sleep" : "bottle"
+        let who = occ.assignedToID == nil ? "unassigned" : (mine ? "yours" : occ.assignedToName)
+        let status = done ? ", done" : (occ.status == .overdue ? ", overdue" : "")
+        return "\(TimeFormatting.clock(occ.date)) \(kind), \(who)\(status)"
+    }
+
+    /// "Every 3h · Night 8:00 PM–8:00 AM" — same summary the schedule tab shows.
+    private var tonightSummary: String? {
+        guard let s = settingsList.first else { return nil }
+        return "Every \(NightScheduleSettingsSheet.spacingLabel(s.nightFeedSpacingMinutes))"
+            + " · Night \(NightScheduleSettingsSheet.clock(minuteOfDay: s.nightStartMinute))"
+            + "–\(NightScheduleSettingsSheet.clock(minuteOfDay: s.nightEndMinute))"
+    }
+
+    private func minuteOfDay(_ date: Date) -> Int {
+        let c = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return (c.hour ?? 0) * 60 + (c.minute ?? 0)
     }
 
     // MARK: Up next (schedule glance)

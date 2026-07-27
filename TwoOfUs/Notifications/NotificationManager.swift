@@ -302,10 +302,10 @@ enum NotificationManager {
     }
 
     /// True when a live pinned occurrence of `kind` lands within 30 minutes of
-    /// `date`, is still upcoming, AND has an assigned parent — only then does
-    /// the schedule actually speak for that moment. A skipped or unassigned
-    /// night produces no slot reminder for anyone, so the generic nudge must
-    /// stay on duty rather than stand down against silence.
+    /// `date` and is still upcoming — the schedule speaks for that moment on
+    /// every phone now: an assigned slot rings its parent, an unassigned one
+    /// rings both. Only a skipped night (no occurrence at all) leaves the
+    /// generic nudge on duty rather than standing down against silence.
     private static func assignedSlotCovers(_ date: Date, kind: EventKind, logger: QuickLogger) -> Bool {
         let slots = logger.planSlots
         guard !slots.isEmpty else { return false }
@@ -315,7 +315,7 @@ enum NotificationManager {
         )
         let horizon = max(3600, date.timeIntervalSinceNow + 1800)
         return engine.occurrences(lookback: 0, horizon: horizon).contains {
-            $0.kind == kind && $0.status == .upcoming && $0.assignedToID != nil
+            $0.kind == kind && $0.status == .upcoming
                 && abs($0.date.timeIntervalSince(date)) <= 30 * 60
         }
     }

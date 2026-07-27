@@ -519,6 +519,81 @@ struct EventStore {
     // it), while per-night changes are append-only `PlanOverride` inserts so
     // concurrent swaps by both parents can never conflict in CloudKit.
 
+    /// Saves the shared nighttime-schedule settings and regenerates the
+    /// standing FEED slots from them: one slot per generated time, alternating
+    /// between the parents by default. A slot whose time survives the
+    /// regeneration is kept in place — id and any manual assignment intact
+    /// (slot ids are load-bearing: overrides and reminder request ids point at
+    /// them) — while stale times soft-delete and new times insert. Sleep slots
+    /// are hand-authored and never touched here.
+    func applyNightSchedule(nightStartMinute: Int, nightEndMinute: Int,
+                            firstFeedMinute: Int, spacingMinutes: Int, asOf now: Date = .now) {
+        guard let settings else { return }
+        settings.nightStartMinute = EventBounds.wrapMinuteOfDay(nightStartMinute)
+        settings.nightEndMinute = EventBounds.wrapMinuteOfDay(nightEndMinute)
+        settings.nightFirstFeedMinute = EventBounds.wrapMinuteOfDay(firstFeedMinute)
+        settings.nightFeedSpacingMinutes = spacingMinutes
+        var ids: [UUID] = [settings.id]
+
+        let minutes = NightScheduleGenerator.feedMinutes(
+            nightStartMinute: settings.nightStartMinute,
+            nightEndMinute: settings.nightEndMinute,
+            firstFeedMinute: settings.nightFirstFeedMinute,
+            spacingMinutes: settings.nightFeedSpacingMinutes
+        )
+        let feedKind = EventKind.feed.rawValue
+        let liveFeedSlots = (try? context.fetch(FetchDescriptor<PlanSlot>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.kindRaw == feedKind }
+        ))) ?? []
+
+        // Stale times drop out — along with their future overrides, same rule
+        // as removePlanSlot, so a swap can't resurrect a deleted occurrence.
+        let todayKey = ScheduleEngine.dayKey(for: now, calendar: .current)
+        for slot in liveFeedSlots where !minutes.contains(slot.minuteOfDay) {
+            slot.deletedAt = now
+            ids.append(slot.id)
+            let slotID = slot.id
+            let orphaned = (try? context.fetch(FetchDescriptor<PlanOverride>(
+                predicate: #Predicate { $0.slotID == slotID && $0.deletedAt == nil && $0.dayKey >= todayKey }
+            ))) ?? []
+            for o in orphaned {
+                o.deletedAt = now
+                ids.append(o.id)
+            }
+        }
+
+        // Missing times insert with the default alternating rotation; kept
+        // slots keep whatever the parents chose by hand.
+        let parents = activeParticipants
+        for (index, minute) in minutes.enumerated() {
+            guard !liveFeedSlots.contains(where: { $0.minuteOfDay == minute }) else { continue }
+            let assignee = NightScheduleGenerator.alternatingAssignee(index: index, parents: parents)
+            let slot = PlanSlot(
+                kind: .feed,
+                minuteOfDay: minute,
+                assignedToID: assignee?.id,
+                assignedToName: assignee?.displayName ?? "",
+                assignedToColorHex: assignee?.colorHex ?? ""
+            )
+            context.insert(slot)
+            ids.append(slot.id)
+        }
+
+        save()
+        sync(save: ids)
+        reloadWidgets()
+        refreshLocalReminders()
+    }
+
+    /// Active participants in join order — the rotation order both phones agree on.
+    private var activeParticipants: [Participant] {
+        let all = (try? context.fetch(FetchDescriptor<Participant>(
+            predicate: #Predicate { $0.isActive },
+            sortBy: [SortDescriptor(\.invitedAt)]
+        ))) ?? []
+        return all
+    }
+
     @discardableResult
     func addPlanSlot(kind: EventKind, minuteOfDay: Int, assignedTo: Participant?) -> PlanSlot {
         let slot = PlanSlot(
