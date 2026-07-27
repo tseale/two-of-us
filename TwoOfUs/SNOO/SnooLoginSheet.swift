@@ -85,7 +85,7 @@ struct SnooLoginSheet: View {
                 Haptics.success()
                 dismiss()
             } catch let error as SnooAPIError {
-                errorMessage = error.loginMessage
+                errorMessage = error.userMessage
             } catch {
                 errorMessage = "Something went wrong. Try again."
             }

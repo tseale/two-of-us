@@ -167,7 +167,7 @@ final class SnooSyncCoordinator {
                 : .found(summaries: suggestions.map(Self.summaryLine))
         } catch let error as SnooAPIError {
             handleSyncError(error)
-            return .failed(message: error.loginMessage)
+            return .failed(message: error.userMessage)
         } catch {
             AppLog.snoo.error("SNOO sync failed: \(String(describing: type(of: error)), privacy: .public)")
             return .failed(message: "Something went wrong. Try again.")
