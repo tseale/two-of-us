@@ -175,6 +175,27 @@ final class QuickLoggerTests: XCTestCase {
         XCTAssertTrue(try empty.mainContext.fetch(FetchDescriptor<SleepEvent>()).isEmpty)
     }
 
+    func testFallbackOwnerSkipsMergedAwayTombstone() throws {
+        // A fresh container the stored App Group identity can't match, holding
+        // a merged-away duplicate (isActive false, older invitedAt) plus the
+        // real active row: the fallback must attribute to the active one, never
+        // the tombstone (participant auto-merge leaves those behind).
+        let fresh = AppModelContainer.make(inMemory: true)
+        let ctx = fresh.mainContext
+        ctx.insert(Baby(name: "Miller", dateOfBirth: .now))
+        ctx.insert(Participant(displayName: "Old Taylor", colorHex: "#000000",
+                               isActive: false,
+                               invitedAt: .now.addingTimeInterval(-86400)))
+        let active = Participant(displayName: "Taylor", colorHex: "#AABBCC")
+        ctx.insert(active)
+        try ctx.save()
+
+        let feed = try XCTUnwrap(QuickLogger(context: ModelContext(fresh)).logFeed(amountOz: 3))
+        XCTAssertEqual(feed.loggedByID, active.id,
+                       "fallback owner must be the active participant, not a tombstone")
+        XCTAssertEqual(feed.loggedByName, "Taylor")
+    }
+
     func testStoppingASleepNeedsNoOwner() throws {
         // Stopping only completes an existing event — it must keep working even
         // if the participant lookup breaks mid-session.

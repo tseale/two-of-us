@@ -57,7 +57,14 @@ struct QuickLogger {
             d.fetchLimit = 1
             if let me = try? context.fetch(d).first { return me }
         }
-        return try? context.fetch(FetchDescriptor<Participant>()).first
+        // Fallback mirrors EventStore.owner: oldest ACTIVE participant, never a
+        // merged-away tombstone an unordered `.first` could land on.
+        var d = FetchDescriptor<Participant>(
+            predicate: #Predicate { $0.isActive },
+            sortBy: [SortDescriptor(\.invitedAt)]
+        )
+        d.fetchLimit = 1
+        return try? context.fetch(d).first
     }
 
     var babyName: String? { baby?.name }

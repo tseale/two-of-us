@@ -33,14 +33,23 @@ struct EventStore {
     }
 
     /// The local user ("me"). Resolved via `LocalPrefs.myParticipantID` once
-    /// sharing introduces a second participant; falls back to the first record.
+    /// sharing introduces a second participant; falls back to the oldest ACTIVE
+    /// participant. The fallback must never pick a merged-away duplicate: an
+    /// unordered `fetch().first` could return an `isActive == false` tombstone
+    /// (they exist since the participant auto-merge), attributing new events to
+    /// a row the People list no longer shows.
     var owner: Participant? {
         if let myID = LocalPrefs.shared.myParticipantID {
             var d = FetchDescriptor<Participant>(predicate: #Predicate { $0.id == myID })
             d.fetchLimit = 1
             if let me = try? context.fetch(d).first { return me }
         }
-        return try? context.fetch(FetchDescriptor<Participant>()).first
+        var d = FetchDescriptor<Participant>(
+            predicate: #Predicate { $0.isActive },
+            sortBy: [SortDescriptor(\.invitedAt)]
+        )
+        d.fetchLimit = 1
+        return try? context.fetch(d).first
     }
 
     var settings: SharedSettings? {
