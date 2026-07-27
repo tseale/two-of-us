@@ -17,8 +17,15 @@ struct SnooAPIConfig: Sendable {
     func lastSessionPath(babyID: String) -> String {
         "/ss/me/v10/babies/\(babyID)/sessions/last"
     }
+    /// Confirmed 2026-07-26 by an unauthenticated route-existence probe: the
+    /// old `/ss/v2/babies/{id}/sessions/aggregated/` 404s at the API Gateway
+    /// (Express "Cannot GET" body — no such route), while this `me/v10`
+    /// sibling of `lastSessionPath` returns the gateway's 403 Forbidden shape
+    /// like every other real route. Still unverified against a real 200 (no
+    /// test account credentials here) — if it 404s again, try `/ss/me/v11/…`
+    /// next, which also existed at probe time.
     func aggregatedPath(babyID: String) -> String {
-        "/ss/v2/babies/\(babyID)/sessions/aggregated/"
+        "/ss/me/v10/babies/\(babyID)/sessions/aggregated"
     }
 
     /// Honest User-Agent (§10) — no impersonation of the official app.
@@ -152,15 +159,11 @@ actor SnooAPIClient {
 
     func fetchDevices() async throws -> [SnooDevice] {
         let data = try await get(path: config.devicesPath)
-        do {
-            let dto = try JSONDecoder().decode(SnooDeviceListDTO.self, from: data)
-            return (dto.snoo ?? []).compactMap { device in
-                device.serialNumber.map {
-                    SnooDevice(serialNumber: $0, babyID: device.babyIds?.first)
-                }
+        let dto: SnooDeviceListDTO = try decode(data, endpoint: config.devicesPath)
+        return (dto.snoo ?? []).compactMap { device in
+            device.serialNumber.map {
+                SnooDevice(serialNumber: $0, babyID: device.babyIds?.first)
             }
-        } catch {
-            throw SnooAPIError.decoding(underlying: error, endpoint: config.devicesPath)
         }
     }
 
@@ -170,15 +173,9 @@ actor SnooAPIClient {
             return fromDevices
         }
         let data = try await get(path: config.babiesPath)
-        do {
-            let babies = try JSONDecoder().decode([SnooBabyDTO].self, from: data)
-            guard let id = babies.first?._id else { throw SnooAPIError.noDeviceOnAccount }
-            return id
-        } catch let error as SnooAPIError {
-            throw error
-        } catch {
-            throw SnooAPIError.decoding(underlying: error, endpoint: config.babiesPath)
-        }
+        let babies: [SnooBabyDTO] = try decode(data, endpoint: config.babiesPath)
+        guard let id = babies.first?._id else { throw SnooAPIError.noDeviceOnAccount }
+        return id
     }
 
     /// The cached baby id, resolving (and re-persisting) it if sign-in
@@ -199,12 +196,8 @@ actor SnooAPIClient {
     func fetchLastSession() async throws -> SnooSession? {
         let path = config.lastSessionPath(babyID: try await babyID())
         let data = try await get(path: path)
-        do {
-            let dto = try JSONDecoder().decode(SnooLastSessionDTO.self, from: data)
-            return SnooSessionNormaliser.session(fromLast: dto)
-        } catch {
-            throw SnooAPIError.decoding(underlying: error, endpoint: path)
-        }
+        let dto: SnooLastSessionDTO = try decode(data, endpoint: path)
+        return SnooSessionNormaliser.session(fromLast: dto)
     }
 
     /// The aggregated day starting at `dayStart` (local midnight), flattened
@@ -213,15 +206,27 @@ actor SnooAPIClient {
         let path = config.aggregatedPath(babyID: try await babyID())
         let query = [URLQueryItem(name: "startTime", value: SnooDates.queryString(from: dayStart))]
         let data = try await get(path: path, query: query)
-        do {
-            let dto = try JSONDecoder().decode(SnooAggregatedDayDTO.self, from: data)
-            return SnooSessionNormaliser.sessions(fromAggregated: dto)
-        } catch {
-            throw SnooAPIError.decoding(underlying: error, endpoint: path)
-        }
+        let dto: SnooAggregatedDayDTO = try decode(data, endpoint: path)
+        return SnooSessionNormaliser.sessions(fromAggregated: dto)
     }
 
     // MARK: Requests
+
+    /// Decodes a response body, logging the raw payload on failure so a
+    /// schema drift in this unofficial API is diagnosable from device logs
+    /// instead of a bare "decoding failed". DEBUG-only and truncated — never
+    /// runs against auth responses, so no tokens/credentials end up in it (§5).
+    private func decode<T: Decodable>(_ data: Data, endpoint: String) throws -> T {
+        do {
+            return try JSONDecoder().decode(T.self, from: data)
+        } catch {
+            #if DEBUG
+            let body = String(data: data.prefix(2000), encoding: .utf8) ?? "<\(data.count) non-UTF8 bytes>"
+            AppLog.snoo.debug("SNOO decode failure at \(endpoint, privacy: .public): \(body, privacy: .public)")
+            #endif
+            throw SnooAPIError.decoding(underlying: error, endpoint: endpoint)
+        }
+    }
 
     private func get(path: String, query: [URLQueryItem] = []) async throws -> Data {
         let tokens = try await validTokens()
@@ -241,7 +246,15 @@ actor SnooAPIClient {
         case 401, 403: throw SnooAPIError.needsReauth
         case 402: throw SnooAPIError.subscriptionRequired
         case 429: throw SnooAPIError.rateLimited(retryAfter: response.retryAfter)
-        default: throw SnooAPIError.server(status: response.statusCode)
+        default:
+            #if DEBUG
+            // A non-2xx from a wrong/dead path often carries a distinctive
+            // body (e.g. Express's "Cannot GET ..." vs API Gateway's JSON
+            // {"message":"Forbidden"}) — log it so a bad path is obvious.
+            let body = String(data: data.prefix(500), encoding: .utf8) ?? "<\(data.count) non-UTF8 bytes>"
+            AppLog.snoo.debug("SNOO \(path, privacy: .public) → \(response.statusCode) body: \(body, privacy: .public)")
+            #endif
+            throw SnooAPIError.server(status: response.statusCode)
         }
     }
 

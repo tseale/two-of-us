@@ -55,24 +55,47 @@ enum SnooAPIError: Error, Sendable {
     case transport(underlying: Error)
     case server(status: Int)
 
-    /// Inline copy for the login sheet; sync-path errors stay silent (§9) and
-    /// surface at most as neutral text in Settings.
-    var loginMessage: String {
+    /// Inline copy for the login sheet and the manual "Sync now" result.
+    /// Background syncs stay silent (§9) and surface at most as neutral text
+    /// in Settings — this is only shown when the user directly asked for a
+    /// result, so it's specific enough to say what actually went wrong.
+    var userMessage: String {
         switch self {
         case .invalidCredentials:
             return "That email or password didn't work."
-        case .rateLimited:
+        case .rateLimited(let retryAfter):
+            if let seconds = retryAfter, seconds >= 1 {
+                return "Too many attempts — try again in \(Int(seconds.rounded(.up)))s."
+            }
             return "Too many attempts — wait a few minutes and try again."
-        case .transport:
-            return "Couldn't reach Happiest Baby. Check your connection and try again."
-        case .server, .decoding:
-            return "Happiest Baby's service had a problem. Try again in a bit."
+        case .transport(let underlying):
+            return Self.transportMessage(for: underlying)
+        case .server(let status):
+            return "Happiest Baby's service returned an error (HTTP \(status)). Try again in a bit."
+        case .decoding:
+            return "Happiest Baby sent back a response we didn't expect. The service may have changed — try again later."
         case .needsReauth:
             return "Please sign in again."
         case .noDeviceOnAccount:
             return "No SNOO found on this account."
         case .subscriptionRequired:
             return "This account's SNOO history isn't available (subscription required)."
+        }
+    }
+
+    private static func transportMessage(for underlying: Error) -> String {
+        guard let urlError = underlying as? URLError else {
+            return "Couldn't reach Happiest Baby (network error). Try again."
+        }
+        switch urlError.code {
+        case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed, .internationalRoamingOff:
+            return "You're offline. Check your connection and try again."
+        case .timedOut:
+            return "The request to Happiest Baby timed out. Try again."
+        case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed:
+            return "Couldn't reach Happiest Baby's servers. Try again in a bit."
+        default:
+            return "Couldn't reach Happiest Baby (network error). Try again."
         }
     }
 }
