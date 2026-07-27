@@ -8,11 +8,16 @@ struct SnooSettingsSection: View {
     @Environment(\.modelContext) private var context
     @State private var coordinator = SnooSyncCoordinator.shared
 
-    struct LoginPresentation: Identifiable {
+    struct LoginPresentation: Identifiable, Equatable {
         let email: String
         var id: String { email }
     }
-    @State private var login: LoginPresentation?
+    /// Presenting the login sheet from state owned here (and a `.sheet`
+    /// attached to this row's `Section`) let SwiftUI end up presenting on a
+    /// List cell that was mid-recycle, which raced with Settings' own sheet
+    /// and tore down both. Owned by `SettingsView` instead, alongside its
+    /// other sheets, and presented from the Form's root (§5).
+    @Binding var login: LoginPresentation?
 
     var body: some View {
         Section {
@@ -51,9 +56,6 @@ struct SnooSettingsSection: View {
                 }
                 Text(SnooFeature.disclaimer)
             }
-        }
-        .sheet(item: $login) { presentation in
-            SnooLoginSheet(prefilledEmail: presentation.email)
         }
     }
 
