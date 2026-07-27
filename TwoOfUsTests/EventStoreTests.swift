@@ -113,6 +113,24 @@ final class EventStoreTests: XCTestCase {
         XCTAssertEqual(store.purgeGhostEvents(), 0)
     }
 
+    func testFallbackOwnerSkipsMergedAwayTombstone() throws {
+        // No stored identity (setUp nils myParticipantID) → the store falls
+        // back. A merged-away duplicate (isActive false, OLDER invitedAt so an
+        // ordered fetch would surface it first) must never win the fallback —
+        // events attributed to a tombstone row look unowned in the People list.
+        let ctx = container.mainContext
+        let tombstone = Participant(displayName: "Old Taylor", colorHex: "#000000",
+                                    isActive: false,
+                                    invitedAt: .now.addingTimeInterval(-86400))
+        ctx.insert(tombstone)
+        try ctx.save()
+
+        let feed = try XCTUnwrap(store.logFeed(amountOz: 3))
+        XCTAssertEqual(feed.loggedByName, "Taylor",
+                       "fallback owner must be the active participant, not a tombstone")
+        XCTAssertNotEqual(feed.loggedByID, tombstone.id)
+    }
+
     func testLogFeedStampsLoggerIdentity() throws {
         let feed = try XCTUnwrap(store.logFeed(amountOz: 3))
         XCTAssertEqual(feed.loggedByName, "Taylor")
