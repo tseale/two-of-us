@@ -15,6 +15,7 @@ enum AppLog {
     static let liveActivity = Logger(subsystem: subsystem, category: "liveActivity")
     static let deeplink = Logger(subsystem: subsystem, category: "deeplink")
     static let ai = Logger(subsystem: subsystem, category: "ai")
+    static let snoo = Logger(subsystem: subsystem, category: "snoo")
 }
 
 /// A non-fatal failure worth telling the user about, surfaced as a transient

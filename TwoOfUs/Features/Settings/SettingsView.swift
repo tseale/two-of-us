@@ -198,6 +198,10 @@ struct SettingsView: View {
                     Text("Mutes co-parent and summary notifications overnight. The Feed reminder alarm still breaks through.")
                 }
 
+                if SnooFeature.isEnabled && !prefs.demoModeEnabled {
+                    SnooSettingsSection()
+                }
+
                 Section {
                     NavigationLink {
                         ManageDataView()
