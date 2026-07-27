@@ -14,6 +14,8 @@ struct NightScheduleSettingsSheet: View {
     private var participants: [Participant]
     @Query(filter: #Predicate<PlanSlot> { $0.deletedAt == nil })
     private var liveSlots: [PlanSlot]
+    @Query(filter: #Predicate<FeedEvent> { $0.deletedAt == nil }, sort: \FeedEvent.timestamp, order: .reverse)
+    private var recentFeeds: [FeedEvent]
 
     var onDone: ((String, Color, (() -> Void)?) -> Void)? = nil
 
@@ -22,6 +24,9 @@ struct NightScheduleSettingsSheet: View {
     @State private var firstFeed: Date = .now
     @State private var spacingMinutes = 180
     @State private var seeded = false
+    /// True when `firstFeed` was seeded from feed history rather than the
+    /// previously saved setting — drives the "predicted" footer.
+    @State private var firstFeedIsPredicted = false
 
     /// Half-hour steps from 2h to 6h — the realistic newborn range.
     private static let spacingChoices = Array(stride(from: 120, through: 360, by: 30))
@@ -52,6 +57,8 @@ struct NightScheduleSettingsSheet: View {
                     if !firstFeedValid {
                         Text("The first feed must fall inside the nighttime window.")
                             .foregroundStyle(AppColor.urgencyAmber)
+                    } else if firstFeedIsPredicted {
+                        Text("Predicted from recent feeds — adjust if needed.")
                     }
                 }
 
@@ -135,8 +142,15 @@ struct NightScheduleSettingsSheet: View {
         seeded = true
         nightStart = Self.date(minuteOfDay: settings.nightStartMinute)
         nightEnd = Self.date(minuteOfDay: settings.nightEndMinute)
-        firstFeed = Self.date(minuteOfDay: settings.nightFirstFeedMinute)
         spacingMinutes = settings.nightFeedSpacingMinutes
+        if let predicted = NightScheduleGenerator.predictedNextFeed(
+            recentFeedTimestamps: recentFeeds.map(\.timestamp)
+        ) {
+            firstFeed = predicted
+            firstFeedIsPredicted = true
+        } else {
+            firstFeed = Self.date(minuteOfDay: settings.nightFirstFeedMinute)
+        }
     }
 
     private func saveAndDismiss() {
