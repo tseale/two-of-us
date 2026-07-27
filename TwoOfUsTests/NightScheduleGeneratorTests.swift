@@ -91,4 +91,51 @@ final class NightScheduleGeneratorTests: XCTestCase {
         XCTAssertNil(NightScheduleGenerator.alternatingAssignee(index: 0, parents: ["Taylor"]))
         XCTAssertNil(NightScheduleGenerator.alternatingAssignee(index: 1, parents: [String]()))
     }
+
+    // MARK: Predicted next feed
+
+    func testPredictsNextFeedFromAverageGap() {
+        let now = Date()
+        // Feeds 3h apart, most recent first: last feed 1h ago → predicted 2h from now.
+        let timestamps = [
+            now.addingTimeInterval(-1 * 3600),
+            now.addingTimeInterval(-4 * 3600),
+            now.addingTimeInterval(-7 * 3600)
+        ]
+        let predicted = NightScheduleGenerator.predictedNextFeed(recentFeedTimestamps: timestamps)
+        XCTAssertNotNil(predicted)
+        XCTAssertEqual(predicted!.timeIntervalSince(now), 2 * 3600, accuracy: 1)
+    }
+
+    func testPredictionIgnoresOrderOfInput() {
+        let now = Date()
+        let timestamps = [
+            now.addingTimeInterval(-7 * 3600),
+            now.addingTimeInterval(-1 * 3600),
+            now.addingTimeInterval(-4 * 3600)
+        ]
+        let predicted = NightScheduleGenerator.predictedNextFeed(recentFeedTimestamps: timestamps)
+        XCTAssertEqual(predicted!.timeIntervalSince(now), 2 * 3600, accuracy: 1)
+    }
+
+    func testPredictionCapsToRecentHistoryWindow() {
+        let now = Date()
+        // 8 feeds, most 3h apart, but the two oldest are 12h apart outliers —
+        // only the most recent `predictionHistoryCount` should count.
+        var timestamps: [Date] = []
+        var t = now.addingTimeInterval(-1 * 3600)
+        for _ in 0..<(NightScheduleGenerator.predictionHistoryCount) {
+            timestamps.append(t)
+            t = t.addingTimeInterval(-3 * 3600)
+        }
+        timestamps.append(t.addingTimeInterval(-12 * 3600))
+        timestamps.append(t.addingTimeInterval(-24 * 3600))
+        let predicted = NightScheduleGenerator.predictedNextFeed(recentFeedTimestamps: timestamps)
+        XCTAssertEqual(predicted!.timeIntervalSince(now), 2 * 3600, accuracy: 1)
+    }
+
+    func testPredictionNilWithFewerThanTwoFeeds() {
+        XCTAssertNil(NightScheduleGenerator.predictedNextFeed(recentFeedTimestamps: []))
+        XCTAssertNil(NightScheduleGenerator.predictedNextFeed(recentFeedTimestamps: [Date()]))
+    }
 }
