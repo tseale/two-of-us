@@ -122,7 +122,12 @@ struct SnooDetailView: View {
                 }
                 .disabled(coordinator.isSyncing)
             } footer: {
-                Text("Syncing checks the last day or two of SNOO sessions and suggests anything that isn't logged yet.")
+                VStack(alignment: .leading, spacing: 6) {
+                    if let result = coordinator.manualSyncResult {
+                        syncResultLine(result)
+                    }
+                    Text("Syncing checks the last day or two of SNOO sessions and suggests anything that isn't logged yet.")
+                }
             }
 
             Section {
@@ -144,6 +149,25 @@ struct SnooDetailView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Removes the connection from this iPhone. Sleep sessions you already saved stay in the log.")
+        }
+    }
+
+    @ViewBuilder
+    private func syncResultLine(_ result: SnooSyncCoordinator.ManualSyncResult) -> some View {
+        switch result {
+        case .found(let summaries):
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summaries.count == 1 ? "Found 1 SNOO session" : "Found \(summaries.count) SNOO sessions")
+                    .foregroundStyle(AppColor.urgencyGreen)
+                Text(summaries.joined(separator: ", "))
+                    .foregroundStyle(AppColor.text2)
+            }
+        case .noneFound:
+            Text("No new SNOO sessions found")
+                .foregroundStyle(AppColor.text2)
+        case .failed(let message):
+            Text(message)
+                .foregroundStyle(AppColor.urgencyRedText)
         }
     }
 }
