@@ -1,11 +1,13 @@
 import SwiftUI
 import SwiftData
 
-/// The Schedule tab: who's up next, the next 24 hours of the plan on a rail,
-/// and the standing plan editor. Every row is parent-authored (no predictions)
-/// and editable — swap, move, or skip any night; edit or remove any slot. The
-/// whole point lives in one glance — "Katie's got the 11pm, I'm the 3am" — so
-/// the hero card leads with the assignee and every row carries their face.
+/// The Nighttime Schedule tab: who's up next, the night's plan on a rail, and
+/// the standing plan editor. Feed slots are generated from the shared settings
+/// (night window + spacing, alternating parents by default) via
+/// `NightScheduleSettingsSheet`; every row stays parent-editable — swap, move,
+/// or skip any night; reassign or remove any slot. The whole point lives in
+/// one glance — "Katie's got the 11pm, I'm the 3am" — so the hero card leads
+/// with the assignee and every row carries their face.
 struct ScheduleView: View {
     @Environment(\.modelContext) private var context
 
@@ -23,6 +25,7 @@ struct ScheduleView: View {
     @State private var actionTarget: ScheduleOccurrence?
     @State private var editingSlot: PlanSlot?
     @State private var addingSlot = false
+    @State private var configuringNight = false
     @State private var toast: ToastData?
     @State private var prefs = LocalPrefs.shared
 
@@ -35,7 +38,20 @@ struct ScheduleView: View {
             }
             .listStyle(.plain)
             .background(AppColor.bg)
-            .navigationTitle("Schedule")
+            .navigationTitle("Nighttime Schedule")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        configuringNight = true
+                    } label: {
+                        Label("Nighttime settings", systemImage: "moon.stars")
+                    }
+                    .accessibilityIdentifier("schedule.nightSettings")
+                }
+            }
+            .sheet(isPresented: $configuringNight) {
+                NightScheduleSettingsSheet(onDone: showToast)
+            }
             .sheet(item: $actionTarget) { occ in
                 SlotActionsSheet(occurrence: occ, onEditSlot: openEditor, onDone: showToast)
             }
@@ -206,8 +222,8 @@ struct ScheduleView: View {
         Section {
             EmptyStateView(
                 emoji: "🌙",
-                title: "No plan yet",
-                message: "Add the night bottles and sleeps below and split them up — so one of you can actually sleep. Every slot stays editable, any night, any time."
+                title: "No nighttime schedule yet",
+                message: "Set your night hours and feed spacing (the moon up top) and the feeds generate themselves, alternating between you — so one of you can actually sleep. Every slot stays editable, any night, any time."
             )
             .listRowBackground(Color.clear)
         }
@@ -231,9 +247,19 @@ struct ScheduleView: View {
             Text("Standing plan").foregroundStyle(AppColor.text3)
         } footer: {
             if !nightOrderedSlots.isEmpty {
-                Text("Repeats every day until changed. Tap a slot on the timeline to swap just one night.")
+                Text("\(nightSummary)Repeats every night until changed. Tap a slot on the timeline to swap just one night.")
             }
         }
+    }
+
+    /// "Every 3h · Night 8:00 PM–8:00 AM · " — the settings the feed slots were
+    /// generated from, mirrored where the parents read the plan.
+    private var nightSummary: String {
+        guard let s = settingsList.first else { return "" }
+        let spacing = NightScheduleSettingsSheet.spacingLabel(s.nightFeedSpacingMinutes)
+        let start = NightScheduleSettingsSheet.clock(minuteOfDay: s.nightStartMinute)
+        let end = NightScheduleSettingsSheet.clock(minuteOfDay: s.nightEndMinute)
+        return "Every \(spacing) · Night \(start)–\(end) · "
     }
 
     /// Slots in "night order" — pivoted at noon so 11pm sorts before 3am, the

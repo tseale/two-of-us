@@ -5,12 +5,14 @@ import UserNotifications
 /// Empty payload — AlarmKit requires a concrete `AlarmMetadata` type per alarm.
 nonisolated struct SlotAlarmMetadata: AlarmMetadata {}
 
-/// Arms ONE loud AlarmKit alarm for the next schedule slot assigned to *this*
-/// device's parent — the "actually wake me for my 3am" opt-in. A Time Sensitive
-/// notification won't pierce Silent; being woken on time is the assignment's
-/// whole contract, so the night shift gets the same AlarmKit treatment as the
-/// interval feed alarm (`FeedAlarmManager`), which stands down around an armed
-/// slot so one night never rings twice.
+/// Arms ONE loud AlarmKit alarm for the next nighttime-schedule slot that
+/// should ring on *this* device: a slot assigned to this parent, or an
+/// unassigned one (which rings BOTH phones — nobody claimed it, so nobody
+/// sleeps through it silently). A Time Sensitive notification won't pierce
+/// Silent; being woken on time is the assignment's whole contract, so the
+/// night shift gets the same AlarmKit treatment as the interval feed alarm
+/// (`FeedAlarmManager`), which stands down around an armed slot so one night
+/// never rings twice.
 ///
 /// Device-local and opt-in (`LocalPrefs.nightSlotAlarmEnabled`); re-armed from
 /// the same points as every reminder (write / sync fetch / foreground), so a
@@ -52,7 +54,7 @@ enum SlotAlarmManager {
         )
         // Skip slots for kinds whose shared tracker is off — a paused sleep
         // tracker must not keep waking the on-duty parent.
-        guard let next = engine.upcomingAssigned(to: myID, horizon: 24 * 3600)
+        guard let next = engine.upcomingAlarmable(for: myID, horizon: 24 * 3600)
             .first(where: { logger.isTrackingEnabled($0.kind) }) else { return }
         let remaining = next.date.timeIntervalSinceNow
         guard remaining >= minimumLead else { return }
@@ -60,7 +62,9 @@ enum SlotAlarmManager {
 
         let babyName = logger.babyName ?? "Baby"
         let kindWord = next.kind == .sleep ? "sleep" : "bottle"
-        let title = "\(babyName) — your \(TimeFormatting.clock(next.date)) \(kindWord)"
+        let title = next.assignedToID == myID
+            ? "\(babyName) — your \(TimeFormatting.clock(next.date)) \(kindWord)"
+            : "\(babyName) — \(TimeFormatting.clock(next.date)) \(kindWord), unclaimed"
         let alert = AlarmPresentation.Alert(
             title: "\(title)",
             stopButton: AlarmButton(text: "I'm up", textColor: .white, systemImageName: "checkmark")

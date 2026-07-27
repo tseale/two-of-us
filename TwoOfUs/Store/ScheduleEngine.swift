@@ -68,6 +68,20 @@ struct ScheduleEngine {
             .filter { $0.status == .upcoming && $0.assignedToID == participantID }
     }
 
+    /// Upcoming occurrences that should ring on `participantID`'s device: their
+    /// own slots plus every unassigned one. Unassigned is the deliberate
+    /// both-phones case — nobody claimed the 3am, so nobody gets to sleep
+    /// through it silently. Only a slot pinned to the OTHER parent stays quiet
+    /// here.
+    func upcomingAlarmable(for participantID: UUID,
+                           horizon: TimeInterval = 12 * 3600) -> [ScheduleOccurrence] {
+        occurrences(lookback: 0, horizon: horizon)
+            .filter {
+                $0.status == .upcoming
+                    && ($0.assignedToID == nil || $0.assignedToID == participantID)
+            }
+    }
+
     /// True when a live, upcoming occurrence of `kind` within `window` of
     /// `date` is assigned to a participant other than `me` — i.e. the schedule
     /// says that moment is somebody else's, so this device's generic reminders

@@ -199,7 +199,7 @@ struct MainTabView: View {
                 .tabItem { Label("Home", systemImage: "house.fill") }
             ScheduleView()
                 .tag(Tab.schedule)
-                .tabItem { Label("Schedule", systemImage: "calendar.badge.clock") }
+                .tabItem { Label("Nighttime", systemImage: "moon.stars.fill") }
             HistoryView()
                 .tag(Tab.history)
                 .tabItem { Label("History", systemImage: "chart.bar.xaxis") }

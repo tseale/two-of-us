@@ -78,6 +78,10 @@ enum RecordMapping {
             r["feedLoggingEnabled"] = m.feedLoggingEnabled ? 1 : 0
             r["diaperLoggingEnabled"] = m.diaperLoggingEnabled ? 1 : 0
             r["sleepLoggingEnabled"] = m.sleepLoggingEnabled ? 1 : 0
+            r["nightStartMinute"] = m.nightStartMinute
+            r["nightEndMinute"] = m.nightEndMinute
+            r["nightFirstFeedMinute"] = m.nightFirstFeedMinute
+            r["nightFeedSpacingMinutes"] = m.nightFeedSpacingMinutes
             return r
         }
         if let m = PlanSlot.fetchByID(uuid, in: context) {
@@ -410,6 +414,12 @@ enum RecordMapping {
         m.feedLoggingEnabled = (r["feedLoggingEnabled"] as? Int).map { $0 != 0 } ?? m.feedLoggingEnabled
         m.diaperLoggingEnabled = (r["diaperLoggingEnabled"] as? Int).map { $0 != 0 } ?? m.diaperLoggingEnabled
         m.sleepLoggingEnabled = (r["sleepLoggingEnabled"] as? Int).map { $0 != 0 } ?? m.sleepLoggingEnabled
+        // Absent fields (a record written pre-nighttime-schedule) keep the
+        // local defaults rather than zeroing the night window.
+        m.nightStartMinute = r["nightStartMinute"] as? Int ?? m.nightStartMinute
+        m.nightEndMinute = r["nightEndMinute"] as? Int ?? m.nightEndMinute
+        m.nightFirstFeedMinute = r["nightFirstFeedMinute"] as? Int ?? m.nightFirstFeedMinute
+        m.nightFeedSpacingMinutes = r["nightFeedSpacingMinutes"] as? Int ?? m.nightFeedSpacingMinutes
     }
 
     private static func applyPlanSlot(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
