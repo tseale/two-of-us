@@ -37,6 +37,9 @@ struct SettingsView: View {
     /// the URL would dead-end with "Item Unavailable" on THEIR phone, so this
     /// drives an alert that routes to re-adding them via the sharing sheet.
     @State private var reinviteNeeded: Participant?
+    /// SNOO's login sheet — presented from here (the Form's root) rather than
+    /// from `SnooSettingsSection` itself, alongside every other Settings sheet.
+    @State private var snooLogin: SnooSettingsSection.LoginPresentation?
 
     struct ResendLink: Identifiable {
         let url: URL
@@ -199,7 +202,7 @@ struct SettingsView: View {
                 }
 
                 if SnooFeature.isEnabled && !prefs.demoModeEnabled {
-                    SnooSettingsSection()
+                    SnooSettingsSection(login: $snooLogin)
                 }
 
                 Section {
@@ -236,6 +239,9 @@ struct SettingsView: View {
             .sheet(item: $resendLink) { link in
                 ActivityShareSheet(items: [link.url])
                     .presentationDetents([.medium, .large])
+            }
+            .sheet(item: $snooLogin) { presentation in
+                SnooLoginSheet(prefilledEmail: presentation.email)
             }
             .alert(
                 "\(reinviteNeeded?.displayName.isEmpty == false ? reinviteNeeded!.displayName : "This person") isn't on the iCloud share",
