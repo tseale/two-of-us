@@ -154,6 +154,29 @@ struct EventStore {
         return event
     }
 
+    /// Logs an already-finished sleep in one write (SNOO import accept). No
+    /// Live Activity or timer — the sleep never passes through the active
+    /// state, so `startSleep`'s single-timer guard doesn't apply.
+    @discardableResult
+    func logCompletedSleep(startedAt: Date, endedAt: Date, notes: String? = nil) -> SleepEvent? {
+        guard requireTracking(.sleep), let owner = requireOwner() else { return nil }
+        let start = EventBounds.clampPast(startedAt)
+        let end = max(start, EventBounds.clampPast(endedAt))
+        let event = SleepEvent(
+            baby: baby, startedAt: start, endedAt: end,
+            notes: EventBounds.cleanNote(notes),
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex
+        )
+        context.insert(event)
+        save()
+        sync(save: [event.id])
+        reloadWidgets()
+        refreshLocalReminders()
+        return event
+    }
+
     func stopSleep(_ event: SleepEvent, at date: Date = .now) {
         event.endedAt = date
         save()

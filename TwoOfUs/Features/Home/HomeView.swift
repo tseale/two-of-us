@@ -4,6 +4,7 @@ import SwiftData
 struct HomeView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     @Query private var babies: [Baby]
     @Query private var participants: [Participant]
@@ -28,6 +29,7 @@ struct HomeView: View {
     @State private var prefs = LocalPrefs.shared
     @State private var setup = SetupProgress.shared
     @State private var router = DeepLinkRouter.shared
+    @State private var snoo = SnooSyncCoordinator.shared
     @State private var didApplyDebugScreen = false
     /// Start of the current day. Advanced by a task at midnight so the "today"
     /// ribbon, counts, and 24h window refresh even if the app sits foregrounded
@@ -45,6 +47,13 @@ struct HomeView: View {
         settingsList.first?.isEnabled(kind) ?? true
     }
     private var activeSleep: SleepEvent? { sleeps.first { $0.isActive } }
+
+    /// SNOO cards show only where they can act: sleep tracking on, real data
+    /// (not demo), and something to suggest.
+    private var showSnooSuggestions: Bool {
+        SnooFeature.isEnabled && !prefs.demoModeEnabled
+            && isTracked(.sleep) && !snoo.suggestions.isEmpty
+    }
     private var targetFeed: TimeInterval {
         TimeInterval((settingsList.first?.targetFeedIntervalMinutes ?? 180) * 60)
     }
@@ -98,6 +107,26 @@ struct HomeView: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+
+                // SNOO suggestions live between the log buttons and the
+                // checklist: present but never modal (§8 of the SNOO spec).
+                // Outside the ticking TimelineView on purpose — the elapsed
+                // text is computed when the card renders, not live.
+                if showSnooSuggestions {
+                    Section {
+                        VStack(spacing: 10) {
+                            ForEach(snoo.suggestions) { suggestion in
+                                SnooSuggestionCard(suggestion: suggestion, now: .now) { message in
+                                    toast = ToastData(message: message,
+                                                      accent: AppColor.accentSleep, undo: nil)
+                                }
+                            }
+                        }
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                }
 
                 // The deferred-setup checklist sits where an empty timeline
                 // leaves dead space — the logging UI above stays untouched.
@@ -180,6 +209,11 @@ struct HomeView: View {
             .onChange(of: router.pendingLog) { _, _ in consumeDeepLink() }
             .onAppear { consumeDeepLink() }
             .task { await advanceAtMidnight() }
+            // The SNOO poll rides app foreground only (poll-on-open, throttled
+            // to 5 minutes inside the coordinator — §7 of the SNOO spec).
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { snoo.syncOnForeground(context: context) }
+            }
         }
     }
 
