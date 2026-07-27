@@ -32,6 +32,16 @@ final class SnooSyncCoordinator {
         return Date.now < until
     }
 
+    /// Outcome of the last manual "Sync now" tap, shown inline in
+    /// `SnooDetailView`. Unlike background syncs (silent per §9), a manual tap
+    /// always gets a visible result — the user asked for it directly.
+    enum ManualSyncResult: Equatable {
+        case found(summaries: [String])
+        case noneFound
+        case failed(message: String)
+    }
+    private(set) var manualSyncResult: ManualSyncResult?
+
     /// At most this many cards on the logging surface (§7).
     static let maxVisibleSuggestions = 3
     /// Foreground syncs are at least this far apart (§7, §10).
@@ -80,6 +90,7 @@ final class SnooSyncCoordinator {
         suggestions = []
         lastSyncAt = nil
         isDegraded = false
+        manualSyncResult = nil
         connectionState = .notConnected
     }
 
@@ -101,21 +112,33 @@ final class SnooSyncCoordinator {
     }
 
     /// The Settings "Sync now" button: skips the 5-minute throttle but still
-    /// honours rate-limit backoff.
+    /// honours rate-limit backoff. Unlike the foreground trigger, this always
+    /// records a result for `manualSyncResult` to display.
     func syncNow(context: ModelContext) async {
-        await sync(context: context, force: true)
+        manualSyncResult = nil
+        if let outcome = await sync(context: context, force: true) {
+            manualSyncResult = outcome
+        }
     }
 
-    private func sync(context: ModelContext, force: Bool) async {
+    /// Returns the outcome when a sync actually ran (or was blocked by
+    /// backoff/offline); `nil` for the cases a manual tap can't hit — already
+    /// syncing (button disabled) or not connected (button not shown).
+    @discardableResult
+    private func sync(context: ModelContext, force: Bool) async -> ManualSyncResult? {
         guard SnooFeature.isEnabled,
               !LocalPrefs.shared.demoModeEnabled,
               !isSyncing,
-              case .connected = connectionState else { return }
+              case .connected = connectionState else { return nil }
         let now = Date.now
         if !force, let last = state.lastAttemptAt,
-           now.timeIntervalSince(last) < Self.syncThrottle { return }
-        if let backoff = state.backoffUntil, now < backoff { return }
-        guard SnooConnectivity.shared.isOnline else { return }
+           now.timeIntervalSince(last) < Self.syncThrottle { return nil }
+        if let backoff = state.backoffUntil, now < backoff {
+            return .failed(message: "Syncing paused briefly. Try again soon.")
+        }
+        guard SnooConnectivity.shared.isOnline else {
+            return .failed(message: "You're offline. Check your connection and try again.")
+        }
 
         state.lastAttemptAt = now
         isSyncing = true
@@ -127,7 +150,7 @@ final class SnooSyncCoordinator {
             let last = try await client.fetchLastSession()
             let calendar = Calendar.current
             let today = calendar.startOfDay(for: now)
-            guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else { return }
+            guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else { return nil }
             async let todaySessions = client.fetchAggregatedSessions(dayStart: today)
             async let yesterdaySessions = client.fetchAggregatedSessions(dayStart: yesterday)
             let aggregated = try await todaySessions + yesterdaySessions
@@ -139,10 +162,26 @@ final class SnooSyncCoordinator {
             lastSyncAt = now
             isDegraded = false
             reconcile(merged, context: context, now: now)
+            return suggestions.isEmpty
+                ? .noneFound
+                : .found(summaries: suggestions.map(Self.summaryLine))
         } catch let error as SnooAPIError {
             handleSyncError(error)
+            return .failed(message: error.loginMessage)
         } catch {
             AppLog.snoo.error("SNOO sync failed: \(String(describing: type(of: error)), privacy: .public)")
+            return .failed(message: "Something went wrong. Try again.")
+        }
+    }
+
+    /// One-line summary of a suggestion for the manual sync result (§8 copy,
+    /// condensed — full detail lives on the suggestion card itself).
+    private static func summaryLine(_ suggestion: SnooSuggestion) -> String {
+        switch suggestion.kind {
+        case .completed(let endedAt):
+            return "\(TimeFormatting.clock(suggestion.startedAt))–\(TimeFormatting.clock(endedAt))"
+        case .inProgress:
+            return "Running since \(TimeFormatting.clock(suggestion.startedAt))"
         }
     }
 
