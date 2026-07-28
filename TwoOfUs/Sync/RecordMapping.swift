@@ -266,7 +266,14 @@ enum RecordMapping {
         case SyncConstants.RecordType.settings: try applySettings(record, uuid: uuid, in: context)
         case SyncConstants.RecordType.planSlot: try applyPlanSlot(record, uuid: uuid, in: context)
         case SyncConstants.RecordType.planOverride: try applyPlanOverride(record, uuid: uuid, in: context)
-        default: break
+        default:
+            // System records (e.g. the zone-wide cloudkit.share) are expected
+            // here; an unknown MODEL type means this build predates it — the
+            // record is dropped now but re-delivered by the record-type
+            // re-fetch after the app updates (SyncManager).
+            if !record.recordType.hasPrefix("cloudkit.") {
+                AppLog.sync.warning("Ignored inbound record of unknown type \(record.recordType, privacy: .public) — this build predates it")
+            }
         }
     }
 

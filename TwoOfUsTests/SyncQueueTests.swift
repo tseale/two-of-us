@@ -275,6 +275,38 @@ final class SyncQueueTests: XCTestCase {
         XCTAssertEqual(UserDefaults.standard.string(forKey: zoneOwnerKey), "_ownerRecordName")
     }
 
+    // MARK: Record-type expansion (app-update re-fetch trigger)
+
+    func testLegacyInstallWithNoPersistedTypesNeedsFullRefetch() {
+        // Installs from before the mechanism existed may have already dropped
+        // records of any type (the real case: PlanSlots fetched by a
+        // pre-schedule build) — the absent key must read as "re-fetch".
+        XCTAssertEqual(SyncManager.newlyLearnedRecordTypes(sincePersisted: nil),
+                       SyncConstants.RecordType.all)
+    }
+
+    func testCurrentTypeSetNeedsNoRefetch() {
+        XCTAssertTrue(SyncManager.newlyLearnedRecordTypes(
+            sincePersisted: SyncConstants.RecordType.all.sorted()).isEmpty)
+    }
+
+    func testAddedRecordTypeTriggersRefetchForJustThatType() {
+        let previousBuild = SyncConstants.RecordType.all.subtracting(
+            [SyncConstants.RecordType.planSlot, SyncConstants.RecordType.planOverride])
+
+        XCTAssertEqual(
+            SyncManager.newlyLearnedRecordTypes(sincePersisted: previousBuild.sorted()),
+            [SyncConstants.RecordType.planSlot, SyncConstants.RecordType.planOverride],
+            "an update that introduces record types must re-fetch so records the old build dropped are re-delivered")
+    }
+
+    func testPersistedSupersetNeedsNoRefetch() {
+        // A downgrade (persisted set from a NEWER build) must not loop
+        // re-fetches — only genuinely new-to-this-build types count.
+        XCTAssertTrue(SyncManager.newlyLearnedRecordTypes(
+            sincePersisted: SyncConstants.RecordType.all.sorted() + ["FutureType"]).isEmpty)
+    }
+
     // MARK: Real role during demo
 
     func testRealSyncRoleSeesThroughDemoOverride() {

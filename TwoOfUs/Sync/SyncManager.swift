@@ -67,6 +67,9 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         static let pendingPrivateSaves = "sync.pendingPrivateSaves"
         static let pendingPrivateDeletes = "sync.pendingPrivateDeletes"
         static let bootstrapPrivate = "sync.bootstrap.private"
+        /// Record types the last-run build could apply (see
+        /// `resetFetchStateIfRecordTypesExpanded`).
+        static let knownRecordTypes = "sync.knownRecordTypes"
         /// Legacy shared-array widget queue — drained (and cleared) for installs
         /// that queued ids before the per-key scheme below.
         static let widgetWrites = "sync.pendingWidgetWrites"
@@ -142,6 +145,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     /// not race the account check on a cold background launch.
     func ensureStarted() async {
         guard await cloudAvailable() else { return }
+        resetFetchStateIfRecordTypesExpanded()
         switch Self.realSyncRole {
         case .solo, .owner:
             startPrivateEngine()
@@ -149,6 +153,79 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             startSharedEngine()
         }
         drainExtensionQueue()
+    }
+
+    /// One-time full re-fetch after an app update that taught this client new
+    /// record types. `RecordMapping.apply` ignores types it doesn't know, and
+    /// the engine checkpoints the fetched batch regardless — so a record of a
+    /// type introduced in build N+1, fetched by a device still on build N, is
+    /// dropped and never re-delivered (the fetch token is already past it;
+    /// only a later server-side modification would resend it). Real case: a
+    /// phone on a pre-schedule build fetched the co-parent's PlanSlot records,
+    /// dropped them, and showed an empty schedule forever after updating.
+    ///
+    /// Comparing the persisted known-type set against this build's catches
+    /// every future type addition with no manual version bump. An absent key
+    /// (any install predating this mechanism) also triggers — that's the heal
+    /// for the drops that already happened. Discarding the engine state files
+    /// restarts both engines from a nil fetch token; the resulting whole-zone
+    /// re-fetch is safe because `apply` upserts by record id (same recovery
+    /// `resetEngineAfterFetchApplyFailure` relies on). Unsent local changes
+    /// live in those same state files, so they're parked first and drain when
+    /// the fresh engines start.
+    private func resetFetchStateIfRecordTypesExpanded() {
+        let defaults = UserDefaults.standard
+        let missing = Self.newlyLearnedRecordTypes(
+            sincePersisted: defaults.stringArray(forKey: Keys.knownRecordTypes))
+        guard !missing.isEmpty else { return }
+        // A fresh install has no fetch state to reset — record the set quietly.
+        let hadState = FileManager.default.fileExists(atPath: stateURL(.private).path)
+            || FileManager.default.fileExists(atPath: stateURL(.shared).path)
+        if hadState {
+            AppLog.sync.log("Client learned record type(s) \(missing.sorted().joined(separator: ", "), privacy: .public) — resetting fetch state so records dropped by the previous build are re-delivered")
+            discardFetchStateParkingUnsent(.private)
+            discardFetchStateParkingUnsent(.shared)
+        }
+        defaults.set(SyncConstants.RecordType.all.sorted(), forKey: Keys.knownRecordTypes)
+    }
+
+    /// Record types this build understands that the previous run's build (its
+    /// persisted set) did not. Non-empty means the previous build may have
+    /// fetched-and-dropped records of those types. Nil (no persisted set — the
+    /// install predates the mechanism) returns every type: those installs may
+    /// hold drops from any past update, so they get the one-time heal too.
+    static func newlyLearnedRecordTypes(sincePersisted persisted: [String]?) -> Set<String> {
+        SyncConstants.RecordType.all.subtracting(persisted ?? [])
+    }
+
+    /// Deletes one scope's engine state file (nil fetch token → whole-zone
+    /// re-fetch on next start) after harvesting any unsent changes out of it
+    /// into the hold queues. When no engine is live for the scope, the unsent
+    /// changes exist only inside the serialized state — a throwaway engine
+    /// (automatic sync off, never installed as privateEngine/sharedEngine, so
+    /// the `handleEvent` identity guard drops its events) reads them out.
+    private func discardFetchStateParkingUnsent(_ scope: CKDatabase.Scope) {
+        if let live = scope == .shared ? sharedEngine : privateEngine {
+            parkUnsentChanges(live.state.pendingRecordZoneChanges, scope: scope)
+            if scope == .shared {
+                sharedEngine = nil
+            } else {
+                privateEngine = nil
+                handledPrivateZoneDeletion = false
+            }
+        } else if let state = loadState(scope) {
+            var config = CKSyncEngine.Configuration(
+                database: scope == .shared
+                    ? SyncConstants.container.sharedCloudDatabase
+                    : SyncConstants.container.privateCloudDatabase,
+                stateSerialization: state,
+                delegate: self
+            )
+            config.automaticallySync = false
+            let reader = CKSyncEngine(config)
+            parkUnsentChanges(reader.state.pendingRecordZoneChanges, scope: scope)
+        }
+        try? FileManager.default.removeItem(at: stateURL(scope))
     }
 
     private func startPrivateEngine() {
