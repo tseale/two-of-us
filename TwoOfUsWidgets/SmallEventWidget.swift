@@ -38,17 +38,20 @@ struct SmallEventWidgetView: View {
     /// instead of showing a stale "13h ago", and taps nowhere.
     @ViewBuilder private var offBody: some View {
         if family == .accessoryRectangular {
-            HStack(spacing: 6) {
-                Text(kind.emoji).font(.title3).opacity(0.5)
+            HStack(spacing: 4) {
+                Text(kind.emoji).font(.subheadline).opacity(0.5)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
                         .font(.caption2.weight(.semibold))
                         .textCase(.uppercase)
                         .tracking(0.6)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                     Text("Tracking off")
                         .font(.system(.headline, design: .rounded))
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
             }
             .containerBackground(.fill.tertiary, for: .widget)
@@ -74,18 +77,21 @@ struct SmallEventWidgetView: View {
 
     // Lock screen: MetricStack ordering — eyebrow above a rounded mono value.
     private var lockScreenBody: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             Text(kind.emoji)
-                .font(.title3)
+                .font(.subheadline)
             VStack(alignment: .leading, spacing: 1) {
                 Text(lockCaption)
                     .font(.caption2.weight(.semibold))
                     .textCase(.uppercase)
                     .tracking(0.6)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
                 valueText
                     .font(.system(.headline, design: .rounded).monospacedDigit())
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
         }
         .containerBackground(.fill.tertiary, for: .widget)
@@ -200,10 +206,11 @@ struct SmallEventWidgetView: View {
             return Text(started, style: .timer)
         }
         if let date = sinceDate {
-            // Self-updating relative time — ticks on its own with no timeline
-            // reloads. The app shows a precise "2h 31m ago"; a widget can't
-            // recompute that every second, so this is the one phrasing difference.
-            return Text("\(date, style: .relative) ago")
+            // Same compact "2h 31m" / "just now" format the in-app tiles use
+            // (LogButtons) — fits the tight lock-screen accessory without
+            // truncating. Refreshed on each timeline reload rather than
+            // ticking live like a relative-style Text.
+            return Text(TimeFormatting.since(date, now: entry.date))
         }
         // Home tile hides the since-line entirely with no prior event
         // (`hasSinceLine`); this fallback only shows on the lock-screen accessory.
