@@ -851,7 +851,7 @@ struct EventStore {
         NotificationManager.refreshScheduledReminders()
         NotificationManager.refreshDailyMilestone()   // keep the summary's counts fresh
         NotificationManager.refreshScheduleReminders()
-        let interval = settings?.targetFeedInterval ?? 0
+        let interval = settings?.feedInterval() ?? 0
         let last = lastEventDate(of: .feed)
         let name = baby?.name ?? "Baby"
         Task {

@@ -54,8 +54,8 @@ struct HomeView: View {
         SnooFeature.isEnabled && !prefs.demoModeEnabled
             && isTracked(.sleep) && !snoo.suggestions.isEmpty
     }
-    private var targetFeed: TimeInterval {
-        TimeInterval((settingsList.first?.targetFeedIntervalMinutes ?? 180) * 60)
+    private func targetFeed(now: Date) -> TimeInterval {
+        settingsList.first?.feedInterval(at: now) ?? TimeInterval(180 * 60)
     }
 
     var body: some View {
@@ -309,7 +309,7 @@ struct HomeView: View {
 
     private func logButtons(now: Date) -> some View {
         LogButtons(
-            feedStatus: tileStatus(since: feeds.first?.timestamp, now: now, target: targetFeed),
+            feedStatus: tileStatus(since: feeds.first?.timestamp, now: now, target: targetFeed(now: now)),
             sleepStatus: activeSleep == nil
                 ? tileStatus(since: lastSleepEnd, now: now, target: UrgencyDefaults.sleep) : nil,
             diaperStatus: tileStatus(since: diapers.first?.timestamp, now: now, target: UrgencyDefaults.diaper),
@@ -334,14 +334,14 @@ struct HomeView: View {
     private func feedReminderArmed(now: Date) -> Bool {
         guard prefs.feedReminderEnabled, FeedAlarmManager.isAuthorized,
               let last = feeds.first?.timestamp else { return false }
-        return last.addingTimeInterval(targetFeed) > now
+        return last.addingTimeInterval(targetFeed(now: now)) > now
     }
 
     /// The Feed tile says what's next, not just what happened: the projected
     /// next-bottle time, from the same target-interval math as the reminders.
     private func feedHint(now: Date) -> String {
         guard let last = feeds.first?.timestamp else { return "log a bottle" }
-        let next = last.addingTimeInterval(targetFeed)
+        let next = last.addingTimeInterval(targetFeed(now: now))
         return next < now
             ? "bottle was due ~\(TimeFormatting.clock(next))"
             : "next bottle ~\(TimeFormatting.clock(next))"
@@ -729,7 +729,7 @@ struct HomeView: View {
     /// What the reminder would say right now, for the just-in-time offer.
     private var reminderContextLine: String? {
         guard let last = feeds.first?.timestamp else { return nil }
-        return "Next bottle around \(TimeFormatting.clock(last.addingTimeInterval(targetFeed)))"
+        return "Next bottle around \(TimeFormatting.clock(last.addingTimeInterval(targetFeed(now: .now))))"
     }
 
     /// The contextual moments that follow a feed log: the rhythm spotlight plays

@@ -126,7 +126,7 @@ struct RemindersQuestSheet: View {
         let store = EventStore(context: context)
         let babyName = store.baby?.name ?? "Baby"
         let lastFeed = store.lastEventDate(of: .feed)
-        let interval = store.settings?.targetFeedInterval ?? 0
+        let interval = store.settings?.feedInterval() ?? 0
         Task { await FeedAlarmManager.reschedule(babyName: babyName, lastFeed: lastFeed,
                                                  interval: interval) }
         Haptics.success()

@@ -108,6 +108,10 @@ targets:
       - path: TwoOfUs/Models/PlanOverride.swift
       - path: TwoOfUs/Models/Enums.swift
       - path: TwoOfUs/Store/Schema.swift
+      # Pure, store-free — SharedSettings.feedInterval calls into it to decide
+      # day vs. night spacing, so any target compiling SharedSettings.swift
+      # needs it too.
+      - path: TwoOfUs/Store/NightScheduleGenerator.swift
       - path: TwoOfUs/Support/AppGroup.swift
       - path: TwoOfUs/DesignSystem/Colors.swift
       - path: TwoOfUs/DesignSystem/Typography.swift
@@ -162,6 +166,10 @@ targets:
       - path: TwoOfUs/Models/PlanOverride.swift
       - path: TwoOfUs/Models/Enums.swift
       - path: TwoOfUs/Store/Schema.swift
+      # Pure, store-free — SharedSettings.feedInterval calls into it to decide
+      # day vs. night spacing, so any target compiling SharedSettings.swift
+      # needs it too.
+      - path: TwoOfUs/Store/NightScheduleGenerator.swift
       - path: TwoOfUs/Support/AppGroup.swift
       - path: TwoOfUs/DesignSystem/Colors.swift
       - path: TwoOfUs/DesignSystem/Typography.swift

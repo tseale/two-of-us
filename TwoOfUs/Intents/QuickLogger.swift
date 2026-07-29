@@ -109,9 +109,14 @@ struct QuickLogger {
         return try? context.fetch(d).first
     }
 
-    /// Shared target feed interval (seconds), defaulting to 3h. Used to re-arm
-    /// the AlarmKit feed reminder on app foreground.
-    var targetFeedInterval: TimeInterval { settings?.targetFeedInterval ?? TimeInterval(180 * 60) }
+    /// Feed interval that should drive reminders/predictions right now — night
+    /// spacing inside the nighttime window, else the daytime target, defaulting
+    /// to 3h when settings haven't synced yet. See `SharedSettings.feedInterval`,
+    /// the single source both live and background (widget/notification-extension)
+    /// contexts read. Used to re-arm the AlarmKit feed reminder on app foreground.
+    func feedInterval(now: Date = .now) -> TimeInterval {
+        settings?.feedInterval(at: now) ?? TimeInterval(180 * 60)
+    }
 
     /// This device's own participant id — the schedule-reminder planner filters
     /// "my" assigned slots with it. Strictly the STORED identity, with no

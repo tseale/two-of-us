@@ -651,7 +651,7 @@ struct SettingsView: View {
         SetupProgress.shared.markComplete(.reminders)
         await FeedAlarmManager.reschedule(babyName: baby?.name ?? "Baby",
                                           lastFeed: lastFeedDate(),
-                                          interval: settings?.targetFeedInterval ?? 0)
+                                          interval: settings?.feedInterval() ?? 0)
         NotificationManager.refreshScheduledReminders()      // stand the gentle feed nudge down
     }
 
@@ -668,7 +668,7 @@ struct SettingsView: View {
         await SlotAlarmManager.reschedule()   // arms when enabled, clears when not
         await FeedAlarmManager.reschedule(babyName: baby?.name ?? "Baby",
                                           lastFeed: lastFeedDate(),
-                                          interval: settings?.targetFeedInterval ?? 0)
+                                          interval: settings?.feedInterval() ?? 0)
     }
 
     /// Requests notification authorization (once) and re-applies the schedules
