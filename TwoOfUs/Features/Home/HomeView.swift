@@ -90,17 +90,14 @@ struct HomeView: View {
                             // needing a log or sync to trigger a render. During
                             // the night window the glance grows into the full
                             // "Tonight" card — built dynamically from tonight's
-                            // first logged feed, or a "waiting" invitation until
-                            // that feed lands; daytime keeps the one-line up-next.
+                            // first (logged or projected) feed, defaulting to
+                            // the window's start, so a night in progress always
+                            // has a schedule; daytime keeps the one-line up-next.
                             switch nightState(now: ctx.date) {
                             case .active:
                                 let tonight = tonightOccurrences(now: ctx.date)
                                 if !tonight.isEmpty {
                                     tonightCard(tonight, now: ctx.date)
-                                }
-                            case .waiting:
-                                if isTracked(.feed) {
-                                    waitingForFirstFeedCard(now: ctx.date)
                                 }
                             case .day, nil:
                                 if let next = upNextOccurrence(now: ctx.date) {
@@ -414,44 +411,6 @@ struct HomeView: View {
                 }
         }
         return merged.sorted { $0.date < $1.date }
-    }
-
-    /// Night's on but there's no feed at all to build from — the schedule
-    /// projects itself from the last logged feed, so until one exists say
-    /// that instead of showing empty slots.
-    private func waitingForFirstFeedCard(now: Date) -> some View {
-        Button {
-            router.requestTab(.schedule)
-        } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    Text("🌙").font(.callout)
-                    Text("Tonight's Schedule").sectionLabelStyle()
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(AppColor.text3)
-                }
-                Text("Waiting for a feed to build from")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppColor.text)
-                if let s = settingsList.first {
-                    let spacing = NightScheduleSettingsSheet.spacingLabel(s.nightFeedSpacingMinutes)
-                    Text(s.nightRotation == .alternating
-                         ? "Log a bottle and tonight projects itself from your rhythm — every \(spacing) overnight, taking turns."
-                         : "Log a bottle and tonight projects itself from your rhythm — every \(spacing) overnight.")
-                        .font(.caption)
-                        .foregroundStyle(AppColor.text2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .surfaceCard(cornerRadius: 14)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Tonight's schedule: waiting for tonight's first feed")
-        .accessibilityHint("Opens the nighttime schedule")
     }
 
     private func tonightCard(_ occurrences: [ScheduleOccurrence], now: Date) -> some View {

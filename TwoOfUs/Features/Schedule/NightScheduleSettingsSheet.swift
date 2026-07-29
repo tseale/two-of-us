@@ -165,11 +165,9 @@ struct NightScheduleSettingsSheet: View {
 
     private var previewFooter: String {
         if previewTimes.isEmpty {
-            return recentFeeds.isEmpty
-                ? "Log a feed and tonight projects itself from your feeding rhythm."
-                : "These hours generate no feeds — widen the window or tighten the spacing."
+            return "These hours generate no feeds — widen the window or tighten the spacing."
         }
-        return "Projected from the last logged feed and your daytime interval — the night re-anchors to the first bottle actually logged inside the window."
+        return "Projected from the last logged feed and your daytime interval — the night re-anchors to the first bottle actually logged in (or within an hour before) the window."
     }
 
     private func previewAssigneeLabel(index: Int) -> String {
@@ -180,12 +178,15 @@ struct NightScheduleSettingsSheet: View {
     }
 
     private var previewTimes: [Date] {
-        guard windowValid, let window = previewWindow, !recentFeeds.isEmpty else { return [] }
+        guard windowValid, let window = previewWindow else { return [] }
         let anchor: Date
         // Same precedence as the engine: a feed already logged inside the
-        // window anchors the night; otherwise project from the last feed.
+        // window (or the grace hour before it) anchors the night; otherwise
+        // project from the last feed; otherwise the window's start itself.
+        let graceStart = window.start.addingTimeInterval(
+            -TimeInterval(NightSchedule.preWindowGraceMinutes * 60))
         if let logged = recentFeeds.reversed()
-            .first(where: { $0.timestamp >= window.start && $0.timestamp <= window.end })?
+            .first(where: { $0.timestamp >= graceStart && $0.timestamp <= window.end })?
             .timestamp {
             anchor = logged
         } else if let last = recentFeeds.first?.timestamp,
@@ -198,7 +199,9 @@ struct NightScheduleSettingsSheet: View {
         } else {
             anchor = window.start
         }
-        return NightSchedule.slotTimes(anchor: anchor, windowEnd: window.end,
+        let lead = max(0, window.start.timeIntervalSince(anchor))
+        return NightSchedule.slotTimes(anchor: anchor,
+                                       windowEnd: window.end.addingTimeInterval(lead),
                                        spacingMinutes: spacingMinutes)
     }
 
