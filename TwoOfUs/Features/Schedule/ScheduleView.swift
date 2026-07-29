@@ -88,13 +88,14 @@ struct ScheduleView: View {
         slots.filter { $0.kind != .feed }
     }
 
-    /// The standing (sleep) plan merged with tonight's dynamically constructed
-    /// feed schedule — anchored to the night's first logged bottle.
+    /// The standing (sleep) plan merged with the night's dynamically
+    /// constructed feed schedule — anchored to the night's first (logged or
+    /// projected) bottle, per-night overrides applied.
     private func mergedOccurrences(now: Date) -> [ScheduleOccurrence] {
         var merged = engine(now: now).occurrences()
         if let s = settingsList.first {
             merged += NightSchedule(settings: s, participants: participants,
-                                    feeds: feeds, now: now).occurrences()
+                                    feeds: feeds, overrides: overrides, now: now).occurrences()
         }
         return merged.sorted { $0.date < $1.date }
     }
@@ -135,8 +136,7 @@ struct ScheduleView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(heroAccessibilityLabel(occ, mine: mine, now: now))
-            .accessibilityHint(occ.source == .night
-                ? "Adjusts the nighttime schedule" : "Reassign or change this slot")
+            .accessibilityHint("Reassign or change this slot")
         }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
@@ -209,18 +209,13 @@ struct ScheduleView: View {
         .onTapGesture { open(occ) }
         .accessibilityAddTraits(.isButton)
         .accessibilityHint(occ.source == .night
-            ? "Adjusts the nighttime schedule" : "Reassign, move, or change this slot")
+            ? "Reassign or skip tonight's feed" : "Reassign, move, or change this slot")
     }
 
-    /// A standing-slot occurrence opens the per-night actions (swap / move /
-    /// skip). A dynamic night row is backed by no slot — there's nothing to
-    /// override; the whole night reshapes through its settings instead.
+    /// Both sources open the per-night actions sheet — a dynamic night row
+    /// offers swap/skip (its time is derived, so no move/edit).
     private func open(_ occ: ScheduleOccurrence) {
-        if occ.source == .night {
-            configuringNight = true
-        } else {
-            actionTarget = occ
-        }
+        actionTarget = occ
     }
 
     private func caption(for occ: ScheduleOccurrence) -> String? {
@@ -250,19 +245,11 @@ struct ScheduleView: View {
     // MARK: Empty state
 
     private func emptySection(now: Date) -> some View {
-        let waiting: Bool = {
-            guard let s = settingsList.first else { return false }
-            if case .waiting = NightSchedule(settings: s, participants: participants,
-                                             feeds: feeds, now: now).state { return true }
-            return false
-        }()
         return Section {
             EmptyStateView(
                 emoji: "🌙",
-                title: waiting ? "Waiting for tonight's first feed" : "No schedule tonight — yet",
-                message: waiting
-                    ? "The night builds itself from the first bottle: log it and the rest of the feeds line up from there by your spacing, taking turns between you. Tune the night window and spacing with the moon up top."
-                    : "Tonight constructs itself once the first feed lands inside your night window. Set the window, spacing, and rotation with the moon up top."
+                title: "No schedule tonight — yet",
+                message: "Tonight projects itself from your feeding rhythm: the first bottle that lands inside your night window starts the schedule, spaced by your night interval and taking turns from the first shift. Log a feed to give it something to build from, and tune the night with the moon up top."
             )
             .listRowBackground(Color.clear)
         }

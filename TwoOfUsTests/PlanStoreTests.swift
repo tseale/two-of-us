@@ -220,6 +220,67 @@ final class PlanStoreTests: XCTestCase {
         XCTAssertEqual(settings.nightRotation, NightRotation.none)
     }
 
+    func testApplyNightScheduleSavesFirstShift() {
+        let settings = insertSettings()
+        let katie = insertKatie()
+
+        store.applyNightSchedule(nightStartMinute: 20 * 60, nightEndMinute: 8 * 60,
+                                 spacingMinutes: 240, rotation: .alternating,
+                                 firstShiftID: katie.id)
+
+        XCTAssertEqual(settings.nightFirstShiftID, katie.id)
+    }
+
+    // MARK: Dynamic night-slot overrides
+
+    /// A dynamic occurrence fixture matching what `NightSchedule` emits —
+    /// synthetic slot id, night-keyed dayKey, no PlanSlot behind it.
+    private func nightOccurrence(index: Int, assignedTo: Participant?) -> ScheduleOccurrence {
+        ScheduleOccurrence(
+            id: "night.\(tonightKey).\(index)",
+            slotID: NightSchedule.syntheticSlotID(nightKey: tonightKey, index: index),
+            kind: .feed, date: .now, dayKey: tonightKey, status: .upcoming,
+            assignedToID: assignedTo?.id, assignedToName: assignedTo?.displayName ?? "",
+            assignedToColorHex: assignedTo?.colorHex ?? "",
+            activeOverrideID: nil, overrideCreatedByID: nil, source: .night
+        )
+    }
+
+    func testNightOccurrenceOverrideWritesSyntheticSlotID() {
+        let katie = insertKatie()
+        let occ = nightOccurrence(index: 1, assignedTo: taylor)
+
+        let override = store.overrideNightOccurrence(occ, assignTo: katie)
+
+        XCTAssertEqual(override.slotID, occ.slotID)
+        XCTAssertEqual(override.dayKey, tonightKey)
+        XCTAssertEqual(override.assignedToID, katie.id)
+        XCTAssertFalse(override.isSkipped)
+    }
+
+    func testNightOccurrenceSwapReplacesPriorOverrideForSameSlot() {
+        let katie = insertKatie()
+        let occ = nightOccurrence(index: 1, assignedTo: taylor)
+
+        let first = store.overrideNightOccurrence(occ, assignTo: katie)
+        let second = store.overrideNightOccurrence(occ, assignTo: taylor)
+
+        XCTAssertNotNil(first.deletedAt, "one live override per (slot, night)")
+        XCTAssertNil(second.deletedAt)
+        XCTAssertEqual(second.assignedToID, taylor.id)
+    }
+
+    func testSkipNightOccurrence() {
+        let occ = nightOccurrence(index: 2, assignedTo: taylor)
+        let override = store.skipNightOccurrence(occ)
+
+        XCTAssertTrue(override.isSkipped)
+        XCTAssertEqual(override.slotID, occ.slotID)
+
+        store.clearOverride(override)
+        XCTAssertNotNil(override.deletedAt, "undo soft-deletes — the rotation resumes")
+    }
+
     func testApplyNightScheduleLeavesSleepSlotsAlone() {
         insertSettings()
         let sleep = store.addPlanSlot(kind: .sleep, minuteOfDay: 19 * 60, assignedTo: taylor)
