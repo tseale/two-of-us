@@ -181,7 +181,8 @@ final class RecordMappingTests: XCTestCase {
                                       ozPresets: [2, 2.5, 5], defaultFeedOz: 5,
                                       sleepLoggingEnabled: false,
                                       nightStartMinute: 21 * 60, nightEndMinute: 7 * 60,
-                                      nightFirstFeedMinute: 22 * 60, nightFeedSpacingMinutes: 210)
+                                      nightFirstFeedMinute: 22 * 60, nightFeedSpacingMinutes: 210,
+                                      nightRotation: .none)
         context.insert(original)
         try context.save()
 
@@ -199,6 +200,8 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertEqual(copy.nightEndMinute, 7 * 60)
         XCTAssertEqual(copy.nightFirstFeedMinute, 22 * 60)
         XCTAssertEqual(copy.nightFeedSpacingMinutes, 210)
+        XCTAssertEqual(copy.nightRotation, NightRotation.none,
+                       "the rotation pattern is a shared setting")
     }
 
     /// A settings record written by an app version that predates the nighttime
@@ -217,6 +220,8 @@ final class RecordMappingTests: XCTestCase {
         let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<SharedSettings>()).first)
         XCTAssertEqual(copy.nightStartMinute, 19 * 60)
         XCTAssertEqual(copy.nightFeedSpacingMinutes, 240)
+        XCTAssertEqual(copy.nightRotation, .alternating,
+                       "an absent rotation field reads as the default, not a blank")
     }
 
     /// A settings record written by an app version that predates the tracker

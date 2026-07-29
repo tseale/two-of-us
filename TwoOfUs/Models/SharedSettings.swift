@@ -1,6 +1,17 @@
 import Foundation
 import SwiftData
 
+/// How the dynamic nighttime schedule assigns parents to feed slots.
+/// Raw-string backed so it syncs as a plain field and an unknown future value
+/// degrades to the default instead of crashing an older build.
+enum NightRotation: String, CaseIterable {
+    /// Whoever logs tonight's first feed takes it; later slots alternate
+    /// through the active parents from there.
+    case alternating
+    /// No assignments — every slot stays unassigned, so both phones ring.
+    case none
+}
+
 /// App-wide settings that are shared between all participants (synced in
 /// Increment 2). Stored as a single record.
 @Model
@@ -23,8 +34,12 @@ final class SharedSettings {
     // the fields read as the standard 8pm–8am night.
     var nightStartMinute: Int = 1200           // night starts 8:00 PM
     var nightEndMinute: Int = 480              // night ends 8:00 AM
+    /// Legacy fixed anchor — unused since the schedule went dynamic (the first
+    /// logged nighttime feed anchors the night now). Kept, and still synced, so
+    /// older builds sharing the zone keep reading a sane value.
     var nightFirstFeedMinute: Int = 1260       // first feed 9:00 PM
     var nightFeedSpacingMinutes: Int = 180     // 3h between night feeds
+    var nightRotationRaw: String = NightRotation.alternating.rawValue
     var ckSystemFields: Data?                  // archived CKRecord system fields (see Baby.ckSystemFields)
 
     init(
@@ -38,7 +53,8 @@ final class SharedSettings {
         nightStartMinute: Int = 1200,
         nightEndMinute: Int = 480,
         nightFirstFeedMinute: Int = 1260,
-        nightFeedSpacingMinutes: Int = 180
+        nightFeedSpacingMinutes: Int = 180,
+        nightRotation: NightRotation = .alternating
     ) {
         self.id = id
         self.targetFeedIntervalMinutes = targetFeedIntervalMinutes
@@ -51,9 +67,17 @@ final class SharedSettings {
         self.nightEndMinute = nightEndMinute
         self.nightFirstFeedMinute = nightFirstFeedMinute
         self.nightFeedSpacingMinutes = nightFeedSpacingMinutes
+        self.nightRotationRaw = nightRotation.rawValue
     }
 
     var targetFeedInterval: TimeInterval { TimeInterval(targetFeedIntervalMinutes * 60) }
+
+    /// An unknown raw value (a future build's new pattern) reads as the
+    /// default rather than crashing or silently disabling the rotation.
+    var nightRotation: NightRotation {
+        get { NightRotation(rawValue: nightRotationRaw) ?? .alternating }
+        set { nightRotationRaw = newValue.rawValue }
+    }
 
     private func rawEnabled(_ kind: EventKind) -> Bool {
         switch kind {

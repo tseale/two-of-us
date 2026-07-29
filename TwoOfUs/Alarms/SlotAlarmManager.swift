@@ -46,16 +46,19 @@ enum SlotAlarmManager {
               let logger = QuickLogger.make(),
               let myID = logger.myParticipantID else { return }
 
-        let slots = logger.planSlots
-        guard !slots.isEmpty else { return }
-        let engine = ScheduleEngine(
-            slots: slots, overrides: logger.planOverrides,
-            feeds: logger.recentFeeds(), sleeps: logger.recentSleeps()
-        )
-        // Skip slots for kinds whose shared tracker is off — a paused sleep
-        // tracker must not keep waking the on-duty parent.
-        guard let next = engine.upcomingAlarmable(for: myID, horizon: 24 * 3600)
-            .first(where: { logger.isTrackingEnabled($0.kind) }) else { return }
+        // Standing sleep slots merged with tonight's dynamic feed schedule
+        // (which exists once the night's first feed anchors it — so logging
+        // that feed is what arms the 1:30am/5:30am wake-ups). Ring my own
+        // occurrences plus unassigned ones (nobody claimed it, so nobody
+        // sleeps through it silently); only a slot pinned to the OTHER parent
+        // stays quiet here. Skip kinds whose shared tracker is off — a paused
+        // sleep tracker must not keep waking the on-duty parent.
+        guard let next = logger.scheduleOccurrences(horizon: 24 * 3600)
+            .first(where: {
+                $0.status == .upcoming
+                    && ($0.assignedToID == nil || $0.assignedToID == myID)
+                    && logger.isTrackingEnabled($0.kind)
+            }) else { return }
         let remaining = next.date.timeIntervalSinceNow
         guard remaining >= minimumLead else { return }
         guard await requestAuthorization() else { return }

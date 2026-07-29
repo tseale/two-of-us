@@ -2,18 +2,18 @@ import SwiftUI
 import SwiftData
 
 /// Configure the shared nighttime schedule: the night window, the spacing
-/// between feeds, and where the first bottle lands. Saving regenerates the
-/// standing feed slots (alternating between the parents by default) and syncs
-/// the settings so both phones see the same night. House sheet idiom (Form,
-/// detents, Cancel/confirm toolbar, undo-less toast via callback).
+/// between feeds, and the parent rotation. There's no fixed first-feed time
+/// anymore — the schedule is dynamic: the first feed logged inside the window
+/// anchors the night, and the rest of the slots march from it by the spacing,
+/// alternating between the parents. Saving syncs the settings so both phones
+/// build the identical night. House sheet idiom (Form, detents, Cancel/confirm
+/// toolbar, undo-less toast via callback).
 struct NightScheduleSettingsSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query private var settingsList: [SharedSettings]
     @Query(filter: #Predicate<Participant> { $0.isActive }, sort: \Participant.invitedAt)
     private var participants: [Participant]
-    @Query(filter: #Predicate<PlanSlot> { $0.deletedAt == nil })
-    private var liveSlots: [PlanSlot]
     @Query(filter: #Predicate<FeedEvent> { $0.deletedAt == nil }, sort: \FeedEvent.timestamp, order: .reverse)
     private var recentFeeds: [FeedEvent]
 
@@ -21,12 +21,9 @@ struct NightScheduleSettingsSheet: View {
 
     @State private var nightStart: Date = .now
     @State private var nightEnd: Date = .now
-    @State private var firstFeed: Date = .now
     @State private var spacingMinutes = 180
+    @State private var rotation: NightRotation = .alternating
     @State private var seeded = false
-    /// True when `firstFeed` was seeded from feed history rather than the
-    /// previously saved setting — drives the "predicted" footer.
-    @State private var firstFeedIsPredicted = false
 
     /// Half-hour steps from 2h to 6h — the realistic newborn range.
     private static let spacingChoices = Array(stride(from: 120, through: 360, by: 30))
@@ -40,7 +37,12 @@ struct NightScheduleSettingsSheet: View {
                 } header: {
                     Text("Nighttime hours")
                 } footer: {
-                    Text("The schedule only covers this window — daytime feeds stay ad-hoc.")
+                    if windowValid {
+                        Text("The schedule only covers this window — daytime feeds stay ad-hoc.")
+                    } else {
+                        Text("The night needs to start and end at different times.")
+                            .foregroundStyle(AppColor.urgencyAmber)
+                    }
                 }
 
                 Section("Feed spacing") {
@@ -52,14 +54,17 @@ struct NightScheduleSettingsSheet: View {
                 }
 
                 Section {
-                    DatePicker("First feed at", selection: $firstFeed, displayedComponents: .hourAndMinute)
-                } footer: {
-                    if !firstFeedValid {
-                        Text("The first feed must fall inside the nighttime window.")
-                            .foregroundStyle(AppColor.urgencyAmber)
-                    } else if firstFeedIsPredicted {
-                        Text("Predicted from recent feeds — adjust if needed.")
+                    Picker("Rotation", selection: $rotation) {
+                        Text("Take turns").tag(NightRotation.alternating)
+                        Text("No assignments").tag(NightRotation.none)
                     }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("Who's up")
+                } footer: {
+                    Text(rotation == .alternating
+                         ? "Whoever logs tonight's first feed takes it — the rest of the night alternates between you from there."
+                         : "No one is assigned — every slot reminds both of you.")
                 }
 
                 previewSection
@@ -72,7 +77,7 @@ struct NightScheduleSettingsSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { saveAndDismiss() }
-                        .disabled(!firstFeedValid || previewMinutes.isEmpty)
+                        .disabled(!windowValid)
                         .accessibilityIdentifier("nightSchedule.confirm")
                 }
             }
@@ -84,55 +89,71 @@ struct NightScheduleSettingsSheet: View {
 
     // MARK: Preview
 
+    /// A worked example of how tonight would build, from a sample anchor (the
+    /// predicted next feed when history suggests one inside the window, else
+    /// the window's start) — the schedule itself always anchors to the real
+    /// first feed, whenever it lands.
     private var previewSection: some View {
         Section {
-            ForEach(Array(previewMinutes.enumerated()), id: \.offset) { index, minute in
+            ForEach(Array(previewTimes.enumerated()), id: \.offset) { index, date in
                 HStack(spacing: 10) {
                     Text("🍼").font(.callout)
-                    Text(Self.clock(minuteOfDay: minute))
+                    Text(TimeFormatting.clock(date))
                         .font(.subheadline.weight(.semibold).monospacedDigit())
                         .foregroundStyle(AppColor.text)
                     Spacer()
-                    Text(previewAssigneeName(index: index, minute: minute))
+                    Text(previewAssigneeLabel(index: index))
                         .font(.caption)
                         .foregroundStyle(AppColor.text2)
                 }
             }
         } header: {
-            Text("Tonight's feeds")
+            Text("For example")
         } footer: {
-            Text(previewMinutes.isEmpty
+            Text(previewTimes.isEmpty
                  ? "These hours generate no feeds — widen the window or tighten the spacing."
-                 : "Feeds alternate between you by default. Tap any slot on the schedule to reassign it — an unassigned slot rings both phones, an assigned one only its owner's.")
+                 : "If the first feed landed at \(TimeFormatting.clock(previewAnchor)). The real schedule builds itself from whenever tonight's first feed is actually logged.")
         }
     }
 
-    /// A kept time previews its existing (possibly hand-picked) assignee; a
-    /// new time previews the default rotation — exactly what Save will apply.
-    private func previewAssigneeName(index: Int, minute: Int) -> String {
-        if let existing = liveSlots.first(where: { $0.kind == .feed && $0.minuteOfDay == minute }) {
-            return existing.assignedToID == nil ? "Unassigned" : existing.assignedToName
-        }
-        guard let assignee = NightScheduleGenerator.alternatingAssignee(index: index, parents: participants)
-        else { return "Unassigned" }
-        return assignee.displayName
+    /// Rotation is anchored to whoever REALLY logs the first feed, so the
+    /// preview can only speak in roles, not names.
+    private func previewAssigneeLabel(index: Int) -> String {
+        guard rotation == .alternating, participants.count >= 2 else { return "Both of you" }
+        return index % participants.count == 0 ? "First feeder" : "Other parent"
     }
 
-    private var previewMinutes: [Int] {
-        NightScheduleGenerator.feedMinutes(
-            nightStartMinute: minuteOfDay(nightStart),
-            nightEndMinute: minuteOfDay(nightEnd),
-            firstFeedMinute: minuteOfDay(firstFeed),
-            spacingMinutes: spacingMinutes
-        )
-    }
-
-    private var firstFeedValid: Bool {
-        NightScheduleGenerator.isWithinNight(
-            minuteOfDay: minuteOfDay(firstFeed),
-            nightStartMinute: minuteOfDay(nightStart),
+    /// Sample anchor for the preview: the feed-history prediction when it
+    /// falls inside the configured window, else the window's start.
+    private var previewAnchor: Date {
+        let start = minuteOfDay(nightStart)
+        if let predicted = NightScheduleGenerator.predictedNextFeed(
+            recentFeedTimestamps: recentFeeds.map(\.timestamp)
+        ), NightScheduleGenerator.isWithinNight(
+            minuteOfDay: minuteOfDay(predicted),
+            nightStartMinute: start,
             nightEndMinute: minuteOfDay(nightEnd)
-        )
+        ) {
+            return predicted
+        }
+        return Self.date(minuteOfDay: start)
+    }
+
+    private var previewTimes: [Date] {
+        guard windowValid else { return [] }
+        let anchor = previewAnchor
+        // Window end materialized after the anchor (tonight wraps midnight).
+        let start = minuteOfDay(nightStart)
+        let end = minuteOfDay(nightEnd)
+        let windowMinutes = ((end - start + 1440) % 1440)
+            - ((minuteOfDay(anchor) - start + 1440) % 1440)
+        let windowEnd = anchor.addingTimeInterval(TimeInterval(max(0, windowMinutes) * 60))
+        return NightSchedule.slotTimes(anchor: anchor, windowEnd: windowEnd,
+                                       spacingMinutes: spacingMinutes)
+    }
+
+    private var windowValid: Bool {
+        minuteOfDay(nightStart) != minuteOfDay(nightEnd)
     }
 
     // MARK: Actions
@@ -143,22 +164,15 @@ struct NightScheduleSettingsSheet: View {
         nightStart = Self.date(minuteOfDay: settings.nightStartMinute)
         nightEnd = Self.date(minuteOfDay: settings.nightEndMinute)
         spacingMinutes = settings.nightFeedSpacingMinutes
-        if let predicted = NightScheduleGenerator.predictedNextFeed(
-            recentFeedTimestamps: recentFeeds.map(\.timestamp)
-        ) {
-            firstFeed = predicted
-            firstFeedIsPredicted = true
-        } else {
-            firstFeed = Self.date(minuteOfDay: settings.nightFirstFeedMinute)
-        }
+        rotation = settings.nightRotation
     }
 
     private func saveAndDismiss() {
         EventStore(context: context).applyNightSchedule(
             nightStartMinute: minuteOfDay(nightStart),
             nightEndMinute: minuteOfDay(nightEnd),
-            firstFeedMinute: minuteOfDay(firstFeed),
-            spacingMinutes: spacingMinutes
+            spacingMinutes: spacingMinutes,
+            rotation: rotation
         )
         onDone?("Nighttime schedule updated", AppColor.accentFeed, nil)
         Haptics.success()
