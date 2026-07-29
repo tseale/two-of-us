@@ -37,11 +37,18 @@ Browser work (computer use). Ask Taylor to sign in at
 <https://icloud.developer.apple.com>, then open the container
 `iCloud.com.taylorseale.twoofus` and select the **Development** environment.
 
-Under Schema → Record Types, all six types below must exist with all listed
+Under Schema → Record Types, all eight types below must exist with all listed
 fields. Fields are also created just-in-time, so any field that was never
 non-nil on a dev build is missing — `cloudUserID` and `notes` almost
 certainly are. **Add missing fields manually** (Record Type → Edit → Add
 Field) rather than trying to exercise every code path; it's deterministic.
+
+Faster than the Console: `docs/cloudkit-schema.ckdb` is the full schema —
+merge it over a fresh export (the file omits the system `Users` /
+`cloudkit.share` types, which an import would otherwise try to delete) and
+`xcrun cktool import-schema --environment development`. Production still
+requires the Console's Deploy button or an explicit
+`import-schema --environment production` run by Taylor.
 
 | Record type | Field | CloudKit type |
 |---|---|---|
@@ -63,6 +70,14 @@ Field) rather than trying to exercise every code path; it's deterministic.
 | `SharedSettings` | `targetFeedIntervalMinutes` | Int64 |
 | | `ozPresets` | Double (List) |
 | | `defaultFeedOz` | Double |
+| | `feedLoggingEnabled`, `diaperLoggingEnabled`, `sleepLoggingEnabled` | Int64 |
+| | `nightStartMinute`, `nightEndMinute`, `nightFirstFeedMinute`, `nightFeedSpacingMinutes` | Int64 |
+| `PlanSlot` | `kindRaw`, `assignedToID`, `assignedToName`, `assignedToColorHex` | String |
+| | `minuteOfDay` | Int64 |
+| | `createdAt`, `deletedAt` | Date/Time |
+| `PlanOverride` | `slotID`, `assignedToID`, `assignedToName`, `assignedToColorHex`, `createdByID` | String |
+| | `dayKey`, `isSkipped`, `minuteOfDayOverride` | Int64 |
+| | `createdAt`, `deletedAt` | Date/Time |
 
 The authoritative source is `TwoOfUs/Sync/RecordMapping.swift` — if it and
 this table disagree, trust the code and update this table.
@@ -71,18 +86,26 @@ Skip what you don't need: **no indexes** (CKSyncEngine uses zone deltas, never
 queries) and **no security-role changes** (the zone-wide CKShare handles
 access).
 
-**Checkpoint:** all six record types complete in Development.
+**Checkpoint:** all eight record types complete in Development.
 
 ## Phase 2 — Deploy schema to Production
 
 1. Still in the Console: Schema → **Deploy Schema Changes**.
-2. Review the diff it shows (should be exactly the six record types / added
-   fields), then deploy. Remember Production is additive-only — nothing can
-   be renamed or removed later, so fix any typos in Development first.
+2. Review the diff it shows (should be exactly the record types / added
+   fields new since the last deploy), then deploy. Remember Production is
+   additive-only — nothing can be renamed or removed later, so fix any typos
+   in Development first.
 3. Verify by switching the environment picker to **Production** and
    re-checking the record types.
 
-**Checkpoint:** six record types visible in Production.
+**A schema change is not done until this phase runs.** July 2026 lesson: the
+nighttime schedule shipped with `PlanSlot`/`PlanOverride` in the code but not
+in the deployed schema — Production rejected every save (`invalidArguments`)
+and the co-parent saw an empty schedule for weeks. The sync layer now parks
+schema-rejected saves and retries after the deploy lands, but the deploy
+itself is still this manual step.
+
+**Checkpoint:** eight record types visible in Production.
 
 ## Phase 3 — End-to-end verification
 
@@ -143,6 +166,7 @@ below are load-bearing; the troubleshooting map assumes them.
 | Invite link opens browser / does nothing on the joiner's phone | `CKSharingSupported` missing from Info.plist (pre-#54) | `project.yml` info properties |
 | Sync works in dev builds, dead on TestFlight | Schema never deployed to Production | Phase 1–2 above |
 | "Unknown field" / "Did not find record type" in Console logs | A JIT-created field missed the deploy | Phase 1 table |
+| One feature's records never sync while everything else does | That feature's record type/field isn't in the deployed schema; its saves are parked (`invalidArguments`) awaiting a deploy | Phase 1–2; `SyncManager.handleSentRecordZoneChanges` |
 | Owner's TestFlight build can't find a share created from Xcode | Shares don't cross environments | Recreate from TestFlight build |
 | Joiner stuck on "Bringing everything over…" | Owner's records not in the shared zone — check owner upload first | Phase 3 step 2 |
 | Edits/deletes/sleep-stops revert or never reach the other phone | `ckSystemFields` not being captured (invariant 1 broken) | `RecordMapping`, `SyncManager.handleSentRecordZoneChanges` |

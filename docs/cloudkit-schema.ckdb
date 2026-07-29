@@ -66,10 +66,48 @@ DEFINE SCHEMA
         GRANT READ TO "_world"
     );
 
+    RECORD TYPE PlanOverride (
+        "___recordID" REFERENCE QUERYABLE,
+        assignedToColorHex STRING,
+        assignedToID STRING,
+        assignedToName STRING,
+        createdAt TIMESTAMP,
+        createdByID STRING,
+        dayKey INT64,
+        deletedAt TIMESTAMP,
+        isSkipped INT64,
+        minuteOfDayOverride INT64,
+        slotID STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE PlanSlot (
+        "___recordID" REFERENCE QUERYABLE,
+        assignedToColorHex STRING,
+        assignedToID STRING,
+        assignedToName STRING,
+        createdAt TIMESTAMP,
+        deletedAt TIMESTAMP,
+        kindRaw STRING,
+        minuteOfDay INT64,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
     RECORD TYPE SharedSettings (
         "___recordID" REFERENCE QUERYABLE,
         defaultFeedOz DOUBLE,
+        diaperLoggingEnabled INT64,
+        feedLoggingEnabled INT64,
+        nightEndMinute INT64,
+        nightFeedSpacingMinutes INT64,
+        nightFirstFeedMinute INT64,
+        nightStartMinute INT64,
         ozPresets LIST<DOUBLE>,
+        sleepLoggingEnabled INT64,
         targetFeedIntervalMinutes INT64,
         GRANT WRITE TO "_creator",
         GRANT CREATE TO "_icloud",
