@@ -42,6 +42,16 @@ struct QuickLogger {
     private var baby: Baby? { try? context.fetch(FetchDescriptor<Baby>()).first }
     private var settings: SharedSettings? { try? context.fetch(FetchDescriptor<SharedSettings>()).first }
 
+    /// The shared settings row, exposed for the app-side schedule assembly
+    /// (`scheduleOccurrences` in ScheduleAssembly.swift).
+    var sharedSettings: SharedSettings? { settings }
+
+    /// Every participant — the schedule assembly filters/orders them itself so
+    /// the rotation order matches the app's views exactly.
+    var allParticipants: [Participant] {
+        (try? context.fetch(FetchDescriptor<Participant>())) ?? []
+    }
+
     /// The local user ("me"), resolved via the App Group-shared participant id so
     /// the extension stamps the same identity the app does. While demo mode is
     /// active the shared id is overridden with a demo-store id that matches

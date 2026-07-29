@@ -82,6 +82,7 @@ enum RecordMapping {
             r["nightEndMinute"] = m.nightEndMinute
             r["nightFirstFeedMinute"] = m.nightFirstFeedMinute
             r["nightFeedSpacingMinutes"] = m.nightFeedSpacingMinutes
+            r["nightRotationRaw"] = m.nightRotationRaw
             return r
         }
         if let m = PlanSlot.fetchByID(uuid, in: context) {
@@ -427,6 +428,7 @@ enum RecordMapping {
         m.nightEndMinute = r["nightEndMinute"] as? Int ?? m.nightEndMinute
         m.nightFirstFeedMinute = r["nightFirstFeedMinute"] as? Int ?? m.nightFirstFeedMinute
         m.nightFeedSpacingMinutes = r["nightFeedSpacingMinutes"] as? Int ?? m.nightFeedSpacingMinutes
+        m.nightRotationRaw = r["nightRotationRaw"] as? String ?? m.nightRotationRaw
     }
 
     private static func applyPlanSlot(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {

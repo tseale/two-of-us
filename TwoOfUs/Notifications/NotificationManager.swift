@@ -269,15 +269,10 @@ enum NotificationManager {
         center.removePendingNotificationRequests(withIdentifiers: stale)
 
         guard let logger = QuickLogger.make(), let myID = logger.myParticipantID else { return }
-        let slots = logger.planSlots
-        guard !slots.isEmpty else { return }
-
-        let engine = ScheduleEngine(
-            slots: slots, overrides: logger.planOverrides,
-            feeds: logger.recentFeeds(), sleeps: logger.recentSleeps()
-        )
+        // Standing sleep slots + tonight's dynamic feed schedule, merged — so
+        // the "you're up" reminders follow the schedule the anchor feed built.
         let planned = ScheduleReminderPlanner.plan(
-            occurrences: engine.occurrences(lookback: 0),
+            occurrences: logger.scheduleOccurrences(),
             myID: myID,
             babyName: logger.babyName ?? "Baby",
             now: .now
@@ -307,14 +302,8 @@ enum NotificationManager {
     /// rings both. Only a skipped night (no occurrence at all) leaves the
     /// generic nudge on duty rather than standing down against silence.
     private static func assignedSlotCovers(_ date: Date, kind: EventKind, logger: QuickLogger) -> Bool {
-        let slots = logger.planSlots
-        guard !slots.isEmpty else { return false }
-        let engine = ScheduleEngine(
-            slots: slots, overrides: logger.planOverrides,
-            feeds: logger.recentFeeds(), sleeps: logger.recentSleeps()
-        )
         let horizon = max(3600, date.timeIntervalSinceNow + 1800)
-        return engine.occurrences(lookback: 0, horizon: horizon).contains {
+        return logger.scheduleOccurrences(horizon: horizon).contains {
             $0.kind == kind && $0.status == .upcoming
                 && abs($0.date.timeIntervalSince(date)) <= 30 * 60
         }

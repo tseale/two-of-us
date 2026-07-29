@@ -13,8 +13,16 @@ struct ScheduleOccurrence: Identifiable, Equatable {
         case skipped                      // per-night skip override
     }
 
-    let id: String                        // stable: "slot.<slotID>.<dayKey>"
-    let slotID: UUID                      // → the standing PlanSlot
+    /// Where the occurrence came from — a standing `PlanSlot` (editable via
+    /// overrides) or tonight's dynamic feed schedule (`NightSchedule`,
+    /// computed, backed by no slot — its `slotID` is synthetic).
+    enum Source: Equatable {
+        case slot
+        case night
+    }
+
+    let id: String                        // stable: "slot.<slotID>.<dayKey>" / "night.<nightKey>.<index>"
+    let slotID: UUID                      // → the standing PlanSlot (synthetic for .night)
     let kind: EventKind                   // .feed or .sleep only
     let date: Date                        // override-adjusted (a moved night reflects its moved time)
     let dayKey: Int                       // keyed to the STANDING time's day, so lookup and undo agree
@@ -24,6 +32,7 @@ struct ScheduleOccurrence: Identifiable, Equatable {
     let assignedToColorHex: String
     let activeOverrideID: UUID?           // non-nil when a live override applied (drives "changed" + undo)
     let overrideCreatedByID: UUID?        // who made tonight's change
+    var source: Source = .slot
 }
 
 /// Pure merge of the standing plan, per-night overrides, and the event log into
@@ -91,9 +100,18 @@ struct ScheduleEngine {
     /// never silently skip a feed alarm.
     func assignedElsewhere(near date: Date, kind: EventKind, me: UUID?,
                            window: TimeInterval = 30 * 60) -> Bool {
-        guard let me else { return false }
         let horizon = max(3600, date.timeIntervalSince(now) + window)
-        return occurrences(lookback: 0, horizon: horizon).contains {
+        return Self.assignedElsewhere(in: occurrences(lookback: 0, horizon: horizon),
+                                      near: date, kind: kind, me: me, window: window)
+    }
+
+    /// Same test over an already-assembled occurrence list — used where the
+    /// standing plan and the dynamic night schedule are merged (`QuickLogger`).
+    static func assignedElsewhere(in occurrences: [ScheduleOccurrence], near date: Date,
+                                  kind: EventKind, me: UUID?,
+                                  window: TimeInterval = 30 * 60) -> Bool {
+        guard let me else { return false }
+        return occurrences.contains {
             $0.kind == kind && $0.status == .upcoming
                 && $0.assignedToID != nil && $0.assignedToID != me
                 && abs($0.date.timeIntervalSince(date)) <= window

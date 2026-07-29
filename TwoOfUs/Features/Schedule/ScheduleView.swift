@@ -68,11 +68,11 @@ struct ScheduleView: View {
     // MARK: List
 
     private func scheduleList(now: Date) -> some View {
-        let occurrences = engine(now: now).occurrences()
+        let occurrences = mergedOccurrences(now: now)
         let upNext = occurrences.first { $0.status == .upcoming && $0.date >= now }
         return List {
             if occurrences.isEmpty {
-                emptySection
+                emptySection(now: now)
             } else {
                 if let upNext { heroSection(upNext, now: now) }
                 timelineSection(occurrences, now: now)
@@ -81,8 +81,26 @@ struct ScheduleView: View {
         }
     }
 
+    /// Standing slots minus feed ones: night feeds are dynamic now, so a
+    /// leftover fixed-era feed slot (or one synced from an older build) must
+    /// not render next to the constructed schedule.
+    private var sleepSlots: [PlanSlot] {
+        slots.filter { $0.kind != .feed }
+    }
+
+    /// The standing (sleep) plan merged with tonight's dynamically constructed
+    /// feed schedule — anchored to the night's first logged bottle.
+    private func mergedOccurrences(now: Date) -> [ScheduleOccurrence] {
+        var merged = engine(now: now).occurrences()
+        if let s = settingsList.first {
+            merged += NightSchedule(settings: s, participants: participants,
+                                    feeds: feeds, now: now).occurrences()
+        }
+        return merged.sorted { $0.date < $1.date }
+    }
+
     private func engine(now: Date) -> ScheduleEngine {
-        ScheduleEngine(slots: slots, overrides: overrides, feeds: feeds, sleeps: sleeps, now: now)
+        ScheduleEngine(slots: sleepSlots, overrides: overrides, feeds: feeds, sleeps: sleeps, now: now)
     }
 
     // MARK: Hero
@@ -91,7 +109,7 @@ struct ScheduleView: View {
         let mine = isMine(occ)
         let tint = Color(hex: occ.assignedToColorHex.isEmpty ? "636366" : occ.assignedToColorHex)
         return Section {
-            Button { actionTarget = occ } label: {
+            Button { open(occ) } label: {
                 HStack(spacing: 14) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(mine ? "You're up next" : "Up next")
@@ -117,7 +135,8 @@ struct ScheduleView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(heroAccessibilityLabel(occ, mine: mine, now: now))
-            .accessibilityHint("Reassign or change this slot")
+            .accessibilityHint(occ.source == .night
+                ? "Adjusts the nighttime schedule" : "Reassign or change this slot")
         }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
@@ -187,9 +206,21 @@ struct ScheduleView: View {
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
         .contentShape(Rectangle())
-        .onTapGesture { actionTarget = occ }
+        .onTapGesture { open(occ) }
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint("Reassign, move, or change this slot")
+        .accessibilityHint(occ.source == .night
+            ? "Adjusts the nighttime schedule" : "Reassign, move, or change this slot")
+    }
+
+    /// A standing-slot occurrence opens the per-night actions (swap / move /
+    /// skip). A dynamic night row is backed by no slot — there's nothing to
+    /// override; the whole night reshapes through its settings instead.
+    private func open(_ occ: ScheduleOccurrence) {
+        if occ.source == .night {
+            configuringNight = true
+        } else {
+            actionTarget = occ
+        }
     }
 
     private func caption(for occ: ScheduleOccurrence) -> String? {
@@ -218,12 +249,20 @@ struct ScheduleView: View {
 
     // MARK: Empty state
 
-    private var emptySection: some View {
-        Section {
+    private func emptySection(now: Date) -> some View {
+        let waiting: Bool = {
+            guard let s = settingsList.first else { return false }
+            if case .waiting = NightSchedule(settings: s, participants: participants,
+                                             feeds: feeds, now: now).state { return true }
+            return false
+        }()
+        return Section {
             EmptyStateView(
                 emoji: "🌙",
-                title: "No nighttime schedule yet",
-                message: "Set your night hours and feed spacing (the moon up top) and the feeds generate themselves, alternating between you — so one of you can actually sleep. Every slot stays editable, any night, any time."
+                title: waiting ? "Waiting for tonight's first feed" : "No schedule tonight — yet",
+                message: waiting
+                    ? "The night builds itself from the first bottle: log it and the rest of the feeds line up from there by your spacing, taking turns between you. Tune the night window and spacing with the moon up top."
+                    : "Tonight constructs itself once the first feed lands inside your night window. Set the window, spacing, and rotation with the moon up top."
             )
             .listRowBackground(Color.clear)
         }
@@ -238,22 +277,20 @@ struct ScheduleView: View {
                 planRow(slot)
             }
             Button { addingSlot = true } label: {
-                Label("Add a slot", systemImage: "plus.circle.fill")
+                Label("Add a sleep slot", systemImage: "plus.circle.fill")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppColor.accentFeed)
+                    .foregroundStyle(AppColor.accentSleep)
             }
             .accessibilityIdentifier("schedule.addSlot")
         } header: {
-            Text("Standing plan").foregroundStyle(AppColor.text3)
+            Text("Standing sleep plan").foregroundStyle(AppColor.text3)
         } footer: {
-            if !nightOrderedSlots.isEmpty {
-                Text("\(nightSummary)Repeats every night until changed. Tap a slot on the timeline to swap just one night.")
-            }
+            Text("\(nightSummary)Feeds build themselves each night from the first logged bottle — no standing feed slots. Sleep slots repeat every night until changed; tap one on the timeline to swap just one night.")
         }
     }
 
-    /// "Every 3h · Night 8:00 PM–8:00 AM · " — the settings the feed slots were
-    /// generated from, mirrored where the parents read the plan.
+    /// "Every 3h · Night 8:00 PM–8:00 AM · " — the settings tonight's feeds
+    /// construct themselves from, mirrored where the parents read the plan.
     private var nightSummary: String {
         guard let s = settingsList.first else { return "" }
         let spacing = NightScheduleSettingsSheet.spacingLabel(s.nightFeedSpacingMinutes)
@@ -265,7 +302,7 @@ struct ScheduleView: View {
     /// Slots in "night order" — pivoted at noon so 11pm sorts before 3am, the
     /// way parents think about a night shift.
     private var nightOrderedSlots: [PlanSlot] {
-        slots.sorted { ($0.minuteOfDay + 720) % 1440 < ($1.minuteOfDay + 720) % 1440 }
+        sleepSlots.sorted { ($0.minuteOfDay + 720) % 1440 < ($1.minuteOfDay + 720) % 1440 }
     }
 
     private func planRow(_ slot: PlanSlot) -> some View {

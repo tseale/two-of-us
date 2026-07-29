@@ -71,11 +71,10 @@ enum FeedAlarmManager {
         // and `assignedElsewhere` biases to reminding whenever it can't prove
         // the slot belongs to someone else.
         if let logger = QuickLogger.make(), let myID = logger.myParticipantID {
-            let engine = ScheduleEngine(
-                slots: logger.planSlots, overrides: logger.planOverrides,
-                feeds: logger.recentFeeds(), sleeps: logger.recentSleeps()
-            )
-            if engine.assignedElsewhere(near: fireDate, kind: .feed, me: myID) { return }
+            let horizon = max(3600, remaining + 30 * 60)
+            let occurrences = logger.scheduleOccurrences(horizon: horizon)
+            if ScheduleEngine.assignedElsewhere(in: occurrences, near: fireDate,
+                                                kind: .feed, me: myID) { return }
         }
         guard await requestAuthorization() else { return }
 

@@ -163,7 +163,7 @@ final class PlanStoreTests: XCTestCase {
         XCTAssertNotNil(tonight.deletedAt, "undo restores the slot, not the retired swap")
     }
 
-    // MARK: Nighttime schedule regeneration
+    // MARK: Nighttime schedule settings (dynamic — no slot generation)
 
     private func insertSettings() -> SharedSettings {
         let settings = SharedSettings()
@@ -188,64 +188,36 @@ final class PlanStoreTests: XCTestCase {
             .sorted { ($0.minuteOfDay + 720) % 1440 < ($1.minuteOfDay + 720) % 1440 }
     }
 
-    func testApplyNightScheduleGeneratesAlternatingSlots() {
+    func testApplyNightScheduleSavesConfigAndRetiresFeedSlots() throws {
         let settings = insertSettings()
         insertKatie()
+        // Legacy fixed-era feed slots (as the old generator would have left),
+        // one carrying a future override.
+        let nine = store.addPlanSlot(kind: .feed, minuteOfDay: 21 * 60, assignedTo: taylor)
+        let one = store.addPlanSlot(kind: .feed, minuteOfDay: 1 * 60, assignedTo: nil)
+        let override = store.overrideSlot(nine, dayKey: tonightKey, assignTo: taylor)
 
-        // Night 8pm–8am, first feed 9pm, every 4h → 9pm, 1am, 5am.
         store.applyNightSchedule(nightStartMinute: 20 * 60, nightEndMinute: 8 * 60,
-                                 firstFeedMinute: 21 * 60, spacingMinutes: 240)
+                                 spacingMinutes: 240, rotation: .alternating)
 
-        let slots = liveFeedSlots()
-        XCTAssertEqual(slots.map(\.minuteOfDay), [21 * 60, 1 * 60, 5 * 60])
-        XCTAssertEqual(slots.map(\.assignedToName), ["Taylor", "Katie", "Taylor"],
-                       "the default rotation alternates in night order")
+        XCTAssertEqual(settings.nightStartMinute, 20 * 60)
+        XCTAssertEqual(settings.nightEndMinute, 8 * 60)
         XCTAssertEqual(settings.nightFeedSpacingMinutes, 240)
-        XCTAssertEqual(settings.nightFirstFeedMinute, 21 * 60)
+        XCTAssertEqual(settings.nightRotation, .alternating)
+        XCTAssertTrue(liveFeedSlots().isEmpty,
+                      "the dynamic schedule stores no feed slots — legacy ones retire")
+        XCTAssertNotNil(nine.deletedAt)
+        XCTAssertNotNil(one.deletedAt)
+        XCTAssertNotNil(override.deletedAt, "a future override must not outlive its slot")
     }
 
-    func testApplyNightScheduleSoloParentLeavesSlotsUnassigned() {
-        insertSettings()
+    func testApplyNightScheduleSavesRotationOff() {
+        let settings = insertSettings()
+
         store.applyNightSchedule(nightStartMinute: 20 * 60, nightEndMinute: 8 * 60,
-                                 firstFeedMinute: 21 * 60, spacingMinutes: 240)
+                                 spacingMinutes: 180, rotation: .none)
 
-        XCTAssertTrue(liveFeedSlots().allSatisfy { $0.assignedToID == nil },
-                      "no co-parent yet → nothing to rotate; unassigned rings every phone")
-    }
-
-    func testReapplyKeepsSurvivingSlotAndItsManualAssignment() throws {
-        insertSettings()
-        let katie = insertKatie()
-        store.applyNightSchedule(nightStartMinute: 20 * 60, nightEndMinute: 8 * 60,
-                                 firstFeedMinute: 21 * 60, spacingMinutes: 240)
-        // Hand the generated 1am (Katie's by rotation) to Taylor by hand…
-        let oneAM = try XCTUnwrap(liveFeedSlots().first { $0.minuteOfDay == 60 })
-        store.updatePlanSlot(oneAM, assignedTo: .some(taylor))
-        _ = katie
-
-        // …then tighten the window so 9pm/1am survive and 5am drops.
-        store.applyNightSchedule(nightStartMinute: 20 * 60, nightEndMinute: 4 * 60,
-                                 firstFeedMinute: 21 * 60, spacingMinutes: 240)
-
-        let slots = liveFeedSlots()
-        XCTAssertEqual(slots.map(\.minuteOfDay), [21 * 60, 1 * 60])
-        let kept = slots.first { $0.minuteOfDay == 60 }
-        XCTAssertEqual(kept?.id, oneAM.id, "a surviving time keeps its slot id (overrides point at it)")
-        XCTAssertEqual(kept?.assignedToID, taylor.id, "…and the hand-picked assignee")
-    }
-
-    func testReapplyRetiresStaleSlotWithItsFutureOverrides() throws {
-        insertSettings()
-        store.applyNightSchedule(nightStartMinute: 20 * 60, nightEndMinute: 8 * 60,
-                                 firstFeedMinute: 21 * 60, spacingMinutes: 240)
-        let fiveAM = try XCTUnwrap(liveFeedSlots().first { $0.minuteOfDay == 5 * 60 })
-        let override = store.overrideSlot(fiveAM, dayKey: tonightKey, assignTo: taylor)
-
-        store.applyNightSchedule(nightStartMinute: 20 * 60, nightEndMinute: 4 * 60,
-                                 firstFeedMinute: 21 * 60, spacingMinutes: 240)
-
-        XCTAssertNotNil(fiveAM.deletedAt, "a time outside the new plan retires")
-        XCTAssertNotNil(override.deletedAt, "…and its future override must not linger")
+        XCTAssertEqual(settings.nightRotation, NightRotation.none)
     }
 
     func testApplyNightScheduleLeavesSleepSlotsAlone() {
@@ -253,9 +225,9 @@ final class PlanStoreTests: XCTestCase {
         let sleep = store.addPlanSlot(kind: .sleep, minuteOfDay: 19 * 60, assignedTo: taylor)
 
         store.applyNightSchedule(nightStartMinute: 20 * 60, nightEndMinute: 8 * 60,
-                                 firstFeedMinute: 21 * 60, spacingMinutes: 240)
+                                 spacingMinutes: 240, rotation: .alternating)
 
-        XCTAssertNil(sleep.deletedAt, "sleep slots are hand-authored, never regenerated")
+        XCTAssertNil(sleep.deletedAt, "sleep slots are hand-authored, never touched")
     }
 
     // MARK: Identity backfill

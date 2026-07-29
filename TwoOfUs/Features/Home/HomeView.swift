@@ -86,16 +86,26 @@ struct HomeView: View {
                             }
                             // Inside the ticking TimelineView so the rows stay
                             // honest on a phone left open overnight: 11pm passing
-                            // drops the 11pm row and surfaces the 3am one without
+                            // greys the 11pm row and surfaces the 3am one without
                             // needing a log or sync to trigger a render. During
                             // the night window the glance grows into the full
-                            // "Tonight" card; daytime keeps the one-line up-next.
-                            if isNight(now: ctx.date),
-                               case let tonight = tonightOccurrences(now: ctx.date),
-                               !tonight.isEmpty {
-                                tonightCard(tonight, now: ctx.date)
-                            } else if let next = upNextOccurrence(now: ctx.date) {
-                                upNextRow(next)
+                            // "Tonight" card — built dynamically from tonight's
+                            // first logged feed, or a "waiting" invitation until
+                            // that feed lands; daytime keeps the one-line up-next.
+                            switch nightState(now: ctx.date) {
+                            case .active:
+                                let tonight = tonightOccurrences(now: ctx.date)
+                                if !tonight.isEmpty {
+                                    tonightCard(tonight, now: ctx.date)
+                                }
+                            case .waiting:
+                                if isTracked(.feed) {
+                                    waitingForFirstFeedCard(now: ctx.date)
+                                }
+                            case .day, nil:
+                                if let next = upNextOccurrence(now: ctx.date) {
+                                    upNextRow(next)
+                                }
                             }
                         }
                         // Keyed to the sleep state (not withAnimation at the action
@@ -359,39 +369,85 @@ struct HomeView: View {
 
     // MARK: Tonight (nighttime schedule card)
 
-    /// True while `now` sits inside the shared night window — the hours where
-    /// the schedule (not ad-hoc daytime logging) runs the show.
-    private func isNight(now: Date) -> Bool {
-        guard let s = settingsList.first else { return false }
-        let c = Calendar.current.dateComponents([.hour, .minute], from: now)
-        return NightScheduleGenerator.isWithinNight(
-            minuteOfDay: (c.hour ?? 0) * 60 + (c.minute ?? 0),
-            nightStartMinute: s.nightStartMinute,
-            nightEndMinute: s.nightEndMinute
-        )
+    /// Where tonight stands: nil before setup (no settings row yet), else the
+    /// dynamic engine's read — day, waiting for the anchoring first feed, or
+    /// active with the constructed schedule.
+    private func nightState(now: Date) -> NightSchedule.State? {
+        guard let s = settingsList.first, isTracked(.feed) || !sleepSlots.isEmpty else { return nil }
+        return NightSchedule(settings: s, participants: participants, feeds: feeds, now: now).state
     }
 
-    /// The whole night at a glance: every occurrence from night start to night
-    /// end, ticked-off ones included — the card is tonight's roster, not just
-    /// what's left. Lookback reaches to the night's start so a fulfilled 9pm
-    /// still shows its check at 2am.
+    /// Standing slots minus feed ones: night feeds are computed now, so a
+    /// leftover fixed-era feed slot (or one synced from an older build) must
+    /// not render or ring next to the dynamic schedule.
+    private var sleepSlots: [PlanSlot] {
+        planSlots.filter { $0.kind != .feed }
+    }
+
+    /// The whole night at a glance: tonight's dynamically constructed feeds
+    /// (anchored to the night's first logged bottle) merged with any standing
+    /// sleep slots in the window, ticked-off ones included — the card is
+    /// tonight's roster, not just what's left.
     private func tonightOccurrences(now: Date) -> [ScheduleOccurrence] {
-        guard let s = settingsList.first, !planSlots.isEmpty else { return [] }
-        let c = Calendar.current.dateComponents([.hour, .minute], from: now)
-        let nowMinute = (c.hour ?? 0) * 60 + (c.minute ?? 0)
-        let sinceNightStart = TimeInterval(((nowMinute - s.nightStartMinute + 1440) % 1440) * 60)
-        let untilNightEnd = TimeInterval(((s.nightEndMinute - nowMinute + 1440) % 1440) * 60)
-        let engine = ScheduleEngine(slots: planSlots, overrides: planOverrides,
-                                    feeds: feeds, sleeps: sleeps, now: now)
-        return engine.occurrences(lookback: sinceNightStart, horizon: untilNightEnd)
-            .filter { occ in
-                isTracked(occ.kind) && occ.status != .skipped
-                    && NightScheduleGenerator.isWithinNight(
-                        minuteOfDay: minuteOfDay(occ.date),
-                        nightStartMinute: s.nightStartMinute,
-                        nightEndMinute: s.nightEndMinute
-                    )
+        guard let s = settingsList.first else { return [] }
+        let night = NightSchedule(settings: s, participants: participants, feeds: feeds, now: now)
+        var merged = isTracked(.feed) ? night.occurrences() : []
+        if !sleepSlots.isEmpty, isTracked(.sleep) {
+            let c = Calendar.current.dateComponents([.hour, .minute], from: now)
+            let nowMinute = (c.hour ?? 0) * 60 + (c.minute ?? 0)
+            let sinceNightStart = TimeInterval(((nowMinute - s.nightStartMinute + 1440) % 1440) * 60)
+            let untilNightEnd = TimeInterval(((s.nightEndMinute - nowMinute + 1440) % 1440) * 60)
+            let engine = ScheduleEngine(slots: sleepSlots, overrides: planOverrides,
+                                        feeds: feeds, sleeps: sleeps, now: now)
+            merged += engine.occurrences(lookback: sinceNightStart, horizon: untilNightEnd)
+                .filter { occ in
+                    occ.status != .skipped
+                        && NightScheduleGenerator.isWithinNight(
+                            minuteOfDay: minuteOfDay(occ.date),
+                            nightStartMinute: s.nightStartMinute,
+                            nightEndMinute: s.nightEndMinute
+                        )
+                }
+        }
+        return merged.sorted { $0.date < $1.date }
+    }
+
+    /// Night's on but nothing is logged yet — the schedule literally doesn't
+    /// exist until the first feed anchors it, so say that instead of showing
+    /// empty slots.
+    private func waitingForFirstFeedCard(now: Date) -> some View {
+        Button {
+            router.requestTab(.schedule)
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Text("🌙").font(.callout)
+                    Text("Tonight's Schedule").sectionLabelStyle()
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(AppColor.text3)
+                }
+                Text("Waiting for tonight's first feed")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppColor.text)
+                if let s = settingsList.first {
+                    let spacing = NightScheduleSettingsSheet.spacingLabel(s.nightFeedSpacingMinutes)
+                    Text(s.nightRotation == .alternating
+                         ? "Log the first bottle and the night builds itself — every \(spacing), taking turns from whoever's up."
+                         : "Log the first bottle and the night builds itself — every \(spacing).")
+                        .font(.caption)
+                        .foregroundStyle(AppColor.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .surfaceCard(cornerRadius: 14)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Tonight's schedule: waiting for tonight's first feed")
+        .accessibilityHint("Opens the nighttime schedule")
     }
 
     private func tonightCard(_ occurrences: [ScheduleOccurrence], now: Date) -> some View {
@@ -506,8 +562,8 @@ struct HomeView: View {
     /// answers "who's up". Predictions and unassigned slots stay off Home; the
     /// Schedule tab owns the full picture.
     private func upNextOccurrence(now: Date) -> ScheduleOccurrence? {
-        guard !planSlots.isEmpty else { return nil }
-        let engine = ScheduleEngine(slots: planSlots, overrides: planOverrides,
+        guard !sleepSlots.isEmpty else { return nil }
+        let engine = ScheduleEngine(slots: sleepSlots, overrides: planOverrides,
                                     feeds: feeds, sleeps: sleeps, now: now)
         // First *assigned* occurrence — an unassigned slot must not hide the
         // row. Slots for a paused tracker stay off the glance too.

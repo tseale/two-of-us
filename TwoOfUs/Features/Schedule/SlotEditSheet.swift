@@ -1,8 +1,10 @@
 import SwiftUI
 import SwiftData
 
-/// Create or edit a standing plan slot: a wall-clock time, a kind, and who's on
-/// duty. House sheet idiom (Form, medium/large detents, Cancel/confirm toolbar,
+/// Create or edit a standing SLEEP slot: a wall-clock time and who's on duty.
+/// Sleep-only since the schedule went dynamic — night feeds construct
+/// themselves from the first logged bottle and have no standing slots to edit.
+/// House sheet idiom (Form, medium/large detents, Cancel/confirm toolbar,
 /// undo toast via callback).
 struct SlotEditSheet: View {
     @Environment(\.modelContext) private var context
@@ -12,8 +14,7 @@ struct SlotEditSheet: View {
 
     /// Nil creates a new slot.
     var slot: PlanSlot? = nil
-    /// Seeds for create mode (pinning a prediction pre-fills its time).
-    var initialKind: EventKind = .feed
+    /// Seed time for create mode.
     var initialMinute: Int = 22 * 60
     /// Reports the change back to the host for the toast (message, kind accent,
     /// undo).
@@ -31,14 +32,6 @@ struct SlotEditSheet: View {
             Form {
                 Section("Time") {
                     DatePicker("Every day at", selection: $time, displayedComponents: .hourAndMinute)
-                }
-
-                Section("What") {
-                    Picker("Kind", selection: $kind) {
-                        Text("🍼 Bottle").tag(EventKind.feed)
-                        Text("💤 Sleep").tag(EventKind.sleep)
-                    }
-                    .pickerStyle(.segmented)
                 }
 
                 Section("Who's on duty") {
@@ -78,7 +71,7 @@ struct SlotEditSheet: View {
         guard !seeded else { return }
         seeded = true
         let minute = slot?.minuteOfDay ?? initialMinute
-        kind = slot?.kind ?? initialKind
+        kind = slot?.kind ?? .sleep
         assignedToID = slot?.assignedToID
         time = ScheduleEngine.materialize(minuteOfDay: minute, on: .now, calendar: .current) ?? .now
     }
