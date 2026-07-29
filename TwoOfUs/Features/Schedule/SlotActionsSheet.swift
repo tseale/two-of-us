@@ -5,6 +5,11 @@ import SwiftData
 /// tonight is swapped, done. Below the faces: move tonight to a different
 /// time, skip it, undo tonight's change, or step into the standing-slot
 /// editor — every occurrence is editable, any night, any time.
+///
+/// Works for both sources: a standing (sleep) slot gets the full set, a
+/// dynamic night feed (`source == .night`, backed by no PlanSlot) gets
+/// swap/skip/undo only — its time is derived from the night's anchor, so
+/// there's nothing to move or edit.
 struct SlotActionsSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -22,8 +27,9 @@ struct SlotActionsSheet: View {
     @State private var moveTime: Date = .now
 
     private var store: EventStore { EventStore(context: context) }
+    private var isNight: Bool { occurrence.source == .night }
     private var slot: PlanSlot? {
-        PlanSlot.fetchByID(occurrence.slotID, in: context)
+        isNight ? nil : PlanSlot.fetchByID(occurrence.slotID, in: context)
     }
     private var kindWord: String { occurrence.kind == .sleep ? "sleep" : "bottle" }
     private var accent: Color { occurrence.kind == .sleep ? AppColor.accentSleep : AppColor.accentFeed }
@@ -89,7 +95,7 @@ struct SlotActionsSheet: View {
 
     @ViewBuilder
     private var actions: some View {
-        if occurrence.status != .skipped {
+        if occurrence.status != .skipped, !isNight {
             Section {
                 Button {
                     withAnimation { showMovePicker.toggle() }
@@ -132,20 +138,28 @@ struct SlotActionsSheet: View {
                 Button("Remove from plan", role: .destructive) { removeSlot(slot) }
             }
         } footer: {
-            Text("Swaps, moves, and skips apply to tonight only — the standing plan stays put.")
+            Text(isNight
+                 ? "Swaps and skips apply to tonight only — tomorrow night rebuilds from the schedule settings."
+                 : "Swaps, moves, and skips apply to tonight only — the standing plan stays put.")
         }
     }
 
     // MARK: Actions
 
     private func assignTonight(to p: Participant) {
-        guard let slot else { return }
         // Tapping the parent already on duty just confirms — nothing to write.
         guard occurrence.status == .skipped || occurrence.assignedToID != p.id else {
             dismiss()
             return
         }
-        let override = store.overrideSlot(slot, dayKey: occurrence.dayKey, assignTo: p)
+        let override: PlanOverride
+        if isNight {
+            override = store.overrideNightOccurrence(occurrence, assignTo: p)
+        } else if let slot {
+            override = store.overrideSlot(slot, dayKey: occurrence.dayKey, assignTo: p)
+        } else {
+            return
+        }
         Haptics.success()
         onDone?("Tonight's \(clock) \(kindWord) is \(p.displayName)'s", accent) { store.clearOverride(override) }
         dismiss()
@@ -165,8 +179,14 @@ struct SlotActionsSheet: View {
     }
 
     private func skipTonight() {
-        guard let slot else { return }
-        let override = store.skipSlot(slot, dayKey: occurrence.dayKey)
+        let override: PlanOverride
+        if isNight {
+            override = store.skipNightOccurrence(occurrence)
+        } else if let slot {
+            override = store.skipSlot(slot, dayKey: occurrence.dayKey)
+        } else {
+            return
+        }
         Haptics.warning()
         onDone?("Skipped tonight's \(clock) \(kindWord)", accent) { store.clearOverride(override) }
         dismiss()

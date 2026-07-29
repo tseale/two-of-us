@@ -11,17 +11,20 @@ extension NightSchedule {
     /// ordered here (active, join order) so every call site derives the same
     /// rotation both phones agree on.
     init(settings: SharedSettings, participants: [Participant], feeds: [FeedEvent],
-         calendar: Calendar = .current, now: Date = .now) {
+         overrides: [PlanOverride] = [], calendar: Calendar = .current, now: Date = .now) {
         self.init(
             nightStartMinute: settings.nightStartMinute,
             nightEndMinute: settings.nightEndMinute,
             spacingMinutes: settings.nightFeedSpacingMinutes,
+            dayIntervalMinutes: settings.targetFeedIntervalMinutes,
             rotation: settings.nightRotation,
+            firstShiftID: settings.nightFirstShiftID,
             parents: participants
                 .filter(\.isActive)
                 .sorted { ($0.invitedAt, $0.id.uuidString) < ($1.invitedAt, $1.id.uuidString) }
                 .map { Parent(id: $0.id, name: $0.displayName, colorHex: $0.colorHex) },
             feeds: feeds,
+            overrides: overrides,
             calendar: calendar,
             now: now
         )
@@ -48,7 +51,7 @@ extension QuickLogger {
         var merged = engine.occurrences(lookback: lookback, horizon: horizon)
         if let settings = sharedSettings {
             let night = NightSchedule(settings: settings, participants: allParticipants,
-                                      feeds: feeds, now: now)
+                                      feeds: feeds, overrides: planOverrides, now: now)
             merged += night.occurrences().filter {
                 $0.date >= now.addingTimeInterval(-lookback)
                     && $0.date <= now.addingTimeInterval(horizon)

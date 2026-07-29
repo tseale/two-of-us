@@ -2,12 +2,14 @@ import SwiftUI
 import SwiftData
 
 /// Configure the shared nighttime schedule: the night window, the spacing
-/// between feeds, and the parent rotation. There's no fixed first-feed time
-/// anymore — the schedule is dynamic: the first feed logged inside the window
-/// anchors the night, and the rest of the slots march from it by the spacing,
-/// alternating between the parents. Saving syncs the settings so both phones
-/// build the identical night. House sheet idiom (Form, detents, Cancel/confirm
-/// toolbar, undo-less toast via callback).
+/// between feeds, and the parent rotation (who takes the first shift; slots
+/// alternate from them). There's no fixed first-feed time — the schedule is
+/// dynamic: the night's first feed is projected from the last logged feed by
+/// the daytime interval (the first step landing inside the window), a real
+/// in-window feed replaces the projection, and the rest of the slots march
+/// from the anchor by the night spacing. Saving syncs the settings so both
+/// phones build the identical night. House sheet idiom (Form, detents,
+/// Cancel/confirm toolbar, undo-less toast via callback).
 struct NightScheduleSettingsSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -23,6 +25,7 @@ struct NightScheduleSettingsSheet: View {
     @State private var nightEnd: Date = .now
     @State private var spacingMinutes = 180
     @State private var rotation: NightRotation = .alternating
+    @State private var firstShiftID: UUID?
     @State private var seeded = false
 
     /// Half-hour steps from 2h to 6h — the realistic newborn range.
@@ -59,11 +62,14 @@ struct NightScheduleSettingsSheet: View {
                         Text("No assignments").tag(NightRotation.none)
                     }
                     .pickerStyle(.segmented)
+                    if rotation == .alternating, participants.count >= 2 {
+                        firstShiftPicker
+                    }
                 } header: {
                     Text("Who's up")
                 } footer: {
                     Text(rotation == .alternating
-                         ? "Whoever logs tonight's first feed takes it — the rest of the night alternates between you from there."
+                         ? "The first shift takes the night's first feed; you alternate from there. Tap any slot on the schedule to swap just one night."
                          : "No one is assigned — every slot reminds both of you.")
                 }
 
@@ -87,12 +93,55 @@ struct NightScheduleSettingsSheet: View {
         .onAppear(perform: seed)
     }
 
+    // MARK: First shift
+
+    private var firstShiftPicker: some View {
+        HStack(spacing: 12) {
+            ForEach(participants) { p in
+                let selected = effectiveFirstShiftID == p.id
+                Button {
+                    firstShiftID = p.id
+                    Haptics.tap()
+                } label: {
+                    VStack(spacing: 6) {
+                        Avatar(photoData: p.photoData, name: p.displayName,
+                               colorHex: p.colorHex, size: 44)
+                            .overlay {
+                                if selected {
+                                    Circle().strokeBorder(Color(hex: p.colorHex), lineWidth: 3)
+                                        .frame(width: 52, height: 52)
+                                }
+                            }
+                        Text(selected ? "\(p.displayName) · first shift" : p.displayName)
+                            .font(.caption.weight(selected ? .bold : .regular))
+                            .foregroundStyle(AppColor.text)
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(selected
+                    ? "\(p.displayName) takes the first shift"
+                    : "Give \(p.displayName) the first shift")
+                .accessibilityAddTraits(selected ? [.isSelected] : [])
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// What the engine will actually use: the chosen parent, defaulting to the
+    /// first in join order (mirrors `NightSchedule.rotationAssignees`).
+    private var effectiveFirstShiftID: UUID? {
+        firstShiftID ?? participants.first?.id
+    }
+
     // MARK: Preview
 
-    /// A worked example of how tonight would build, from a sample anchor (the
-    /// predicted next feed when history suggests one inside the window, else
-    /// the window's start) — the schedule itself always anchors to the real
-    /// first feed, whenever it lands.
+    /// Tonight, as the schedule would actually build it: the anchor projected
+    /// from the last logged feed by the daytime interval (first step landing
+    /// inside the window), then the night spacing — the same math the Home
+    /// card and alarms run.
     private var previewSection: some View {
         Section {
             ForEach(Array(previewTimes.enumerated()), id: \.offset) { index, date in
@@ -108,48 +157,60 @@ struct NightScheduleSettingsSheet: View {
                 }
             }
         } header: {
-            Text("For example")
+            Text("Tonight would run")
         } footer: {
-            Text(previewTimes.isEmpty
-                 ? "These hours generate no feeds — widen the window or tighten the spacing."
-                 : "If the first feed landed at \(TimeFormatting.clock(previewAnchor)). The real schedule builds itself from whenever tonight's first feed is actually logged.")
+            Text(previewFooter)
         }
     }
 
-    /// Rotation is anchored to whoever REALLY logs the first feed, so the
-    /// preview can only speak in roles, not names.
+    private var previewFooter: String {
+        if previewTimes.isEmpty {
+            return recentFeeds.isEmpty
+                ? "Log a feed and tonight projects itself from your feeding rhythm."
+                : "These hours generate no feeds — widen the window or tighten the spacing."
+        }
+        return "Projected from the last logged feed and your daytime interval — the night re-anchors to the first bottle actually logged inside the window."
+    }
+
     private func previewAssigneeLabel(index: Int) -> String {
-        guard rotation == .alternating, participants.count >= 2 else { return "Both of you" }
-        return index % participants.count == 0 ? "First feeder" : "Other parent"
-    }
-
-    /// Sample anchor for the preview: the feed-history prediction when it
-    /// falls inside the configured window, else the window's start.
-    private var previewAnchor: Date {
-        let start = minuteOfDay(nightStart)
-        if let predicted = NightScheduleGenerator.predictedNextFeed(
-            recentFeedTimestamps: recentFeeds.map(\.timestamp)
-        ), NightScheduleGenerator.isWithinNight(
-            minuteOfDay: minuteOfDay(predicted),
-            nightStartMinute: start,
-            nightEndMinute: minuteOfDay(nightEnd)
-        ) {
-            return predicted
-        }
-        return Self.date(minuteOfDay: start)
+        guard rotation == .alternating, participants.count >= 2,
+              let firstIndex = participants.firstIndex(where: { $0.id == effectiveFirstShiftID })
+        else { return "Both of you" }
+        return participants[(firstIndex + index) % participants.count].displayName
     }
 
     private var previewTimes: [Date] {
-        guard windowValid else { return [] }
-        let anchor = previewAnchor
-        // Window end materialized after the anchor (tonight wraps midnight).
-        let start = minuteOfDay(nightStart)
-        let end = minuteOfDay(nightEnd)
-        let windowMinutes = ((end - start + 1440) % 1440)
-            - ((minuteOfDay(anchor) - start + 1440) % 1440)
-        let windowEnd = anchor.addingTimeInterval(TimeInterval(max(0, windowMinutes) * 60))
-        return NightSchedule.slotTimes(anchor: anchor, windowEnd: windowEnd,
+        guard windowValid, let window = previewWindow, !recentFeeds.isEmpty else { return [] }
+        let anchor: Date
+        // Same precedence as the engine: a feed already logged inside the
+        // window anchors the night; otherwise project from the last feed.
+        if let logged = recentFeeds.reversed()
+            .first(where: { $0.timestamp >= window.start && $0.timestamp <= window.end })?
+            .timestamp {
+            anchor = logged
+        } else if let last = recentFeeds.first?.timestamp,
+                  let projected = NightSchedule.projectedAnchor(
+                      lastFeed: last,
+                      dayIntervalMinutes: settingsList.first?.targetFeedIntervalMinutes ?? 180,
+                      windowStart: window.start, windowEnd: window.end
+                  ) {
+            anchor = projected
+        } else {
+            anchor = window.start
+        }
+        return NightSchedule.slotTimes(anchor: anchor, windowEnd: window.end,
                                        spacingMinutes: spacingMinutes)
+    }
+
+    /// Tonight's window from the PENDING (unsaved) start/end values, wrapping
+    /// midnight when the end minute precedes the start.
+    private var previewWindow: (start: Date, end: Date)? {
+        let start = Self.date(minuteOfDay: minuteOfDay(nightStart))
+        var end = Self.date(minuteOfDay: minuteOfDay(nightEnd))
+        if end <= start {
+            end = Calendar.current.date(byAdding: .day, value: 1, to: end) ?? end
+        }
+        return (start, end)
     }
 
     private var windowValid: Bool {
@@ -165,6 +226,7 @@ struct NightScheduleSettingsSheet: View {
         nightEnd = Self.date(minuteOfDay: settings.nightEndMinute)
         spacingMinutes = settings.nightFeedSpacingMinutes
         rotation = settings.nightRotation
+        firstShiftID = settings.nightFirstShiftID
     }
 
     private func saveAndDismiss() {
@@ -172,7 +234,8 @@ struct NightScheduleSettingsSheet: View {
             nightStartMinute: minuteOfDay(nightStart),
             nightEndMinute: minuteOfDay(nightEnd),
             spacingMinutes: spacingMinutes,
-            rotation: rotation
+            rotation: rotation,
+            firstShiftID: firstShiftID
         )
         onDone?("Nighttime schedule updated", AppColor.accentFeed, nil)
         Haptics.success()

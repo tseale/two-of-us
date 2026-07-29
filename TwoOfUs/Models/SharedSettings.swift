@@ -40,6 +40,9 @@ final class SharedSettings {
     var nightFirstFeedMinute: Int = 1260       // first feed 9:00 PM
     var nightFeedSpacingMinutes: Int = 180     // 3h between night feeds
     var nightRotationRaw: String = NightRotation.alternating.rawValue
+    /// Who takes the night's first shift (→ Participant.id); the rotation
+    /// alternates from them. Nil = the first parent in join order.
+    var nightFirstShiftID: UUID?
     var ckSystemFields: Data?                  // archived CKRecord system fields (see Baby.ckSystemFields)
 
     init(
@@ -54,7 +57,8 @@ final class SharedSettings {
         nightEndMinute: Int = 480,
         nightFirstFeedMinute: Int = 1260,
         nightFeedSpacingMinutes: Int = 180,
-        nightRotation: NightRotation = .alternating
+        nightRotation: NightRotation = .alternating,
+        nightFirstShiftID: UUID? = nil
     ) {
         self.id = id
         self.targetFeedIntervalMinutes = targetFeedIntervalMinutes
@@ -68,6 +72,7 @@ final class SharedSettings {
         self.nightFirstFeedMinute = nightFirstFeedMinute
         self.nightFeedSpacingMinutes = nightFeedSpacingMinutes
         self.nightRotationRaw = nightRotation.rawValue
+        self.nightFirstShiftID = nightFirstShiftID
     }
 
     var targetFeedInterval: TimeInterval { TimeInterval(targetFeedIntervalMinutes * 60) }

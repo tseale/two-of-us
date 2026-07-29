@@ -374,7 +374,8 @@ struct HomeView: View {
     /// active with the constructed schedule.
     private func nightState(now: Date) -> NightSchedule.State? {
         guard let s = settingsList.first, isTracked(.feed) || !sleepSlots.isEmpty else { return nil }
-        return NightSchedule(settings: s, participants: participants, feeds: feeds, now: now).state
+        return NightSchedule(settings: s, participants: participants, feeds: feeds,
+                             overrides: planOverrides, now: now).state
     }
 
     /// Standing slots minus feed ones: night feeds are computed now, so a
@@ -390,8 +391,11 @@ struct HomeView: View {
     /// tonight's roster, not just what's left.
     private func tonightOccurrences(now: Date) -> [ScheduleOccurrence] {
         guard let s = settingsList.first else { return [] }
-        let night = NightSchedule(settings: s, participants: participants, feeds: feeds, now: now)
-        var merged = isTracked(.feed) ? night.occurrences() : []
+        let night = NightSchedule(settings: s, participants: participants, feeds: feeds,
+                                  overrides: planOverrides, now: now)
+        var merged = isTracked(.feed)
+            ? night.occurrences().filter { $0.status != .skipped }
+            : []
         if !sleepSlots.isEmpty, isTracked(.sleep) {
             let c = Calendar.current.dateComponents([.hour, .minute], from: now)
             let nowMinute = (c.hour ?? 0) * 60 + (c.minute ?? 0)
@@ -412,9 +416,9 @@ struct HomeView: View {
         return merged.sorted { $0.date < $1.date }
     }
 
-    /// Night's on but nothing is logged yet — the schedule literally doesn't
-    /// exist until the first feed anchors it, so say that instead of showing
-    /// empty slots.
+    /// Night's on but there's no feed at all to build from — the schedule
+    /// projects itself from the last logged feed, so until one exists say
+    /// that instead of showing empty slots.
     private func waitingForFirstFeedCard(now: Date) -> some View {
         Button {
             router.requestTab(.schedule)
@@ -428,14 +432,14 @@ struct HomeView: View {
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(AppColor.text3)
                 }
-                Text("Waiting for tonight's first feed")
+                Text("Waiting for a feed to build from")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppColor.text)
                 if let s = settingsList.first {
                     let spacing = NightScheduleSettingsSheet.spacingLabel(s.nightFeedSpacingMinutes)
                     Text(s.nightRotation == .alternating
-                         ? "Log the first bottle and the night builds itself — every \(spacing), taking turns from whoever's up."
-                         : "Log the first bottle and the night builds itself — every \(spacing).")
+                         ? "Log a bottle and tonight projects itself from your rhythm — every \(spacing) overnight, taking turns."
+                         : "Log a bottle and tonight projects itself from your rhythm — every \(spacing) overnight.")
                         .font(.caption)
                         .foregroundStyle(AppColor.text2)
                         .fixedSize(horizontal: false, vertical: true)

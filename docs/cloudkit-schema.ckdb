@@ -105,6 +105,7 @@ DEFINE SCHEMA
         nightEndMinute INT64,
         nightFeedSpacingMinutes INT64,
         nightFirstFeedMinute INT64,
+        nightFirstShiftID STRING,
         nightRotationRaw STRING,
         nightStartMinute INT64,
         ozPresets LIST<DOUBLE>,

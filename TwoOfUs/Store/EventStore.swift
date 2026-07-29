@@ -560,12 +560,14 @@ struct EventStore {
     /// — so the old 10pm/2am/6am rows can't ring or render next to the dynamic
     /// schedule. Sleep slots are hand-authored and never touched.
     func applyNightSchedule(nightStartMinute: Int, nightEndMinute: Int,
-                            spacingMinutes: Int, rotation: NightRotation, asOf now: Date = .now) {
+                            spacingMinutes: Int, rotation: NightRotation,
+                            firstShiftID: UUID? = nil, asOf now: Date = .now) {
         guard let settings else { return }
         settings.nightStartMinute = EventBounds.wrapMinuteOfDay(nightStartMinute)
         settings.nightEndMinute = EventBounds.wrapMinuteOfDay(nightEndMinute)
         settings.nightFeedSpacingMinutes = spacingMinutes
         settings.nightRotation = rotation
+        settings.nightFirstShiftID = firstShiftID
         var ids: [UUID] = [settings.id]
 
         let feedKind = EventKind.feed.rawValue
@@ -660,8 +662,33 @@ struct EventStore {
     /// after moving keeps both edits.
     @discardableResult
     func overrideSlot(_ slot: PlanSlot, dayKey: Int, assignTo participant: Participant?) -> PlanOverride {
-        insertOverride(slot, dayKey: dayKey, assignedTo: participant, isSkipped: false,
+        insertOverride(slotID: slot.id, dayKey: dayKey, assignedTo: participant, isSkipped: false,
                        minuteOfDayOverride: nil, inheritPriorMove: true)
+    }
+
+    // MARK: Dynamic night-slot overrides
+    //
+    // Tonight's computed feed slots have no PlanSlot behind them, but their
+    // synthetic slot ids are deterministic per (night, index) on both phones —
+    // so the same append-only `PlanOverride` records cover "Katie takes
+    // tonight's 3:30" and "skip tonight's 7:30" for the dynamic schedule too.
+    // No move variant: a dynamic slot's time is derived, not authored.
+
+    /// Reassigns one night slot of the dynamic schedule ("Katie takes
+    /// tonight's 3:30") without touching the rotation.
+    @discardableResult
+    func overrideNightOccurrence(_ occ: ScheduleOccurrence,
+                                 assignTo participant: Participant?) -> PlanOverride {
+        insertOverride(slotID: occ.slotID, dayKey: occ.dayKey, assignedTo: participant,
+                       isSkipped: false, minuteOfDayOverride: nil, inheritPriorMove: false)
+    }
+
+    /// Skips one night slot of the dynamic schedule — no occurrence, no
+    /// reminder on either phone.
+    @discardableResult
+    func skipNightOccurrence(_ occ: ScheduleOccurrence) -> PlanOverride {
+        insertOverride(slotID: occ.slotID, dayKey: occ.dayKey, assignedTo: nil,
+                       isSkipped: true, minuteOfDayOverride: nil, inheritPriorMove: false)
     }
 
     /// Moves one night of a slot to a different time ("tonight's 11pm at 11:30
@@ -670,14 +697,14 @@ struct EventStore {
     @discardableResult
     func moveSlot(_ slot: PlanSlot, dayKey: Int, toMinuteOfDay minute: Int,
                   assignedTo participant: Participant?) -> PlanOverride {
-        insertOverride(slot, dayKey: dayKey, assignedTo: participant, isSkipped: false,
+        insertOverride(slotID: slot.id, dayKey: dayKey, assignedTo: participant, isSkipped: false,
                        minuteOfDayOverride: minute, inheritPriorMove: false)
     }
 
     /// Skips one night of a slot — no occurrence, no reminder on either phone.
     @discardableResult
     func skipSlot(_ slot: PlanSlot, dayKey: Int) -> PlanOverride {
-        insertOverride(slot, dayKey: dayKey, assignedTo: nil, isSkipped: true,
+        insertOverride(slotID: slot.id, dayKey: dayKey, assignedTo: nil, isSkipped: true,
                        minuteOfDayOverride: nil, inheritPriorMove: false)
     }
 
@@ -689,11 +716,12 @@ struct EventStore {
         refreshLocalReminders()
     }
 
-    private func insertOverride(_ slot: PlanSlot, dayKey: Int, assignedTo participant: Participant?,
+    /// `slotID` is a standing PlanSlot's id, or a dynamic night slot's
+    /// deterministic synthetic id — the override machinery is identical.
+    private func insertOverride(slotID: UUID, dayKey: Int, assignedTo participant: Participant?,
                                 isSkipped: Bool, minuteOfDayOverride: Int?,
                                 inheritPriorMove: Bool) -> PlanOverride {
         var ids: [UUID] = []
-        let slotID = slot.id
         let priors = (try? context.fetch(FetchDescriptor<PlanOverride>(
             predicate: #Predicate { $0.slotID == slotID && $0.dayKey == dayKey && $0.deletedAt == nil }
         ))) ?? []
@@ -708,7 +736,7 @@ struct EventStore {
             ids.append(prior.id)
         }
         let override = PlanOverride(
-            slotID: slot.id,
+            slotID: slotID,
             dayKey: dayKey,
             assignedToID: participant?.id,
             assignedToName: participant?.displayName ?? "",

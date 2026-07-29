@@ -177,12 +177,13 @@ final class RecordMappingTests: XCTestCase {
     }
 
     func testSettingsRoundTrip() throws {
+        let firstShift = UUID()
         let original = SharedSettings(targetFeedIntervalMinutes: 150,
                                       ozPresets: [2, 2.5, 5], defaultFeedOz: 5,
                                       sleepLoggingEnabled: false,
                                       nightStartMinute: 21 * 60, nightEndMinute: 7 * 60,
                                       nightFirstFeedMinute: 22 * 60, nightFeedSpacingMinutes: 210,
-                                      nightRotation: .none)
+                                      nightRotation: .none, nightFirstShiftID: firstShift)
         context.insert(original)
         try context.save()
 
@@ -202,6 +203,29 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertEqual(copy.nightFeedSpacingMinutes, 210)
         XCTAssertEqual(copy.nightRotation, NightRotation.none,
                        "the rotation pattern is a shared setting")
+        XCTAssertEqual(copy.nightFirstShiftID, firstShift,
+                       "who takes the first shift is a shared setting")
+    }
+
+    /// Clearing the first shift must actually travel: nil is written as an
+    /// empty string (CloudKit never transmits an unset key), and an empty
+    /// inbound value clears the co-parent's copy — while a record with no
+    /// field at all (an older build's) leaves the local choice alone.
+    func testFirstShiftClearTravelsButAbsentFieldKeepsLocal() throws {
+        let receiver = AppModelContainer.make(inMemory: true)
+        let local = SharedSettings(nightFirstShiftID: UUID())
+        receiver.mainContext.insert(local)
+        try receiver.mainContext.save()
+
+        let old = CKRecord(recordType: SyncConstants.RecordType.settings, recordID: recordID(local.id))
+        old["targetFeedIntervalMinutes"] = 120
+        try RecordMapping.apply(old, in: receiver.mainContext)
+        XCTAssertNotNil(local.nightFirstShiftID, "absent field (older build) keeps the local choice")
+
+        let cleared = CKRecord(recordType: SyncConstants.RecordType.settings, recordID: recordID(local.id))
+        cleared["nightFirstShiftID"] = ""
+        try RecordMapping.apply(cleared, in: receiver.mainContext)
+        XCTAssertNil(local.nightFirstShiftID, "an explicit clear must reach the co-parent")
     }
 
     /// A settings record written by an app version that predates the nighttime
