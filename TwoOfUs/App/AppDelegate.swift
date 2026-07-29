@@ -78,7 +78,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // Re-arm the feed alarm off whatever's in the store now — this catches
         // feeds logged via widget/Siri or synced from the co-parent's device.
         let lastFeed = logger.lastFeed?.timestamp
-        let interval = logger.targetFeedInterval
+        let interval = logger.feedInterval()
         Task {
             // Slot alarm first: the feed alarm's stand-down check reads the slot
             // alarm's published fire date.

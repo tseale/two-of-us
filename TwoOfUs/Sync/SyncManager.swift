@@ -933,7 +933,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         let haveLogger = logger != nil
         let babyName = logger?.babyName ?? "Baby"
         let lastFeed = logger?.lastFeed?.timestamp
-        let interval = logger?.targetFeedInterval ?? 0
+        let interval = logger?.feedInterval() ?? 0
         Task {
             // Sequenced pair: the feed alarm's stand-down check reads the slot
             // alarm's published fire date, so the slot alarm settles first.

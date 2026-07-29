@@ -75,7 +75,22 @@ final class SharedSettings {
         self.nightFirstShiftID = nightFirstShiftID
     }
 
-    var targetFeedInterval: TimeInterval { TimeInterval(targetFeedIntervalMinutes * 60) }
+    /// The interval that should drive "when's the next bottle" right now: the
+    /// nighttime schedule's spacing while `date` falls in the night window,
+    /// else the daytime target. This is the ONE place day-vs-night branches —
+    /// the feed card, reminders, alarms, and widgets all call it so none of
+    /// them can drift from what the Tonight card itself is counting down to.
+    func feedInterval(at date: Date = .now, calendar: Calendar = .current) -> TimeInterval {
+        let c = calendar.dateComponents([.hour, .minute], from: date)
+        let minuteOfDay = (c.hour ?? 0) * 60 + (c.minute ?? 0)
+        let isNight = NightScheduleGenerator.isWithinNight(
+            minuteOfDay: minuteOfDay,
+            nightStartMinute: nightStartMinute,
+            nightEndMinute: nightEndMinute
+        )
+        let minutes = isNight ? nightFeedSpacingMinutes : targetFeedIntervalMinutes
+        return TimeInterval(minutes * 60)
+    }
 
     /// An unknown raw value (a future build's new pattern) reads as the
     /// default rather than crashing or silently disabling the rotation.

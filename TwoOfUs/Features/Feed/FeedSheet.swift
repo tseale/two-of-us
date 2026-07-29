@@ -18,8 +18,9 @@ struct FeedSheet: View {
     @State private var note = ""
 
     private var presets: [Double] { settingsList.first?.ozPresets ?? [2, 3, 4] }
-    private var targetMinutes: Int { settingsList.first?.targetFeedIntervalMinutes ?? 180 }
-    private var nextBottle: Date { date.addingTimeInterval(TimeInterval(targetMinutes * 60)) }
+    private var nextBottle: Date {
+        date.addingTimeInterval(settingsList.first?.feedInterval(at: date) ?? TimeInterval(180 * 60))
+    }
     private var canLog: Bool { amount > 0 }
 
     var body: some View {
