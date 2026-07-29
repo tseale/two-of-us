@@ -30,8 +30,10 @@ final class SyncQueueTests: XCTestCase {
     private let widgetPrefix = "sync.widgetWrite."
     private var savedGroupDefaults: [String: Any?] = [:]
 
+    private let resyncScheduleKey = "sync.resync.scheduleRecords"
+
     private var allKeys: [String] {
-        [sharedSavesKey, sharedDeletesKey, privateSavesKey, privateDeletesKey, zoneNameKey, zoneOwnerKey] + demoKeys
+        [sharedSavesKey, sharedDeletesKey, privateSavesKey, privateDeletesKey, zoneNameKey, zoneOwnerKey, resyncScheduleKey] + demoKeys
     }
 
     // The test host is the real app: snapshot EVERY default these tests touch
@@ -273,6 +275,47 @@ final class SyncQueueTests: XCTestCase {
 
         XCTAssertEqual(UserDefaults.standard.string(forKey: zoneNameKey), SyncConstants.zoneName)
         XCTAssertEqual(UserDefaults.standard.string(forKey: zoneOwnerKey), "_ownerRecordName")
+    }
+
+    // MARK: Schedule-record resync (undeployed-schema heal)
+
+    func testScheduleResyncReenqueuesSlotsOverridesAndSettingsOnceForOwner() {
+        LocalPrefs.shared.syncRole = .solo
+        let ctx = container.mainContext
+        let slot = PlanSlot(kind: .feed, minuteOfDay: 1320)
+        let override = PlanOverride(slotID: slot.id, dayKey: 20260728, createdByID: UUID())
+        let settings = SharedSettings()
+        ctx.insert(slot); ctx.insert(override); ctx.insert(settings)
+
+        manager.resyncScheduleRecordsIfNeeded()
+        XCTAssertEqual(Set(held(privateSavesKey)),
+                       [slot.id.uuidString, override.id.uuidString, settings.id.uuidString],
+                       "records whose uploads were schema-rejected and dropped must be re-enqueued")
+
+        manager.resyncScheduleRecordsIfNeeded()
+        XCTAssertEqual(held(privateSavesKey).count, 3,
+                       "the resync is one-shot — restarts must not re-enqueue again")
+    }
+
+    func testScheduleResyncSkipsSharedSettingsForParticipant() {
+        // The participant's SharedSettings copy may still hold default night
+        // fields; re-pushing it could clobber the owner's configured window.
+        LocalPrefs.shared.syncRole = .participant
+        let ctx = container.mainContext
+        let slot = PlanSlot(kind: .feed, minuteOfDay: 120)
+        let settings = SharedSettings()
+        ctx.insert(slot); ctx.insert(settings)
+
+        manager.resyncScheduleRecordsIfNeeded()
+        XCTAssertEqual(held(sharedSavesKey), [slot.id.uuidString],
+                       "participant re-pushes plan records but never the settings singleton")
+    }
+
+    func testScheduleResyncWithNothingToSendStillBurnsTheOneShot() {
+        LocalPrefs.shared.syncRole = .solo
+        manager.resyncScheduleRecordsIfNeeded()
+        XCTAssertEqual(held(privateSavesKey), [])
+        XCTAssertTrue(UserDefaults.standard.bool(forKey: resyncScheduleKey))
     }
 
     // MARK: Record-type expansion (app-update re-fetch trigger)

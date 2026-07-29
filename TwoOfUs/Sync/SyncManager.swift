@@ -67,6 +67,10 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         static let pendingPrivateSaves = "sync.pendingPrivateSaves"
         static let pendingPrivateDeletes = "sync.pendingPrivateDeletes"
         static let bootstrapPrivate = "sync.bootstrap.private"
+        /// One-time re-enqueue of schedule records whose uploads were rejected
+        /// (and dropped) before the schema carried their types — see
+        /// `resyncScheduleRecordsIfNeeded`.
+        static let resyncSchedule = "sync.resync.scheduleRecords"
         /// Record types the last-run build could apply (see
         /// `resetFetchStateIfRecordTypesExpanded`).
         static let knownRecordTypes = "sync.knownRecordTypes"
@@ -152,7 +156,49 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         case .participant:
             startSharedEngine()
         }
+        resyncScheduleRecordsIfNeeded()
+        // Parked saves (engine down, zone unknown, schema-rejected) get another
+        // send attempt whenever sync (re)starts — not only on the first engine
+        // build of the process, or a mid-session schema deploy would need a
+        // full relaunch to heal.
+        switch Self.realSyncRole {
+        case .solo, .owner:
+            drainPendingPrivateChanges()
+        case .participant:
+            if sharedZoneID != nil { drainPendingSharedChanges() }
+        }
         drainExtensionQueue()
+    }
+
+    /// One-time re-enqueue of every schedule record. The nighttime schedule
+    /// shipped before PlanSlot/PlanOverride existed in the DEPLOYED CloudKit
+    /// schema, so the server rejected each save (`invalidArguments` — same for
+    /// SharedSettings saves carrying the night-window fields) and the old
+    /// failure handler dropped them from the queue for good: the owner saw his
+    /// local slots, the co-parent an empty schedule. Re-enqueueing re-sends
+    /// everything; if the schema still isn't deployed the saves now park (see
+    /// `handleSentRecordZoneChanges`) and retry on later starts instead of
+    /// vanishing again.
+    ///
+    /// SharedSettings re-pushes only from the owner/solo side: it's a
+    /// singleton both phones hold, and re-pushing the participant's copy —
+    /// whose night-window fields may still be the defaults — could clobber
+    /// the owner's configured schedule.
+    ///
+    /// Internal so the one-shot + role routing is unit-testable without a
+    /// live engine (`enqueueSave` parks to the hold queues there).
+    func resyncScheduleRecordsIfNeeded() {
+        guard !UserDefaults.standard.bool(forKey: Keys.resyncSchedule) else { return }
+        UserDefaults.standard.set(true, forKey: Keys.resyncSchedule)
+        var ids: [UUID] = []
+        ids += ((try? context.fetch(FetchDescriptor<PlanSlot>())) ?? []).map(\.id)
+        ids += ((try? context.fetch(FetchDescriptor<PlanOverride>())) ?? []).map(\.id)
+        if Self.realSyncRole != .participant {
+            ids += ((try? context.fetch(FetchDescriptor<SharedSettings>())) ?? []).map(\.id)
+        }
+        guard !ids.isEmpty else { return }
+        AppLog.sync.log("Re-enqueueing \(ids.count) schedule record(s) whose uploads predate the deployed schema")
+        enqueueSave(ids)
     }
 
     /// One-time full re-fetch after an app update that taught this client new
@@ -767,6 +813,21 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
 
             case .permissionFailure:
                 if syncEngine === sharedEngine { detach = true }
+
+            case .invalidArguments, .serverRejectedRequest:
+                // The server refused the record itself. In production that's
+                // almost always a record type or field missing from the
+                // deployed schema (JIT schema creation is development-only,
+                // and TestFlight runs against Production) — exactly how the
+                // nighttime schedule was lost: every PlanSlot save came back
+                // `invalidArguments` and was dropped here. Dropping violates
+                // invariant 2, so park the save to re-send on a later engine
+                // start, by which time the schema deploy has landed.
+                AppLog.sync.error("Sync save rejected server-side for \(recordID.recordName, privacy: .public) (\(failed.record.recordType, privacy: .public)) — parked for retry. Likely an undeployed CloudKit schema change: \(failed.error.localizedDescription, privacy: .public)")
+                if let uuid = UUID(uuidString: recordID.recordName) {
+                    park([uuid], key: syncEngine === sharedEngine
+                        ? Keys.pendingSharedSaves : Keys.pendingPrivateSaves)
+                }
 
             default:
                 // Transient errors (network, throttling, zone busy…) are retried
