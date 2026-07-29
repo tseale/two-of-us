@@ -248,8 +248,8 @@ struct ScheduleView: View {
         return Section {
             EmptyStateView(
                 emoji: "🌙",
-                title: "No schedule tonight — yet",
-                message: "Tonight projects itself from your feeding rhythm: the first bottle that lands inside your night window starts the schedule, spaced by your night interval and taking turns from the first shift. Log a feed to give it something to build from, and tune the night with the moon up top."
+                title: "No nighttime schedule yet",
+                message: "Tonight builds itself: the first bottle in (or just before) your night window starts the schedule — projected from your feeding rhythm, or the window's start until there's one to project from. Tune the window, spacing, and rotation with the moon up top."
             )
             .listRowBackground(Color.clear)
         }
