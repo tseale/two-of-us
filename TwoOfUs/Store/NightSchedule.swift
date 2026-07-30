@@ -11,13 +11,13 @@ import Foundation
 ///    night's first feed, and the schedule builds from it (8:15 → 12:15 →
 ///    4:15 → 8:15am — the night keeps its full length, so starting early
 ///    extends the far end by the same lead).
-/// 2. Otherwise *projected*: chain forward from the last logged feed by the
-///    daytime target interval; the first step landing inside the window is
-///    tonight's first bottle. (Day interval 3h, night 9pm–8am, last feed
-///    5:30pm → 8:30pm falls outside, 11:30pm falls inside → the night runs
-///    11:30, then by the night spacing: 3:30, 7:30.)
-/// 3. No feeds to build from, or a chain that skips the window entirely →
-///    the window's start itself is the default first feed (9pm–8am → 9pm).
+/// 2. Otherwise *projected*: the last logged feed plus the NIGHT spacing —
+///    the interval the schedule itself runs on. When that predicted bottle
+///    lands inside the window, it is tonight's first feed. (Night 11pm–8am
+///    every 4h, last feed 7:45pm → 11:45pm falls inside → the night runs
+///    11:45, 3:45, 7:45.)
+/// 3. No feeds to build from, or a prediction that misses the window →
+///    the window's start itself is the default first feed (11pm–8am → 11pm).
 /// Later slots are anchor + k·night-spacing until the (lead-extended) window
 /// closes.
 ///
@@ -44,14 +44,14 @@ struct NightSchedule {
     /// the anchor always resolves (worst case, the window's start), so a
     /// night in progress always has a schedule.
     enum State: Equatable {
-        case day                                          // now is outside the night window
-        case active([ScheduleOccurrence])                 // the constructed schedule
+        case day                                          // daytime — the night isn't near yet
+        case approaching([ScheduleOccurrence])            // window not open, but the next bottle is a night bottle
+        case active([ScheduleOccurrence])                 // now is inside the window
     }
 
     let nightStartMinute: Int          // 0..<1440 wall clock, same convention as SharedSettings
     let nightEndMinute: Int
-    let spacingMinutes: Int            // between night feeds
-    let dayIntervalMinutes: Int        // daytime target interval — drives the anchor projection
+    let spacingMinutes: Int            // between night feeds — also drives the anchor projection
     let rotation: NightRotation
     /// Who takes the first shift; nil = the first parent in `parents`.
     let firstShiftID: UUID?
@@ -64,11 +64,6 @@ struct NightSchedule {
     var calendar: Calendar = .current
     var now: Date = .now
 
-    /// Below this the day interval is garbage input — no projection.
-    static let minimumDayIntervalMinutes = 30
-    /// Backstop on the projection chain (a 30-minute rhythm across a full day
-    /// is 48 steps; anything past this is a bug, not a baby).
-    static let maxProjectionSteps = 96
     /// A feed this close BEFORE the window opens still counts as the night's
     /// first bottle — an 8:15pm feed against a 9pm window starts the night.
     static let preWindowGraceMinutes = 60
@@ -76,8 +71,19 @@ struct NightSchedule {
     // MARK: Public API
 
     var state: State {
-        guard currentWindow != nil else { return .day }
-        return .active(occurrences())
+        if currentWindow != nil { return .active(occurrences()) }
+        guard let window = relevantWindow else { return .day }
+        // The night is *approaching* — surface the Tonight card early — once
+        // the next predicted bottle is already a night bottle (the projected
+        // anchor resolves), or once we're inside the grace hour before the
+        // window opens (which is also when a grace-logged feed can anchor).
+        let graceStart = window.start.addingTimeInterval(
+            -TimeInterval(Self.preWindowGraceMinutes * 60))
+        let predictsIn = lastLiveFeed.map {
+            Self.projectedAnchor(lastFeed: $0, spacingMinutes: spacingMinutes,
+                                 windowStart: window.start, windowEnd: window.end) != nil
+        } ?? false
+        return (now >= graceStart || predictsIn) ? .approaching(occurrences()) : .day
     }
 
     /// The night's constructed schedule, ascending — tonight's when `now` is
@@ -190,31 +196,32 @@ struct NightSchedule {
             .min(by: { ($0.timestamp, $0.id.uuidString) < ($1.timestamp, $1.id.uuidString) }) {
             return logged.timestamp
         }
-        if let last = live.max(by: { ($0.timestamp, $0.id.uuidString) < ($1.timestamp, $1.id.uuidString) }),
-           let projected = Self.projectedAnchor(lastFeed: last.timestamp,
-                                                dayIntervalMinutes: dayIntervalMinutes,
+        if let last = lastLiveFeed,
+           let projected = Self.projectedAnchor(lastFeed: last, spacingMinutes: spacingMinutes,
                                                 windowStart: window.start, windowEnd: window.end) {
             return projected
         }
         return window.start
     }
 
-    /// Chains forward from the last feed by the daytime interval; the first
-    /// step landing inside the window is the projected first night feed. (Fed
-    /// 5:30pm, every 3h, night 9pm–8am → 8:30 is out, 11:30 is in → 11:30.)
-    /// Nil when the interval is garbage or the chain skips the whole window
-    /// (interval longer than the window — configuration, not a schedule).
-    static func projectedAnchor(lastFeed: Date, dayIntervalMinutes: Int,
+    /// Most recent live feed at or before `now` — the one predictions build on.
+    private var lastLiveFeed: Date? {
+        feeds.filter { $0.deletedAt == nil && $0.timestamp <= now }
+            .max { ($0.timestamp, $0.id.uuidString) < ($1.timestamp, $1.id.uuidString) }?
+            .timestamp
+    }
+
+    /// The last feed plus the night spacing — when that predicted bottle lands
+    /// inside the window, it IS the night's first feed. (Night 11pm–8am every
+    /// 4h, fed 7:45pm → 11:45pm is inside → 11:45.) Nil when the spacing is
+    /// garbage or the prediction misses the window (too early — a real daytime
+    /// feed will re-project — or past its end): the window-start default takes
+    /// over.
+    static func projectedAnchor(lastFeed: Date, spacingMinutes: Int,
                                 windowStart: Date, windowEnd: Date) -> Date? {
-        guard dayIntervalMinutes >= minimumDayIntervalMinutes else { return nil }
-        let step = TimeInterval(dayIntervalMinutes * 60)
-        var t = lastFeed
-        for _ in 0..<maxProjectionSteps {
-            t = t.addingTimeInterval(step)
-            if t > windowEnd { return nil }
-            if t >= windowStart { return t }
-        }
-        return nil
+        guard spacingMinutes >= NightScheduleGenerator.minimumSpacingMinutes else { return nil }
+        let predicted = lastFeed.addingTimeInterval(TimeInterval(spacingMinutes * 60))
+        return (predicted >= windowStart && predicted <= windowEnd) ? predicted : nil
     }
 
     // MARK: Slot construction

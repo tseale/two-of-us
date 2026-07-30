@@ -78,7 +78,6 @@ struct WidgetProvider: TimelineProvider {
 
         let ctx = ModelContext(container)
         let settings = (try? ctx.fetch(FetchDescriptor<SharedSettings>()))?.first
-        let feedTarget = settings?.feedInterval() ?? 10800
         let babyName = (try? ctx.fetch(FetchDescriptor<Baby>()))?.first?.name ?? "Baby"
 
         // Last feed
@@ -88,6 +87,9 @@ struct WidgetProvider: TimelineProvider {
         )
         feedDesc.fetchLimit = 1
         let lastFeedDate = (try? ctx.fetch(feedDesc))?.first?.timestamp
+        // Night spacing when the next bottle lands in the night window, else
+        // the daytime target — same rule the app's feed card uses.
+        let feedTarget = lastFeedDate.flatMap { settings?.feedInterval(after: $0) } ?? 10800
 
         // Last sleep
         var sleepDesc = FetchDescriptor<SleepEvent>(

@@ -4,10 +4,10 @@ import SwiftData
 /// Configure the shared nighttime schedule: the night window, the spacing
 /// between feeds, and the parent rotation (who takes the first shift; slots
 /// alternate from them). There's no fixed first-feed time — the schedule is
-/// dynamic: the night's first feed is projected from the last logged feed by
-/// the daytime interval (the first step landing inside the window), a real
+/// dynamic: the night's first feed is the last logged feed plus the night
+/// spacing (when that predicted bottle lands inside the window), a real
 /// in-window feed replaces the projection, and the rest of the slots march
-/// from the anchor by the night spacing. Saving syncs the settings so both
+/// from the anchor by the same spacing. Saving syncs the settings so both
 /// phones build the identical night. House sheet idiom (Form, detents,
 /// Cancel/confirm toolbar, undo-less toast via callback).
 struct NightScheduleSettingsSheet: View {
@@ -138,10 +138,10 @@ struct NightScheduleSettingsSheet: View {
 
     // MARK: Preview
 
-    /// Tonight, as the schedule would actually build it: the anchor projected
-    /// from the last logged feed by the daytime interval (first step landing
-    /// inside the window), then the night spacing — the same math the Home
-    /// card and alarms run.
+    /// Tonight, as the schedule would actually build it: the anchor is the
+    /// last logged feed plus the (pending) night spacing when that lands
+    /// inside the (pending) window, then the spacing marches out the slots —
+    /// the same math the Home card and alarms run.
     private var previewSection: some View {
         Section {
             ForEach(Array(previewTimes.enumerated()), id: \.offset) { index, date in
@@ -167,7 +167,7 @@ struct NightScheduleSettingsSheet: View {
         if previewTimes.isEmpty {
             return "These hours generate no feeds — widen the window or tighten the spacing."
         }
-        return "Projected from the last logged feed and your daytime interval — the night re-anchors to the first bottle actually logged in (or within an hour before) the window."
+        return "Projected from the last logged feed plus your feed spacing — the night re-anchors to the first bottle actually logged in (or within an hour before) the window."
     }
 
     private func previewAssigneeLabel(index: Int) -> String {
@@ -192,7 +192,7 @@ struct NightScheduleSettingsSheet: View {
         } else if let last = recentFeeds.first?.timestamp,
                   let projected = NightSchedule.projectedAnchor(
                       lastFeed: last,
-                      dayIntervalMinutes: settingsList.first?.targetFeedIntervalMinutes ?? 180,
+                      spacingMinutes: spacingMinutes,
                       windowStart: window.start, windowEnd: window.end
                   ) {
             anchor = projected

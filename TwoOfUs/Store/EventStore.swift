@@ -895,8 +895,8 @@ struct EventStore {
         NotificationManager.refreshScheduledReminders()
         NotificationManager.refreshDailyMilestone()   // keep the summary's counts fresh
         NotificationManager.refreshScheduleReminders()
-        let interval = settings?.feedInterval() ?? 0
         let last = lastEventDate(of: .feed)
+        let interval = last.flatMap { settings?.feedInterval(after: $0) } ?? 0
         let name = baby?.name ?? "Baby"
         Task {
             await SlotAlarmManager.reschedule()

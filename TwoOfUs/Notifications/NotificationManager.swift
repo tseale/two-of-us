@@ -133,7 +133,7 @@ enum NotificationManager {
         // voice, and the off-duty parent's phone must stay quiet.
         if logger.isTrackingEnabled(.feed),
            !prefs.feedReminderEnabled, let last = logger.lastFeed?.timestamp {
-            let interval = logger.feedInterval(now: last)
+            let interval = logger.feedInterval(after: last)
             let fireDate = last.addingTimeInterval(interval)
             if !assignedSlotCovers(fireDate, kind: .feed, logger: logger) {
                 scheduleReminder(
@@ -466,7 +466,7 @@ enum NotificationManager {
         if let logger = QuickLogger.make() {
             let babyName = logger.babyName ?? "Baby"
             let lastFeed = logger.lastFeed?.timestamp
-            let interval = logger.feedInterval()
+            let interval = logger.feedInterval(after: lastFeed)
             Task {
                 // Slot alarm first: logging the 3am feed from its own reminder
                 // must disarm the slot alarm, and the feed alarm's stand-down

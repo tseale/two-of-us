@@ -75,21 +75,24 @@ final class SharedSettings {
         self.nightFirstShiftID = nightFirstShiftID
     }
 
-    /// The interval that should drive "when's the next bottle" right now: the
-    /// nighttime schedule's spacing while `date` falls in the night window,
-    /// else the daytime target. This is the ONE place day-vs-night branches —
-    /// the feed card, reminders, alarms, and widgets all call it so none of
-    /// them can drift from what the Tonight card itself is counting down to.
-    func feedInterval(at date: Date = .now, calendar: Calendar = .current) -> TimeInterval {
-        let c = calendar.dateComponents([.hour, .minute], from: date)
+    /// The interval that should drive "when's the next bottle" after a feed at
+    /// `lastFeed`: the night spacing when the bottle it predicts would land
+    /// inside the night window — that bottle IS the night's first (or next)
+    /// feed under the anchor rules, so a 7:45pm feed against an 11pm–8am/4h
+    /// night predicts 11:45pm, not a daytime 10:45 — else the daytime target.
+    /// This is the ONE place day-vs-night branches: the feed card, reminders,
+    /// alarms, and widgets all call it so none of them can drift from what
+    /// the Tonight card itself is counting down to.
+    func feedInterval(after lastFeed: Date, calendar: Calendar = .current) -> TimeInterval {
+        let night = TimeInterval(nightFeedSpacingMinutes * 60)
+        let c = calendar.dateComponents([.hour, .minute], from: lastFeed.addingTimeInterval(night))
         let minuteOfDay = (c.hour ?? 0) * 60 + (c.minute ?? 0)
-        let isNight = NightScheduleGenerator.isWithinNight(
+        let isNightFeed = NightScheduleGenerator.isWithinNight(
             minuteOfDay: minuteOfDay,
             nightStartMinute: nightStartMinute,
             nightEndMinute: nightEndMinute
         )
-        let minutes = isNight ? nightFeedSpacingMinutes : targetFeedIntervalMinutes
-        return TimeInterval(minutes * 60)
+        return isNightFeed ? night : TimeInterval(targetFeedIntervalMinutes * 60)
     }
 
     /// An unknown raw value (a future build's new pattern) reads as the
