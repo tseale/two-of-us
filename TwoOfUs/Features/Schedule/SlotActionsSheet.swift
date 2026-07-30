@@ -28,6 +28,12 @@ struct SlotActionsSheet: View {
 
     private var store: EventStore { EventStore(context: context) }
     private var isNight: Bool { occurrence.source == .night }
+    /// The night's FIRST slot — the anchor. Moving it re-times the whole
+    /// night, so it's the one dynamic row that offers "Move tonight…".
+    private var isNightAnchor: Bool {
+        isNight && occurrence.slotID == NightSchedule.syntheticSlotID(
+            nightKey: occurrence.dayKey, index: 0)
+    }
     private var slot: PlanSlot? {
         isNight ? nil : PlanSlot.fetchByID(occurrence.slotID, in: context)
     }
@@ -95,13 +101,13 @@ struct SlotActionsSheet: View {
 
     @ViewBuilder
     private var actions: some View {
-        if occurrence.status != .skipped, !isNight {
+        if occurrence.status != .skipped, !isNight || isNightAnchor {
             Section {
                 Button {
                     withAnimation { showMovePicker.toggle() }
                 } label: {
                     HStack {
-                        Text("Move tonight…")
+                        Text(isNightAnchor ? "Set tonight's first feed…" : "Move tonight…")
                         Spacer()
                         Image(systemName: showMovePicker ? "chevron.up" : "chevron.down")
                             .font(.caption2.weight(.semibold))
@@ -118,7 +124,9 @@ struct SlotActionsSheet: View {
                 }
             } footer: {
                 if showMovePicker {
-                    Text("Moves tonight only — the standing \(kindWord) keeps its usual time tomorrow.")
+                    Text(isNightAnchor
+                         ? "Re-times the whole night: the rest of tonight's feeds follow from here, and this time wins even over a logged bottle. Undo to go back to the computed schedule."
+                         : "Moves tonight only — the standing \(kindWord) keeps its usual time tomorrow.")
                 }
             }
         }
@@ -166,13 +174,22 @@ struct SlotActionsSheet: View {
     }
 
     private func moveTonight() {
-        guard let slot else { return }
         // Preserve tonight's effective assignee — a move must never drop a swap.
         let assignee = participants.first { $0.id == occurrence.assignedToID }
-        let override = store.moveSlot(slot, dayKey: occurrence.dayKey,
+        let override: PlanOverride
+        if isNightAnchor {
+            override = store.moveNightAnchor(occurrence, toMinuteOfDay: minuteOfDay(moveTime),
+                                             assignedTo: assignee)
+        } else if let slot {
+            override = store.moveSlot(slot, dayKey: occurrence.dayKey,
                                       toMinuteOfDay: minuteOfDay(moveTime), assignedTo: assignee)
+        } else {
+            return
+        }
         Haptics.success()
-        onDone?("Moved tonight's \(kindWord) to \(TimeFormatting.clock(moveTime))", accent) {
+        onDone?(isNightAnchor
+                ? "Tonight's first \(kindWord) set to \(TimeFormatting.clock(moveTime))"
+                : "Moved tonight's \(kindWord) to \(TimeFormatting.clock(moveTime))", accent) {
             store.clearOverride(override)
         }
         dismiss()

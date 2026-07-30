@@ -720,6 +720,19 @@ struct EventStore {
                        isSkipped: true, minuteOfDayOverride: nil, inheritPriorMove: false)
     }
 
+    /// Manually sets tonight's FIRST feed time — the whole night re-times
+    /// from it (`NightSchedule` treats a live move override on the night's
+    /// first slot as the anchor, beating even a logged feed). `assignedTo`
+    /// carries the slot's current effective assignee so re-timing the night
+    /// never drops a swap.
+    @discardableResult
+    func moveNightAnchor(_ occ: ScheduleOccurrence, toMinuteOfDay minute: Int,
+                         assignedTo participant: Participant?) -> PlanOverride {
+        insertOverride(slotID: occ.slotID, dayKey: occ.dayKey, assignedTo: participant,
+                       isSkipped: false, minuteOfDayOverride: EventBounds.wrapMinuteOfDay(minute),
+                       inheritPriorMove: false)
+    }
+
     /// Moves one night of a slot to a different time ("tonight's 11pm at 11:30
     /// instead") without touching the standing plan. `assignedTo` carries the
     /// night's current effective assignee so a move never drops a swap.
