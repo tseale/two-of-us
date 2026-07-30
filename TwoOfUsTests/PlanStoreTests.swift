@@ -270,6 +270,23 @@ final class PlanStoreTests: XCTestCase {
         XCTAssertEqual(second.assignedToID, taylor.id)
     }
 
+    func testMoveNightAnchorWritesMinuteOverrideAndReplacesPrior() {
+        let katie = insertKatie()
+        let occ = nightOccurrence(index: 0, assignedTo: katie)
+
+        let swap = store.overrideNightOccurrence(occ, assignTo: katie)
+        let move = store.moveNightAnchor(occ, toMinuteOfDay: 22 * 60 + 30, assignedTo: katie)
+
+        XCTAssertNotNil(swap.deletedAt, "one live override per (slot, night)")
+        XCTAssertEqual(move.slotID, occ.slotID)
+        XCTAssertEqual(move.minuteOfDayOverride, 22 * 60 + 30)
+        XCTAssertEqual(move.assignedToID, katie.id, "re-timing carries the assignee")
+        XCTAssertFalse(move.isSkipped)
+
+        store.clearOverride(move)
+        XCTAssertNotNil(move.deletedAt, "undo soft-deletes — the computed anchor resumes")
+    }
+
     func testSkipNightOccurrence() {
         let occ = nightOccurrence(index: 2, assignedTo: taylor)
         let override = store.skipNightOccurrence(occ)

@@ -324,14 +324,107 @@ final class NightScheduleTests: XCTestCase {
     // MARK: Per-night overrides
 
     private func override(slotID: UUID, dayKey: Int, assignedToID: UUID? = nil,
-                          name: String = "", skipped: Bool = false,
+                          name: String = "", skipped: Bool = false, minute: Int? = nil,
                           deleted: Bool = false, createdAt: Date = .distantPast) -> PlanOverride {
         let o = PlanOverride(slotID: slotID, dayKey: dayKey,
                              assignedToID: assignedToID, assignedToName: name,
-                             isSkipped: skipped, createdByID: taylorID)
+                             isSkipped: skipped, minuteOfDayOverride: minute,
+                             createdByID: taylorID)
         o.createdAt = createdAt
         if deleted { o.deletedAt = .distantPast }
         return o
+    }
+
+    /// A live move override on the night's FIRST slot — the manual anchor.
+    private func manualAnchor(minute: Int, nightKey: Int = 20_260_721,
+                              assignedToID: UUID? = nil, name: String = "",
+                              deleted: Bool = false) -> PlanOverride {
+        override(slotID: NightSchedule.syntheticSlotID(nightKey: nightKey, index: 0),
+                 dayKey: nightKey, assignedToID: assignedToID, name: name,
+                 minute: minute, deleted: deleted)
+    }
+
+    // MARK: Manual first-feed anchor
+
+    func testManualAnchorRetimesTheWholeNight() {
+        // No feeds at all; a parent set tonight's first feed to 10:30pm —
+        // the night runs 10:30, 2:30, 6:30 instead of the 9pm default.
+        let occs = schedule(overrides: [manualAnchor(minute: 22 * 60 + 30)],
+                            now: date(2026, 7, 21, 22, 0)).occurrences()
+        XCTAssertEqual(occs.map(\.date), [
+            date(2026, 7, 21, 22, 30), date(2026, 7, 22, 2, 30), date(2026, 7, 22, 6, 30),
+        ])
+        XCTAssertNotNil(occs[0].activeOverrideID,
+                        "the anchor row carries its override so Undo is offered")
+    }
+
+    func testManualAnchorBeatsLoggedFeed() {
+        // A stray 9:05pm bottle would anchor the night, but the parents said
+        // 10pm — their word wins; undoing the change restores the computed
+        // anchor.
+        let stray = feed(at: date(2026, 7, 21, 21, 5))
+        let manual = manualAnchor(minute: 22 * 60)
+        let occs = schedule(feeds: [stray], overrides: [manual],
+                            now: date(2026, 7, 21, 22, 30)).occurrences()
+        XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 22, 0))
+
+        let undone = schedule(feeds: [stray],
+                              overrides: [manualAnchor(minute: 22 * 60, deleted: true)],
+                              now: date(2026, 7, 21, 22, 30)).occurrences()
+        XCTAssertEqual(undone.first?.date, date(2026, 7, 21, 21, 5),
+                       "undo falls back to the logged anchor")
+    }
+
+    func testManualAnchorSmallHoursRollsToMorning() {
+        // "First feed at 1:30am" belongs to tomorrow morning, not this
+        // afternoon: 1:30am → 5:30am (9:30 overshoots the 8am close).
+        let occs = schedule(overrides: [manualAnchor(minute: 90)],
+                            now: date(2026, 7, 21, 22, 0)).occurrences()
+        XCTAssertEqual(occs.map(\.date), [
+            date(2026, 7, 22, 1, 30), date(2026, 7, 22, 5, 30),
+        ])
+    }
+
+    func testManualAnchorInGraceHourExtendsTheFarEnd() {
+        // 8:30pm — inside the grace hour before the 9pm window; the night
+        // keeps its full length, running 30 minutes past the 8am close.
+        let occs = schedule(overrides: [manualAnchor(minute: 20 * 60 + 30)],
+                            now: date(2026, 7, 21, 22, 0)).occurrences()
+        XCTAssertEqual(occs.map(\.date), [
+            date(2026, 7, 21, 20, 30), date(2026, 7, 22, 0, 30),
+            date(2026, 7, 22, 4, 30), date(2026, 7, 22, 8, 30),
+        ])
+    }
+
+    func testManualAnchorOutsideWindowIsIgnored() {
+        // Noon is no night — a nonsense manual time must not hijack the
+        // schedule; the window-start default stands.
+        let occs = schedule(overrides: [manualAnchor(minute: 12 * 60)],
+                            now: date(2026, 7, 21, 22, 0)).occurrences()
+        XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 21, 0))
+    }
+
+    func testManualAnchorCarriesItsAssignee() {
+        let manual = manualAnchor(minute: 22 * 60, assignedToID: katieID, name: "Katie")
+        let occs = schedule(overrides: [manual], now: date(2026, 7, 21, 22, 0),
+                            firstShiftID: taylorID).occurrences()
+        XCTAssertEqual(occs[0].assignedToName, "Katie",
+                       "the move carried tonight's assignee — re-timing never drops a swap")
+        XCTAssertEqual(occs[1].assignedToName, "Katie",
+                       "later slots still follow the rotation (slot 1 from Taylor's first shift)")
+        // (Taylor first shift → slot 1 is Katie by rotation — both hold.)
+    }
+
+    func testManualAnchorShowsApproachingBeforeTheWindow() {
+        // 6pm, no feeds: normally .day — but a manually set first feed means
+        // tonight is planned, so the card surfaces.
+        let state = schedule(overrides: [manualAnchor(minute: 22 * 60)],
+                             now: date(2026, 7, 21, 18, 0)).state
+        if case .approaching(let occs) = state {
+            XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 22, 0))
+        } else {
+            XCTFail("a manually planned night should surface in the evening run-up, got \(state)")
+        }
     }
 
     func testOverrideReassignsOneNightSlot() {

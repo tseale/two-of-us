@@ -6,6 +6,13 @@ import Foundation
 /// feed log.
 ///
 /// **The anchor.** The night starts at its first feed, resolved in order:
+/// 0. A MANUAL first-feed time set by a parent for tonight ("Move tonight…"
+///    on the night's first row) — a live `PlanOverride` on the night's first
+///    slot carrying `minuteOfDayOverride`. Explicitly re-timing the night is
+///    the strongest signal there is, so it beats even a logged feed (the
+///    correction case: a stray 9:05pm top-up anchored the night, but the
+///    parents say the real night starts at 10). Undoing the change restores
+///    the computed anchor.
 /// 1. A logged feed inside the window — or up to an hour BEFORE it opens
 ///    (`preWindowGraceMinutes`): an 8:15pm bottle against a 9pm window IS the
 ///    night's first feed, and the schedule builds from it (8:15 → 12:15 →
@@ -75,15 +82,18 @@ struct NightSchedule {
         guard let window = relevantWindow else { return .day }
         // The night is *approaching* — surface the Tonight card early — once
         // the next predicted bottle is already a night bottle (the projected
-        // anchor resolves), or once we're inside the grace hour before the
-        // window opens (which is also when a grace-logged feed can anchor).
+        // anchor resolves), once we're inside the grace hour before the
+        // window opens (which is also when a grace-logged feed can anchor),
+        // or once a parent has manually set tonight's first feed.
         let graceStart = window.start.addingTimeInterval(
             -TimeInterval(Self.preWindowGraceMinutes * 60))
         let predictsIn = lastLiveFeed.map {
             Self.projectedAnchor(lastFeed: $0, spacingMinutes: spacingMinutes,
                                  windowStart: window.start, windowEnd: window.end) != nil
         } ?? false
-        return (now >= graceStart || predictsIn) ? .approaching(occurrences()) : .day
+        let manualSet = manualAnchor(in: window) != nil
+        return (now >= graceStart || predictsIn || manualSet)
+            ? .approaching(occurrences()) : .day
     }
 
     /// The night's constructed schedule, ascending — tonight's when `now` is
@@ -183,11 +193,15 @@ struct NightSchedule {
 
     // MARK: Anchor
 
-    /// When the night's first feed is (or will be): the earliest live feed
-    /// already logged inside the window — or within the pre-window grace
-    /// hour before it — else the projection from the last logged feed, else
-    /// the window's start itself (a night always has a schedule).
+    /// When the night's first feed is (or will be): a parent's manual choice
+    /// first, else the earliest live feed already logged inside the window —
+    /// or within the pre-window grace hour before it — else the projection
+    /// from the last logged feed, else the window's start itself (a night
+    /// always has a schedule).
     private func anchorDate(in window: (start: Date, end: Date)) -> Date {
+        if let manual = manualAnchor(in: window) {
+            return manual
+        }
         let live = feeds.filter { $0.deletedAt == nil && $0.timestamp <= now }
         let graceStart = window.start.addingTimeInterval(
             -TimeInterval(Self.preWindowGraceMinutes * 60))
@@ -202,6 +216,30 @@ struct NightSchedule {
             return projected
         }
         return window.start
+    }
+
+    /// The manually set first-feed time for this window's night, if a live
+    /// move override exists on the night's FIRST slot. The stored wall-clock
+    /// minute materializes on the window's opening day, rolling forward a day
+    /// for small-hours times (1:30am belongs to tomorrow morning); a time
+    /// that lands outside the window (and its grace hour) is ignored rather
+    /// than generating a nonsense night.
+    private func manualAnchor(in window: (start: Date, end: Date)) -> Date? {
+        let nightKey = ScheduleEngine.dayKey(for: window.start, calendar: calendar)
+        guard let override = nightOverrides(nightKey: nightKey)[0],
+              !override.isSkipped,
+              let minute = override.minuteOfDayOverride,
+              var candidate = ScheduleEngine.materialize(minuteOfDay: minute, on: window.start,
+                                                         calendar: calendar)
+        else { return nil }
+        let graceStart = window.start.addingTimeInterval(
+            -TimeInterval(Self.preWindowGraceMinutes * 60))
+        if candidate < graceStart,
+           let rolled = calendar.date(byAdding: .day, value: 1, to: candidate) {
+            candidate = rolled
+        }
+        guard candidate >= graceStart, candidate <= window.end else { return nil }
+        return candidate
     }
 
     /// Most recent live feed at or before `now` — the one predictions build on.
