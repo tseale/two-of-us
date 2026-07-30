@@ -50,6 +50,9 @@ struct TwoOfUsApp: App {
         if ProcessInfo.processInfo.arguments.contains("-resetSetup") {
             SetupProgress.shared.resetForTesting()
         }
+        // Seeding fixture rows into the real store taints this device for sync
+        // beyond this (already-gated) process — see SyncGate.recordFixtureTaint.
+        SyncGate.recordFixtureTaint()
         #endif
 
         // Existing installs that onboarded before the quest system (which saw the

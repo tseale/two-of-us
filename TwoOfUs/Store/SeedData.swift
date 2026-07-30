@@ -71,6 +71,11 @@ enum SeedData {
         // SyncManager and demo mode runs against a throwaway store.
         if !LocalPrefs.shared.demoModeEnabled {
             SyncManager.shared?.enqueueSave([baby.id, owner.id, settings.id])
+            // Stamp the owner's iCloud identity like every joiner gets stamped
+            // (JoinFlowView) — without it, an owner reinstall re-onboards into
+            // the same zone as a SECOND, unmergeable owner row, splitting their
+            // history across two "people" on both phones.
+            SyncManager.shared?.captureCloudUserID(for: owner.id)
         }
         return baby
     }

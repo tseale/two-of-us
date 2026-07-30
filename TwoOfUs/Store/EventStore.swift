@@ -33,23 +33,31 @@ struct EventStore {
     }
 
     /// The local user ("me"). Resolved via `LocalPrefs.myParticipantID` once
-    /// sharing introduces a second participant; falls back to the oldest ACTIVE
-    /// participant. The fallback must never pick a merged-away duplicate: an
-    /// unordered `fetch().first` could return an `isActive == false` tombstone
-    /// (they exist since the participant auto-merge), attributing new events to
-    /// a row the People list no longer shows.
+    /// sharing introduces a second participant. If that row was merged away
+    /// (auto-merge tombstone), the active survivor for the same iCloud account
+    /// is adopted. The last-resort fallback only fires when it is UNAMBIGUOUS —
+    /// exactly one active participant: with two parents in the store, guessing
+    /// attributes this device's logs to the co-parent on both phones, which is
+    /// worse than refusing the write (the caller banners "couldn't tell who's
+    /// logging").
     var owner: Participant? {
         if let myID = LocalPrefs.shared.myParticipantID {
             var d = FetchDescriptor<Participant>(predicate: #Predicate { $0.id == myID })
             d.fetchLimit = 1
-            if let me = try? context.fetch(d).first { return me }
+            if let me = try? context.fetch(d).first {
+                if me.isActive { return me }
+                if let cid = me.cloudUserID,
+                   let survivor = ((try? context.fetch(FetchDescriptor<Participant>())) ?? [])
+                       .first(where: { $0.isActive && $0.cloudUserID == cid && $0.id != me.id }) {
+                    return survivor
+                }
+                return me
+            }
         }
-        var d = FetchDescriptor<Participant>(
-            predicate: #Predicate { $0.isActive },
-            sortBy: [SortDescriptor(\.invitedAt)]
-        )
-        d.fetchLimit = 1
-        return try? context.fetch(d).first
+        let active = (try? context.fetch(FetchDescriptor<Participant>(
+            predicate: #Predicate { $0.isActive }
+        ))) ?? []
+        return active.count == 1 ? active.first : nil
     }
 
     var settings: SharedSettings? {
@@ -113,7 +121,7 @@ struct EventStore {
             loggedByColorHex: owner.colorHex
         )
         context.insert(event)
-        save()
+        guard save() else { context.delete(event); return nil }
         sync(save: [event.id])
         reloadWidgets()
         refreshLocalReminders()
@@ -133,7 +141,7 @@ struct EventStore {
             loggedByColorHex: owner.colorHex
         )
         context.insert(event)
-        save()
+        guard save() else { context.delete(event); return nil }
         sync(save: [event.id])
         reloadWidgets()
         refreshLocalReminders()
@@ -153,7 +161,7 @@ struct EventStore {
             loggedByColorHex: owner.colorHex
         )
         context.insert(event)
-        save()
+        guard save() else { context.delete(event); return nil }
         sync(save: [event.id])
         if !demo { SleepActivityManager.start(babyName: baby?.name ?? "Baby", at: date) }
         reloadWidgets()
@@ -179,7 +187,7 @@ struct EventStore {
             loggedByColorHex: owner.colorHex
         )
         context.insert(event)
-        save()
+        guard save() else { context.delete(event); return nil }
         sync(save: [event.id])
         reloadWidgets()
         refreshLocalReminders()
@@ -232,6 +240,13 @@ struct EventStore {
 
     @discardableResult
     func editFeed(_ original: FeedEvent, amountOz: Double, timestamp: Date, notes: String?) -> FeedEvent {
+        // Same rule as creation: a "0 oz" bottle is never a real feed, and the
+        // edit path was the last way to mint one (the sweep can't remove it —
+        // it carries real attribution). Refuse by returning the original.
+        guard EventBounds.isLoggableOz(amountOz) else {
+            AppLog.store.error("Edit refused: feed amount \(amountOz) is not loggable")
+            return original
+        }
         let amountOz = EventBounds.clampOz(amountOz)
         let timestamp = EventBounds.clampPast(timestamp)
         let replacement = FeedEvent(
@@ -408,6 +423,20 @@ struct EventStore {
         sweep(FeedEvent.self)
         sweep(SleepEvent.self)
         sweep(DiaperEvent.self)
+
+        // One baby can't sleep twice at once: concurrent starts on both phones
+        // (each guarded only by its local single-timer check) leave two open
+        // sleeps under DIFFERENT ids once they sync. Keep the earliest start —
+        // deterministic, so both phones converge — and soft-delete the rest,
+        // synced like any removal.
+        let openSleeps = ((try? context.fetch(FetchDescriptor<SleepEvent>(
+            predicate: #Predicate { $0.endedAt == nil && $0.deletedAt == nil }
+        ))) ?? []).sorted { ($0.startedAt, $0.id.uuidString) < ($1.startedAt, $1.id.uuidString) }
+        for extra in openSleeps.dropFirst() {
+            extra.deletedAt = .now
+            syncedDeletes.append(extra.id)
+            removed += 1
+        }
 
         guard removed > 0 else { return 0 }
         AppLog.store.warning("Ghost sweep removed \(removed) event row(s) (\(syncedDeletes.count) synced)")
@@ -743,7 +772,9 @@ struct EventStore {
             assignedToColorHex: participant?.colorHex ?? "",
             isSkipped: isSkipped,
             minuteOfDayOverride: minuteOfDayOverride ?? inheritedMinute,
-            createdByID: owner?.id ?? UUID()
+            // Never a random UUID (the retired ghost-attribution fallback): the
+            // stored identity is the next-best truth when `owner` can't resolve.
+            createdByID: owner?.id ?? LocalPrefs.shared.myParticipantID ?? UUID()
         )
         context.insert(override)
         ids.append(override.id)
@@ -809,21 +840,34 @@ struct EventStore {
         ))) ?? []
         entries += diapers.map(TimelineEntry.diaper)
 
-        return entries.sorted { $0.sortDate > $1.sortDate }
+        // Render-level dedupe: duplicate rows sharing an id can exist between
+        // sweeps (inbound upsert races, legacy data) — the timeline must never
+        // show one event twice even while the store still holds both rows.
+        var seen = Set<UUID>()
+        return entries
+            .sorted { $0.sortDate > $1.sortDate }
+            .filter { seen.insert($0.id).inserted }
     }
 
     // MARK: Private
 
     /// Persists pending changes. A failure here means an optimistic log the user
     /// already saw never actually saved, so it's surfaced as a banner (not just a
-    /// log line) — silent loss is the worst outcome for a tracking app.
-    private func save() {
+    /// log line) — silent loss is the worst outcome for a tracking app. Returns
+    /// whether the save landed: creation paths roll their insert back on false,
+    /// because leaving the unsaved row in the context while the banner says
+    /// "try again" turns the retry into a duplicate on both phones.
+    @discardableResult
+    private func save() -> Bool {
         do {
             try context.save()
+            return true
         } catch {
             AppLog.store.error("EventStore save failed: \(error.localizedDescription, privacy: .public)")
-            guard !demo else { return }
-            StoreErrorCenter.shared.report("That didn't save. Check your connection and try logging again.")
+            if !demo {
+                StoreErrorCenter.shared.report("That didn't save. Check your connection and try logging again.")
+            }
+            return false
         }
     }
 

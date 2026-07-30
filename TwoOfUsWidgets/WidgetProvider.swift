@@ -68,7 +68,9 @@ struct WidgetProvider: TimelineProvider {
         }
 
         let schema = Schema(versionedSchema: SchemaV1.self)
-        let config = ModelConfiguration(schema: schema, url: storeURL)
+        // .none defensively: the widget target has no iCloud entitlement today,
+        // but the read-only store config must never depend on that staying true.
+        let config = ModelConfiguration(schema: schema, url: storeURL, cloudKitDatabase: .none)
         guard let container = try? ModelContainer(for: schema, configurations: [config]) else {
             Self.log.error("Widget failed to open the shared model container")
             return .empty

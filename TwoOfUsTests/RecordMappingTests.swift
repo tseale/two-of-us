@@ -176,6 +176,36 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertEqual(copy.invitedAt, original.invitedAt)
     }
 
+    func testApplyParticipantSkipsRecordsMissingDisplayName() throws {
+        // A junk participant record must not become a nameless local row — its
+        // id would count as "known", immunizing ghost events attributed to it
+        // against every sweep.
+        let receiver = AppModelContainer.make(inMemory: true)
+        let bare = CKRecord(recordType: SyncConstants.RecordType.participant, recordID: recordID(UUID()))
+        try RecordMapping.apply(bare, in: receiver.mainContext)
+
+        XCTAssertTrue(try receiver.mainContext.fetch(FetchDescriptor<Participant>()).isEmpty,
+                      "a name-less participant record must not materialize")
+    }
+
+    func testApplyParticipantKeepsLocalCloudUserIDWhenFieldAbsent() throws {
+        // An older build's record carries no cloudUserID — applying it must not
+        // nil a locally captured identity, or the duplicate-participant
+        // auto-merge is permanently disarmed.
+        let receiver = AppModelContainer.make(inMemory: true)
+        let local = Participant(displayName: "Katie", colorHex: "#112233", cloudUserID: "_abc123")
+        receiver.mainContext.insert(local)
+        try receiver.mainContext.save()
+
+        let sparse = CKRecord(recordType: SyncConstants.RecordType.participant,
+                              recordID: recordID(local.id))
+        sparse["displayName"] = "Katie"
+        sparse["colorHex"] = "#112233"
+        try RecordMapping.apply(sparse, in: receiver.mainContext)
+
+        XCTAssertEqual(local.cloudUserID, "_abc123", "an absent field keeps the captured identity")
+    }
+
     func testSettingsRoundTrip() throws {
         let firstShift = UUID()
         let original = SharedSettings(targetFeedIntervalMinutes: 150,

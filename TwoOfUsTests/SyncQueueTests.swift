@@ -90,6 +90,30 @@ final class SyncQueueTests: XCTestCase {
 
     // MARK: Participant hold queue
 
+    func testStoreLossResetClearsBootstrapAndFetchState() throws {
+        // When the SQLite store is quarantined, the persisted sync state
+        // describes a dead store: the bootstrap flag ("already uploaded") and
+        // fetch tokens ("fully caught up") must be reset, or the fresh empty
+        // store never re-downloads the family's history and the owner is
+        // dropped into onboarding — minting duplicates into the live zone.
+        let bootstrapKey = "sync.bootstrap.private"
+        let typesKey = "sync.knownRecordTypes"
+        let savedBootstrap = UserDefaults.standard.object(forKey: bootstrapKey)
+        let savedTypes = UserDefaults.standard.object(forKey: typesKey)
+        defer {
+            if let savedBootstrap { UserDefaults.standard.set(savedBootstrap, forKey: bootstrapKey) }
+            if let savedTypes { UserDefaults.standard.set(savedTypes, forKey: typesKey) }
+        }
+        UserDefaults.standard.set(true, forKey: bootstrapKey)
+        UserDefaults.standard.set(["Feed"], forKey: typesKey)
+
+        SyncManager.resetPersistedSyncStateForStoreLoss()
+
+        XCTAssertNil(UserDefaults.standard.object(forKey: bootstrapKey),
+                     "the bootstrap flag dies with the store it described")
+        XCTAssertNil(UserDefaults.standard.object(forKey: typesKey))
+    }
+
     func testParticipantSavesHeldWhileZoneUnknown() {
         LocalPrefs.shared.syncRole = .participant
         let id = UUID()

@@ -23,17 +23,40 @@ enum SyncGate {
         "-seedSampleData", "-wipeStore", "-previewJoin", "-resetSetup", "-onboardingPage", "-uiScreen"
     ]
 
+    /// Persisted marker: fixture rows were seeded into the REAL on-disk store
+    /// at some point (`-seedSampleData` on a device). The seeding PROCESS is
+    /// blocked by the argument check, but the rows outlive it — and a later
+    /// argument-less launch would upload them the moment anything resets the
+    /// bootstrap flag (delete-everything re-onboard, zone recovery). The taint
+    /// keeps sync off on that device until `-wipeStore` empties the store.
+    static let taintKey = "sync.fixtureTainted"
+
     /// Human-readable reason sync is blocked for this process, or nil to allow.
     static var blockReason: String? {
-        reason(arguments: ProcessInfo.processInfo.arguments, isSimulator: isSimulator)
+        reason(arguments: ProcessInfo.processInfo.arguments, isSimulator: isSimulator,
+               fixtureTainted: UserDefaults.standard.bool(forKey: taintKey))
+    }
+
+    /// Records/clears the taint for this launch's arguments (called from
+    /// `TwoOfUsApp.init` right after the fixture args are applied): seeding
+    /// taints, a wipe alone restores a clean store. Order matters when both
+    /// are passed — the wipe runs first, the seed re-dirties.
+    static func recordFixtureTaint(arguments: [String] = ProcessInfo.processInfo.arguments) {
+        if arguments.contains("-wipeStore") {
+            UserDefaults.standard.removeObject(forKey: taintKey)
+        }
+        if arguments.contains("-seedSampleData") {
+            UserDefaults.standard.set(true, forKey: taintKey)
+        }
     }
 
     /// Pure form for tests.
-    static func reason(arguments: [String], isSimulator: Bool) -> String? {
+    static func reason(arguments: [String], isSimulator: Bool, fixtureTainted: Bool = false) -> String? {
         if isSimulator { return "simulator build" }
         if let arg = arguments.first(where: fixtureArguments.contains) {
             return "fixture launch argument \(arg)"
         }
+        if fixtureTainted { return "store holds fixture data from a previous -seedSampleData run (relaunch with -wipeStore to clear)" }
         return nil
     }
 
