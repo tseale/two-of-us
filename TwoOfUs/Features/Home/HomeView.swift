@@ -620,7 +620,8 @@ struct HomeView: View {
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                 ForEach(timelineEntries) { entry in
-                    DayTimelineRow(entry: entry, loggedByPhoto: loggerPhoto[entry.loggedByID])
+                    DayTimelineRow(entry: entry, loggedByPhoto: loggerPhoto[entry.loggedByID],
+                                   loggedByNameFallback: loggerName[entry.loggedByID])
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                         .contentShape(Rectangle())
@@ -650,13 +651,27 @@ struct HomeView: View {
         })
     }
 
+    /// Logger id → display name, the row's fallback when an event's denormalized
+    /// name is empty (older builds' records) — a known logger must never render
+    /// as the silhouette badge.
+    private var loggerName: [UUID: String] {
+        Dictionary(participants.compactMap { p in
+            p.displayName.isEmpty ? nil : (p.id, p.displayName)
+        }, uniquingKeysWith: { a, _ in a })
+    }
+
     private var timelineEntries: [TimelineEntry] {
         let since = Calendar.current.date(byAdding: .hour, value: -24, to: .now) ?? .now
         var entries: [TimelineEntry] = []
         entries += feeds.filter { $0.timestamp >= since }.map(TimelineEntry.feed)
         entries += sleeps.filter { !$0.isActive && $0.startedAt >= since }.map(TimelineEntry.sleep)
         entries += diapers.filter { $0.timestamp >= since }.map(TimelineEntry.diaper)
-        return entries.sorted { $0.sortDate > $1.sortDate }
+        // Never render one event twice: duplicate rows sharing an id can exist
+        // between sweeps (inbound upsert races, legacy data).
+        var seen = Set<UUID>()
+        return entries
+            .sorted { $0.sortDate > $1.sortDate }
+            .filter { seen.insert($0.id).inserted }
     }
 
     // MARK: Actions

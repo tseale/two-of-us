@@ -31,4 +31,32 @@ final class SyncGateTests: XCTestCase {
         XCTAssertTrue(SyncGate.fixtureArguments.contains("-seedSampleData"))
         XCTAssertTrue(SyncGate.fixtureArguments.contains("-wipeStore"))
     }
+
+    func testFixtureTaintBlocksCleanLaunches() {
+        // Seeded fixture rows OUTLIVE the seeding process — the taint keeps
+        // sync off on later argument-less launches until the store is wiped,
+        // or a bootstrap-flag reset would upload the fixtures as ghost logs.
+        XCTAssertNotNil(SyncGate.reason(arguments: [], isSimulator: false, fixtureTainted: true))
+        XCTAssertNil(SyncGate.reason(arguments: [], isSimulator: false, fixtureTainted: false))
+    }
+
+    func testRecordFixtureTaintLifecycle() {
+        let saved = UserDefaults.standard.object(forKey: SyncGate.taintKey)
+        defer {
+            if let saved {
+                UserDefaults.standard.set(saved, forKey: SyncGate.taintKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: SyncGate.taintKey)
+            }
+        }
+
+        SyncGate.recordFixtureTaint(arguments: ["-seedSampleData"])
+        XCTAssertTrue(UserDefaults.standard.bool(forKey: SyncGate.taintKey), "seeding taints")
+
+        SyncGate.recordFixtureTaint(arguments: ["-wipeStore"])
+        XCTAssertFalse(UserDefaults.standard.bool(forKey: SyncGate.taintKey), "a wipe restores a clean store")
+
+        SyncGate.recordFixtureTaint(arguments: ["-wipeStore", "-seedSampleData"])
+        XCTAssertTrue(UserDefaults.standard.bool(forKey: SyncGate.taintKey), "wipe-then-seed re-dirties")
+    }
 }

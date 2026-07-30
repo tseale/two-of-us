@@ -157,6 +157,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             startSharedEngine()
         }
         resyncScheduleRecordsIfNeeded()
+        await repairMyIdentityIfDangling()
         // Parked saves (engine down, zone unknown, schema-rejected) get another
         // send attempt whenever sync (re)starts — not only on the first engine
         // build of the process, or a mid-session schema deploy would need a
@@ -168,6 +169,24 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             if sharedZoneID != nil { drainPendingSharedChanges() }
         }
         drainExtensionQueue()
+    }
+
+    /// Self-heal for a dangling local identity. `myParticipantID` can point at
+    /// a row that no longer exists (hard-deleted by an old build's purge, store
+    /// quarantine, interrupted join) — and since writes now REFUSE rather than
+    /// guess when identity is ambiguous, a dangling id must repair itself or
+    /// the user is stuck unable to log. The iCloud user record name is the
+    /// ground truth: if an active participant carries it, that row is "me".
+    private func repairMyIdentityIfDangling() async {
+        guard !LocalPrefs.shared.demoModeEnabled else { return }
+        if let myID = LocalPrefs.shared.myParticipantID,
+           Participant.fetchByID(myID, in: context)?.isActive == true { return }
+        guard let recordName = (try? await SyncConstants.container.userRecordID())?.recordName else { return }
+        let all = (try? context.fetch(FetchDescriptor<Participant>())) ?? []
+        guard let mine = all.first(where: { $0.isActive && $0.cloudUserID == recordName }) else { return }
+        guard LocalPrefs.shared.myParticipantID != mine.id else { return }
+        AppLog.sync.log("Repaired dangling local identity → participant \(mine.id, privacy: .public)")
+        LocalPrefs.shared.myParticipantID = mine.id
     }
 
     /// One-time re-enqueue of every schedule record. The nighttime schedule
@@ -374,6 +393,17 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             return
         }
         if !me.isActive {
+            // If our row was merged AWAY (auto-merge after a re-join), the same
+            // iCloud account already has a live survivor — adopt it. Reactivating
+            // the tombstone would re-mint the duplicate People row the merge
+            // just collapsed, on both phones.
+            if let cid = me.cloudUserID,
+               let survivor = ((try? context.fetch(FetchDescriptor<Participant>())) ?? [])
+                   .first(where: { $0.isActive && $0.cloudUserID == cid && $0.id != me.id }) {
+                LocalPrefs.shared.myParticipantID = survivor.id
+                AppLog.sync.log("Re-accept adopted surviving participant identity \(survivor.id, privacy: .public) instead of reactivating a merged-away row")
+                return
+            }
             me.isActive = true
             try? context.save()
             enqueueSave([me.id])
@@ -694,10 +724,20 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             // A fetched copy must not clobber a local edit still waiting in the
             // send queue: for those records keep the local content, adopt the
             // server's change tag (and terminal fields), and let the pending
-            // save push our version.
-            let pendingSaves = Set(syncEngine.state.pendingRecordZoneChanges.compactMap {
+            // save push our version. "Waiting to send" includes the UserDefaults
+            // HOLD queues, not just the engine's own queue — a ghost sweep that
+            // ran while the engine was down (or the shared zone unknown) parked
+            // its soft-deletes there, and a fetch of the still-live server copy
+            // must not resurrect the rows it tombstoned.
+            var pendingSaves = Set(syncEngine.state.pendingRecordZoneChanges.compactMap {
                 if case .saveRecord(let id) = $0 { id } else { nil }
             })
+            let heldKey = syncEngine === sharedEngine ? Keys.pendingSharedSaves : Keys.pendingPrivateSaves
+            let heldNames = Set(UserDefaults.standard.stringArray(forKey: heldKey) ?? [])
+            if !heldNames.isEmpty {
+                pendingSaves.formUnion(e.modifications.map(\.record.recordID)
+                    .filter { heldNames.contains($0.recordName) })
+            }
             do {
                 for mod in e.modifications {
                     if pendingSaves.contains(mod.record.recordID) {
@@ -750,6 +790,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             }
             sweepGhostsIfNeeded(from: e.modifications.map(\.record))
             mergeDuplicateParticipantsIfNeeded(from: e.modifications.map(\.record))
+            healUnnamedEventsIfNeeded(from: e.modifications.map(\.record))
             reconcileLiveActivity()
             WidgetCenter.shared.reloadAllTimelines()
             notifyCoParentActivity(from: e.modifications.map(\.record))
@@ -806,10 +847,29 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
                 }
 
             case .unknownItem:
-                // The record vanished server-side (e.g. zone recreated): drop the
-                // stale change tag and re-upload as a fresh create.
-                RecordMapping.clearSystemFields(forRecordName: recordID.recordName, in: context)
-                reenqueueSaves.append(.saveRecord(recordID))
+                // The record vanished server-side. Two very different causes:
+                // the zone was recreated (re-upload EVERYTHING as fresh creates —
+                // the recovery path), or the other parent hard-deleted exactly
+                // this record. Participant rows are the only app records that
+                // are ever hard-deleted (the ghost-participant purge), so a
+                // Participant hitting unknownItem outside a zone recovery means
+                // the co-parent purged it — re-creating it would resurrect the
+                // ghost row on both phones AND re-immunize any ghost events
+                // attributed to it against the sweep. Adopt the deletion instead.
+                if failed.record.recordType == SyncConstants.RecordType.participant,
+                   !handledPrivateZoneDeletion || syncEngine === sharedEngine,
+                   // The "not my own row" check below reads the real identity —
+                   // demo overrides it, so never adopt deletions mid-demo.
+                   !LocalPrefs.shared.demoModeEnabled,
+                   let uuid = UUID(uuidString: recordID.recordName),
+                   let purged = Participant.fetchByID(uuid, in: context),
+                   purged.id != LocalPrefs.shared.myParticipantID {
+                    AppLog.sync.log("Participant \(recordID.recordName, privacy: .public) was deleted server-side — adopting the deletion instead of re-creating")
+                    context.delete(purged)
+                } else {
+                    RecordMapping.clearSystemFields(forRecordName: recordID.recordName, in: context)
+                    reenqueueSaves.append(.saveRecord(recordID))
+                }
 
             case .permissionFailure:
                 if syncEngine === sharedEngine { detach = true }
@@ -861,7 +921,14 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             eventTypes.contains(r.recordType)
                 && ((r["loggedByName"] as? String)?.isEmpty ?? true)
         }
-        guard sawGhost else { return }
+        // A live open sleep arriving from the co-parent can collide with one
+        // started here (each phone's single-timer guard is local-only) — the
+        // sweep also collapses concurrent open sleeps, so run it for those.
+        let sawOpenSleep = records.contains { r in
+            r.recordType == SyncConstants.RecordType.sleep
+                && r["endedAt"] == nil && r["deletedAt"] == nil
+        }
+        guard sawGhost || sawOpenSleep else { return }
         EventStore(context: context).autoPurgeGhostEvents()
     }
 
@@ -881,6 +948,54 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         AppLog.sync.log("Merged duplicate participant rows (\(changed.count) records touched)")
         do { try context.save() } catch {
             AppLog.sync.error("Participant merge failed to save: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        enqueueSave(changed)
+    }
+
+    /// Backfills the denormalized logger name/color onto events that carry a
+    /// KNOWN participant id but an empty name (records written by an older
+    /// build, or a partial upload). Without this they render as silhouette
+    /// "ghost" rows forever: the auto-sweep refuses to touch them (the id is
+    /// known, so they're real), and the display trusts the denormalized name.
+    /// Gated to batches that carried an event or participant record; synced so
+    /// the zone and the co-parent heal too.
+    private func healUnnamedEventsIfNeeded(from records: [CKRecord]) {
+        guard !LocalPrefs.shared.demoModeEnabled else { return }
+        // Only pay the table scans when the batch could have changed anything:
+        // an event record arriving WITHOUT a name, or a participant record
+        // (whose arrival may newly resolve previously unnamed events).
+        let eventTypes = [SyncConstants.RecordType.feed, SyncConstants.RecordType.sleep,
+                          SyncConstants.RecordType.diaper]
+        let relevant = records.contains { r in
+            r.recordType == SyncConstants.RecordType.participant
+                || (eventTypes.contains(r.recordType)
+                    && ((r["loggedByName"] as? String)?.isEmpty ?? true))
+        }
+        guard relevant else { return }
+
+        let named = ((try? context.fetch(FetchDescriptor<Participant>())) ?? [])
+            .filter { !$0.displayName.isEmpty }
+        guard !named.isEmpty else { return }
+        let byID = Dictionary(named.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+
+        var changed: [UUID] = []
+        func heal<T: PersistentModel & AnyEventModel & HasSyncID>(_ type: T.Type) {
+            let all = (try? context.fetch(FetchDescriptor<T>())) ?? []
+            for e in all where e.loggedByName.isEmpty {
+                guard let p = byID[e.loggedByID] else { continue }
+                e.loggedByName = p.displayName
+                e.loggedByColorHex = p.colorHex
+                changed.append(e.id)
+            }
+        }
+        heal(FeedEvent.self)
+        heal(SleepEvent.self)
+        heal(DiaperEvent.self)
+        guard !changed.isEmpty else { return }
+        AppLog.sync.log("Backfilled logger identity onto \(changed.count) unnamed event(s)")
+        do { try context.save() } catch {
+            AppLog.sync.error("Unnamed-event heal failed to save: \(error.localizedDescription, privacy: .public)")
             return
         }
         enqueueSave(changed)
@@ -1201,14 +1316,38 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         case .purgeRecordOnly:
             // No share member corresponds to this record: a ghost participant
             // (a leaked dev-fixture record that was never on the share) or
-            // someone who already left. The share needs no change — delete the
-            // record itself, synced, so the row disappears on every device.
-            // Events keep their denormalized logger name/color.
+            // someone who already left. The share needs no change. HARD-delete
+            // only when no events reference the row — orphaning real history
+            // turns it into "unknown entries" that the manual purge would then
+            // destroy on both phones, and strands the timeline attribution.
+            // A row with history deactivates instead (same end state as a
+            // removed share member: hidden from People, events keep their name).
             let id = participant.id
-            context.delete(participant)
-            try? context.save()
-            enqueueDelete([id])
+            if participantHasEvents(id) {
+                participant.isActive = false
+                try? context.save()
+                enqueueSave([id])
+            } else {
+                context.delete(participant)
+                try? context.save()
+                enqueueDelete([id])
+            }
         }
+    }
+
+    /// Whether any event row (live or soft-deleted) is attributed to this
+    /// participant — the guard between "safe to hard-delete" and "must keep the
+    /// row so history stays attributed".
+    private func participantHasEvents(_ id: UUID) -> Bool {
+        var feed = FetchDescriptor<FeedEvent>(predicate: #Predicate { $0.loggedByID == id })
+        feed.fetchLimit = 1
+        if ((try? context.fetchCount(feed)) ?? 0) > 0 { return true }
+        var sleep = FetchDescriptor<SleepEvent>(predicate: #Predicate { $0.loggedByID == id })
+        sleep.fetchLimit = 1
+        if ((try? context.fetchCount(sleep)) ?? 0) > 0 { return true }
+        var diaper = FetchDescriptor<DiaperEvent>(predicate: #Predicate { $0.loggedByID == id })
+        diaper.fetchLimit = 1
+        return ((try? context.fetchCount(diaper)) ?? 0) > 0
     }
 
     /// Which action removing a participant should take — pure so the ghost /
@@ -1589,8 +1728,31 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     }
 
     private func stateURL(_ scope: CKDatabase.Scope) -> URL {
+        Self.stateFileURL(scope)
+    }
+
+    private nonisolated static func stateFileURL(_ scope: CKDatabase.Scope) -> URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return dir.appendingPathComponent("sync-state-\(scope == .shared ? "shared" : "private").data")
+    }
+
+    /// The local store was destroyed and replaced (quarantine of an unreadable
+    /// SQLite file — see `AppModelContainer.make`). Every piece of persisted
+    /// sync state describes the DEAD store, so it must die with it:
+    /// - the engine fetch tokens claim "fully caught up", which would stop the
+    ///   fresh empty store from ever re-downloading the family's history — the
+    ///   owner would land back in onboarding and mint a duplicate
+    ///   Baby/Participant into the still-populated zone;
+    /// - the bootstrap flag claims "already uploaded", suppressing the
+    ///   reconcile that re-links the recovered rows.
+    /// The hold queues stay: their ids' models are gone, and the send path
+    /// drops confirmed-absent records safely. Static (and nonisolated) because
+    /// it runs during container creation, before any SyncManager exists.
+    nonisolated static func resetPersistedSyncStateForStoreLoss() {
+        try? FileManager.default.removeItem(at: stateFileURL(.private))
+        try? FileManager.default.removeItem(at: stateFileURL(.shared))
+        UserDefaults.standard.removeObject(forKey: Keys.bootstrapPrivate)
+        UserDefaults.standard.removeObject(forKey: Keys.knownRecordTypes)
     }
 
     private func loadState(_ scope: CKDatabase.Scope) -> CKSyncEngine.State.Serialization? {
@@ -1599,6 +1761,10 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     }
 
     private func saveState(_ state: CKSyncEngine.State.Serialization, scope: CKDatabase.Scope) {
+        // A throwaway in-memory fallback session must never advance the ON-DISK
+        // fetch token: records fetched into a store that evaporates at exit
+        // would otherwise never be re-delivered to the healed real store.
+        guard !AppModelContainer.isEphemeralFallback else { return }
         guard let data = try? JSONEncoder().encode(state) else { return }
         let url = stateURL(scope)
         // iOS doesn't create Application Support automatically — today SwiftData's

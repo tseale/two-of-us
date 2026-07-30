@@ -208,6 +208,45 @@ final class QuickLoggerTests: XCTestCase {
         XCTAssertNil(logger.activeSleep)
     }
 
+    func testRapidDuplicateTapsAreAbsorbed() throws {
+        // Widget/Control Center buttons and notification actions have no dialog
+        // — a mashed button or a retried intent delivers the same write twice.
+        // Inside the idempotency window the second write returns the first row.
+        let first = try XCTUnwrap(logger.logFeed(amountOz: 3))
+        let second = try XCTUnwrap(logger.logFeed(amountOz: 3))
+        XCTAssertEqual(first.id, second.id, "an identical re-tap must not mint a second feed")
+        XCTAssertEqual(try container.mainContext.fetch(FetchDescriptor<FeedEvent>()).count, 1)
+
+        let firstDiaper = try XCTUnwrap(logger.logDiaper(.wet))
+        let secondDiaper = try XCTUnwrap(logger.logDiaper(.wet))
+        XCTAssertEqual(firstDiaper.id, secondDiaper.id)
+        XCTAssertEqual(try container.mainContext.fetch(FetchDescriptor<DiaperEvent>()).count, 1)
+    }
+
+    func testDifferentAmountsAreNotDeduplicated() throws {
+        // Only IDENTICAL writes inside the window are treated as re-taps — a
+        // deliberate second bottle with a different amount logs normally.
+        let first = try XCTUnwrap(logger.logFeed(amountOz: 3))
+        let second = try XCTUnwrap(logger.logFeed(amountOz: 4))
+        XCTAssertNotEqual(first.id, second.id)
+        XCTAssertEqual(try container.mainContext.fetch(FetchDescriptor<FeedEvent>()).count, 2)
+    }
+
+    func testOwnerFallbackRefusesWhenTwoParentsAreActive() throws {
+        // A fresh container the stored identity can't match, holding TWO active
+        // participants: guessing would attribute the log to the co-parent on
+        // both phones — the write must refuse instead.
+        let fresh = AppModelContainer.make(inMemory: true)
+        let ctx = fresh.mainContext
+        ctx.insert(Baby(name: "Miller", dateOfBirth: .now))
+        ctx.insert(Participant(displayName: "Taylor", colorHex: "#AABBCC"))
+        ctx.insert(Participant(displayName: "Katie", colorHex: "#334455"))
+        try ctx.save()
+
+        XCTAssertNil(QuickLogger(context: ModelContext(fresh)).logFeed(amountOz: 3))
+        XCTAssertTrue(try ctx.fetch(FetchDescriptor<FeedEvent>()).isEmpty)
+    }
+
     func testZeroOunceFeedIsRefused() throws {
         XCTAssertNil(logger.logFeed(amountOz: 0), "a 0 oz bottle is never a real feed")
         XCTAssertNil(logger.logFeed(amountOz: -1))

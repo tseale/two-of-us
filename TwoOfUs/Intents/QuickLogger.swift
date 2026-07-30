@@ -24,12 +24,16 @@ struct QuickLogger {
     static func make() -> QuickLogger? {
         let schema = Schema(versionedSchema: SchemaV1.self)
         let config: ModelConfiguration
+        // `cloudKitDatabase: .none` is required, not hygiene: this code also runs
+        // in the APP process (reminder re-arming), whose iCloud entitlement would
+        // otherwise flip the default `.automatic` into SwiftData's own CloudKit
+        // mirroring — a second sync system fighting CKSyncEngine over one store.
         if let storeURL = AppGroup.storeURL {
-            config = ModelConfiguration(schema: schema, url: storeURL)
+            config = ModelConfiguration(schema: schema, url: storeURL, cloudKitDatabase: .none)
         } else {
             // Fallback (Simulator without the App Group entitlement): cannot
             // actually share with the app, but keeps the intent functional.
-            config = ModelConfiguration(schema: schema)
+            config = ModelConfiguration(schema: schema, cloudKitDatabase: .none)
         }
         guard let container = try? ModelContainer(for: schema, configurations: [config]) else {
             return nil
@@ -55,8 +59,11 @@ struct QuickLogger {
     /// The local user ("me"), resolved via the App Group-shared participant id so
     /// the extension stamps the same identity the app does. While demo mode is
     /// active the shared id is overridden with a demo-store id that matches
-    /// nothing here — the real identity lives in the demo backup. Falls back to
-    /// the first participant.
+    /// nothing here — the real identity lives in the demo backup. Mirrors
+    /// `EventStore.owner`: a merged-away row hands over to its survivor, and the
+    /// last-resort fallback fires only when UNAMBIGUOUS (exactly one active
+    /// participant) — guessing between two parents misattributes the log on both
+    /// phones, which is worse than the intent refusing.
     private var owner: Participant? {
         let group = AppGroup.userDefaults
         let storedID = group?.bool(forKey: "demo.overrideActive") == true
@@ -65,16 +72,20 @@ struct QuickLogger {
         if let s = storedID, let myID = UUID(uuidString: s) {
             var d = FetchDescriptor<Participant>(predicate: #Predicate { $0.id == myID })
             d.fetchLimit = 1
-            if let me = try? context.fetch(d).first { return me }
+            if let me = try? context.fetch(d).first {
+                if me.isActive { return me }
+                if let cid = me.cloudUserID,
+                   let survivor = ((try? context.fetch(FetchDescriptor<Participant>())) ?? [])
+                       .first(where: { $0.isActive && $0.cloudUserID == cid && $0.id != me.id }) {
+                    return survivor
+                }
+                return me
+            }
         }
-        // Fallback mirrors EventStore.owner: oldest ACTIVE participant, never a
-        // merged-away tombstone an unordered `.first` could land on.
-        var d = FetchDescriptor<Participant>(
-            predicate: #Predicate { $0.isActive },
-            sortBy: [SortDescriptor(\.invitedAt)]
-        )
-        d.fetchLimit = 1
-        return try? context.fetch(d).first
+        let active = (try? context.fetch(FetchDescriptor<Participant>(
+            predicate: #Predicate { $0.isActive }
+        ))) ?? []
+        return active.count == 1 ? active.first : nil
     }
 
     var babyName: String? { baby?.name }
@@ -226,6 +237,12 @@ struct QuickLogger {
     // failed — e.g. a 1am notification-action log on a locked phone. Refusing
     // is strictly better: the intent reports failure and nothing persists.
 
+    /// Idempotency window for the no-dialog surfaces (widget buttons, Control
+    /// Center, notification actions): a re-tap inside this window is the same
+    /// intent delivered twice (button mash, intent retry), not a second bottle —
+    /// it must not mint a second row. 15s is far below any real logging cadence.
+    static let duplicateWriteWindow: TimeInterval = 15
+
     @discardableResult
     func logFeed(amountOz: Double) -> FeedEvent? {
         guard isTrackingEnabled(.feed) else {
@@ -244,6 +261,11 @@ struct QuickLogger {
             return nil
         }
         let amountOz = min(amountOz, 32)
+        if let recent = lastFeed, recent.amountOz == amountOz,
+           Date.now.timeIntervalSince(recent.timestamp) < Self.duplicateWriteWindow {
+            Self.log.log("logFeed absorbed a duplicate tap (identical feed \(recent.timestamp, privacy: .public))")
+            return recent
+        }
         let event = FeedEvent(
             baby: baby, amountOz: amountOz, timestamp: .now,
             loggedByID: owner.id,
@@ -264,6 +286,11 @@ struct QuickLogger {
         guard let owner else {
             Self.log.error("logDiaper refused: no participant to attribute the event to")
             return nil
+        }
+        if let recent = lastDiaper, recent.type == type,
+           Date.now.timeIntervalSince(recent.timestamp) < Self.duplicateWriteWindow {
+            Self.log.log("logDiaper absorbed a duplicate tap (identical diaper \(recent.timestamp, privacy: .public))")
+            return recent
         }
         let event = DiaperEvent(
             baby: baby, type: type, timestamp: .now,

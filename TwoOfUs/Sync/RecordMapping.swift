@@ -405,12 +405,25 @@ enum RecordMapping {
     }
 
     private static func applyParticipant(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
-        let m = try Participant.findByID(uuid, in: context)
-            ?? insert(Participant(displayName: "", colorHex: ""), id: uuid, in: context)
+        let m: Participant
+        if let existing = try Participant.findByID(uuid, in: context) {
+            m = existing
+        } else {
+            // Same placeholder rule as events: a junk record must not become a
+            // nameless local row — its id would count as a "known participant",
+            // immunizing any ghost events attributed to it against every sweep.
+            guard let name = r["displayName"] as? String, !name.isEmpty else {
+                skip(r, missing: "displayName"); return
+            }
+            m = insert(Participant(displayName: name, colorHex: ""), id: uuid, in: context)
+        }
         m.displayName = r["displayName"] as? String ?? m.displayName
         m.colorHex = r["colorHex"] as? String ?? m.colorHex
         m.roleRaw = r["roleRaw"] as? String ?? m.roleRaw
-        m.cloudUserID = r["cloudUserID"] as? String
+        // Only adopt a PRESENT identity: an older build's record (or a sparse
+        // copy) carries no cloudUserID field, and nil-ing a locally captured one
+        // permanently disarms the duplicate-participant auto-merge.
+        if let cid = r["cloudUserID"] as? String { m.cloudUserID = cid }
         m.isActive = (r["isActive"] as? Int ?? 1) != 0
         m.invitedAt = r["invitedAt"] as? Date ?? m.invitedAt
         if let resolved = inboundPhoto(r["photoData"]) { m.photoData = resolved }

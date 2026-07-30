@@ -13,6 +13,15 @@ struct DayTimelineRow: View {
     /// The logger's avatar photo, resolved by the caller from `entry.loggedByID`.
     /// Nil falls back to the colored-monogram badge (same look as before).
     var loggedByPhoto: Data? = nil
+    /// Display-name fallback for events whose DENORMALIZED name is empty (older
+    /// builds' records, pre-heal). Callers resolve it from `entry.loggedByID`
+    /// against the participants they already query — a known logger must render
+    /// as themselves, never as the silhouette "ghost" badge.
+    var loggedByNameFallback: String? = nil
+
+    private var loggedByName: String {
+        entry.loggedByName.isEmpty ? (loggedByNameFallback ?? "") : entry.loggedByName
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -39,7 +48,7 @@ struct DayTimelineRow: View {
                 Spacer(minLength: 8)
                 // Shows the parent's profile photo when they have one, else the
                 // colored initial — same monogram fallback as `ParticipantBadge`.
-                Avatar(photoData: loggedByPhoto, name: entry.loggedByName,
+                Avatar(photoData: loggedByPhoto, name: loggedByName,
                        colorHex: entry.loggedByColorHex, size: 24)
             }
         }
@@ -57,7 +66,7 @@ struct DayTimelineRow: View {
     }
 
     private var accessibilityLabel: String {
-        var label = "\(entry.title), \(TimeFormatting.clock(entry.sortDate)), logged by \(entry.loggedByName)"
+        var label = "\(entry.title), \(TimeFormatting.clock(entry.sortDate)), logged by \(loggedByName)"
         if let note = entry.notes, !note.isEmpty { label += ", note: \(note)" }
         return label
     }

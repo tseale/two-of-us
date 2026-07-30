@@ -22,7 +22,9 @@ struct EditEventSheet: View {
         switch entry {
         case .feed(let e):
             _date = State(initialValue: e.timestamp)
-            _amount = State(initialValue: e.amountOz)
+            // Legacy zero-ounce rows open at the stepper's floor so saving the
+            // edit always produces a loggable amount.
+            _amount = State(initialValue: max(e.amountOz, 0.25))
             _diaperType = State(initialValue: .wet)
             _sleepStart = State(initialValue: e.timestamp)
             _sleepEnd = State(initialValue: e.timestamp)
@@ -49,12 +51,16 @@ struct EditEventSheet: View {
             Form {
                 switch entry {
                 case .feed:
-                    Section("Amount") {
-                        // Range matches the store's bounds and steps by 0.25 so a
-                        // 0.25 oz value (older data / NL parse) isn't clamped on edit.
-                        Stepper(value: $amount, in: EventBounds.ozRange, step: 0.25) {
+                    Section {
+                        // Lower bound 0.25, not 0: stepping down to "0 oz" and
+                        // saving minted an attributed zero-ounce ghost row that
+                        // no sweep could remove. Steps by 0.25 so a 0.25 oz
+                        // value (older data / NL parse) isn't clamped on edit.
+                        Stepper(value: $amount, in: 0.25...EventBounds.ozRange.upperBound, step: 0.25) {
                             Text("\(OzFormat.string(amount)) oz")
                         }
+                    } header: {
+                        Text("Amount")
                     }
                     Section("Time") { TimeControl(date: $date) }
                 case .diaper:

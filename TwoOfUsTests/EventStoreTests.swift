@@ -294,4 +294,90 @@ final class EventStoreTests: XCTestCase {
         XCTAssertNil(remaining.first?.deletedAt,
                      "the surviving real row is not soft-deleted — a synced delete would kill the co-parent's copy")
     }
+
+    func testEditFeedRefusesZeroOunces() throws {
+        // The edit sheet was the last path that could mint an attributed
+        // "Feed · 0 oz" row — a ghost shape no sweep can remove.
+        let original = try XCTUnwrap(store.logFeed(amountOz: 3))
+        let result = store.editFeed(original, amountOz: 0, timestamp: original.timestamp, notes: nil)
+
+        XCTAssertIdentical(result, original, "a zero-ounce edit is refused, returning the original")
+        XCTAssertNil(original.deletedAt, "the refused edit must not soft-delete the original")
+        XCTAssertEqual(try container.mainContext.fetch(FetchDescriptor<FeedEvent>()).count, 1,
+                       "no replacement row is created")
+    }
+
+    func testOwnerFallbackRefusesWhenTwoParentsAreActive() throws {
+        // With a dangling identity and TWO active participants, guessing would
+        // attribute this device's logs to the co-parent on both phones —
+        // refusal (with a banner) is the correct failure.
+        let ctx = container.mainContext
+        ctx.insert(Participant(displayName: "Katie", colorHex: "#334455"))
+        try ctx.save()
+
+        XCTAssertNil(store.owner, "ambiguous identity must not resolve")
+        XCTAssertNil(store.logFeed(amountOz: 3))
+        XCTAssertTrue(try ctx.fetch(FetchDescriptor<FeedEvent>()).isEmpty)
+    }
+
+    func testOwnerAdoptsSurvivorWhenStoredRowWasMergedAway() throws {
+        // The stored id points at a merged-away tombstone whose iCloud account
+        // has a live survivor — writes must attribute to the survivor, not the
+        // tombstone the People list no longer shows.
+        let ctx = container.mainContext
+        let tombstone = Participant(displayName: "Old Taylor", colorHex: "#000000",
+                                    isActive: false)
+        tombstone.cloudUserID = "_abc123"
+        ctx.insert(tombstone)
+        let survivor = try XCTUnwrap(ctx.fetch(FetchDescriptor<Participant>())
+            .first { $0.displayName == "Taylor" })
+        survivor.cloudUserID = "_abc123"
+        try ctx.save()
+        LocalPrefs.shared.myParticipantID = tombstone.id
+
+        let feed = try XCTUnwrap(store.logFeed(amountOz: 3))
+        XCTAssertEqual(feed.loggedByID, survivor.id,
+                       "attribution hands over to the surviving row for the same iCloud account")
+    }
+
+    func testAutoPurgeCollapsesConcurrentOpenSleeps() throws {
+        // Both phones can start a sleep before either sync lands (the
+        // single-timer guard is local-only) — one baby can't sleep twice, so
+        // the sweep keeps the earliest start and soft-deletes the rest.
+        let ctx = container.mainContext
+        let baby = try XCTUnwrap(ctx.fetch(FetchDescriptor<Baby>()).first)
+        let me = try XCTUnwrap(store.owner)
+        let first = SleepEvent(baby: baby, startedAt: .now.addingTimeInterval(-600),
+                               loggedByID: me.id, loggedByName: me.displayName,
+                               loggedByColorHex: me.colorHex)
+        let second = SleepEvent(baby: baby, startedAt: .now.addingTimeInterval(-60),
+                                loggedByID: me.id, loggedByName: me.displayName,
+                                loggedByColorHex: me.colorHex)
+        ctx.insert(first)
+        ctx.insert(second)
+        try ctx.save()
+
+        XCTAssertEqual(store.autoPurgeGhostEvents(), 1)
+        XCTAssertNil(first.deletedAt, "the earliest start survives")
+        XCTAssertNotNil(second.deletedAt, "the concurrent duplicate is soft-deleted (synced)")
+        XCTAssertEqual(store.activeSleep?.id, first.id)
+    }
+
+    func testTimelineNeverShowsOneEventTwice() throws {
+        // Duplicate rows sharing an id can exist between sweeps — the timeline
+        // must render the event once regardless.
+        let ctx = container.mainContext
+        let baby = try XCTUnwrap(ctx.fetch(FetchDescriptor<Baby>()).first)
+        let me = try XCTUnwrap(store.owner)
+        let sharedID = UUID()
+        ctx.insert(FeedEvent(id: sharedID, baby: baby, amountOz: 3, timestamp: .now,
+                             loggedByID: me.id, loggedByName: me.displayName,
+                             loggedByColorHex: me.colorHex))
+        ctx.insert(FeedEvent(id: sharedID, baby: baby, amountOz: 3, timestamp: .now,
+                             loggedByID: me.id, loggedByName: me.displayName,
+                             loggedByColorHex: me.colorHex))
+        try ctx.save()
+
+        XCTAssertEqual(store.timeline(since: .distantPast).count, 1)
+    }
 }
