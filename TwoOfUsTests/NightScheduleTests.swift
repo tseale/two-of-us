@@ -3,10 +3,11 @@ import XCTest
 
 /// Pure-logic tests for `NightSchedule`, the dynamic nighttime feed schedule:
 /// window resolution (incl. the midnight wrap and the upcoming-night case),
-/// the projected anchor (chained from the last feed by the daytime interval),
-/// re-anchoring to a real in-window feed, the first-shift rotation, per-night
-/// overrides, fulfillment matching, and the day/waiting states. No store, no
-/// CloudKit — models are built standalone with a pinned calendar and `now`.
+/// the projected anchor (the last feed plus the night spacing, when that
+/// predicted bottle lands inside the window), re-anchoring to a real
+/// in-window feed, the first-shift rotation, per-night overrides, fulfillment
+/// matching, and the day/approaching/active states. No store, no CloudKit —
+/// models are built standalone with a pinned calendar and `now`.
 final class NightScheduleTests: XCTestCase {
     private var calendar: Calendar = {
         var c = Calendar(identifier: .gregorian)
@@ -26,17 +27,17 @@ final class NightScheduleTests: XCTestCase {
         calendar.date(from: DateComponents(year: y, month: mo, day: d, hour: h, minute: mi))!
     }
 
-    /// Night 9pm–8am, day interval 3h, night spacing 4h, alternating with
-    /// Taylor on first shift — the user's worked example, unless overridden.
+    /// Night 9pm–8am, spacing 4h, alternating with Taylor on first shift —
+    /// the worked example, unless overridden.
     private func schedule(
         feeds: [FeedEvent] = [], overrides: [PlanOverride] = [], now: Date,
         startMinute: Int = 21 * 60, endMinute: Int = 8 * 60,
-        spacing: Int = 240, dayInterval: Int = 180,
+        spacing: Int = 240,
         rotation: NightRotation = .alternating, firstShiftID: UUID? = nil,
         parents: [NightSchedule.Parent]? = nil
     ) -> NightSchedule {
         NightSchedule(nightStartMinute: startMinute, nightEndMinute: endMinute,
-                      spacingMinutes: spacing, dayIntervalMinutes: dayInterval,
+                      spacingMinutes: spacing,
                       rotation: rotation, firstShiftID: firstShiftID,
                       parents: parents ?? self.parents, feeds: feeds,
                       overrides: overrides, calendar: calendar, now: now)
@@ -52,35 +53,50 @@ final class NightScheduleTests: XCTestCase {
 
     // MARK: The projected anchor
 
-    func testProjectionChainsFromLastFeedIntoTheWindow() {
-        // The spec example: fed 5:30pm, day interval 3h → 8:30pm is outside
-        // the 9pm–8am window, 11:30pm is inside → tonight runs 11:30, then by
-        // the 4h night spacing: 3:30, 7:30.
+    func testPredictionFromLastFeedAnchorsTheNight() {
+        // Fed 5:30pm, spacing 4h → 9:30pm lands inside the 9pm–8am window →
+        // tonight runs 9:30, then 1:30, 5:30.
         let feeds = [feed(at: date(2026, 7, 21, 17, 30))]
         let occs = schedule(feeds: feeds, now: date(2026, 7, 21, 22, 0)).occurrences()
 
         XCTAssertEqual(occs.map(\.date), [
-            date(2026, 7, 21, 23, 30), date(2026, 7, 22, 3, 30), date(2026, 7, 22, 7, 30),
+            date(2026, 7, 21, 21, 30), date(2026, 7, 22, 1, 30), date(2026, 7, 22, 5, 30),
         ])
-        XCTAssertEqual(occs[0].status, .upcoming, "the projected anchor hasn't happened yet")
+        XCTAssertEqual(occs[0].status, .overdue, "9:30 passed unfed by 10pm — say so")
         XCTAssertTrue(occs.allSatisfy { $0.source == .night && $0.kind == .feed })
     }
 
     func testProjectionVisibleBeforeTheWindowOpens() {
         // 7pm — the window hasn't opened, but the evening glance (and the slot
-        // alarm) should already see tonight starting at 11:30.
+        // alarm) should already see tonight starting at 9:30.
         let feeds = [feed(at: date(2026, 7, 21, 17, 30))]
         let occs = schedule(feeds: feeds, now: date(2026, 7, 21, 19, 0)).occurrences()
 
-        XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 23, 30))
+        XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 21, 30))
         XCTAssertTrue(occs.allSatisfy { $0.status == .upcoming })
     }
 
-    func testProjectionStepLandingExactlyOnWindowStartAnchorsThere() {
-        // Fed 6pm, every 3h → 9pm is exactly the window edge → night starts 9pm.
-        let feeds = [feed(at: date(2026, 7, 21, 18, 0))]
+    func testPredictionLandingExactlyOnWindowStartAnchorsThere() {
+        // Fed 5pm, every 4h → 9pm is exactly the window edge → night starts 9pm.
+        let feeds = [feed(at: date(2026, 7, 21, 17, 0))]
         let occs = schedule(feeds: feeds, now: date(2026, 7, 21, 21, 30)).occurrences()
         XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 21, 0))
+    }
+
+    func testReportedBugScenarioElevenPMWindow() {
+        // The live-app bug: window 11pm–8am, spacing 4h, last feed 7:45pm,
+        // now 9:41pm. The night must run 11:45pm → 3:45am → 7:45am — NOT
+        // anchor at 1:45am (the old day-interval chain 7:45 → 10:45 → 1:45).
+        let feeds = [feed(at: date(2026, 7, 28, 19, 45))]
+        let s = schedule(feeds: feeds, now: date(2026, 7, 28, 21, 41), startMinute: 23 * 60)
+
+        guard case .approaching(let occs) = s.state else {
+            return XCTFail("9:41pm with an 11:45pm night bottle predicted is the run-up to the night")
+        }
+        XCTAssertEqual(occs.map(\.date), [
+            date(2026, 7, 28, 23, 45), date(2026, 7, 29, 3, 45), date(2026, 7, 29, 7, 45),
+        ])
+        XCTAssertEqual(occs.map(\.assignedToName), ["Taylor", "Katie", "Taylor"])
     }
 
     func testRealInWindowFeedReplacesTheProjection() {
@@ -98,12 +114,12 @@ final class NightScheduleTests: XCTestCase {
 
     func testEveningFeedBeyondGraceShiftsTheProjection() {
         // A 7:30pm top-up — more than an hour before the 9pm window, so not a
-        // grace anchor — becomes the new chain start: 7:30 + 3h = 10:30 → the
-        // night moves with the baby's rhythm.
+        // grace anchor — becomes the new prediction base: 7:30 + 4h = 11:30 →
+        // the night moves with the baby's rhythm.
         let feeds = [feed(at: date(2026, 7, 21, 17, 30)),
                      feed(at: date(2026, 7, 21, 19, 30))]
         let occs = schedule(feeds: feeds, now: date(2026, 7, 21, 22, 0)).occurrences()
-        XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 22, 30))
+        XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 23, 30))
     }
 
     func testDeletedFeedsCannotAnchorOrProject() {
@@ -115,11 +131,12 @@ final class NightScheduleTests: XCTestCase {
         XCTAssertEqual(occs.first?.status, .overdue)
     }
 
-    func testGarbageDayIntervalFallsBackToWindowStart() {
-        let feeds = [feed(at: date(2026, 7, 21, 17, 30))]
-        let occs = schedule(feeds: feeds, now: date(2026, 7, 21, 22, 0), dayInterval: 5).occurrences()
-        XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 21, 0),
-                       "a corrupt day interval must not loop the chain — default to the window start")
+    func testPredictionShortOfTheWindowFallsBackToWindowStart() {
+        // Fed 1pm → 5pm is hours before the window: no bottle predicts into
+        // the night, so its start is the default first feed.
+        let feeds = [feed(at: date(2026, 7, 21, 13, 0))]
+        let occs = schedule(feeds: feeds, now: date(2026, 7, 21, 22, 0)).occurrences()
+        XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 21, 0))
     }
 
     // MARK: The pre-window grace anchor
@@ -167,19 +184,17 @@ final class NightScheduleTests: XCTestCase {
         XCTAssertEqual(occs.first?.status, .overdue, "9pm passed unfed — say so")
     }
 
-    func testProjectionSkippingTheWindowDefaultsToWindowStart() {
-        // 11h40m interval from an 8:45am feed steps 8:25pm (before the
-        // window) then 8:05am (past its end) — the chain never lands inside,
-        // so the default takes over.
+    func testPredictionMissingTheWindowDefaultsToWindowStart() {
+        // Fed 8:45am → 12:45pm is nowhere near the window — the default
+        // takes over.
         let feeds = [feed(at: date(2026, 7, 21, 8, 45))]
-        let occs = schedule(feeds: feeds, now: date(2026, 7, 21, 22, 0),
-                            dayInterval: 700).occurrences()
+        let occs = schedule(feeds: feeds, now: date(2026, 7, 21, 22, 0)).occurrences()
         XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 21, 0))
     }
 
     func testSlotsStopAtWindowEnd() {
-        // Anchor 11:30, 4h spacing in a night ending 8am → 11:30, 3:30, 7:30;
-        // 11:30am is out.
+        // Anchor 9:30, 4h spacing in a night ending 8am → 9:30, 1:30, 5:30;
+        // 9:30am is out.
         let feeds = [feed(at: date(2026, 7, 21, 17, 30))]
         let occs = schedule(feeds: feeds, now: date(2026, 7, 21, 22, 0)).occurrences()
         XCTAssertEqual(occs.count, 3)
@@ -195,6 +210,41 @@ final class NightScheduleTests: XCTestCase {
 
     func testDaytimeIsDayState() {
         XCTAssertEqual(schedule(now: date(2026, 7, 21, 14, 0)).state, .day)
+    }
+
+    func testDaytimeWithStaleFeedIsStillDay() {
+        // Fed 9am, now 2pm: 1pm predicted long past, nothing points at the
+        // night yet — the Tonight card stays down.
+        let feeds = [feed(at: date(2026, 7, 21, 9, 0))]
+        XCTAssertEqual(schedule(feeds: feeds, now: date(2026, 7, 21, 14, 0)).state, .day)
+    }
+
+    func testEveningPredictionIntoTheWindowIsApproaching() {
+        // Fed 5:30pm → 9:30pm is a night bottle. From that moment the run-up
+        // is on: the Tonight card should already be up at 6pm, well before
+        // the 8pm grace hour.
+        let feeds = [feed(at: date(2026, 7, 21, 17, 30))]
+        guard case .approaching(let occs) =
+            schedule(feeds: feeds, now: date(2026, 7, 21, 18, 0)).state else {
+            return XCTFail("a predicted night bottle means the night is approaching")
+        }
+        XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 21, 30))
+    }
+
+    func testGraceHourIsApproachingEvenWithNoFeeds() {
+        // 8:30pm, nothing logged: inside the grace hour before the 9pm window
+        // the card comes up with the window-start default.
+        guard case .approaching(let occs) = schedule(now: date(2026, 7, 21, 20, 30)).state else {
+            return XCTFail("the grace hour is the night's run-up")
+        }
+        XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 21, 0))
+    }
+
+    func testEveningBeforeGraceWithNoPredictionIsDay() {
+        // 7pm, last fed 1pm: the prediction (5pm) misses the window and the
+        // grace hour hasn't started — still daytime.
+        let feeds = [feed(at: date(2026, 7, 21, 13, 0))]
+        XCTAssertEqual(schedule(feeds: feeds, now: date(2026, 7, 21, 19, 0)).state, .day)
     }
 
     func testInWindowIsAlwaysActiveEvenWithNoFeeds() {

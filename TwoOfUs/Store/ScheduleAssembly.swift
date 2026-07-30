@@ -16,7 +16,6 @@ extension NightSchedule {
             nightStartMinute: settings.nightStartMinute,
             nightEndMinute: settings.nightEndMinute,
             spacingMinutes: settings.nightFeedSpacingMinutes,
-            dayIntervalMinutes: settings.targetFeedIntervalMinutes,
             rotation: settings.nightRotation,
             firstShiftID: settings.nightFirstShiftID,
             parents: participants

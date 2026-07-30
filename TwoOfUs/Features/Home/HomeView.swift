@@ -54,8 +54,10 @@ struct HomeView: View {
         SnooFeature.isEnabled && !prefs.demoModeEnabled
             && isTracked(.sleep) && !snoo.suggestions.isEmpty
     }
-    private func targetFeed(now: Date) -> TimeInterval {
-        settingsList.first?.feedInterval(at: now) ?? TimeInterval(180 * 60)
+    /// Interval driving the next-bottle prediction: night spacing when the
+    /// bottle after `last` lands in the night window, else the daytime target.
+    private func targetFeed(after last: Date) -> TimeInterval {
+        settingsList.first?.feedInterval(after: last) ?? TimeInterval(180 * 60)
     }
 
     var body: some View {
@@ -87,14 +89,16 @@ struct HomeView: View {
                             // Inside the ticking TimelineView so the rows stay
                             // honest on a phone left open overnight: 11pm passing
                             // greys the 11pm row and surfaces the 3am one without
-                            // needing a log or sync to trigger a render. During
-                            // the night window the glance grows into the full
-                            // "Tonight" card — built dynamically from tonight's
-                            // first (logged or projected) feed, defaulting to
-                            // the window's start, so a night in progress always
+                            // needing a log or sync to trigger a render. The
+                            // "Tonight" card appears while the night window is
+                            // open AND in the run-up to it (once the next bottle
+                            // is already a night bottle, or within the grace
+                            // hour) — built dynamically from tonight's first
+                            // (logged or projected) feed, defaulting to the
+                            // window's start, so a night in progress always
                             // has a schedule; daytime keeps the one-line up-next.
                             switch nightState(now: ctx.date) {
-                            case .active:
+                            case .active, .approaching:
                                 let tonight = tonightOccurrences(now: ctx.date)
                                 if !tonight.isEmpty {
                                     tonightCard(tonight, now: ctx.date)
@@ -306,7 +310,9 @@ struct HomeView: View {
 
     private func logButtons(now: Date) -> some View {
         LogButtons(
-            feedStatus: tileStatus(since: feeds.first?.timestamp, now: now, target: targetFeed(now: now)),
+            feedStatus: feeds.first.flatMap {
+                tileStatus(since: $0.timestamp, now: now, target: targetFeed(after: $0.timestamp))
+            },
             sleepStatus: activeSleep == nil
                 ? tileStatus(since: lastSleepEnd, now: now, target: UrgencyDefaults.sleep) : nil,
             diaperStatus: tileStatus(since: diapers.first?.timestamp, now: now, target: UrgencyDefaults.diaper),
@@ -331,14 +337,14 @@ struct HomeView: View {
     private func feedReminderArmed(now: Date) -> Bool {
         guard prefs.feedReminderEnabled, FeedAlarmManager.isAuthorized,
               let last = feeds.first?.timestamp else { return false }
-        return last.addingTimeInterval(targetFeed(now: now)) > now
+        return last.addingTimeInterval(targetFeed(after: last)) > now
     }
 
     /// The Feed tile says what's next, not just what happened: the projected
     /// next-bottle time, from the same target-interval math as the reminders.
     private func feedHint(now: Date) -> String {
         guard let last = feeds.first?.timestamp else { return "log a bottle" }
-        let next = last.addingTimeInterval(targetFeed(now: now))
+        let next = last.addingTimeInterval(targetFeed(after: last))
         return next < now
             ? "bottle was due ~\(TimeFormatting.clock(next))"
             : "next bottle ~\(TimeFormatting.clock(next))"
@@ -367,8 +373,8 @@ struct HomeView: View {
     // MARK: Tonight (nighttime schedule card)
 
     /// Where tonight stands: nil before setup (no settings row yet), else the
-    /// dynamic engine's read — day, waiting for the anchoring first feed, or
-    /// active with the constructed schedule.
+    /// dynamic engine's read — day, approaching (the run-up to the window),
+    /// or active with the constructed schedule.
     private func nightState(now: Date) -> NightSchedule.State? {
         guard let s = settingsList.first, isTracked(.feed) || !sleepSlots.isEmpty else { return nil }
         return NightSchedule(settings: s, participants: participants, feeds: feeds,
@@ -393,21 +399,19 @@ struct HomeView: View {
         var merged = isTracked(.feed)
             ? night.occurrences().filter { $0.status != .skipped }
             : []
-        if !sleepSlots.isEmpty, isTracked(.sleep) {
-            let c = Calendar.current.dateComponents([.hour, .minute], from: now)
-            let nowMinute = (c.hour ?? 0) * 60 + (c.minute ?? 0)
-            let sinceNightStart = TimeInterval(((nowMinute - s.nightStartMinute + 1440) % 1440) * 60)
-            let untilNightEnd = TimeInterval(((s.nightEndMinute - nowMinute + 1440) % 1440) * 60)
+        // Sleep slots come from TONIGHT's window bounds (the one the feed
+        // schedule speaks for), not minute-of-day arithmetic — during the
+        // run-up to the window, "time since night start" would otherwise
+        // reach back into LAST night and drag its stale slots onto the card.
+        if !sleepSlots.isEmpty, isTracked(.sleep), let window = night.relevantWindow {
+            let lookback = max(0, now.timeIntervalSince(window.start))
+            let horizon = max(0, window.end.timeIntervalSince(now))
             let engine = ScheduleEngine(slots: sleepSlots, overrides: planOverrides,
                                         feeds: feeds, sleeps: sleeps, now: now)
-            merged += engine.occurrences(lookback: sinceNightStart, horizon: untilNightEnd)
+            merged += engine.occurrences(lookback: lookback, horizon: horizon)
                 .filter { occ in
                     occ.status != .skipped
-                        && NightScheduleGenerator.isWithinNight(
-                            minuteOfDay: minuteOfDay(occ.date),
-                            nightStartMinute: s.nightStartMinute,
-                            nightEndMinute: s.nightEndMinute
-                        )
+                        && occ.date >= window.start && occ.date <= window.end
                 }
         }
         return merged.sorted { $0.date < $1.date }
@@ -512,11 +516,6 @@ struct HomeView: View {
         let window = "\(NightScheduleSettingsSheet.clock(minuteOfDay: s.nightStartMinute))"
             + "–\(NightScheduleSettingsSheet.clock(minuteOfDay: s.nightEndMinute))"
         return (interval, window)
-    }
-
-    private func minuteOfDay(_ date: Date) -> Int {
-        let c = Calendar.current.dateComponents([.hour, .minute], from: date)
-        return (c.hour ?? 0) * 60 + (c.minute ?? 0)
     }
 
     // MARK: Up next (schedule glance)
@@ -703,7 +702,7 @@ struct HomeView: View {
     /// What the reminder would say right now, for the just-in-time offer.
     private var reminderContextLine: String? {
         guard let last = feeds.first?.timestamp else { return nil }
-        return "Next bottle around \(TimeFormatting.clock(last.addingTimeInterval(targetFeed(now: .now))))"
+        return "Next bottle around \(TimeFormatting.clock(last.addingTimeInterval(targetFeed(after: last))))"
     }
 
     /// The contextual moments that follow a feed log: the rhythm spotlight plays

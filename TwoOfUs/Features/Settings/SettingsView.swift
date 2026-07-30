@@ -649,9 +649,10 @@ struct SettingsView: View {
         // Enabling reminders here (not via the primer quest) still finishes the
         // reminders setup quest — durably, so a later toggle-off won't reopen it.
         SetupProgress.shared.markComplete(.reminders)
+        let lastFeed = lastFeedDate()
         await FeedAlarmManager.reschedule(babyName: baby?.name ?? "Baby",
-                                          lastFeed: lastFeedDate(),
-                                          interval: settings?.feedInterval() ?? 0)
+                                          lastFeed: lastFeed,
+                                          interval: lastFeed.flatMap { settings?.feedInterval(after: $0) } ?? 0)
         NotificationManager.refreshScheduledReminders()      // stand the gentle feed nudge down
     }
 
@@ -666,9 +667,10 @@ struct SettingsView: View {
             }
         }
         await SlotAlarmManager.reschedule()   // arms when enabled, clears when not
+        let lastFeed = lastFeedDate()
         await FeedAlarmManager.reschedule(babyName: baby?.name ?? "Baby",
-                                          lastFeed: lastFeedDate(),
-                                          interval: settings?.feedInterval() ?? 0)
+                                          lastFeed: lastFeed,
+                                          interval: lastFeed.flatMap { settings?.feedInterval(after: $0) } ?? 0)
     }
 
     /// Requests notification authorization (once) and re-applies the schedules

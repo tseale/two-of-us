@@ -19,7 +19,7 @@ struct FeedSheet: View {
 
     private var presets: [Double] { settingsList.first?.ozPresets ?? [2, 3, 4] }
     private var nextBottle: Date {
-        date.addingTimeInterval(settingsList.first?.feedInterval(at: date) ?? TimeInterval(180 * 60))
+        date.addingTimeInterval(settingsList.first?.feedInterval(after: date) ?? TimeInterval(180 * 60))
     }
     private var canLog: Bool { amount > 0 }
 

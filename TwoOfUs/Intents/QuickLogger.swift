@@ -120,13 +120,17 @@ struct QuickLogger {
         return try? context.fetch(d).first
     }
 
-    /// Feed interval that should drive reminders/predictions right now — night
-    /// spacing inside the nighttime window, else the daytime target, defaulting
-    /// to 3h when settings haven't synced yet. See `SharedSettings.feedInterval`,
-    /// the single source both live and background (widget/notification-extension)
-    /// contexts read. Used to re-arm the AlarmKit feed reminder on app foreground.
-    func feedInterval(now: Date = .now) -> TimeInterval {
-        settings?.feedInterval(at: now) ?? TimeInterval(180 * 60)
+    /// Feed interval that should drive reminders/predictions after the given
+    /// feed — night spacing when the bottle it predicts lands in the nighttime
+    /// window, else the daytime target, defaulting to 3h when settings haven't
+    /// synced yet (or when there's no feed to predict from). See
+    /// `SharedSettings.feedInterval(after:)`, the single source both live and
+    /// background (widget/notification-extension) contexts read. Used to re-arm
+    /// the AlarmKit feed reminder on app foreground.
+    func feedInterval(after lastFeed: Date?) -> TimeInterval {
+        guard let settings else { return TimeInterval(180 * 60) }
+        guard let lastFeed else { return TimeInterval(settings.targetFeedIntervalMinutes * 60) }
+        return settings.feedInterval(after: lastFeed)
     }
 
     /// This device's own participant id — the schedule-reminder planner filters
