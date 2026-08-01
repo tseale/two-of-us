@@ -94,14 +94,15 @@ struct EditEventSheet: View {
                 // Reassigning is common enough to live in the sheet: one parent
                 // logs what the other actually did (or fixes a ghost-attributed
                 // row). Hidden with a single participant — nothing to change.
+                // Same face-row look as the night-shift picker (SlotActionsSheet).
                 if activeParticipants.count > 1 {
                     Section("Logged by") {
-                        Picker("Logged by", selection: $loggedByID) {
+                        HStack(spacing: 12) {
                             ForEach(activeParticipants) { p in
-                                Text(p.displayName).tag(p.id)
+                                loggerButton(p)
                             }
                         }
-                        .pickerStyle(.segmented)
+                        .frame(maxWidth: .infinity)
                     }
                 }
 
@@ -155,6 +156,36 @@ struct EditEventSheet: View {
 
     private var activeParticipants: [Participant] {
         participants.filter(\.isActive).sorted { $0.invitedAt < $1.invitedAt }
+    }
+
+    /// One tappable face, ringed in the participant's color when selected —
+    /// visually identical to `SlotActionsSheet.personButton` so "pick a
+    /// parent" reads the same everywhere.
+    private func loggerButton(_ p: Participant) -> some View {
+        let selected = loggedByID == p.id
+        return Button {
+            loggedByID = p.id
+        } label: {
+            VStack(spacing: 6) {
+                Avatar(photoData: p.photoData, name: p.displayName, colorHex: p.colorHex, size: 56)
+                    .overlay {
+                        if selected {
+                            Circle().strokeBorder(Color(hex: p.colorHex), lineWidth: 3)
+                                .frame(width: 64, height: 64)
+                        }
+                    }
+                Text(p.displayName)
+                    .font(.caption.weight(selected ? .bold : .regular))
+                    .foregroundStyle(AppColor.text)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(selected
+            ? "Logged by \(p.displayName), selected"
+            : "Change logged by to \(p.displayName)")
     }
 
     /// The picked participant, only when it's an actual change — unchanged (or
