@@ -28,12 +28,16 @@ struct SleepActiveCard: View {
                     .foregroundStyle(AppColor.text)
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
-                Text("since \(TimeFormatting.clock(sleep.startedAt))")
-                    .font(.caption)
-                    .foregroundStyle(AppColor.text3)
+                HStack(spacing: 6) {
+                    Text("since \(TimeFormatting.clock(sleep.startedAt))")
+                        .font(.caption)
+                        .foregroundStyle(AppColor.text3)
+                    // Same tag as the timeline rows: this timer is the SNOO's.
+                    if sleep.isFromSnoo { SnooTag() }
+                }
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(babyName) is sleeping, \(elapsed), since \(TimeFormatting.clock(sleep.startedAt))")
+            .accessibilityLabel("\(babyName) is sleeping, \(elapsed), since \(TimeFormatting.clock(sleep.startedAt))\(sleep.isFromSnoo ? ", from SNOO" : "")")
 
             Button(action: {
                 onWake()

@@ -89,14 +89,20 @@ struct SnooSettingsSection: View {
     }
 }
 
-/// Connected-state detail: account line, Sync now, Sign out (§5).
+/// Connected-state detail: account line, auto-log mode, Sync now, Sign out (§5).
 struct SnooDetailView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @State private var coordinator = SnooSyncCoordinator.shared
     @State private var showSignOutConfirm = false
+    @Query private var settingsList: [SharedSettings]
 
     let email: String
+
+    /// The household connection blob — the auto-log flag lives inside it.
+    private var sharedCreds: SnooSharedCredentials? {
+        settingsList.first?.snooCredentials.flatMap(SnooSharedCredentials.init(json:))
+    }
 
     var body: some View {
         Form {
@@ -106,6 +112,15 @@ struct SnooDetailView: View {
                     LabeledContent("Last synced",
                                    value: last.formatted(.relative(presentation: .named)))
                 }
+            }
+
+            Section {
+                Toggle("Auto-log SNOO sleep", isOn: Binding(
+                    get: { sharedCreds?.autoLog ?? false },
+                    set: { setAutoLog($0) }
+                ))
+            } footer: {
+                Text("Starts the sleep timer when the SNOO starts a session and ends it when the SNOO stops — no cards to confirm, on every phone sharing this data. The SNOO is checked when the app opens, so a session lands the next time either of you checks in; times always match the SNOO's own record.")
             }
 
             Section {
@@ -162,6 +177,13 @@ struct SnooDetailView: View {
                 Text(summaries.joined(separator: ", "))
                     .foregroundStyle(AppColor.text2)
             }
+        case .logged(let summaries):
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summaries.count == 1 ? "Logged 1 SNOO session" : "Logged \(summaries.count) SNOO sessions")
+                    .foregroundStyle(AppColor.urgencyGreen)
+                Text(summaries.joined(separator: ", "))
+                    .foregroundStyle(AppColor.text2)
+            }
         case .noneFound:
             Text("No new SNOO sessions found")
                 .foregroundStyle(AppColor.text2)
@@ -169,5 +191,12 @@ struct SnooDetailView: View {
             Text(message)
                 .foregroundStyle(AppColor.urgencyRedText)
         }
+    }
+
+    private func setAutoLog(_ on: Bool) {
+        guard var creds = sharedCreds else { return }
+        creds.autoLog = on
+        EventStore(context: context).updateSnooCredentials(creds.jsonString)
+        Haptics.tap()
     }
 }

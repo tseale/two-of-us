@@ -403,4 +403,20 @@ final class SnooDecodingTests: XCTestCase {
         XCTAssertEqual(SnooCredentialSync.action(sharedField: "v2-something", localRefreshToken: "rt-1"),
                        .none)
     }
+
+    func testAutoLogFlagIsBackCompatAndDoesNotTriggerAdoption() throws {
+        // Blobs written before the flag existed decode with autoLog off.
+        let old = #"{"refreshToken":"rt-1","email":"t@e.com"}"#
+        XCTAssertNil(try XCTUnwrap(SnooSharedCredentials(json: old)).autoLog)
+
+        // Flipping the household toggle rewrites the blob with the same
+        // refresh token — an in-step device must read the new mode without
+        // re-adopting (which would needlessly throw away its minted IdToken).
+        var creds = try XCTUnwrap(SnooSharedCredentials(json: old))
+        creds.autoLog = true
+        let flipped = try XCTUnwrap(creds.jsonString)
+        XCTAssertEqual(SnooCredentialSync.action(sharedField: flipped, localRefreshToken: "rt-1"),
+                       .none)
+        XCTAssertEqual(SnooSharedCredentials(json: flipped)?.autoLog, true)
+    }
 }

@@ -31,11 +31,17 @@ struct SnooSharedCredentials: Codable, Equatable, Sendable {
     var refreshToken: String
     var email: String
     var babyID: String?
+    /// Household mode: auto-log SNOO sessions instead of suggesting them.
+    /// Optional so blobs written before the flag existed decode unchanged
+    /// (nil reads as off). Lives in this blob on purpose — no schema change,
+    /// and it travels atomically with the connection it configures.
+    var autoLog: Bool?
 
-    init(refreshToken: String, email: String, babyID: String?) {
+    init(refreshToken: String, email: String, babyID: String?, autoLog: Bool? = nil) {
         self.refreshToken = refreshToken
         self.email = email
         self.babyID = babyID
+        self.autoLog = autoLog
     }
 
     init?(json: String) {
