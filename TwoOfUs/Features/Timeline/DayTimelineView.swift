@@ -35,9 +35,12 @@ struct DayTimelineRow: View {
             HStack(spacing: 8) {
                 Text(entry.kind.emoji).font(.callout)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(entry.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(AppColor.text)
+                    HStack(spacing: 6) {
+                        Text(entry.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppColor.text)
+                        if entry.isFromSnoo { SnooTag() }
+                    }
                     if let note = entry.notes, !note.isEmpty {
                         Text(note)
                             .font(.caption)
@@ -67,6 +70,7 @@ struct DayTimelineRow: View {
 
     private var accessibilityLabel: String {
         var label = "\(entry.title), \(TimeFormatting.clock(entry.sortDate)), logged by \(loggedByName)"
+        if entry.isFromSnoo { label += ", from SNOO" }
         if let note = entry.notes, !note.isEmpty { label += ", note: \(note)" }
         return label
     }
@@ -103,6 +107,20 @@ struct DayTimelineRow: View {
                 .frame(width: 11, height: 11)
                 .overlay(Circle().strokeBorder(AppColor.card, lineWidth: 2))
         }
+    }
+}
+
+/// The little "SNOO" capsule on sleep rows that were imported from the SNOO
+/// integration — bassinet time reads apart from hand-logged naps at a glance.
+struct SnooTag: View {
+    var body: some View {
+        Text("SNOO")
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(AppColor.accentSleep)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(AppColor.accentSleep.opacity(0.14), in: Capsule())
+            .accessibilityHidden(true)   // rows fold it into their label
     }
 }
 

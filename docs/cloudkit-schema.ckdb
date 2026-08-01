@@ -126,6 +126,7 @@ DEFINE SCHEMA
         loggedByID STRING,
         loggedByName STRING,
         notes STRING,
+        sourceRaw STRING,
         startedAt TIMESTAMP,
         GRANT WRITE TO "_creator",
         GRANT CREATE TO "_icloud",

@@ -85,6 +85,26 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertEqual(copy.startedAt, original.startedAt)
         XCTAssertNil(copy.endedAt, "a running sleep must still be running on the other phone")
         XCTAssertTrue(copy.isActive)
+        XCTAssertNil(copy.sourceRaw, "a hand-logged sleep must not grow a source in transit")
+    }
+
+    func testSnooSleepRoundTripKeepsSource() throws {
+        let original = SleepEvent(
+            baby: nil, startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            endedAt: Date(timeIntervalSince1970: 1_700_007_200),
+            loggedByID: UUID(), loggedByName: "T", loggedByColorHex: "#000000",
+            sourceRaw: SleepSource.snoo.rawValue
+        )
+        context.insert(original)
+        try context.save()
+
+        let receiver = AppModelContainer.make(inMemory: true)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+
+        let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<SleepEvent>()).first)
+        XCTAssertEqual(copy.sourceRaw, "snoo",
+                       "the SNOO tag must survive to the co-parent's phone")
+        XCTAssertTrue(copy.isFromSnoo)
     }
 
     func testDiaperRoundTrip() throws {

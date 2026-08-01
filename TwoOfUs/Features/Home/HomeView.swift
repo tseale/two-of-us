@@ -86,6 +86,19 @@ struct HomeView: View {
                                 SleepActiveCard(sleep: sleep, now: ctx.date) { endSleep(sleep) }
                                     .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
                             }
+                            // SNOO suggestions sit directly under the sleep
+                            // button — never pushed down by the schedule card
+                            // (§8: present, never modal). Inside the ticking
+                            // TimelineView so an in-progress card's elapsed
+                            // text stays honest, same as the schedule rows.
+                            if showSnooSuggestions {
+                                ForEach(snoo.suggestions) { suggestion in
+                                    SnooSuggestionCard(suggestion: suggestion, now: ctx.date) { message in
+                                        toast = ToastData(message: message,
+                                                          accent: AppColor.accentSleep, undo: nil)
+                                    }
+                                }
+                            }
                             // Inside the ticking TimelineView so the rows stay
                             // honest on a phone left open overnight: 11pm passing
                             // greys the 11pm row and surfaces the 3am one without
@@ -118,26 +131,6 @@ struct HomeView: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-
-                // SNOO suggestions live between the log buttons and the
-                // checklist: present but never modal (§8 of the SNOO spec).
-                // Outside the ticking TimelineView on purpose — the elapsed
-                // text is computed when the card renders, not live.
-                if showSnooSuggestions {
-                    Section {
-                        VStack(spacing: 10) {
-                            ForEach(snoo.suggestions) { suggestion in
-                                SnooSuggestionCard(suggestion: suggestion, now: .now) { message in
-                                    toast = ToastData(message: message,
-                                                      accent: AppColor.accentSleep, undo: nil)
-                                }
-                            }
-                        }
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                }
 
                 // The deferred-setup checklist sits where an empty timeline
                 // leaves dead space — the logging UI above stays untouched.

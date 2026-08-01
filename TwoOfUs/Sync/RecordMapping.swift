@@ -38,6 +38,7 @@ enum RecordMapping {
             r["startedAt"] = m.startedAt
             r["endedAt"] = m.endedAt
             r["notes"] = m.notes
+            r["sourceRaw"] = m.sourceRaw
             setCommon(r, loggedByID: m.loggedByID, name: m.loggedByName, color: m.loggedByColorHex,
                       deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
             return r
@@ -365,6 +366,7 @@ enum RecordMapping {
         m.startedAt = r["startedAt"] as? Date ?? m.startedAt
         m.endedAt = r["endedAt"] as? Date
         m.notes = r["notes"] as? String
+        m.sourceRaw = r["sourceRaw"] as? String
         applyCommon(r, into: m, in: context)
     }
 

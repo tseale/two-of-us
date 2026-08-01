@@ -151,14 +151,15 @@ struct EventStore {
 
     /// Starts a sleep timer. Refuses if one is already active (single-timer guard).
     @discardableResult
-    func startSleep(at date: Date = .now) -> SleepEvent? {
+    func startSleep(at date: Date = .now, source: SleepSource? = nil) -> SleepEvent? {
         guard requireTracking(.sleep), activeSleep == nil, let owner = requireOwner() else { return nil }
         let date = EventBounds.clampPast(date)
         let event = SleepEvent(
             baby: baby, startedAt: date,
             loggedByID: owner.id,
             loggedByName: owner.displayName,
-            loggedByColorHex: owner.colorHex
+            loggedByColorHex: owner.colorHex,
+            sourceRaw: source?.rawValue
         )
         context.insert(event)
         guard save() else { context.delete(event); return nil }
@@ -175,7 +176,8 @@ struct EventStore {
     /// Live Activity or timer — the sleep never passes through the active
     /// state, so `startSleep`'s single-timer guard doesn't apply.
     @discardableResult
-    func logCompletedSleep(startedAt: Date, endedAt: Date, notes: String? = nil) -> SleepEvent? {
+    func logCompletedSleep(startedAt: Date, endedAt: Date, notes: String? = nil,
+                           source: SleepSource? = nil) -> SleepEvent? {
         guard requireTracking(.sleep), let owner = requireOwner() else { return nil }
         let start = EventBounds.clampPast(startedAt)
         let end = max(start, EventBounds.clampPast(endedAt))
@@ -184,7 +186,8 @@ struct EventStore {
             notes: EventBounds.cleanNote(notes),
             loggedByID: owner.id,
             loggedByName: owner.displayName,
-            loggedByColorHex: owner.colorHex
+            loggedByColorHex: owner.colorHex,
+            sourceRaw: source?.rawValue
         )
         context.insert(event)
         guard save() else { context.delete(event); return nil }

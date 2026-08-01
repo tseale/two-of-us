@@ -25,6 +25,19 @@ enum DiaperType: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// Where a sleep record originated. Absent (nil `sourceRaw`) means logged by
+/// hand; `snoo` marks sessions imported from the SNOO integration so the
+/// timeline can tell bassinet time from manually logged naps.
+enum SleepSource: String, Codable {
+    case snoo
+
+    var label: String {
+        switch self {
+        case .snoo: return "SNOO"
+        }
+    }
+}
+
 /// A participant's access level. Both roles are read-write at the data layer;
 /// the difference is enforced in the app UI (Logger can't change settings).
 enum ParticipantRole: String, Codable {

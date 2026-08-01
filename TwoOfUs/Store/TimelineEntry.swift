@@ -57,6 +57,13 @@ enum TimelineEntry: Identifiable {
         }
     }
 
+    /// True for sleep records imported from the SNOO integration — the
+    /// timeline tags them so bassinet time reads apart from hand-logged naps.
+    var isFromSnoo: Bool {
+        if case .sleep(let e) = self { return e.isFromSnoo }
+        return false
+    }
+
     /// Optional free-text note the parent attached to this event.
     var notes: String? {
         switch self {

@@ -166,6 +166,22 @@ final class EventStoreTests: XCTestCase {
         XCTAssertNil(store.startSleep(), "a second running sleep must be refused")
     }
 
+    func testSleepSourceStampsSnooImportsOnly() throws {
+        let manual = try XCTUnwrap(store.logCompletedSleep(
+            startedAt: .now.addingTimeInterval(-7200), endedAt: .now.addingTimeInterval(-3600)))
+        XCTAssertNil(manual.source, "hand-logged sleep carries no source")
+        XCTAssertFalse(manual.isFromSnoo)
+
+        let imported = try XCTUnwrap(store.logCompletedSleep(
+            startedAt: .now.addingTimeInterval(-3000), endedAt: .now.addingTimeInterval(-600),
+            source: .snoo))
+        XCTAssertEqual(imported.source, .snoo)
+        XCTAssertTrue(imported.isFromSnoo)
+
+        let started = try XCTUnwrap(store.startSleep(at: .now.addingTimeInterval(-60), source: .snoo))
+        XCTAssertTrue(started.isFromSnoo)
+    }
+
     func testStopSleepEndsTheActiveOne() throws {
         let sleep = try XCTUnwrap(store.startSleep())
         store.stopSleep(sleep)
