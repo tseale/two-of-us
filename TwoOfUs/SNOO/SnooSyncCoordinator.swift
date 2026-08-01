@@ -71,19 +71,36 @@ final class SnooSyncCoordinator {
     // MARK: Auth
 
     /// Signs in and flips the Settings row to connected. Throws `SnooAPIError`
-    /// for the login sheet's inline error copy.
-    func signIn(email: String, password: String) async throws {
+    /// for the login sheet's inline error copy. One parent's sign-in is the
+    /// household's: the refresh token (never the password) is published on
+    /// the shared settings record, and every other participant's device
+    /// adopts it on its next sync — nobody else signs in.
+    func signIn(email: String, password: String, context: ModelContext) async throws {
         let tokens = try await client.logIn(email: email, password: password)
         accountEmail = tokens.email
         connectionState = .connected(email: tokens.email)
         state.clearBackoff()
         state.consecutiveDecodeFailures = 0
         isDegraded = false
+        if let refresh = tokens.refreshToken {
+            let creds = SnooSharedCredentials(refreshToken: refresh, email: tokens.email,
+                                              babyID: tokens.babyID)
+            EventStore(context: context).updateSnooCredentials(creds.jsonString)
+        }
     }
 
-    /// Wipes tokens and per-account sync state. `importedSessionIDs` survives
-    /// so a re-connect can't duplicate already-imported sessions (§5).
-    func signOut() async {
+    /// Household sign-out: clears the shared connection (empty string — the
+    /// explicit "signed out" state, distinct from never-set) so every device
+    /// disconnects on its next sync, then disconnects this one.
+    func signOut(context: ModelContext) async {
+        EventStore(context: context).updateSnooCredentials("")
+        await disconnectLocally()
+    }
+
+    /// Wipes tokens and per-account sync state on THIS device.
+    /// `importedSessionIDs` survives so a re-connect can't duplicate
+    /// already-imported sessions (§5).
+    private func disconnectLocally() async {
         await client.signOut()
         state.resetForSignOut()
         accountEmail = ""
@@ -128,8 +145,11 @@ final class SnooSyncCoordinator {
     private func sync(context: ModelContext, force: Bool) async -> ManualSyncResult? {
         guard SnooFeature.isEnabled,
               !LocalPrefs.shared.demoModeEnabled,
-              !isSyncing,
-              case .connected = connectionState else { return nil }
+              !isSyncing else { return nil }
+        // First, fall in step with the household connection: adopt credentials
+        // another parent published, or disconnect if they signed out.
+        await syncSharedCredentials(context: context)
+        guard case .connected = connectionState else { return nil }
         let now = Date.now
         if !force, let last = state.lastAttemptAt,
            now.timeIntervalSince(last) < Self.syncThrottle { return nil }
@@ -200,6 +220,44 @@ final class SnooSyncCoordinator {
             )
             .prefix(Self.maxVisibleSuggestions)
         )
+    }
+
+    /// Keeps this device's Keychain in step with the household connection on
+    /// the shared settings record. Adoption stores the shared refresh token
+    /// with an already-expired access token, so the first request mints this
+    /// device's own IdToken; a cleared share disconnects this device too.
+    /// If the shared refresh token has died, adoption retries it each sync —
+    /// one failed refresh per sync, and the moment a parent signs in again
+    /// every device heals from the newly published credentials.
+    private func syncSharedCredentials(context: ModelContext) async {
+        let field = (try? context.fetch(FetchDescriptor<SharedSettings>()))?.first?.snooCredentials
+        let local = tokenStore.load()
+        switch SnooCredentialSync.action(sharedField: field,
+                                         localRefreshToken: local?.refreshToken) {
+        case .adopt(let creds):
+            tokenStore.save(SnooTokens(accessToken: "", refreshToken: creds.refreshToken,
+                                       expiresAt: .distantPast, email: creds.email,
+                                       babyID: creds.babyID))
+            accountEmail = creds.email
+            connectionState = .connected(email: creds.email)
+            state.clearBackoff()
+            state.consecutiveDecodeFailures = 0
+            isDegraded = false
+            AppLog.snoo.info("Adopted the household SNOO connection")
+        case .publishLocal:
+            // Pre-feature migration: this device signed in before the
+            // connection was shared — publish it so the household inherits.
+            guard let local, let refresh = local.refreshToken else { break }
+            let creds = SnooSharedCredentials(refreshToken: refresh, email: local.email,
+                                              babyID: local.babyID)
+            EventStore(context: context).updateSnooCredentials(creds.jsonString)
+            AppLog.snoo.info("Published this device's SNOO connection to the household")
+        case .disconnect:
+            await disconnectLocally()
+            AppLog.snoo.info("Household SNOO connection removed — disconnected this device")
+        case .none:
+            break
+        }
     }
 
     /// Closes an open sleep timer that was started from a SNOO suggestion

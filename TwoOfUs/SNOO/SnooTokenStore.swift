@@ -21,6 +21,63 @@ struct SnooTokens: Codable, Sendable {
     }
 }
 
+/// The household's SNOO connection as it travels in the shared CloudKit zone
+/// (`SharedSettings.snooCredentials`): the long-lived refresh token plus
+/// display metadata — never the password (§5), never the short-lived IdToken
+/// (each device mints its own; Cognito refresh tokens are multi-use and
+/// un-rotated, docs/SNOO-API.md §A.1, so every phone can share one).
+/// JSON-encoded so the payload can evolve without a CloudKit schema change.
+struct SnooSharedCredentials: Codable, Equatable, Sendable {
+    var refreshToken: String
+    var email: String
+    var babyID: String?
+
+    init(refreshToken: String, email: String, babyID: String?) {
+        self.refreshToken = refreshToken
+        self.email = email
+        self.babyID = babyID
+    }
+
+    init?(json: String) {
+        guard let decoded = try? JSONDecoder().decode(Self.self, from: Data(json.utf8))
+        else { return nil }
+        self = decoded
+    }
+
+    var jsonString: String? {
+        (try? JSONEncoder().encode(self)).flatMap { String(data: $0, encoding: .utf8) }
+    }
+}
+
+/// The pure decision behind keeping a device's Keychain in step with the
+/// household connection. The shared field is three-state: nil = never
+/// written (pre-feature zone — a signed-in device publishes its session so
+/// the household inherits it), empty = explicitly signed out (every device
+/// disconnects), JSON = connected (adopt when this device is out of step).
+enum SnooCredentialSync {
+    enum Action: Equatable {
+        case adopt(SnooSharedCredentials)
+        case publishLocal
+        case disconnect
+        case none
+    }
+
+    static func action(sharedField: String?, localRefreshToken: String?) -> Action {
+        guard let field = sharedField else {
+            return localRefreshToken == nil ? .none : .publishLocal
+        }
+        if field.isEmpty {
+            return localRefreshToken == nil ? .none : .disconnect
+        }
+        guard let shared = SnooSharedCredentials(json: field) else {
+            // Unreadable payload (a future build's format): leave this
+            // device's working session alone rather than tearing it down.
+            return .none
+        }
+        return shared.refreshToken == localRefreshToken ? .none : .adopt(shared)
+    }
+}
+
 /// Keychain-only persistence for SNOO tokens. One item, JSON-encoded, under a
 /// dedicated service so sign-out can wipe everything with a single delete.
 /// Tokens never touch UserDefaults (§5 security note).

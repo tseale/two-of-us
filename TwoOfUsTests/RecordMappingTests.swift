@@ -257,6 +257,33 @@ final class RecordMappingTests: XCTestCase {
                        "who takes the first shift is a shared setting")
     }
 
+    /// The household SNOO connection travels on the settings record: present
+    /// syncs, empty clears (sign-out anywhere disconnects everyone), absent
+    /// (an older build's record) keeps the local copy.
+    func testSnooCredentialsTravelClearAndSurviveOldRecords() throws {
+        let receiver = AppModelContainer.make(inMemory: true)
+        let original = SharedSettings()
+        original.snooCredentials = #"{"refreshToken":"rt","email":"t@e.com"}"#
+        context.insert(original)
+        try context.save()
+
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+        let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<SharedSettings>()).first)
+        XCTAssertEqual(copy.snooCredentials, original.snooCredentials,
+                       "one parent's sign-in must reach the co-parent")
+
+        let old = CKRecord(recordType: SyncConstants.RecordType.settings, recordID: recordID(original.id))
+        old["targetFeedIntervalMinutes"] = 120
+        try RecordMapping.apply(old, in: receiver.mainContext)
+        XCTAssertNotNil(copy.snooCredentials, "an older build's record keeps the connection")
+
+        let cleared = CKRecord(recordType: SyncConstants.RecordType.settings, recordID: recordID(original.id))
+        cleared["snooCredentials"] = ""
+        try RecordMapping.apply(cleared, in: receiver.mainContext)
+        XCTAssertEqual(copy.snooCredentials, "",
+                       "an explicit sign-out lands as empty (disconnect), distinct from never-set nil")
+    }
+
     /// Clearing the first shift must actually travel: nil is written as an
     /// empty string (CloudKit never transmits an unset key), and an empty
     /// inbound value clears the co-parent's copy — while a record with no

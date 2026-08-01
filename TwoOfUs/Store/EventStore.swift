@@ -510,6 +510,17 @@ struct EventStore {
         }
     }
 
+    /// Publishes (or clears, with nil) the household SNOO connection on the
+    /// shared settings record (`SnooSharedCredentials` JSON — the refresh
+    /// token, deliberately shared with every participant in the zone; never
+    /// the password).
+    func updateSnooCredentials(_ json: String?) {
+        guard let settings else { return }
+        settings.snooCredentials = json
+        save()
+        sync(save: [settings.id])
+    }
+
     /// Updates the local user's own name + color and **backfills** that identity
     /// onto every event they logged, so past timeline rows relabel too. Syncs the
     /// participant plus all rewritten events.

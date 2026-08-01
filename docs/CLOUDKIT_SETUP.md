@@ -67,7 +67,8 @@ requires the Console's Deploy button or an explicit
 | | `isActive` | Int64 |
 | | `invitedAt` | Date/Time |
 | | `photoData` | Asset |
-| `SharedSettings` | `targetFeedIntervalMinutes` | Int64 |
+| `SharedSettings` | `snooCredentials` | String |
+| | `targetFeedIntervalMinutes` | Int64 |
 | | `ozPresets` | Double (List) |
 | | `defaultFeedOz` | Double |
 | | `feedLoggingEnabled`, `diaperLoggingEnabled`, `sleepLoggingEnabled` | Int64 |

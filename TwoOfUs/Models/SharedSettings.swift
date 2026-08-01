@@ -43,6 +43,11 @@ final class SharedSettings {
     /// Who takes the night's first shift (→ Participant.id); the rotation
     /// alternates from them. Nil = the first parent in join order.
     var nightFirstShiftID: UUID?
+    /// The household SNOO connection (`SnooSharedCredentials` JSON; nil = not
+    /// connected). One parent signs in and every participant's device adopts
+    /// the refresh token from here — deliberately shared account access, the
+    /// same trust boundary as the rest of the zone. Never the password (§5).
+    var snooCredentials: String?
     var ckSystemFields: Data?                  // archived CKRecord system fields (see Baby.ckSystemFields)
 
     init(
