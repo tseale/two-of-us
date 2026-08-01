@@ -9,16 +9,20 @@ struct EditEventSheet: View {
 
     let entry: TimelineEntry
 
+    @Query private var participants: [Participant]
+
     @State private var date: Date
     @State private var amount: Double
     @State private var diaperType: DiaperType
     @State private var sleepStart: Date
     @State private var sleepEnd: Date
     @State private var notes: String
+    @State private var loggedByID: UUID
     @State private var showDeleteConfirm = false
 
     init(entry: TimelineEntry) {
         self.entry = entry
+        _loggedByID = State(initialValue: entry.loggedByID)
         switch entry {
         case .feed(let e):
             _date = State(initialValue: e.timestamp)
@@ -87,6 +91,20 @@ struct EditEventSheet: View {
                     }
                 }
 
+                // Reassigning is common enough to live in the sheet: one parent
+                // logs what the other actually did (or fixes a ghost-attributed
+                // row). Hidden with a single participant — nothing to change.
+                if activeParticipants.count > 1 {
+                    Section("Logged by") {
+                        Picker("Logged by", selection: $loggedByID) {
+                            ForEach(activeParticipants) { p in
+                                Text(p.displayName).tag(p.id)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+
                 Section("Note") {
                     TextField("Add a note (optional)", text: $notes, axis: .vertical)
                         .lineLimit(1...4)
@@ -135,12 +153,26 @@ struct EditEventSheet: View {
         }
     }
 
+    private var activeParticipants: [Participant] {
+        participants.filter(\.isActive).sorted { $0.invitedAt < $1.invitedAt }
+    }
+
+    /// The picked participant, only when it's an actual change — unchanged (or
+    /// unresolvable) attribution passes nil so the edit keeps the original's.
+    private var newLogger: Participant? {
+        guard loggedByID != entry.loggedByID else { return nil }
+        return activeParticipants.first { $0.id == loggedByID }
+    }
+
     private func save() {
         let store = EventStore(context: context)
         switch entry {
-        case .feed(let e): store.editFeed(e, amountOz: amount, timestamp: date, notes: notes)
-        case .diaper(let e): store.editDiaper(e, type: diaperType, timestamp: date, notes: notes)
-        case .sleep(let e): store.editSleep(e, startedAt: sleepStart, endedAt: sleepEnd, notes: notes)
+        case .feed(let e):
+            store.editFeed(e, amountOz: amount, timestamp: date, notes: notes, loggedBy: newLogger)
+        case .diaper(let e):
+            store.editDiaper(e, type: diaperType, timestamp: date, notes: notes, loggedBy: newLogger)
+        case .sleep(let e):
+            store.editSleep(e, startedAt: sleepStart, endedAt: sleepEnd, notes: notes, loggedBy: newLogger)
         }
         Haptics.success()
         dismiss()
