@@ -175,11 +175,12 @@ struct SnooSuggestionEditSheet: View {
         let store = EventStore(context: context)
         let saved: Bool
         if isInProgress {
-            saved = store.startSleep(at: start) != nil
+            saved = store.startSleep(at: start, source: .snoo) != nil
             if saved { onSaved?("Sleep started from \(TimeFormatting.clock(start))") }
         } else {
             saved = store.logCompletedSleep(startedAt: start, endedAt: end,
-                                            notes: notes.isEmpty ? nil : notes) != nil
+                                            notes: notes.isEmpty ? nil : notes,
+                                            source: .snoo) != nil
             if saved { onSaved?("Saved \(TimeFormatting.duration(from: start, to: end)) of sleep") }
         }
         guard saved else { return }

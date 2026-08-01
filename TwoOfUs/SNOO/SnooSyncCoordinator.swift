@@ -232,9 +232,10 @@ final class SnooSyncCoordinator {
         let saved: Bool
         switch suggestion.kind {
         case .completed(let endedAt):
-            saved = store.logCompletedSleep(startedAt: suggestion.startedAt, endedAt: endedAt) != nil
+            saved = store.logCompletedSleep(startedAt: suggestion.startedAt, endedAt: endedAt,
+                                            source: .snoo) != nil
         case .inProgress:
-            saved = store.startSleep(at: suggestion.startedAt) != nil
+            saved = store.startSleep(at: suggestion.startedAt, source: .snoo) != nil
         }
         if saved { markImported(suggestion) }
         return saved

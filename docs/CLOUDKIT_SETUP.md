@@ -59,7 +59,7 @@ requires the Console's Deploy button or an explicit
 | | `timestamp`, `deletedAt` | Date/Time |
 | | `notes`, `loggedByID`, `loggedByName`, `loggedByColorHex`, `editOfID`, `babyID` | String |
 | `SleepEvent` | `startedAt`, `endedAt`, `deletedAt` | Date/Time |
-| | `notes`, `loggedByID`, `loggedByName`, `loggedByColorHex`, `editOfID`, `babyID` | String |
+| | `notes`, `loggedByID`, `loggedByName`, `loggedByColorHex`, `editOfID`, `babyID`, `sourceRaw` | String |
 | `DiaperEvent` | `typeRaw` | String |
 | | `timestamp`, `deletedAt` | Date/Time |
 | | `notes`, `loggedByID`, `loggedByName`, `loggedByColorHex`, `editOfID`, `babyID` | String |
