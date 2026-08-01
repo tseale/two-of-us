@@ -65,6 +65,22 @@ enum SnooReconciler {
             }
     }
 
+    /// When an open sleep timer was started from a SNOO suggestion, the SNOO
+    /// finishing that session should finish the timer too — accepting the
+    /// card delegated this sleep's tracking to the SNOO, start and end alike.
+    /// Returns the end time to close the timer with, or nil when the fetched
+    /// sessions don't show this session finished. Matching uses the same
+    /// start-within-a-minute rule as the session merge; a timer whose start
+    /// was later hand-edited beyond that drifts out of reach on purpose —
+    /// the parent has taken over.
+    static func autoEndDate(openSleepStartedAt: Date, sessions: [SnooSession]) -> Date? {
+        sessions.first { session in
+            guard let end = session.endedAt else { return false }
+            return end > openSleepStartedAt
+                && abs(session.startedAt.timeIntervalSince(openSleepStartedAt)) < 60
+        }?.endedAt
+    }
+
     /// Fraction of the SNOO session's span covered by the single local sleep
     /// that overlaps it most (§7 overlap test). Open intervals (SNOO still
     /// running, or a running local timer) are closed at `now`.

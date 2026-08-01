@@ -183,4 +183,45 @@ final class SnooReconcilerTests: XCTestCase {
         XCTAssertEqual(SnooReconciler.maxOverlapFraction(of: s, in: [local], now: now),
                        0.5, accuracy: 0.0001)
     }
+
+    // MARK: Auto-end of a SNOO-started timer
+
+    func testAutoEndMatchesSessionStartingWithinAMinute() {
+        let sleepStart = now.addingTimeInterval(-hours(3))
+        // The completed session's start is 30 s off the timer's (last-session
+        // vs aggregated rounding) — still the same session.
+        let s = session(id: "s", startOffset: -hours(3) + 30, duration: hours(2))
+        XCTAssertEqual(
+            SnooReconciler.autoEndDate(openSleepStartedAt: sleepStart, sessions: [s]),
+            s.endedAt
+        )
+    }
+
+    func testAutoEndIgnoresStillRunningSession() {
+        let sleepStart = now.addingTimeInterval(-hours(3))
+        let running = session(id: "r", startOffset: -hours(3))   // no end yet
+        XCTAssertNil(SnooReconciler.autoEndDate(openSleepStartedAt: sleepStart,
+                                                sessions: [running]))
+    }
+
+    func testAutoEndIgnoresDifferentSession() {
+        // A completed session from earlier in the day must not close a timer
+        // it doesn't belong to.
+        let sleepStart = now.addingTimeInterval(-hours(1))
+        let earlier = session(id: "e", startOffset: -hours(8), duration: hours(2))
+        XCTAssertNil(SnooReconciler.autoEndDate(openSleepStartedAt: sleepStart,
+                                                sessions: [earlier]))
+    }
+
+    func testAutoEndIgnoresEndBeforeTimerStart() {
+        // Degenerate data: a "completed" twin whose end precedes the timer's
+        // start must never produce a negative-length sleep.
+        let sleepStart = now.addingTimeInterval(-hours(1))
+        let bogus = SnooSession(id: "b",
+                                startedAt: sleepStart.addingTimeInterval(30),
+                                endedAt: sleepStart.addingTimeInterval(-300),
+                                levels: [])
+        XCTAssertNil(SnooReconciler.autoEndDate(openSleepStartedAt: sleepStart,
+                                                sessions: [bogus]))
+    }
 }
