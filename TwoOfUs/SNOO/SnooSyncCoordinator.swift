@@ -37,6 +37,7 @@ final class SnooSyncCoordinator {
     /// always gets a visible result — the user asked for it directly.
     enum ManualSyncResult: Equatable {
         case found(summaries: [String])
+        case logged(summaries: [String])   // auto-log mode wrote these directly
         case noneFound
         case failed(message: String)
     }
@@ -83,10 +84,18 @@ final class SnooSyncCoordinator {
         state.consecutiveDecodeFailures = 0
         isDegraded = false
         if let refresh = tokens.refreshToken {
+            // Re-signing in must not reset the household's auto-log choice.
             let creds = SnooSharedCredentials(refreshToken: refresh, email: tokens.email,
-                                              babyID: tokens.babyID)
+                                              babyID: tokens.babyID,
+                                              autoLog: sharedCredentialsBlob(context: context)?.autoLog)
             EventStore(context: context).updateSnooCredentials(creds.jsonString)
         }
+    }
+
+    /// The parsed household connection blob, when one is set.
+    private func sharedCredentialsBlob(context: ModelContext) -> SnooSharedCredentials? {
+        ((try? context.fetch(FetchDescriptor<SharedSettings>()))?.first?.snooCredentials)
+            .flatMap(SnooSharedCredentials.init(json:))
     }
 
     /// Household sign-out: clears the shared connection (empty string — the
@@ -185,7 +194,9 @@ final class SnooSyncCoordinator {
             // finished gets closed at the SNOO's end time, so the reconcile
             // below already sees it as completed sleep.
             autoEndFinishedSnooSleep(merged, context: context)
-            reconcile(merged, context: context, now: now)
+            let autoLog = sharedCredentialsBlob(context: context)?.autoLog ?? false
+            let logged = reconcile(merged, context: context, now: now, autoLog: autoLog)
+            if !logged.isEmpty { return .logged(summaries: logged) }
             return suggestions.isEmpty
                 ? .noneFound
                 : .found(summaries: suggestions.map(Self.summaryLine))
@@ -209,17 +220,37 @@ final class SnooSyncCoordinator {
         }
     }
 
-    private func reconcile(_ sessions: [SnooSession], context: ModelContext, now: Date) {
-        suggestions = Array(
-            SnooReconciler.suggestions(
-                snooSessions: sessions,
-                localSleeps: localSleepSpans(context: context, now: now),
-                importedIDs: state.importedSessionIDs,
-                dismissedIDs: state.dismissedSessionIDs,
-                now: now
-            )
-            .prefix(Self.maxVisibleSuggestions)
+    /// Runs the reconciler and either surfaces cards or — in auto-log mode —
+    /// accepts every suggestion on the spot: in-progress sessions start the
+    /// real timer, completed ones land straight in the log, all stamped
+    /// `.snoo` and marked imported through the same `accept` path the cards
+    /// use, so every reconciler safety rail (imported/dismissed, manual-timer
+    /// respect, stale sessions) applies identically. Returns the auto-logged
+    /// summaries (empty in card mode).
+    private func reconcile(_ sessions: [SnooSession], context: ModelContext, now: Date,
+                           autoLog: Bool) -> [String] {
+        let all = SnooReconciler.suggestions(
+            snooSessions: sessions,
+            localSleeps: localSleepSpans(context: context, now: now),
+            importedIDs: state.importedSessionIDs,
+            dismissedIDs: state.dismissedSessionIDs,
+            now: now
         )
+        guard autoLog else {
+            suggestions = Array(all.prefix(Self.maxVisibleSuggestions))
+            return []
+        }
+        suggestions = []
+        let store = EventStore(context: context)
+        // Oldest first, so a catch-up of missed completed sessions lands
+        // before (and can never block) today's still-running one.
+        let logged = all.reversed().compactMap { suggestion in
+            accept(suggestion, store: store) ? Self.summaryLine(suggestion) : nil
+        }
+        if !logged.isEmpty {
+            AppLog.snoo.info("Auto-logged \(logged.count) SNOO session(s)")
+        }
+        return logged
     }
 
     /// Keeps this device's Keychain in step with the household connection on
