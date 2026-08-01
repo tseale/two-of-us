@@ -5,6 +5,7 @@ import SwiftUI
 /// this is the one SNOO surface allowed to show a network error (§9).
 struct SnooLoginSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
     @State private var coordinator = SnooSyncCoordinator.shared
 
     @State private var email: String
@@ -80,7 +81,8 @@ struct SnooLoginSheet: View {
             do {
                 try await coordinator.signIn(
                     email: email.trimmingCharacters(in: .whitespacesAndNewlines),
-                    password: password
+                    password: password,
+                    context: context
                 )
                 Haptics.success()
                 dismiss()

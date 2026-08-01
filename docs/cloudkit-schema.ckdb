@@ -110,6 +110,7 @@ DEFINE SCHEMA
         nightStartMinute INT64,
         ozPresets LIST<DOUBLE>,
         sleepLoggingEnabled INT64,
+        snooCredentials STRING,
         targetFeedIntervalMinutes INT64,
         GRANT WRITE TO "_creator",
         GRANT CREATE TO "_icloud",

@@ -48,7 +48,7 @@ struct SnooSettingsSection: View {
             Text("Integrations")
         } footer: {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Suggests sleep sessions your SNOO recorded that aren't logged here. Nothing is saved without your okay.")
+                Text("Suggests sleep sessions your SNOO recorded that aren't logged here. Nothing is saved without your okay. One sign-in connects every phone sharing this data.")
                 if coordinator.isDegraded {
                     Text("SNOO syncing isn't working right now — the connection still works, but session data couldn't be read. This usually resolves after an app update.")
                 } else if coordinator.isRateLimited {
@@ -142,13 +142,13 @@ struct SnooDetailView: View {
                             titleVisibility: .visible) {
             Button("Sign out", role: .destructive) {
                 Task {
-                    await coordinator.signOut()
+                    await coordinator.signOut(context: context)
                     dismiss()
                 }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Removes the connection from this iPhone. Sleep sessions you already saved stay in the log.")
+            Text("Disconnects SNOO on every phone sharing this data. Sleep sessions you already saved stay in the log.")
         }
     }
 

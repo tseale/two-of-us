@@ -88,6 +88,12 @@ enum RecordMapping {
             // never transmits an unset key, so a bare nil could not clear the
             // co-parent's copy.
             r["nightFirstShiftID"] = m.nightFirstShiftID?.uuidString ?? ""
+            // Three-state on purpose: nil (never set — pre-feature) writes
+            // NO field so it can't stomp another device's copy; "" is the
+            // explicit sign-out that must travel; JSON is the connection.
+            if let snooCredentials = m.snooCredentials {
+                r["snooCredentials"] = snooCredentials
+            }
             return r
         }
         if let m = PlanSlot.fetchByID(uuid, in: context) {
@@ -451,6 +457,9 @@ enum RecordMapping {
         // Present-but-empty means "cleared"; absent (an older build's record)
         // keeps the local value.
         if let s = r["nightFirstShiftID"] as? String { m.nightFirstShiftID = UUID(uuidString: s) }
+        // Keep "" as "" — it's the explicit sign-out, distinct from nil
+        // (never set); absent (an older build's record) keeps the local value.
+        if let s = r["snooCredentials"] as? String { m.snooCredentials = s }
     }
 
     private static func applyPlanSlot(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {

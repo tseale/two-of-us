@@ -355,4 +355,52 @@ final class SnooDecodingTests: XCTestCase {
         state.consecutiveDecodeFailures = 3
         XCTAssertTrue(state.isDegraded)
     }
+
+    // MARK: Household credential sharing
+
+    func testSharedCredentialsJSONRoundTrip() throws {
+        let creds = SnooSharedCredentials(refreshToken: "rt-1", email: "t@e.com", babyID: "b1")
+        let json = try XCTUnwrap(creds.jsonString)
+        XCTAssertEqual(SnooSharedCredentials(json: json), creds)
+        XCTAssertNil(SnooSharedCredentials(json: "not json"),
+                     "garbage in the shared field reads as not connected, never a crash")
+    }
+
+    func testCredentialSyncAdoptsWhenShareHasNewCredentials() throws {
+        let creds = SnooSharedCredentials(refreshToken: "rt-1", email: "t@e.com", babyID: nil)
+        let json = try XCTUnwrap(creds.jsonString)
+        XCTAssertEqual(SnooCredentialSync.action(sharedField: json, localRefreshToken: nil),
+                       .adopt(creds), "a device with no session adopts the household's")
+        XCTAssertEqual(SnooCredentialSync.action(sharedField: json, localRefreshToken: "rt-0"),
+                       .adopt(creds), "re-signed-in credentials replace the stale ones")
+    }
+
+    func testCredentialSyncLeavesMatchingSessionAlone() throws {
+        let creds = SnooSharedCredentials(refreshToken: "rt-1", email: "t@e.com", babyID: nil)
+        let json = try XCTUnwrap(creds.jsonString)
+        XCTAssertEqual(SnooCredentialSync.action(sharedField: json, localRefreshToken: "rt-1"),
+                       .none, "an in-step device keeps its own minted IdToken untouched")
+    }
+
+    func testCredentialSyncDisconnectsOnExplicitSignOutOnly() {
+        XCTAssertEqual(SnooCredentialSync.action(sharedField: "", localRefreshToken: "rt-1"),
+                       .disconnect, "sign-out anywhere disconnects this device too")
+        XCTAssertEqual(SnooCredentialSync.action(sharedField: "", localRefreshToken: nil), .none)
+    }
+
+    func testCredentialSyncPublishesPreFeatureSession() {
+        // A device signed in before the connection was shared (field never
+        // written) must publish, NOT disconnect — the upgrade path for an
+        // already-connected phone.
+        XCTAssertEqual(SnooCredentialSync.action(sharedField: nil, localRefreshToken: "rt-1"),
+                       .publishLocal)
+        XCTAssertEqual(SnooCredentialSync.action(sharedField: nil, localRefreshToken: nil), .none)
+    }
+
+    func testCredentialSyncIgnoresUnreadablePayload() {
+        // A future build's format this build can't decode must not tear down
+        // a working session.
+        XCTAssertEqual(SnooCredentialSync.action(sharedField: "v2-something", localRefreshToken: "rt-1"),
+                       .none)
+    }
 }
