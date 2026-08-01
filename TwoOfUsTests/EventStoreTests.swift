@@ -152,6 +152,41 @@ final class EventStoreTests: XCTestCase {
         XCTAssertEqual(live.count, 1, "the timeline shows only the replacement")
     }
 
+    func testEditWithLoggedByReattributesTheReplacement() throws {
+        // Log first: with a second active participant already in the store the
+        // single-active-owner fallback (rightly) refuses to guess who's logging.
+        let original = try XCTUnwrap(store.logFeed(amountOz: 2))
+        XCTAssertEqual(original.loggedByName, "Taylor")
+
+        let mom = Participant(displayName: "Mom", colorHex: "#FF8FA3")
+        container.mainContext.insert(mom)
+        try container.mainContext.save()
+
+        let replacement = store.editFeed(original, amountOz: 2, timestamp: original.timestamp,
+                                         notes: nil, loggedBy: mom)
+        XCTAssertEqual(replacement.loggedByID, mom.id)
+        XCTAssertEqual(replacement.loggedByName, "Mom")
+        XCTAssertEqual(replacement.loggedByColorHex, "#FF8FA3")
+        XCTAssertEqual(replacement.editOfID, original.id,
+                       "reattribution rides the normal append-only edit")
+    }
+
+    func testEditSleepKeepsSnooSourceAndCanReattribute() throws {
+        let original = try XCTUnwrap(store.logCompletedSleep(
+            startedAt: .now.addingTimeInterval(-7200), endedAt: .now.addingTimeInterval(-3600),
+            source: .snoo))
+
+        let mom = Participant(displayName: "Mom", colorHex: "#FF8FA3")
+        container.mainContext.insert(mom)
+        try container.mainContext.save()
+
+        let replacement = store.editSleep(original, startedAt: original.startedAt,
+                                          endedAt: original.endedAt, notes: nil, loggedBy: mom)
+        XCTAssertTrue(replacement.isFromSnoo,
+                      "editing a SNOO import must not strip its source tag")
+        XCTAssertEqual(replacement.loggedByName, "Mom")
+    }
+
     func testSoftDeleteHidesFromTimelineButKeepsTheRow() throws {
         let feed = try XCTUnwrap(store.logFeed(amountOz: 3))
         store.softDelete(feed)

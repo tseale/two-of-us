@@ -242,7 +242,8 @@ struct EventStore {
     // MARK: Edit (append-only: soft-delete original, insert replacement)
 
     @discardableResult
-    func editFeed(_ original: FeedEvent, amountOz: Double, timestamp: Date, notes: String?) -> FeedEvent {
+    func editFeed(_ original: FeedEvent, amountOz: Double, timestamp: Date, notes: String?,
+                  loggedBy: Participant? = nil) -> FeedEvent {
         // Same rule as creation: a "0 oz" bottle is never a real feed, and the
         // edit path was the last way to mint one (the sweep can't remove it —
         // it carries real attribution). Refuse by returning the original.
@@ -255,9 +256,9 @@ struct EventStore {
         let replacement = FeedEvent(
             baby: original.baby, amountOz: amountOz, timestamp: timestamp,
             notes: EventBounds.cleanNote(notes),
-            loggedByID: original.loggedByID,
-            loggedByName: original.loggedByName,
-            loggedByColorHex: original.loggedByColorHex,
+            loggedByID: loggedBy?.id ?? original.loggedByID,
+            loggedByName: loggedBy?.displayName ?? original.loggedByName,
+            loggedByColorHex: loggedBy?.colorHex ?? original.loggedByColorHex,
             editOfID: original.id
         )
         original.deletedAt = .now
@@ -270,14 +271,16 @@ struct EventStore {
     }
 
     @discardableResult
-    func editSleep(_ original: SleepEvent, startedAt: Date, endedAt: Date?, notes: String?) -> SleepEvent {
+    func editSleep(_ original: SleepEvent, startedAt: Date, endedAt: Date?, notes: String?,
+                   loggedBy: Participant? = nil) -> SleepEvent {
         let replacement = SleepEvent(
             baby: original.baby, startedAt: startedAt, endedAt: endedAt,
             notes: EventBounds.cleanNote(notes),
-            loggedByID: original.loggedByID,
-            loggedByName: original.loggedByName,
-            loggedByColorHex: original.loggedByColorHex,
-            editOfID: original.id
+            loggedByID: loggedBy?.id ?? original.loggedByID,
+            loggedByName: loggedBy?.displayName ?? original.loggedByName,
+            loggedByColorHex: loggedBy?.colorHex ?? original.loggedByColorHex,
+            editOfID: original.id,
+            sourceRaw: original.sourceRaw
         )
         original.deletedAt = .now
         context.insert(replacement)
@@ -288,13 +291,14 @@ struct EventStore {
     }
 
     @discardableResult
-    func editDiaper(_ original: DiaperEvent, type: DiaperType, timestamp: Date, notes: String?) -> DiaperEvent {
+    func editDiaper(_ original: DiaperEvent, type: DiaperType, timestamp: Date, notes: String?,
+                    loggedBy: Participant? = nil) -> DiaperEvent {
         let replacement = DiaperEvent(
             baby: original.baby, type: type, timestamp: timestamp,
             notes: EventBounds.cleanNote(notes),
-            loggedByID: original.loggedByID,
-            loggedByName: original.loggedByName,
-            loggedByColorHex: original.loggedByColorHex,
+            loggedByID: loggedBy?.id ?? original.loggedByID,
+            loggedByName: loggedBy?.displayName ?? original.loggedByName,
+            loggedByColorHex: loggedBy?.colorHex ?? original.loggedByColorHex,
             editOfID: original.id
         )
         original.deletedAt = .now
