@@ -50,6 +50,9 @@ struct TwoOfUsApp: App {
         if ProcessInfo.processInfo.arguments.contains("-resetSetup") {
             SetupProgress.shared.resetForTesting()
         }
+        // Dev-only: `-snooRouteProbe` sweeps candidate SNOO session-history
+        // routes with the stored token and logs what each returns.
+        SnooRouteProbe.runIfRequested()
         // Seeding fixture rows into the real store taints this device for sync
         // beyond this (already-gated) process — see SyncGate.recordFixtureTaint.
         SyncGate.recordFixtureTaint()

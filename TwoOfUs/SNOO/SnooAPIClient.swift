@@ -17,15 +17,14 @@ struct SnooAPIConfig: Sendable {
     func lastSessionPath(babyID: String) -> String {
         "/ss/me/v10/babies/\(babyID)/sessions/last"
     }
-    /// Confirmed 2026-07-26 by an unauthenticated route-existence probe: the
-    /// old `/ss/v2/babies/{id}/sessions/aggregated/` 404s at the API Gateway
-    /// (Express "Cannot GET" body — no such route), while this `me/v10`
-    /// sibling of `lastSessionPath` returns the gateway's 403 Forbidden shape
-    /// like every other real route. Still unverified against a real 200 (no
-    /// test account credentials here) — if it 404s again, try `/ss/me/v11/…`
-    /// next, which also existed at probe time.
-    func aggregatedPath(babyID: String) -> String {
-        "/ss/me/v10/babies/\(babyID)/sessions/aggregated"
+    /// Verified against the live service with a real account 2026-07-31: the
+    /// day-history route is `sessions/daily` (every `aggregated` variant is a
+    /// dead path, and unauthenticated 403s can't tell — the gateway rejects
+    /// bad tokens for the whole `/ss/me/...` prefix before route matching).
+    /// Requires `timezone`, `startTime`, and the `levels` flags; see
+    /// docs/SNOO-API.md §C.2 and `SnooRouteProbe` for re-discovery.
+    func dailyPath(babyID: String) -> String {
+        "/ss/me/v10/babies/\(babyID)/sessions/daily"
     }
 
     /// Honest User-Agent (§10) — no impersonation of the official app.
@@ -200,11 +199,21 @@ actor SnooAPIClient {
         return SnooSessionNormaliser.session(fromLast: dto)
     }
 
-    /// The aggregated day starting at `dayStart` (local midnight), flattened
-    /// into completed sessions.
+    /// The day of history starting at `dayStart` (local midnight), flattened
+    /// into sessions. The server treats `startTime` as wall-clock in the
+    /// given `timezone` (a zone suffix on it is ignored — verified live), so
+    /// the bare-local format plus the device zone keeps the window aligned
+    /// with the user's day. `levels=true` returns the segment array;
+    /// `detailedLevels` stays off — the detailed shape nests timing inside
+    /// `sessionDetails` and adds nothing the normaliser needs.
     func fetchAggregatedSessions(dayStart: Date) async throws -> [SnooSession] {
-        let path = config.aggregatedPath(babyID: try await babyID())
-        let query = [URLQueryItem(name: "startTime", value: SnooDates.queryString(from: dayStart))]
+        let path = config.dailyPath(babyID: try await babyID())
+        let query = [
+            URLQueryItem(name: "timezone", value: TimeZone.current.identifier),
+            URLQueryItem(name: "startTime", value: SnooDates.queryString(from: dayStart)),
+            URLQueryItem(name: "levels", value: "true"),
+            URLQueryItem(name: "detailedLevels", value: "false")
+        ]
         let data = try await get(path: path, query: query)
         let dto: SnooAggregatedDayDTO = try decode(data, endpoint: path)
         return SnooSessionNormaliser.sessions(fromAggregated: dto)

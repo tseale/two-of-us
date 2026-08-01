@@ -125,38 +125,87 @@ enum SnooSessionNormaliser {
         )
     }
 
-    /// Flattens an aggregated day into completed sessions: each "asleep"
-    /// segment becomes one session (endedAt = startTime + stateDuration).
-    /// A segment marked `isActive` is still running — surfaced open-ended.
+    /// Flattens a day of history into sessions. Segments of one bassinet
+    /// session share a `sessionId` (asleep/soothing interleave as the baby
+    /// stirs — verified live 2026-07-31), so they coalesce into one span:
+    /// first segment start to last segment end, the same start→end semantics
+    /// `sessions/last` reports. Only spans containing sleep count, and a
+    /// span with an `isActive` segment is still running — surfaced open-ended.
     static func sessions(fromAggregated dto: SnooAggregatedDayDTO) -> [SnooSession] {
-        dto.entries.compactMap { entry in
-            guard entry.type?.lowercased() == "asleep",
-                  let start = SnooDates.parse(entry.startTime) else { return nil }
-            let active = entry.isActive ?? false
-            guard active || (entry.stateDuration ?? 0) >= minimumDuration else { return nil }
-            return SnooSession(
-                id: entry.sessionId ?? SnooSession.synthesisedID(startedAt: start),
-                startedAt: start,
-                endedAt: active ? nil : entry.stateDuration.map(start.addingTimeInterval),
-                levels: []
-            )
+        struct Span {
+            var start: Date
+            var end: Date
+            var hasSleep = false
+            var isActive = false
         }
+        var spans: [String: Span] = [:]
+        var loners: [SnooSession] = []
+        for entry in dto.entries {
+            guard let start = SnooDates.parse(entry.startTime) else { continue }
+            let end = start.addingTimeInterval(entry.stateDuration ?? 0)
+            let asleep = entry.type?.lowercased() == "asleep"
+            let active = entry.isActive ?? false
+            guard let id = entry.sessionId else {
+                // Nothing to group on — the segment stands alone.
+                guard asleep, active || (entry.stateDuration ?? 0) >= minimumDuration
+                else { continue }
+                loners.append(SnooSession(
+                    id: SnooSession.synthesisedID(startedAt: start),
+                    startedAt: start,
+                    endedAt: active ? nil : end,
+                    levels: []
+                ))
+                continue
+            }
+            var span = spans[id] ?? Span(start: start, end: end)
+            span.start = min(span.start, start)
+            span.end = max(span.end, end)
+            span.hasSleep = span.hasSleep || asleep
+            span.isActive = span.isActive || active
+            spans[id] = span
+        }
+        let grouped = spans.compactMap { id, span -> SnooSession? in
+            guard span.hasSleep,
+                  span.isActive || span.end.timeIntervalSince(span.start) >= minimumDuration
+            else { return nil }
+            return SnooSession(id: id, startedAt: span.start,
+                               endedAt: span.isActive ? nil : span.end, levels: [])
+        }
+        return (grouped + loners).sorted { $0.startedAt < $1.startedAt }
     }
 
-    /// Merges the aggregated-day sessions with the last-session record,
-    /// de-duplicating on ID with last-session (the fresher source) winning.
-    /// The last-session payload has no sessionId, so it can only be matched
-    /// by start instant — an aggregated segment starting within a minute of
-    /// it is the same session.
+    /// Merges the day fetches with the last-session record. A session that
+    /// spans a day boundary is clipped into both day windows under the same
+    /// id — union those spans back into one. The last-session payload has no
+    /// sessionId, so it can only be matched by start instant — an aggregated
+    /// session starting within a minute of it is the same session, and last
+    /// (the fresher source) wins.
     static func merge(last: SnooSession?, aggregated: [SnooSession]) -> [SnooSession] {
-        var result = aggregated
+        var byID: [String: SnooSession] = [:]
+        var order: [String] = []
+        for session in aggregated {
+            guard let existing = byID[session.id] else {
+                byID[session.id] = session
+                order.append(session.id)
+                continue
+            }
+            let end: Date? = if let a = existing.endedAt, let b = session.endedAt {
+                max(a, b)
+            } else {
+                nil    // either half still running → the union is too
+            }
+            byID[session.id] = SnooSession(
+                id: session.id,
+                startedAt: min(existing.startedAt, session.startedAt),
+                endedAt: end,
+                levels: existing.levels.isEmpty ? session.levels : existing.levels
+            )
+        }
+        var result = order.compactMap { byID[$0] }
         if let last {
             result.removeAll { abs($0.startedAt.timeIntervalSince(last.startedAt)) < 60 }
             result.append(last)
         }
-        var seen = Set<String>()
-        return result
-            .filter { seen.insert($0.id).inserted }
-            .sorted { $0.startedAt > $1.startedAt }
+        return result.sorted { $0.startedAt > $1.startedAt }
     }
 }

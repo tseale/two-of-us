@@ -160,6 +160,75 @@ final class SnooDecodingTests: XCTestCase {
         XCTAssertTrue(a[0].id.hasPrefix("snoo-"))
     }
 
+    /// Live capture 2026-07-31 from `/ss/me/v10/babies/{id}/sessions/daily`
+    /// (see docs/SNOO-API.md §C.2): segments of one bassinet session share a
+    /// sessionId and must coalesce into a single span, not one session per
+    /// asleep segment (same-id sessions would otherwise collapse to the
+    /// first segment and lose the rest of the night).
+    func testAggregatedCoalescesSegmentsOfOneSessionIntoOneSpan() throws {
+        let json = """
+        {"levels": [
+           {"sessionId": "2035974117684732908", "type": "asleep",
+            "startTime": "2026-07-30 23:53:34.396", "stateDuration": 14,
+            "isActive": false, "startTimeFormatted": "2026-07-30T23:53:34-0500"},
+           {"sessionId": "2035974117684732908", "type": "soothing",
+            "startTime": "2026-07-30 23:53:48.620", "stateDuration": 1110,
+            "isActive": false, "startTimeFormatted": "2026-07-30T23:53:48-0500"},
+           {"sessionId": "2035974117684732908", "type": "asleep",
+            "startTime": "2026-07-31 00:12:18.620", "stateDuration": 5400,
+            "isActive": false, "startTimeFormatted": "2026-07-31T00:12:18-0500"}]}
+        """
+        let dto = try JSONDecoder().decode(SnooAggregatedDayDTO.self, from: data(json))
+        let sessions = SnooSessionNormaliser.sessions(fromAggregated: dto)
+        XCTAssertEqual(sessions.count, 1)
+        XCTAssertEqual(sessions[0].id, "2035974117684732908")
+        let expectedStart = try XCTUnwrap(SnooDates.parse("2026-07-30 23:53:34.396"))
+        let expectedEnd = try XCTUnwrap(SnooDates.parse("2026-07-31 00:12:18.620"))
+            .addingTimeInterval(5400)
+        XCTAssertEqual(sessions[0].startedAt, expectedStart)
+        XCTAssertEqual(sessions[0].endedAt, expectedEnd)
+    }
+
+    func testAggregatedSpanFloorAppliesToWholeSessionNotSegments() throws {
+        // Each asleep segment is under 5 minutes, but the session span isn't.
+        let json = """
+        {"levels": [
+           {"sessionId": "s1", "type": "asleep",
+            "startTime": "2026-07-30 22:00:00.000", "stateDuration": 19},
+           {"sessionId": "s1", "type": "soothing",
+            "startTime": "2026-07-30 22:00:19.000", "stateDuration": 236},
+           {"sessionId": "s1", "type": "asleep",
+            "startTime": "2026-07-30 22:04:15.000", "stateDuration": 60}]}
+        """
+        let dto = try JSONDecoder().decode(SnooAggregatedDayDTO.self, from: data(json))
+        XCTAssertEqual(SnooSessionNormaliser.sessions(fromAggregated: dto).count, 1)
+    }
+
+    func testAggregatedDropsSessionWithNoSleepSegments() throws {
+        // A run where the baby never slept (all soothing) is not a sleep session.
+        let json = """
+        {"levels": [
+           {"sessionId": "s2", "type": "soothing",
+            "startTime": "2026-07-30 22:00:00.000", "stateDuration": 1200}]}
+        """
+        let dto = try JSONDecoder().decode(SnooAggregatedDayDTO.self, from: data(json))
+        XCTAssertTrue(SnooSessionNormaliser.sessions(fromAggregated: dto).isEmpty)
+    }
+
+    func testAggregatedActiveSegmentMakesWholeSessionInProgress() throws {
+        let json = """
+        {"levels": [
+           {"sessionId": "s3", "type": "asleep",
+            "startTime": "2026-07-31 20:00:00.000", "stateDuration": 3600},
+           {"sessionId": "s3", "type": "soothing",
+            "startTime": "2026-07-31 21:00:00.000", "stateDuration": 120, "isActive": true}]}
+        """
+        let dto = try JSONDecoder().decode(SnooAggregatedDayDTO.self, from: data(json))
+        let sessions = SnooSessionNormaliser.sessions(fromAggregated: dto)
+        XCTAssertEqual(sessions.count, 1)
+        XCTAssertTrue(sessions[0].isInProgress)
+    }
+
     // MARK: Merge / dedupe
 
     func testMergePrefersLastSessionOverMatchingAggregatedSegment() {
@@ -183,6 +252,32 @@ final class SnooDecodingTests: XCTestCase {
         let merged = SnooSessionNormaliser.merge(last: last, aggregated: [a])
         XCTAssertEqual(merged.count, 2)
         XCTAssertEqual(merged[0].startedAt, lastStart)   // most recent first
+    }
+
+    func testMergeUnionsSessionClippedAcrossDayWindows() {
+        // A midnight-spanning session comes back clipped in both day fetches
+        // under the same sessionId — the merge should restore the full span.
+        let midnight = Date(timeIntervalSince1970: 1_785_100_000)
+        let yesterdayChunk = SnooSession(id: "night", startedAt: midnight.addingTimeInterval(-3600),
+                                         endedAt: midnight, levels: [])
+        let todayChunk = SnooSession(id: "night", startedAt: midnight,
+                                     endedAt: midnight.addingTimeInterval(5400), levels: [])
+        let merged = SnooSessionNormaliser.merge(last: nil,
+                                                 aggregated: [todayChunk, yesterdayChunk])
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertEqual(merged[0].startedAt, midnight.addingTimeInterval(-3600))
+        XCTAssertEqual(merged[0].endedAt, midnight.addingTimeInterval(5400))
+    }
+
+    func testMergeUnionStaysOpenWhenEitherHalfIsRunning() {
+        let midnight = Date(timeIntervalSince1970: 1_785_100_000)
+        let yesterdayChunk = SnooSession(id: "night", startedAt: midnight.addingTimeInterval(-3600),
+                                         endedAt: midnight, levels: [])
+        let todayChunk = SnooSession(id: "night", startedAt: midnight, endedAt: nil, levels: [])
+        let merged = SnooSessionNormaliser.merge(last: nil,
+                                                 aggregated: [todayChunk, yesterdayChunk])
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertTrue(merged[0].isInProgress)
     }
 
     // MARK: Date parsing
