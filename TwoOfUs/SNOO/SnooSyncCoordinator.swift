@@ -161,6 +161,10 @@ final class SnooSyncCoordinator {
             state.lastSyncAt = now
             lastSyncAt = now
             isDegraded = false
+            // Before reconciling: a SNOO-started timer whose session has since
+            // finished gets closed at the SNOO's end time, so the reconcile
+            // below already sees it as completed sleep.
+            autoEndFinishedSnooSleep(merged, context: context)
             reconcile(merged, context: context, now: now)
             return suggestions.isEmpty
                 ? .noneFound
@@ -196,6 +200,25 @@ final class SnooSyncCoordinator {
             )
             .prefix(Self.maxVisibleSuggestions)
         )
+    }
+
+    /// Closes an open sleep timer that was started from a SNOO suggestion
+    /// once the SNOO reports that session finished — start and end both come
+    /// from the bassinet when the parent delegated tracking by accepting the
+    /// card. Only ever touches timers stamped `source == .snoo`; a manually
+    /// started timer is never ended by the integration. Poll-driven like the
+    /// rest of the sync (§2.2): the end lands on the next foreground/manual
+    /// sync after the SNOO turns off, stamped with the SNOO's end time, and
+    /// tears down the Live Activity through the normal stop path.
+    private func autoEndFinishedSnooSleep(_ sessions: [SnooSession], context: ModelContext) {
+        let descriptor = FetchDescriptor<SleepEvent>(
+            predicate: #Predicate { $0.endedAt == nil && $0.deletedAt == nil }
+        )
+        guard let open = ((try? context.fetch(descriptor)) ?? []).first(where: \.isFromSnoo),
+              let end = SnooReconciler.autoEndDate(openSleepStartedAt: open.startedAt,
+                                                   sessions: sessions) else { return }
+        EventStore(context: context).stopSleep(open, at: end)
+        AppLog.snoo.info("SNOO session ended — closed the SNOO-started sleep timer at \(end, privacy: .public)")
     }
 
     /// Recent local sleep, reduced to spans. Reaches back 3 days — enough to
