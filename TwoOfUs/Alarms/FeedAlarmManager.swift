@@ -88,7 +88,8 @@ enum FeedAlarmManager {
         )
         let configuration: AlarmManager.AlarmConfiguration = .timer(
             duration: remaining,
-            attributes: attributes
+            attributes: attributes,
+            sound: LocalPrefs.shared.alarmTone.alertSound
         )
         do {
             _ = try await AlarmManager.shared.schedule(id: alarmID, configuration: configuration)
@@ -115,7 +116,7 @@ enum FeedAlarmManager {
         guard granted else { return }
         let content = UNMutableNotificationContent()
         content.title = "\(babyName) — feed due"
-        content.sound = .default
+        content.sound = LocalPrefs.shared.alarmTone.notificationSound
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, seconds), repeats: false)
         let request = UNNotificationRequest(identifier: fallbackNotificationID, content: content, trigger: trigger)
         try? await center.add(request)

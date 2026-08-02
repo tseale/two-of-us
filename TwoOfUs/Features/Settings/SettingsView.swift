@@ -148,10 +148,22 @@ struct SettingsView: View {
                     .onChange(of: prefs.nightSlotAlarmEnabled) { _, on in
                         Task { await updateSlotAlarm(enabled: on) }
                     }
+                    Picker(selection: $prefs.alarmTone) {
+                        ForEach(AlarmTone.allCases) { tone in
+                            Text(tone.label).tag(tone)
+                        }
+                    } label: {
+                        SettingsIconLabel(title: "Alarm sound", systemImage: "speaker.wave.2.fill",
+                                          tint: AppColor.urgencyAmber)
+                    }
+                    .onChange(of: prefs.alarmTone) { _, tone in
+                        AlarmTonePreview.play(tone)
+                        Task { await rearmAlarms() }   // a pending alarm re-arms with the new tone
+                    }
                 } header: {
                     Text("Reminders")
                 } footer: {
-                    Text("Feed reminder alerts you when the next feed is due; My slot alarm wakes you for nighttime-schedule slots that are yours (an unassigned slot wakes both of you) — both even on Silent or Focus, and only near your own slot one of them rings. This device only.")
+                    Text("Feed reminder alerts you when the next feed is due; My slot alarm wakes you for nighttime-schedule slots that are yours (an unassigned slot wakes both of you) — both even on Silent or Focus, and only near your own slot one of them rings. Alarm sound applies to both. This device only.")
                 }
 
                 Section {
@@ -654,6 +666,17 @@ struct SettingsView: View {
                                           lastFeed: lastFeed,
                                           interval: lastFeed.flatMap { settings?.feedInterval(after: $0) } ?? 0)
         NotificationManager.refreshScheduledReminders()      // stand the gentle feed nudge down
+    }
+
+    /// Re-arms whichever alarms are pending so they pick up a changed tone —
+    /// AlarmKit bakes the sound in at schedule time, so a tone switch has to
+    /// reschedule (the managers no-op for anything disabled or not due).
+    private func rearmAlarms() async {
+        await SlotAlarmManager.reschedule()
+        let lastFeed = lastFeedDate()
+        await FeedAlarmManager.reschedule(babyName: baby?.name ?? "Baby",
+                                          lastFeed: lastFeed,
+                                          interval: lastFeed.flatMap { settings?.feedInterval(after: $0) } ?? 0)
     }
 
     /// Arms or clears the loud "my slot" alarm when the toggle flips. Reverts
