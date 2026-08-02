@@ -16,41 +16,57 @@ private func wakeIntent() -> SetSleepIntent {
 /// A calm night scene: a glowing moon, an eyebrow, and a large rounded timer over
 /// a deep-indigo gradient — the same brand gradient as the in-app "record" hero.
 /// Mirrors the in-app `SleepActiveCard`, down to the Wake up ☀️ button.
+///
+/// Kept deliberately compact: when a second/third Live Activity (podcast,
+/// live sports score) is also on the Lock Screen, the system gives each card
+/// less vertical room, sized off this view's *natural* height — there's no
+/// API to request a minimum. Every line here is capped to one line with a
+/// `minimumScaleFactor` instead of letting `sectionLabelStyle`'s tracked
+/// uppercase text wrap, since a wrapped eyebrow is what pushed "since 6:03 PM"
+/// out of frame in the first place.
 struct SleepLockScreenView: View {
     let context: ActivityViewContext<SleepActivityAttributes>
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             // Moon with a soft halo.
             ZStack {
                 Circle()
                     .fill(AppColor.accentSleep.opacity(0.22))
-                    .frame(width: 46, height: 46)
+                    .frame(width: 40, height: 40)
                 Image(systemName: "moon.stars.fill")
-                    .font(.title2)
+                    .font(.title3)
                     .foregroundStyle(AppColor.accentSleep)
             }
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text("\(context.attributes.babyName.uppercased()) IS SLEEPING")
                     .sectionLabelStyle(color: AppColor.accentSleep)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
 
                 // `.timer` style counts up automatically — no periodic update push needed.
+                // Highest-priority element: it keeps its size while everything
+                // else concedes space first.
                 Text(context.state.startedAt, style: .timer)
-                    .font(AppFont.display(30, weight: .heavy))
+                    .font(AppFont.display(26, weight: .heavy))
                     .foregroundStyle(AppColor.nightlightCream)
+                    .lineLimit(1)
+                    .layoutPriority(1)
 
                 Text("since \(TimeFormatting.clock(context.state.startedAt))")
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(AppColor.nightlightCream.opacity(0.6))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
             wakeButton
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .background(
             LinearGradient(
                 colors: [AppColor.indigoHi, AppColor.indigoNight],
@@ -63,17 +79,19 @@ struct SleepLockScreenView: View {
     /// treatment as the in-app Wake button.
     private var wakeButton: some View {
         Button(intent: wakeIntent()) {
-            VStack(spacing: 2) {
+            VStack(spacing: 1) {
                 Text("Wake up")
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Text("☀️")
             }
             .font(.subheadline.weight(.semibold))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
         }
         .buttonStyle(.plain)
         .foregroundStyle(.white)
-        .background(AppColor.accentSleep, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(AppColor.accentSleep, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -103,6 +121,8 @@ struct SleepLiveActivity: Widget {
                     Text("\(context.attributes.babyName) is sleeping")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
                 // No action button in the Island — it stays a calm glance (zzz +
                 // running timer). Waking happens from the lock-screen Live Activity
