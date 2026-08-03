@@ -52,6 +52,21 @@ DEFINE SCHEMA
         GRANT READ TO "_world"
     );
 
+    RECORD TYPE NoteEvent (
+        "___recordID" REFERENCE QUERYABLE,
+        babyID STRING,
+        deletedAt TIMESTAMP,
+        editOfID STRING,
+        loggedByColorHex STRING,
+        loggedByID STRING,
+        loggedByName STRING,
+        text STRING,
+        timestamp TIMESTAMP,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
     RECORD TYPE Participant (
         "___recordID" REFERENCE QUERYABLE,
         cloudUserID STRING,

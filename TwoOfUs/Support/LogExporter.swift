@@ -43,6 +43,15 @@ enum LogExporter {
             rows.append(row("diaper", d.timestamp, d.type.label, d.loggedByName, d.loggedByColorHex, d.notes))
         }
 
+        let notes = (try? context.fetch(FetchDescriptor<NoteEvent>(
+            predicate: #Predicate { $0.deletedAt == nil },
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        ))) ?? []
+        for n in notes {
+            // A standalone note's text IS its content — it rides the notes column.
+            rows.append(row("note", n.timestamp, "", n.loggedByName, n.loggedByColorHex, n.text))
+        }
+
         return rows.joined(separator: "\n")
     }
 

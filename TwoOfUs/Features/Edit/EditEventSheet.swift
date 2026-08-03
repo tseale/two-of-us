@@ -47,6 +47,15 @@ struct EditEventSheet: View {
             _sleepStart = State(initialValue: e.startedAt)
             _sleepEnd = State(initialValue: e.endedAt ?? e.startedAt)
             _notes = State(initialValue: e.notes ?? "")
+        case .note(let e):
+            // The `notes` state carries the note's TEXT — for a standalone
+            // note it's the primary field, not an attached annotation.
+            _date = State(initialValue: e.timestamp)
+            _amount = State(initialValue: 0)
+            _diaperType = State(initialValue: .wet)
+            _sleepStart = State(initialValue: e.timestamp)
+            _sleepEnd = State(initialValue: e.timestamp)
+            _notes = State(initialValue: e.text)
         }
     }
 
@@ -89,6 +98,12 @@ struct EditEventSheet: View {
                                 .foregroundStyle(AppColor.urgencyRed)
                         }
                     }
+                case .note:
+                    Section("Note") {
+                        TextField("What happened?", text: $notes, axis: .vertical)
+                            .lineLimit(3...8)
+                    }
+                    Section("Time") { TimeControl(date: $date, tint: AppColor.accentNote) }
                 }
 
                 // Reassigning is common enough to live in the sheet: one parent
@@ -106,9 +121,13 @@ struct EditEventSheet: View {
                     }
                 }
 
-                Section("Note") {
-                    TextField("Add a note (optional)", text: $notes, axis: .vertical)
-                        .lineLimit(1...4)
+                // The attached-note field. A standalone note's text is already
+                // the primary field above — no second note slot.
+                if entry.kind != nil {
+                    Section("Note") {
+                        TextField("Add a note (optional)", text: $notes, axis: .vertical)
+                            .lineLimit(1...4)
+                    }
                 }
 
                 Section {
@@ -141,8 +160,12 @@ struct EditEventSheet: View {
     }
 
     private var canSave: Bool {
-        if case .sleep = entry { return sleepDurationValid }
-        return true
+        switch entry {
+        case .sleep: return sleepDurationValid
+        // Editing a note down to nothing is a delete, not a save.
+        case .note: return !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        default: return true
+        }
     }
 
     /// Contextual confirmation label so the action reads as what it edits.
@@ -151,6 +174,7 @@ struct EditEventSheet: View {
         case .feed: "Save feed"
         case .diaper: "Save change"
         case .sleep: "Save sleep"
+        case .note: "Save note"
         }
     }
 
@@ -204,6 +228,8 @@ struct EditEventSheet: View {
             store.editDiaper(e, type: diaperType, timestamp: date, notes: notes, loggedBy: newLogger)
         case .sleep(let e):
             store.editSleep(e, startedAt: sleepStart, endedAt: sleepEnd, notes: notes, loggedBy: newLogger)
+        case .note(let e):
+            store.editNote(e, text: notes, timestamp: date, loggedBy: newLogger)
         }
         Haptics.success()
         dismiss()
@@ -215,6 +241,7 @@ struct EditEventSheet: View {
         case .feed(let e): store.softDelete(e)
         case .diaper(let e): store.softDelete(e)
         case .sleep(let e): store.softDelete(e)
+        case .note(let e): store.softDelete(e)
         }
         Haptics.warning()
         dismiss()

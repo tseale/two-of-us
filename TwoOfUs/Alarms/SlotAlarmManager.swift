@@ -78,7 +78,8 @@ enum SlotAlarmManager {
         )
         let configuration: AlarmManager.AlarmConfiguration = .timer(
             duration: remaining,
-            attributes: attributes
+            attributes: attributes,
+            sound: LocalPrefs.shared.alarmTone.alertSound
         )
         // Publish the fire date before the (async) schedule call so a
         // concurrently re-arming FeedAlarmManager sees it as early as possible;
@@ -125,7 +126,7 @@ enum SlotAlarmManager {
         guard granted else { return }
         let content = UNMutableNotificationContent()
         content.title = title
-        content.sound = .default
+        content.sound = LocalPrefs.shared.alarmTone.notificationSound
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, seconds), repeats: false)
         let request = UNNotificationRequest(identifier: fallbackNotificationID, content: content, trigger: trigger)
         try? await center.add(request)

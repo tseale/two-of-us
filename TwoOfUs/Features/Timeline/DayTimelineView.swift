@@ -33,12 +33,13 @@ struct DayTimelineRow: View {
             rail
 
             HStack(spacing: 8) {
-                Text(entry.kind.emoji).font(.callout)
+                Text(entry.emoji).font(.callout)
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 6) {
                         Text(entry.title)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(AppColor.text)
+                            .lineLimit(2)
                         if entry.isFromSnoo { SnooTag() }
                     }
                     if let note = entry.notes, !note.isEmpty {
@@ -61,14 +62,18 @@ struct DayTimelineRow: View {
     }
 
     private var accent: Color {
-        switch entry.kind {
+        switch entry {
         case .feed:   return AppColor.accentFeed
         case .sleep:  return AppColor.accentSleep
         case .diaper: return AppColor.accentDiaper
+        case .note:   return AppColor.accentNote
         }
     }
 
     private var accessibilityLabel: String {
+        if case .note = entry {
+            return "Note: \(entry.title), \(TimeFormatting.clock(entry.sortDate)), logged by \(loggedByName)"
+        }
         var label = "\(entry.title), \(TimeFormatting.clock(entry.sortDate)), logged by \(loggedByName)"
         if entry.isFromSnoo { label += ", from SNOO" }
         if let note = entry.notes, !note.isEmpty { label += ", note: \(note)" }

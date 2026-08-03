@@ -52,6 +52,14 @@ enum RecordMapping {
                       deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
             return r
         }
+        if let m = NoteEvent.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.note, recordID: recordID, archived: m.ckSystemFields)
+            r["text"] = m.text
+            r["timestamp"] = m.timestamp
+            setCommon(r, loggedByID: m.loggedByID, name: m.loggedByName, color: m.loggedByColorHex,
+                      deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
+            return r
+        }
         if let m = Baby.fetchByID(uuid, in: context) {
             let r = baseRecord(type: SyncConstants.RecordType.baby, recordID: recordID, archived: m.ckSystemFields)
             r["name"] = m.name
@@ -139,6 +147,9 @@ enum RecordMapping {
         var diaper = FetchDescriptor<DiaperEvent>(predicate: #Predicate { $0.id == uuid })
         diaper.fetchLimit = 1
         if try context.fetchCount(diaper) > 0 { return true }
+        var note = FetchDescriptor<NoteEvent>(predicate: #Predicate { $0.id == uuid })
+        note.fetchLimit = 1
+        if try context.fetchCount(note) > 0 { return true }
         var baby = FetchDescriptor<Baby>(predicate: #Predicate { $0.id == uuid })
         baby.fetchLimit = 1
         if try context.fetchCount(baby) > 0 { return true }
@@ -222,7 +233,7 @@ enum RecordMapping {
         func clear<T: PersistentModel & HasSyncID>(_ type: T.Type) {
             for m in (try? context.fetch(FetchDescriptor<T>())) ?? [] { m.ckSystemFields = nil }
         }
-        clear(FeedEvent.self); clear(SleepEvent.self); clear(DiaperEvent.self)
+        clear(FeedEvent.self); clear(SleepEvent.self); clear(DiaperEvent.self); clear(NoteEvent.self)
         clear(Baby.self); clear(Participant.self); clear(SharedSettings.self)
         clear(PlanSlot.self); clear(PlanOverride.self)
     }
@@ -273,6 +284,7 @@ enum RecordMapping {
         case SyncConstants.RecordType.feed:    try applyFeed(record, uuid: uuid, in: context)
         case SyncConstants.RecordType.sleep:   try applySleep(record, uuid: uuid, in: context)
         case SyncConstants.RecordType.diaper:  try applyDiaper(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.note:    try applyNote(record, uuid: uuid, in: context)
         case SyncConstants.RecordType.baby:    try applyBaby(record, uuid: uuid, in: context)
         case SyncConstants.RecordType.participant: try applyParticipant(record, uuid: uuid, in: context)
         case SyncConstants.RecordType.settings: try applySettings(record, uuid: uuid, in: context)
@@ -298,6 +310,7 @@ enum RecordMapping {
         if let m = try FeedEvent.findByID(uuid, in: context) { context.delete(m); return }
         if let m = try SleepEvent.findByID(uuid, in: context) { context.delete(m); return }
         if let m = try DiaperEvent.findByID(uuid, in: context) { context.delete(m); return }
+        if let m = try NoteEvent.findByID(uuid, in: context) { context.delete(m); return }
         if let m = try Participant.findByID(uuid, in: context) { context.delete(m); return }
         if let m = try Baby.findByID(uuid, in: context) { context.delete(m); return }
         if let m = try SharedSettings.findByID(uuid, in: context) { context.delete(m); return }
@@ -315,6 +328,8 @@ enum RecordMapping {
         for e in (try? context.fetch(FetchDescriptor<SleepEvent>(
             predicate: #Predicate { $0.baby == nil }))) ?? [] { e.baby = baby }
         for e in (try? context.fetch(FetchDescriptor<DiaperEvent>(
+            predicate: #Predicate { $0.baby == nil }))) ?? [] { e.baby = baby }
+        for e in (try? context.fetch(FetchDescriptor<NoteEvent>(
             predicate: #Predicate { $0.baby == nil }))) ?? [] { e.baby = baby }
     }
 
@@ -394,6 +409,25 @@ enum RecordMapping {
         m.typeRaw = r["typeRaw"] as? String ?? m.typeRaw
         m.timestamp = r["timestamp"] as? Date ?? m.timestamp
         m.notes = r["notes"] as? String
+        applyCommon(r, into: m, in: context)
+    }
+
+    private static func applyNote(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let m: NoteEvent
+        if let existing = try NoteEvent.findByID(uuid, in: context) {
+            m = existing
+        } else {
+            guard let timestamp = r["timestamp"] as? Date,
+                  let text = r["text"] as? String,
+                  let logger = loggerIdentity(r) else {
+                skip(r, missing: "timestamp/text/loggedByID"); return
+            }
+            m = insert(NoteEvent(baby: nil, text: text, timestamp: timestamp,
+                                 loggedByID: logger.id, loggedByName: logger.name,
+                                 loggedByColorHex: logger.color), id: uuid, in: context)
+        }
+        m.text = r["text"] as? String ?? m.text
+        m.timestamp = r["timestamp"] as? Date ?? m.timestamp
         applyCommon(r, into: m, in: context)
     }
 
@@ -565,6 +599,7 @@ enum RecordMapping {
         case SyncConstants.RecordType.feed:        FeedEvent.fetchByID(id, in: context)
         case SyncConstants.RecordType.sleep:       SleepEvent.fetchByID(id, in: context)
         case SyncConstants.RecordType.diaper:      DiaperEvent.fetchByID(id, in: context)
+        case SyncConstants.RecordType.note:        NoteEvent.fetchByID(id, in: context)
         case SyncConstants.RecordType.baby:        Baby.fetchByID(id, in: context)
         case SyncConstants.RecordType.participant: Participant.fetchByID(id, in: context)
         case SyncConstants.RecordType.settings:    SharedSettings.fetchByID(id, in: context)
@@ -575,15 +610,19 @@ enum RecordMapping {
     }
 
     /// Probes every model type for an id (used when only the id is known).
+    /// Sequential returns, not one `??` chain — the existential upcasts made
+    /// the chained expression un-type-checkable in reasonable time.
     private static func anyModel(id: UUID, in context: ModelContext) -> (any HasSyncID)? {
-        FeedEvent.fetchByID(id, in: context)
-            ?? SleepEvent.fetchByID(id, in: context)
-            ?? DiaperEvent.fetchByID(id, in: context)
-            ?? Participant.fetchByID(id, in: context) as (any HasSyncID)?
-            ?? Baby.fetchByID(id, in: context)
-            ?? SharedSettings.fetchByID(id, in: context)
-            ?? PlanSlot.fetchByID(id, in: context)
-            ?? PlanOverride.fetchByID(id, in: context)
+        if let m = FeedEvent.fetchByID(id, in: context) { return m }
+        if let m = SleepEvent.fetchByID(id, in: context) { return m }
+        if let m = DiaperEvent.fetchByID(id, in: context) { return m }
+        if let m = NoteEvent.fetchByID(id, in: context) { return m }
+        if let m = Participant.fetchByID(id, in: context) { return m }
+        if let m = Baby.fetchByID(id, in: context) { return m }
+        if let m = SharedSettings.fetchByID(id, in: context) { return m }
+        if let m = PlanSlot.fetchByID(id, in: context) { return m }
+        if let m = PlanOverride.fetchByID(id, in: context) { return m }
+        return nil
     }
 
     @discardableResult
@@ -641,6 +680,13 @@ extension DiaperEvent: HasSyncID {
         return try context.fetch(d).first
     }
 }
+extension NoteEvent: HasSyncID {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> NoteEvent? {
+        var d = FetchDescriptor<NoteEvent>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try context.fetch(d).first
+    }
+}
 extension Participant: HasSyncID {
     static func findByID(_ id: UUID, in context: ModelContext) throws -> Participant? {
         var d = FetchDescriptor<Participant>(predicate: #Predicate { $0.id == id })
@@ -686,5 +732,8 @@ extension SleepEvent: AnyEventModel {
     var babyRef: Baby? { get { baby } set { baby = newValue } }
 }
 extension DiaperEvent: AnyEventModel {
+    var babyRef: Baby? { get { baby } set { baby = newValue } }
+}
+extension NoteEvent: AnyEventModel {
     var babyRef: Baby? { get { baby } set { baby = newValue } }
 }

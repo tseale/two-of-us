@@ -95,6 +95,7 @@ enum ParticipantMerger {
         rewriteEvents(FeedEvent.self)
         rewriteEvents(SleepEvent.self)
         rewriteEvents(DiaperEvent.self)
+        rewriteEvents(NoteEvent.self)
 
         for slot in (try? context.fetch(FetchDescriptor<PlanSlot>())) ?? []
         where slot.assignedToID == old.id {

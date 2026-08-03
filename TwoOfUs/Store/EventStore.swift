@@ -11,6 +11,7 @@ protocol SoftDeletable: AnyObject {
 extension FeedEvent: SoftDeletable {}
 extension SleepEvent: SoftDeletable {}
 extension DiaperEvent: SoftDeletable {}
+extension NoteEvent: SoftDeletable {}
 extension PlanSlot: SoftDeletable {}
 extension PlanOverride: SoftDeletable {}
 
@@ -146,6 +147,31 @@ struct EventStore {
         reloadWidgets()
         refreshLocalReminders()
         donate(LogDiaperIntent(type: DiaperTypeAppEnum(rawValue: type.rawValue) ?? .wet))
+        return event
+    }
+
+    /// Logs a standalone timestamped note. No tracker gate (notes have no
+    /// toggle) and none of the feed/sleep/diaper side effects — notes touch no
+    /// widget, reminder, or Siri surface.
+    @discardableResult
+    func logNote(_ text: String, at date: Date = .now) -> NoteEvent? {
+        guard let owner = requireOwner() else { return nil }
+        // A blank note is never a real entry — reject instead of persisting an
+        // empty timeline row.
+        guard let text = EventBounds.cleanNote(text, maxLength: EventBounds.noteEventMaxLength) else {
+            AppLog.store.error("Write refused: note text is empty")
+            return nil
+        }
+        let date = EventBounds.clampPast(date)
+        let event = NoteEvent(
+            baby: baby, text: text, timestamp: date,
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex
+        )
+        context.insert(event)
+        guard save() else { context.delete(event); return nil }
+        sync(save: [event.id])
         return event
     }
 
@@ -310,6 +336,30 @@ struct EventStore {
         return replacement
     }
 
+    @discardableResult
+    func editNote(_ original: NoteEvent, text: String, timestamp: Date,
+                  loggedBy: Participant? = nil) -> NoteEvent {
+        // Same rule as creation: editing a note down to nothing is a delete,
+        // not a save — refuse by returning the original.
+        guard let text = EventBounds.cleanNote(text, maxLength: EventBounds.noteEventMaxLength) else {
+            AppLog.store.error("Edit refused: note text is empty")
+            return original
+        }
+        let replacement = NoteEvent(
+            baby: original.baby, text: text,
+            timestamp: EventBounds.clampPast(timestamp),
+            loggedByID: loggedBy?.id ?? original.loggedByID,
+            loggedByName: loggedBy?.displayName ?? original.loggedByName,
+            loggedByColorHex: loggedBy?.colorHex ?? original.loggedByColorHex,
+            editOfID: original.id
+        )
+        original.deletedAt = .now
+        context.insert(replacement)
+        save()
+        sync(save: [original.id, replacement.id])
+        return replacement
+    }
+
     // MARK: Delete / undo
 
     func softDelete(_ event: any SoftDeletable) {
@@ -347,6 +397,7 @@ struct EventStore {
         purge(FeedEvent.self)
         purge(SleepEvent.self)
         purge(DiaperEvent.self)
+        purge(NoteEvent.self)
         if !demo { SleepActivityManager.end() }   // tear down any running sleep Live Activity
         save()
         sync(save: ids)
@@ -372,6 +423,7 @@ struct EventStore {
         collect(FeedEvent.self)
         collect(SleepEvent.self)
         collect(DiaperEvent.self)
+        collect(NoteEvent.self)
         return ghosts
     }
 
@@ -430,6 +482,7 @@ struct EventStore {
         sweep(FeedEvent.self)
         sweep(SleepEvent.self)
         sweep(DiaperEvent.self)
+        sweep(NoteEvent.self)
 
         // One baby can't sleep twice at once: concurrent starts on both phones
         // (each guarded only by its local single-timer check) leave two open
@@ -567,6 +620,7 @@ struct EventStore {
         rewrite(FeedEvent.self)
         rewrite(SleepEvent.self)
         rewrite(DiaperEvent.self)
+        rewrite(NoteEvent.self)
         // Plan slots/overrides carry the same denormalized identity under a
         // different name (assignedTo*), so a rename/recolor relabels them too.
         for slot in (try? context.fetch(FetchDescriptor<PlanSlot>())) ?? []
@@ -871,6 +925,11 @@ struct EventStore {
         ))) ?? []
         entries += diapers.map(TimelineEntry.diaper)
 
+        let notes = (try? context.fetch(FetchDescriptor<NoteEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= since }
+        ))) ?? []
+        entries += notes.map(TimelineEntry.note)
+
         // Render-level dedupe: duplicate rows sharing an id can exist between
         // sweeps (inbound upsert races, legacy data) — the timeline must never
         // show one event twice even while the store still holds both rows.
@@ -974,11 +1033,15 @@ enum EventBounds {
     /// while still bounding a paste-bomb from Siri/Shortcuts.
     static let noteMaxLength = 280
 
+    /// Longest standalone NoteEvent text. Roomier than the attached-note cap —
+    /// "doctor said…" summaries need a few sentences — but still bounded.
+    static let noteEventMaxLength = 500
+
     /// Trims a free-text note; blank/whitespace-only becomes nil so empty notes
     /// never persist, and over-long input is capped.
-    static func cleanNote(_ note: String?) -> String? {
+    static func cleanNote(_ note: String?, maxLength: Int = noteMaxLength) -> String? {
         guard let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty else { return nil }
-        return String(trimmed.prefix(noteMaxLength))
+        return String(trimmed.prefix(maxLength))
     }
 }
