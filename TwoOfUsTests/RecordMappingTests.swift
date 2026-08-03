@@ -328,6 +328,41 @@ final class RecordMappingTests: XCTestCase {
                        "an explicit sign-out lands as empty (disconnect), distinct from never-set nil")
     }
 
+    /// Locks the sign-out-is-terminal conflict rule: a device whose pending
+    /// settings save races the other parent's SNOO sign-out must adopt the ""
+    /// instead of re-uploading the stale token blob it still holds — the old
+    /// blanket local-wins policy silently resurrected the connection.
+    func testAbsorbConflictAdoptsSnooSignOut() throws {
+        let original = SharedSettings()
+        original.snooCredentials = #"{"refreshToken":"rt","email":"t@e.com"}"#
+        context.insert(original)
+        try context.save()
+
+        let server = CKRecord(recordType: SyncConstants.RecordType.settings,
+                              recordID: recordID(original.id))
+        server["snooCredentials"] = ""
+        RecordMapping.absorbConflict(server: server, in: context)
+        XCTAssertEqual(original.snooCredentials, "",
+                       "a household sign-out must survive a race with a stale settings save")
+    }
+
+    /// The inverse race: a FRESH sign-in racing an older server blob keeps the
+    /// local (newer) credentials — only the explicit sign-out is terminal.
+    func testAbsorbConflictKeepsFreshSignInOverServerBlob() throws {
+        let fresh = #"{"refreshToken":"new","email":"t@e.com"}"#
+        let original = SharedSettings()
+        original.snooCredentials = fresh
+        context.insert(original)
+        try context.save()
+
+        let server = CKRecord(recordType: SyncConstants.RecordType.settings,
+                              recordID: recordID(original.id))
+        server["snooCredentials"] = #"{"refreshToken":"old","email":"t@e.com"}"#
+        RecordMapping.absorbConflict(server: server, in: context)
+        XCTAssertEqual(original.snooCredentials, fresh,
+                       "a re-sign-in racing an older blob must win the conflict")
+    }
+
     /// Clearing the first shift must actually travel: nil is written as an
     /// empty string (CloudKit never transmits an unset key), and an empty
     /// inbound value clears the co-parent's copy — while a record with no

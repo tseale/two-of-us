@@ -7,6 +7,12 @@ import SwiftData
 struct SnooSettingsSection: View {
     @Environment(\.modelContext) private var context
     @State private var coordinator = SnooSyncCoordinator.shared
+    /// The household connection blob, observed reactively: when the other
+    /// parent's sign-in (or sign-out) lands via CloudKit mid-session, the
+    /// `.onChange` below re-runs adoption immediately — without this, the row
+    /// only updated on the NEXT app-foreground, so a participant staring at
+    /// Settings kept seeing "Not connected" after the owner connected.
+    @Query private var settingsList: [SharedSettings]
 
     struct LoginPresentation: Identifiable, Equatable {
         let email: String
@@ -57,9 +63,25 @@ struct SnooSettingsSection: View {
                 Text(SnooFeature.disclaimer)
             }
         }
+        .task { await coordinator.adoptHouseholdConnectionIfNeeded(context: context) }
+        .onChange(of: householdBlob) {
+            Task { await coordinator.adoptHouseholdConnectionIfNeeded(context: context) }
+        }
+    }
+
+    private var householdBlob: String? {
+        SharedSettings.canonical(settingsList)?.snooCredentials
     }
 
     private var lastSyncedLine: String? {
+        // A publish still queued (offline, engine down, schema-rejected park)
+        // means the other phones can't see the connection yet — say so
+        // instead of letting "connected" masquerade as "household connected".
+        if let settings = SharedSettings.canonical(settingsList),
+           settings.snooCredentials?.isEmpty == false,
+           SyncManager.shared?.hasPendingSave(settings.id) == true {
+            return "Connecting other phones…"
+        }
         guard let last = coordinator.lastSyncAt else { return nil }
         return "Last synced \(last.formatted(.relative(presentation: .named)))"
     }
@@ -101,7 +123,8 @@ struct SnooDetailView: View {
 
     /// The household connection blob — the auto-log flag lives inside it.
     private var sharedCreds: SnooSharedCredentials? {
-        settingsList.first?.snooCredentials.flatMap(SnooSharedCredentials.init(json:))
+        SharedSettings.canonical(settingsList)?.snooCredentials
+            .flatMap(SnooSharedCredentials.init(json:))
     }
 
     var body: some View {

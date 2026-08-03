@@ -28,6 +28,16 @@ or both. Run before promoting a build to the App Store. Pair with
       never opened does NOT sync until the app is next opened (by design — see
       `RELEASE_POLISH_PLAN.md` §10).
 
+## SNOO household connection (two devices)
+- [ ] Parent A signs in to SNOO in Settings → within one app-open, parent B's
+      Settings shows **Connected** with the same email (no sign-in on B).
+- [ ] With B's Settings open when A signs in, B's row flips to Connected
+      without backgrounding the app.
+- [ ] Sign out on either phone → BOTH phones show Not connected (B on its
+      next app-open); sleep sessions already logged stay in the timeline.
+- [ ] Remove B from the household (or B leaves) → B's SNOO row shows Not
+      connected and B stops receiving SNOO suggestions.
+
 ## Sharing lifecycle
 - [ ] Change a co-parent's role; remove a participant; the right person leaves.
 - [ ] Leave share from the participant side; revoke from the owner side.

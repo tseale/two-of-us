@@ -37,7 +37,7 @@ Browser work (computer use). Ask Taylor to sign in at
 <https://icloud.developer.apple.com>, then open the container
 `iCloud.com.taylorseale.twoofus` and select the **Development** environment.
 
-Under Schema → Record Types, all eight types below must exist with all listed
+Under Schema → Record Types, all nine types below must exist with all listed
 fields. Fields are also created just-in-time, so any field that was never
 non-nil on a dev build is missing — `cloudUserID` and `notes` almost
 certainly are. **Add missing fields manually** (Record Type → Edit → Add
@@ -63,11 +63,13 @@ requires the Console's Deploy button or an explicit
 | `DiaperEvent` | `typeRaw` | String |
 | | `timestamp`, `deletedAt` | Date/Time |
 | | `notes`, `loggedByID`, `loggedByName`, `loggedByColorHex`, `editOfID`, `babyID` | String |
+| `NoteEvent` | `timestamp`, `deletedAt` | Date/Time |
+| | `text`, `loggedByID`, `loggedByName`, `loggedByColorHex`, `editOfID`, `babyID` | String |
 | `Participant` | `displayName`, `colorHex`, `roleRaw`, `cloudUserID` | String |
 | | `isActive` | Int64 |
 | | `invitedAt` | Date/Time |
 | | `photoData` | Asset |
-| `SharedSettings` | `snooCredentials` | String |
+| `SharedSettings` | `snooCredentials`, `nightRotationRaw`, `nightFirstShiftID` | String |
 | | `targetFeedIntervalMinutes` | Int64 |
 | | `ozPresets` | Double (List) |
 | | `defaultFeedOz` | Double |
@@ -87,7 +89,7 @@ Skip what you don't need: **no indexes** (CKSyncEngine uses zone deltas, never
 queries) and **no security-role changes** (the zone-wide CKShare handles
 access).
 
-**Checkpoint:** all eight record types complete in Development.
+**Checkpoint:** all nine record types complete in Development.
 
 ## Phase 2 — Deploy schema to Production
 
@@ -106,7 +108,15 @@ and the co-parent saw an empty schedule for weeks. The sync layer now parks
 schema-rejected saves and retries after the deploy lands, but the deploy
 itself is still this manual step.
 
-**Checkpoint:** eight record types visible in Production.
+**Adding a FIELD to an existing record type needs one extra code step:** bump
+`SyncConstants.RecordType.schemaGeneration`. New record TYPES are detected
+automatically and trigger the one-time whole-zone re-fetch after an app
+update, but a new field on an existing type is invisible to that check — a
+phone that fetched the record on an older build silently dropped the field's
+value and will never be re-delivered it (August 2026 lesson:
+`SharedSettings.snooCredentials` never reached the co-parent's phone).
+
+**Checkpoint:** nine record types visible in Production.
 
 ## Phase 3 — End-to-end verification
 

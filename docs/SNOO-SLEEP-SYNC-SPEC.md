@@ -81,12 +81,52 @@ with re-login as fallback.
 **Token lifecycle:**
 
 1. On login: persist access token, refresh token, expiry, email to Keychain.
-   NEVER persist password.
+   NEVER persist password. A login response without a refresh token is a
+   FAILED connect (it can't outlive the hour or be shared — see §5.1).
 2. Before each request: if token expires within 60 seconds, refresh proactively
 3. On 401: attempt one refresh and retry
 4. If refresh fails: clear tokens, set .needsReauth, passive prompt in Settings
 5. On sign-out: delete all Keychain items, clear cached sessions, reset
    SnooSyncState EXCEPT importedSessionIDs
+
+### 5.1 Household connection (one sign-in, every phone)
+
+Added Aug 2026 (commit 76ea509 + the shared-signup hardening PR). The
+household shares ONE Happiest Baby account: one parent signs in, every
+participant's device adopts the connection. Nobody else ever types SNOO
+credentials.
+
+- **What travels:** `SharedSettings.snooCredentials` carries a JSON blob
+  (`SnooSharedCredentials`: refresh token, email, babyID, autoLog) through
+  the shared CloudKit zone — the same trust boundary as the baby data. Never
+  the password, never the short-lived IdToken (each device mints its own;
+  Cognito refresh tokens are multi-use and un-rotated, docs/SNOO-API.md §A.1).
+- **Three-state field:** `nil` = never written (a signed-in pre-feature
+  device PUBLISHES its session so the household inherits it); `""` = explicit
+  sign-out (terminal — every device disconnects, and conflict resolution
+  must never resurrect a blob over it); JSON = connected (a device out of
+  step ADOPTS it into its Keychain).
+- **Adoption triggers:** every app-foreground (before the sync throttle),
+  and reactively from the Settings SNOO section (`@Query` on the settings
+  row) when the record lands mid-session. Expected latency: "Connected" on
+  the second phone within one CloudKit delivery of the sign-in — the
+  Settings row must never require a background/reopen cycle to update.
+- **Publish visibility:** while the settings save is still queued (offline,
+  engine down, schema-rejected park) the owner's row shows "Connecting
+  other phones…" — local "connected" must not masquerade as household
+  connected.
+- **Sign-out:** writes `""` (fails LOUDLY if there's no settings row — the
+  device then stays connected rather than pretending), then disconnects
+  locally. Other phones disconnect on their next adoption trigger. Sign-out
+  does NOT revoke the Cognito token server-side (no such endpoint) — the
+  account owner can rotate their Happiest Baby password to force that.
+- **Leaving the household:** leave/revoke/delete-everything tears down the
+  local SNOO connection with the rest of the zone data — an ex-member's
+  phone must not keep polling the owner's bassinet or re-seed the token
+  into a future household via the publish-local migration.
+- **Singleton hygiene:** all readers resolve the settings row via
+  `SharedSettings.canonical` (deterministic across devices), and
+  `SyncManager.mergeDuplicateSettingsIfNeeded` folds duplicate rows.
 
 **Keychain storage:** Service "com.taylorseale.twoofus.snoo",
 kSecAttrAccessibleAfterFirstUnlock

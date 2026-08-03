@@ -264,6 +264,15 @@ enum RecordMapping {
            let serverEnded = server["endedAt"] as? Date {
             sleep.endedAt = serverEnded
         }
+        if let settings = model as? SharedSettings,
+           let serverCreds = server["snooCredentials"] as? String, serverCreds.isEmpty,
+           settings.snooCredentials?.isEmpty == false {
+            // A household SNOO sign-out ("") is terminal like a soft-delete:
+            // without this, any settings edit racing the sign-out re-uploads
+            // the stale token blob and silently resurrects the connection the
+            // other parent just severed.
+            settings.snooCredentials = ""
+        }
         model.ckSystemFields = archivedSystemFields(of: server)
         return true
     }

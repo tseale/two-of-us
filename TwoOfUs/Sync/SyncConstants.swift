@@ -28,6 +28,17 @@ enum SyncConstants {
         /// here as well as above — this set drives the "did an app update
         /// teach us new record types?" re-fetch (`SyncManager`), which is what
         /// re-delivers records an older build fetched and silently dropped.
+        /// Bump whenever a build adds a FIELD to an existing synced record
+        /// type (a whole new record type is detected automatically from
+        /// `all` below). A device that fetched a record before its build knew
+        /// a field silently dropped that field's value, and the checkpointed
+        /// fetch token never re-delivers it — growing this number forces the
+        /// same one-time whole-zone re-fetch the type mechanism does. This is
+        /// exactly how `SharedSettings.snooCredentials` (added Aug 2026 with
+        /// no new type alongside it) went missing on the co-parent's phone.
+        /// Generation 2: snooCredentials + SleepEvent.sourceRaw.
+        static let schemaGeneration = 2
+
         static let all: Set<String> = [
             baby, feed, sleep, diaper, note, participant, settings, planSlot, planOverride,
         ]

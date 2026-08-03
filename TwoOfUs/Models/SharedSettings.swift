@@ -100,6 +100,18 @@ final class SharedSettings {
         return isNightFeed ? night : TimeInterval(targetFeedIntervalMinutes * 60)
     }
 
+    /// Deterministic winner among SharedSettings rows. The record is a
+    /// singleton by intent, but a reinstall that re-onboards into an existing
+    /// zone mints a second row (upsert is by UUID) — and an unordered
+    /// `.first` then lets two devices read DIFFERENT rows, splitting a value
+    /// one phone wrote from the row the other phone reads. Picking by UUID is
+    /// stable and device-independent, so every reader converges on the same
+    /// row everywhere; `SyncManager.mergeDuplicateSettingsIfNeeded` folds and
+    /// deletes the losers.
+    static func canonical(_ rows: [SharedSettings]) -> SharedSettings? {
+        rows.min { $0.id.uuidString < $1.id.uuidString }
+    }
+
     /// An unknown raw value (a future build's new pattern) reads as the
     /// default rather than crashing or silently disabling the rotation.
     var nightRotation: NightRotation {
