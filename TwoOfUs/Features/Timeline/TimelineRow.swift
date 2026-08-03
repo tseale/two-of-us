@@ -5,7 +5,7 @@ struct TimelineRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(entry.kind.emoji)
+            Text(entry.emoji)
                 .font(.body)
                 .frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {

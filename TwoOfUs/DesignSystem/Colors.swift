@@ -40,6 +40,9 @@ enum AppColor {
     static let accentFeed   = Color(hex: "5AC8B8")
     static let accentSleep  = Color(hex: "8E8EFF")
     static let accentDiaper = Color(hex: "F5B971")
+    /// Muted lavender-gray for standalone notes — deliberately quieter than the
+    /// event accents so notes read as context between activity, not activity.
+    static let accentNote   = Color(hex: "A8A0B8")
 
     static let urgencyGreen = Color(hex: "5AD17E")
     static let urgencyAmber = Color(hex: "F5B971")

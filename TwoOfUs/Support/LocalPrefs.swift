@@ -44,6 +44,7 @@ final class LocalPrefs {
         static let notifyDiaper = "notify.diaper"
         static let feedReminder = "notify.feedReminder"
         static let slotAlarm = "notify.slotAlarm"
+        static let alarmTone = "notify.alarmTone"
         static let gentleReminders = "notify.gentleReminders"
         static let notifyMilestones = "notify.milestones"
         static let quietHoursEnabled = "notify.quietHours.enabled"
@@ -98,6 +99,12 @@ final class LocalPrefs {
         didSet { defaults.set(nightSlotAlarmEnabled, forKey: Key.slotAlarm) }
     }
 
+    /// The tone both AlarmKit alarms ring with on this device. Defaults to the
+    /// in-house Nightlight chime — gentler than the system alarm, still loud.
+    var alarmTone: AlarmTone {
+        didSet { defaults.set(alarmTone.rawValue, forKey: Key.alarmTone) }
+    }
+
     /// Soft, snoozable "feed/diaper due" nudges (distinct from the loud AlarmKit
     /// feed alarm). When on, the gentle feed reminder defers to AlarmKit if that's
     /// also on, so you never get two feed reminders.
@@ -133,6 +140,7 @@ final class LocalPrefs {
         // choice (this default only applies when nothing was ever written).
         feedReminderEnabled = defaults.object(forKey: Key.feedReminder) as? Bool ?? false
         nightSlotAlarmEnabled = defaults.object(forKey: Key.slotAlarm) as? Bool ?? false
+        alarmTone = AlarmTone(rawValue: defaults.string(forKey: Key.alarmTone) ?? "") ?? .nightlight
         gentleRemindersEnabled = defaults.object(forKey: Key.gentleReminders) as? Bool ?? false
         notifyMilestones = defaults.object(forKey: Key.notifyMilestones) as? Bool ?? false
         quietHoursEnabled = defaults.object(forKey: Key.quietHoursEnabled) as? Bool ?? false
