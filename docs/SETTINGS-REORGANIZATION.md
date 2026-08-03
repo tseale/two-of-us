@@ -158,23 +158,17 @@ open question below)
   reorganization — flagged as an open question, not included in the row
   count above.
 
-## Open questions
+## Open questions — resolved in the implementation
 
-1. **Appearance placement** — top-level next to the 6 categories (making it
-   7), or folded into "Data" as proposed? Leaning toward folding in, since
-   it's a single Picker and the ≤6 budget matters more for scannability.
-2. **About as its own row vs. inline footer** — About sections are commonly
-   left inline at the very bottom of Settings.app-style forms rather than
-   pushed to a subpage, since there's nothing to interact with. Could stay
-   inline below "Data" instead of counting as row 6, bringing the top row
-   count to 5.
-3. **Cross-link to Nighttime Schedule** — worth adding a "Nighttime
-   schedule" row under Notifications & Alarms (or its own row) that jumps to
-   the Schedule tab's existing sheet, so parents don't have to know it lives
-   elsewhere? Deferred to a follow-up if wanted.
-4. **Section titles** — "Feeding & Tracking" and "Notifications & Alarms"
-   are working names; final copy should stay consistent with existing
-   in-app tone (short, sentence case, no jargon).
+1. **Appearance placement** — folded into "Data" as proposed; a single
+   Picker didn't justify a 7th top-level row.
+2. **About as its own row vs. inline footer** — kept as its own row/subpage,
+   matching the 6-row diagram above.
+3. **Cross-link to Nighttime Schedule** — deferred; nighttime schedule
+   config stays solely in the Schedule tab.
+4. **Section titles** — kept the working names ("Feeding & Tracking",
+   "Notifications & Alarms"); the previously untitled gentle-reminders
+   section gained a "Nudges" header on its subpage.
 
 ## Non-goals for this pass
 
@@ -185,17 +179,24 @@ open question below)
   a bare link on the main page).
 - No new settings or toggles — purely reorganizing what exists today.
 
-## Suggested implementation order (for a future PR, not this one)
+## Implementation notes (done in this PR)
 
-1. Extract each proposed subpage as its own `View` file under
-   `TwoOfUs/Features/Settings/` (e.g. `FeedingSettingsView.swift`,
-   `NotificationSettingsView.swift`, `PeopleSettingsView.swift`,
-   `DataSettingsView.swift`), moving section bodies verbatim — no logic
-   changes.
-2. Replace the main `Form` in `SettingsView.swift` with the 6 (or 5)
-   `NavigationLink` rows + the unchanged inline baby/you/setup content.
-3. Verify `@State` currently living on `SettingsView` (e.g. `showShareSheet`,
-   `snooLogin`, confirmation-dialog flags) moves with its owning section to
-   the new subpage rather than staying on the parent.
-4. Manual pass on device/simulator: every toggle, picker, and destructive
-   confirm still round-trips correctly from its new subpage.
+- Each subpage is its own `View` under `TwoOfUs/Features/Settings/`:
+  `FeedingSettingsView`, `NotificationSettingsView`, `PeopleSettingsView`,
+  `IntegrationsSettingsView`, `DataSettingsView`, `AboutSettingsView`.
+  Section bodies moved verbatim — no logic changes.
+- `ManageDataView` became `ManageDataSections` (embedded in the Data
+  subpage's Form instead of being its own pushed screen); each presentation
+  modifier (export task, confirm dialogs, delete-flow sheet) is attached to
+  the section that triggers it, since a modifier on the whole group would be
+  re-applied per section. `DeleteEverythingFlow` is unchanged.
+- The `@State` that lived on `SettingsView` moved with its owning section:
+  sharing sheets/dialogs to `PeopleSettingsView`, the SNOO login sheet to
+  `IntegrationsSettingsView` (still presented from a Form root, preserving
+  the cell-recycle-race fix), alarm/notification helpers to
+  `NotificationSettingsView`.
+- `SnooSettingsSection` dropped its "Integrations" header — the subpage's
+  nav title carries it now.
+- Verified in the simulator: main page renders the 6 category rows, and each
+  subpage renders its sections (including the ghost-entries count firing on
+  the Data page).

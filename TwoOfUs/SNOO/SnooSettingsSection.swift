@@ -21,8 +21,8 @@ struct SnooSettingsSection: View {
     /// Presenting the login sheet from state owned here (and a `.sheet`
     /// attached to this row's `Section`) let SwiftUI end up presenting on a
     /// List cell that was mid-recycle, which raced with Settings' own sheet
-    /// and tore down both. Owned by `SettingsView` instead, alongside its
-    /// other sheets, and presented from the Form's root (§5).
+    /// and tore down both. Owned by `IntegrationsSettingsView` instead, and
+    /// presented from that Form's root (§5).
     @Binding var login: LoginPresentation?
 
     var body: some View {
@@ -50,8 +50,6 @@ struct SnooSettingsSection: View {
                         syncing: coordinator.isSyncing)
                 }
             }
-        } header: {
-            Text("Integrations")
         } footer: {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Suggests sleep sessions your SNOO recorded that aren't logged here. Nothing is saved without your okay. One sign-in connects every phone sharing this data.")
