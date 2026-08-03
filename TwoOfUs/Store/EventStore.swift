@@ -569,11 +569,14 @@ struct EventStore {
     /// the password). Returns whether the write landed: with no settings row
     /// there is nothing to publish onto, and pretending otherwise is how a
     /// "signed out" household keeps a live token (the old silent `return`).
+    /// `interactive` controls the failure banner: user-initiated writes
+    /// (sign-in/out, the auto-log toggle) surface it; background publishes
+    /// only log, per the silent-background-sync rule.
     @discardableResult
-    func updateSnooCredentials(_ json: String?) -> Bool {
+    func updateSnooCredentials(_ json: String?, interactive: Bool = true) -> Bool {
         guard let settings else {
             AppLog.store.error("SNOO credential update dropped: no SharedSettings row on this device")
-            if !demo {
+            if interactive && !demo {
                 StoreErrorCenter.shared.report("That didn't save — this phone hasn't finished syncing the shared settings. Try again in a moment.")
             }
             return false

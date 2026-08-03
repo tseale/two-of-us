@@ -366,6 +366,19 @@ final class SnooDecodingTests: XCTestCase {
                      "garbage in the shared field reads as not connected, never a crash")
     }
 
+    func testSharedCredentialsSignInStampSurvivesTheRoundTrip() throws {
+        // The recency stamp is what lets conflict resolution spare a fresh
+        // sign-in from a racing sign-out — losing it in transit would make
+        // every blob read as ancient.
+        let stamped = SnooSharedCredentials(refreshToken: "rt-1", email: "t@e.com",
+                                            babyID: nil, signedInAt: Date(timeIntervalSince1970: 1_754_000_000))
+        let json = try XCTUnwrap(stamped.jsonString)
+        XCTAssertEqual(SnooSharedCredentials(json: json)?.signedInAt, stamped.signedInAt)
+
+        let legacy = try XCTUnwrap(SnooSharedCredentials(json: #"{"refreshToken":"rt","email":"t@e.com"}"#))
+        XCTAssertNil(legacy.signedInAt, "a pre-stamp blob decodes unchanged and counts as old")
+    }
+
     func testCredentialSyncAdoptsWhenShareHasNewCredentials() throws {
         let creds = SnooSharedCredentials(refreshToken: "rt-1", email: "t@e.com", babyID: nil)
         let json = try XCTUnwrap(creds.jsonString)

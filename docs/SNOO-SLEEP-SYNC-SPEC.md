@@ -97,10 +97,14 @@ participant's device adopts the connection. Nobody else ever types SNOO
 credentials.
 
 - **What travels:** `SharedSettings.snooCredentials` carries a JSON blob
-  (`SnooSharedCredentials`: refresh token, email, babyID, autoLog) through
-  the shared CloudKit zone — the same trust boundary as the baby data. Never
-  the password, never the short-lived IdToken (each device mints its own;
-  Cognito refresh tokens are multi-use and un-rotated, docs/SNOO-API.md §A.1).
+  (`SnooSharedCredentials`: refresh token, email, babyID, autoLog,
+  signedInAt) through the shared CloudKit zone — the same trust boundary as
+  the baby data. Never the password, never the short-lived IdToken (each
+  device mints its own; Cognito refresh tokens are multi-use and un-rotated,
+  docs/SNOO-API.md §A.1). `signedInAt` is the recency stamp conflict
+  resolution uses: a sign-out ("") beats only blobs not newer than its
+  server modification date, so a fresh re-sign-in racing a sign-out
+  survives.
 - **Three-state field:** `nil` = never written (a signed-in pre-feature
   device PUBLISHES its session so the household inherits it); `""` = explicit
   sign-out (terminal — every device disconnects, and conflict resolution

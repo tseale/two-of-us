@@ -194,19 +194,25 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         let rows = (try? context.fetch(FetchDescriptor<SharedSettings>())) ?? []
         guard rows.count > 1, let winner = SharedSettings.canonical(rows) else { return }
         var losers: [UUID] = []
+        var folded = false
         for row in rows where row.id != winner.id {
             if winner.snooCredentials == nil, let creds = row.snooCredentials {
                 winner.snooCredentials = creds
+                folded = true
             }
-            if winner.nightFirstShiftID == nil {
-                winner.nightFirstShiftID = row.nightFirstShiftID
+            if winner.nightFirstShiftID == nil, let shift = row.nightFirstShiftID {
+                winner.nightFirstShiftID = shift
+                folded = true
             }
             losers.append(row.id)
             context.delete(row)
         }
         try? context.save()
         AppLog.sync.log("Merged \(losers.count) duplicate SharedSettings row(s) into \(winner.id, privacy: .public)")
-        enqueueSave([winner.id])
+        // Only re-upload the winner when the fold actually changed it — an
+        // unchanged re-save just risks a conflict against a server copy this
+        // device hasn't fetched yet (e.g. right after a fetch-state reset).
+        if folded { enqueueSave([winner.id]) }
         enqueueDelete(losers)
     }
 

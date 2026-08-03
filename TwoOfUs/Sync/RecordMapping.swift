@@ -265,13 +265,27 @@ enum RecordMapping {
             sleep.endedAt = serverEnded
         }
         if let settings = model as? SharedSettings,
-           let serverCreds = server["snooCredentials"] as? String, serverCreds.isEmpty,
-           settings.snooCredentials?.isEmpty == false {
-            // A household SNOO sign-out ("") is terminal like a soft-delete:
-            // without this, any settings edit racing the sign-out re-uploads
-            // the stale token blob and silently resurrects the connection the
-            // other parent just severed.
-            settings.snooCredentials = ""
+           let serverCreds = server["snooCredentials"] as? String {
+            if settings.snooCredentials == nil {
+                // Local nil means this build/row never held the field — the
+                // whole-zone re-fetch delivering it must not be discarded by
+                // local-wins just because a settings save was pending (that
+                // re-drop was exactly the healed bug coming back).
+                settings.snooCredentials = serverCreds
+            } else if serverCreds.isEmpty, let local = settings.snooCredentials, !local.isEmpty {
+                // A household SNOO sign-out ("") is terminal like a
+                // soft-delete — a stale settings edit racing it must not
+                // resurrect the severed connection — EXCEPT over a blob
+                // whose sign-in is NEWER than the sign-out (a parent
+                // legitimately re-connecting right after): that fresh blob
+                // wins and re-uploads. Blobs without the recency stamp
+                // (pre-field builds) count as old.
+                let signedOutAt = server.modificationDate ?? .distantPast
+                let signedInAt = SnooSharedCredentials(json: local)?.signedInAt ?? .distantPast
+                if signedInAt <= signedOutAt {
+                    settings.snooCredentials = ""
+                }
+            }
         }
         model.ckSystemFields = archivedSystemFields(of: server)
         return true

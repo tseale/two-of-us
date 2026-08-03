@@ -93,10 +93,13 @@ final class SnooSyncCoordinator {
         state.clearBackoff()
         state.consecutiveDecodeFailures = 0
         isDegraded = false
-        // Re-signing in must not reset the household's auto-log choice.
+        // Re-signing in must not reset the household's auto-log choice. The
+        // sign-in stamp lets conflict resolution tell this FRESH blob from a
+        // stale one racing a household sign-out.
         let creds = SnooSharedCredentials(refreshToken: refresh, email: tokens.email,
                                           babyID: tokens.babyID,
-                                          autoLog: sharedCredentialsBlob(context: context)?.autoLog)
+                                          autoLog: sharedCredentialsBlob(context: context)?.autoLog,
+                                          signedInAt: .now)
         EventStore(context: context).updateSnooCredentials(creds.jsonString)
     }
 
@@ -138,10 +141,12 @@ final class SnooSyncCoordinator {
     /// adopt/publish/disconnect decision without a full API sync, so a
     /// SharedSettings record that lands mid-session flips the Settings row
     /// the moment it arrives instead of waiting for the next app-foreground.
+    /// Deliberately NOT gated on `isSyncing`: a blob landing mid-sync would
+    /// otherwise be silently skipped with nothing to re-arm the check until
+    /// the next foreground — the exact staleness this entry point removes.
     func adoptHouseholdConnectionIfNeeded(context: ModelContext) async {
         guard SnooFeature.isEnabled,
-              !LocalPrefs.shared.demoModeEnabled,
-              !isSyncing else { return }
+              !LocalPrefs.shared.demoModeEnabled else { return }
         await syncSharedCredentials(context: context)
     }
 
@@ -317,13 +322,16 @@ final class SnooSyncCoordinator {
         case .publishLocal:
             // Pre-feature migration: this device signed in before the
             // connection was shared — publish it so the household inherits.
+            // `interactive: false`: this fires from background syncs and the
+            // Settings appearance, so a missing settings row must log, not
+            // toast "that didn't save" for an action nobody took.
             guard let local, let refresh = local.refreshToken else {
                 AppLog.snoo.error("Local SNOO session has no refresh token — cannot publish it to the household")
                 break
             }
             let creds = SnooSharedCredentials(refreshToken: refresh, email: local.email,
-                                              babyID: local.babyID)
-            EventStore(context: context).updateSnooCredentials(creds.jsonString)
+                                              babyID: local.babyID, signedInAt: .now)
+            EventStore(context: context).updateSnooCredentials(creds.jsonString, interactive: false)
             AppLog.snoo.info("Published this device's SNOO connection to the household")
         case .disconnect:
             await disconnectLocally()
@@ -366,7 +374,11 @@ final class SnooSyncCoordinator {
     private func handleSyncError(_ error: SnooAPIError) {
         switch error {
         case .needsReauth, .invalidCredentials:
-            connectionState = .needsReauth(email: accountEmail)
+            // A sync failing AFTER a teardown (household left mid-flight)
+            // must not resurrect the row as "Sign in again" with no account.
+            connectionState = tokenStore.load() == nil && accountEmail.isEmpty
+                ? .notConnected
+                : .needsReauth(email: accountEmail)
         case .rateLimited(let retryAfter):
             state.registerRateLimit(retryAfter: retryAfter)
         case .decoding(_, let endpoint):

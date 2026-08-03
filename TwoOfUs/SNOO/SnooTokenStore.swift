@@ -36,12 +36,19 @@ struct SnooSharedCredentials: Codable, Equatable, Sendable {
     /// (nil reads as off). Lives in this blob on purpose — no schema change,
     /// and it travels atomically with the connection it configures.
     var autoLog: Bool?
+    /// When this blob's sign-in happened — the recency signal conflict
+    /// resolution uses to let a sign-out ("") beat only blobs that predate
+    /// it, so a FRESH sign-in racing a sign-out isn't silently destroyed.
+    /// Optional: pre-field blobs decode as nil and count as old.
+    var signedInAt: Date?
 
-    init(refreshToken: String, email: String, babyID: String?, autoLog: Bool? = nil) {
+    init(refreshToken: String, email: String, babyID: String?, autoLog: Bool? = nil,
+         signedInAt: Date? = nil) {
         self.refreshToken = refreshToken
         self.email = email
         self.babyID = babyID
         self.autoLog = autoLog
+        self.signedInAt = signedInAt
     }
 
     init?(json: String) {
