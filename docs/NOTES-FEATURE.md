@@ -32,7 +32,6 @@ that isn't a feed, sleep, or diaper, but belongs in the shared record.
   visual rhythm as the existing `DayTimelineRow`.
 - Tap a note row → read full text, edit, or delete (append-only edit, soft
   delete, undo toast — same semantics as the other events).
-- Phase 4: notes surfaced in the History tab with filtering.
 
 ### Explicitly out of scope (decided up front)
 
@@ -44,6 +43,8 @@ that isn't a feed, sleep, or diaper, but belongs in the shared record.
   discovered by reading the timeline, never pushed.
 - **No Siri intent** (for now). `QuickLogger` and the App Intents stay
   untouched.
+- **No History tab surface.** Notes live on the timeline only — the History
+  notes card sketched in an earlier draft was cut during review (2026-08-02).
 - **No tracker toggle.** Feed/sleep/diaper logging can be turned off per
   household (`SharedSettings.isEnabled(kind)`); notes are always available and
   don't participate in that system.
@@ -439,33 +440,7 @@ The existing sort + id-dedupe handles the rest.
 
 ---
 
-## 7. History tab (Phase 4)
-
-[HistoryView.swift](../TwoOfUs/Features/History/HistoryView.swift) is
-charts-only today; notes are text, so they get their own card rather than a
-chart:
-
-- **"Notes" card** (the same `Card` container), placed last, shown only when
-  notes exist in the window.
-- Contents: the last 7 days of notes, newest first, grouped by day
-  ("Yesterday", "Tuesday"). Each row: 📝, first ~2 lines of text, time,
-  small author avatar. Tap → the same `EditEventSheet` read/edit flow.
-- **Filtering**: a compact chip row at the top of the card — `All` ·
-  `<Parent 1>` · `<Parent 2>` (built from active participants) — filters by
-  author. With more than ~15 notes in the window, a "Show all" link expands
-  the card (or pushes a simple full-list screen — decide at build time; start
-  with in-card expansion).
-- Notes stay **out** of the swimlane, heatmap, and every chart.
-
-**Mockup — history state:**
-> Below "Diapers per day": a card titled "Notes" with trailing "7 days".
-> Inside, three thin chips (All / Taylor / Katie), then day-grouped rows —
-> "Yesterday — 📝 Vitamin D drops ✓ 9:12 AM (avatar)". Tapping a row opens
-> the standard edit sheet.
-
----
-
-## 8. Implementation phases
+## 7. Implementation phases
 
 Each phase is a mergeable unit; tests green (`make test`) at every boundary.
 
@@ -495,10 +470,6 @@ Each phase is a mergeable unit; tests green (`make test`) at every boundary.
 1. `EditEventSheet` `.note` arm (text + time + logged-by + delete).
 2. `HomeView.delete(entry)` `.note` case (swipe-delete + undo).
 
-### Phase 4 — History tab
-1. Notes card with day grouping + author filter chips.
-2. Tap-through to the edit sheet.
-
 ### Release gate (before merging to `main`)
 - **Deploy the NoteEvent schema to Production in CloudKit Console** (§3.5).
   TestFlight users on the current build simply ignore inbound notes until
@@ -506,7 +477,7 @@ Each phase is a mergeable unit; tests green (`make test`) at every boundary.
 
 ---
 
-## 9. Test plan summary
+## 8. Test plan summary
 
 - **Round-trip**: NoteEvent → CKRecord → NoteEvent preserves every field;
   system-fields archive survives; conflict absorb keeps a server-side

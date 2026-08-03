@@ -102,6 +102,7 @@ targets:
       - path: TwoOfUs/Models/FeedEvent.swift
       - path: TwoOfUs/Models/SleepEvent.swift
       - path: TwoOfUs/Models/DiaperEvent.swift
+      - path: TwoOfUs/Models/NoteEvent.swift
       - path: TwoOfUs/Models/Participant.swift
       - path: TwoOfUs/Models/SharedSettings.swift
       - path: TwoOfUs/Models/PlanSlot.swift
@@ -160,6 +161,7 @@ targets:
       - path: TwoOfUs/Models/FeedEvent.swift
       - path: TwoOfUs/Models/SleepEvent.swift
       - path: TwoOfUs/Models/DiaperEvent.swift
+      - path: TwoOfUs/Models/NoteEvent.swift
       - path: TwoOfUs/Models/Participant.swift
       - path: TwoOfUs/Models/SharedSettings.swift
       - path: TwoOfUs/Models/PlanSlot.swift

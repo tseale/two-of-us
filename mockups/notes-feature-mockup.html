@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notes feature — UI mockups</title>
+<style>
+  body { margin: 0; padding: 32px 24px; background: #F2F2F7; font-family: -apple-system, 'Helvetica Neue', sans-serif; }
+  @media (prefers-color-scheme: dark) { body { background: #101012; } h1 { color: #FFF; } .lbl { color: #98989F; } }
+  h1 { font-size: 20px; font-weight: 600; color: #000; margin: 0 auto 20px; max-width: 720px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; max-width: 720px; margin: 0 auto; }
+  .lbl { font-size: 13px; color: #6C6C70; margin: 0 0 8px; font-weight: 500; }
+  .phone { background: #000; border-radius: 24px; border: 6px solid #2C2C2E; padding: 16px 14px; }
+  .phone.flush { padding: 0; overflow: hidden; }
+</style>
+</head>
+<body>
+<h1>Two of Us — Notes on the timeline (design mockups, see docs/NOTES-FEATURE.md)</h1>
+<div class="grid">
+
+  <div>
+    <p class="lbl">1 · Home timeline — add button + note row</p>
+    <div class="phone">
+      <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;">
+        <span style="font-size:11px; color:#636366; letter-spacing:0.4px;">RECENT · LAST 24 HOURS</span>
+        <span style="font-size:12px; color:#A8A0B8; font-weight:500;">+ Add note</span>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center; height:24px;">
+        <span style="font-size:10px; color:#636366; width:52px; text-align:right; letter-spacing:0.5px;">NOW</span>
+        <div style="width:16px; display:flex; flex-direction:column; align-items:center;"><div style="width:9px; height:9px; border-radius:50%; border:1.5px solid #636366;"></div><div style="width:2px; flex:1; background:#38383A;"></div></div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:stretch;">
+        <span style="font-size:11px; color:#636366; width:52px; text-align:right; padding-top:14px;">3:10 PM</span>
+        <div style="width:16px; position:relative; display:flex; justify-content:center;"><div style="width:2px; background:#38383A; height:100%;"></div><div style="position:absolute; top:16px; width:11px; height:11px; border-radius:50%; background:#5AC8B8; border:2px solid #1C1C1E;"></div></div>
+        <div style="flex:1; display:flex; align-items:center; gap:8px; padding:12px 0;">
+          <span style="font-size:14px;">🍼</span>
+          <span style="font-size:13px; color:#FFF; font-weight:500; flex:1;">Feed · 3 oz</span>
+          <div style="width:22px; height:22px; border-radius:50%; background:#5AC8B8; color:#04342C; font-size:10px; font-weight:500; display:flex; align-items:center; justify-content:center;">T</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:stretch;">
+        <span style="font-size:11px; color:#636366; width:52px; text-align:right; padding-top:14px;">2:47 PM</span>
+        <div style="width:16px; position:relative; display:flex; justify-content:center;"><div style="width:2px; background:#38383A; height:100%;"></div><div style="position:absolute; top:16px; width:11px; height:11px; border-radius:50%; background:#A8A0B8; border:2px solid #1C1C1E;"></div></div>
+        <div style="flex:1; display:flex; align-items:flex-start; gap:8px; padding:12px 0;">
+          <span style="font-size:14px;">📝</span>
+          <span style="font-size:13px; color:#FFF; font-weight:500; flex:1; line-height:1.35;">Doctor said to try 4oz next week, sizes look…</span>
+          <div style="width:22px; height:22px; border-radius:50%; background:#FF8FA3; color:#4B1528; font-size:10px; font-weight:500; display:flex; align-items:center; justify-content:center;">K</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:stretch;">
+        <span style="font-size:11px; color:#636366; width:52px; text-align:right; padding-top:14px;">1:52 PM</span>
+        <div style="width:16px; position:relative; display:flex; justify-content:center;"><div style="width:2px; background:#38383A; height:100%;"></div><div style="position:absolute; top:16px; width:11px; height:11px; border-radius:50%; background:#F5B971; border:2px solid #1C1C1E;"></div></div>
+        <div style="flex:1; display:flex; align-items:center; gap:8px; padding:12px 0;">
+          <span style="font-size:14px;">💧</span>
+          <span style="font-size:13px; color:#FFF; font-weight:500; flex:1;">Diaper · Wet</span>
+          <div style="width:22px; height:22px; border-radius:50%; background:#5AC8B8; color:#04342C; font-size:10px; font-weight:500; display:flex; align-items:center; justify-content:center;">T</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:stretch;">
+        <span style="font-size:11px; color:#636366; width:52px; text-align:right; padding-top:14px;">11:20 AM</span>
+        <div style="width:16px; position:relative; display:flex; justify-content:center;"><div style="width:2px; background:#38383A; height:100%;"></div><div style="position:absolute; top:12px; width:9px; height:26px; border-radius:5px; background:#8E8EFF; border:2px solid #1C1C1E;"></div></div>
+        <div style="flex:1; display:flex; align-items:center; gap:8px; padding:12px 0;">
+          <span style="font-size:14px;">💤</span>
+          <span style="font-size:13px; color:#FFF; font-weight:500; flex:1;">Sleep · 1h 22m</span>
+          <div style="width:22px; height:22px; border-radius:50%; background:#FF8FA3; color:#4B1528; font-size:10px; font-weight:500; display:flex; align-items:center; justify-content:center;">K</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <p class="lbl">2 · Compose sheet</p>
+    <div class="phone flush">
+      <div style="background:#1C1C1E; border-radius:18px 18px 0 0; margin-top:34px; padding:14px 16px 18px; min-height:340px;">
+        <div style="width:36px; height:4px; border-radius:2px; background:#38383A; margin:0 auto 14px;"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <span style="font-size:13px; color:#A8A0B8;">Cancel</span>
+          <span style="font-size:14px; color:#FFF; font-weight:500;">New note</span>
+          <span style="font-size:13px; color:#A8A0B8; font-weight:500;">Save</span>
+        </div>
+        <div style="background:#2C2C2E; border-radius:10px; padding:12px; min-height:96px; margin-bottom:14px;">
+          <span style="font-size:13px; color:#FFF; line-height:1.45;">Gave him vitamin D drops with the morning bottle<span style="display:inline-block; width:2px; height:14px; background:#A8A0B8; vertical-align:-2px; margin-left:1px;"></span></span>
+        </div>
+        <div style="background:#2C2C2E; border-radius:10px; padding:12px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:13px; color:#98989F;">Time</span>
+          <span style="font-size:13px; color:#FFF; background:#38383A; border-radius:6px; padding:4px 10px;">Today, 2:47 PM</span>
+        </div>
+        <p style="font-size:11px; color:#636366; margin:10px 4px 0;">Defaults to now — tap to backdate</p>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <p class="lbl">3 · Tap a note — read, edit, delete</p>
+    <div class="phone flush">
+      <div style="background:#1C1C1E; border-radius:18px 18px 0 0; margin-top:34px; padding:14px 16px 18px; min-height:340px;">
+        <div style="width:36px; height:4px; border-radius:2px; background:#38383A; margin:0 auto 14px;"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <span style="font-size:13px; color:#A8A0B8;">Cancel</span>
+          <span style="font-size:14px; color:#FFF; font-weight:500;">Edit</span>
+          <span style="font-size:13px; color:#A8A0B8; font-weight:500;">Save</span>
+        </div>
+        <p style="font-size:11px; color:#636366; margin:0 4px 6px; letter-spacing:0.4px;">NOTE</p>
+        <div style="background:#2C2C2E; border-radius:10px; padding:12px; margin-bottom:14px;">
+          <span style="font-size:13px; color:#FFF; line-height:1.45;">Doctor said to try 4oz next week, sizes look good, next appt in 2 weeks</span>
+        </div>
+        <div style="background:#2C2C2E; border-radius:10px; padding:12px; display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <span style="font-size:13px; color:#98989F;">Time</span>
+          <span style="font-size:13px; color:#FFF; background:#38383A; border-radius:6px; padding:4px 10px;">Today, 2:47 PM</span>
+        </div>
+        <p style="font-size:11px; color:#636366; margin:0 4px 6px; letter-spacing:0.4px;">LOGGED BY</p>
+        <div style="display:flex; gap:18px; justify-content:center; background:#2C2C2E; border-radius:10px; padding:12px; margin-bottom:14px;">
+          <div style="text-align:center;">
+            <div style="width:34px; height:34px; border-radius:50%; background:#5AC8B8; color:#04342C; font-size:13px; font-weight:500; display:flex; align-items:center; justify-content:center; margin:0 auto 4px; opacity:0.45;">T</div>
+            <span style="font-size:10px; color:#636366;">Taylor</span>
+          </div>
+          <div style="text-align:center;">
+            <div style="width:34px; height:34px; border-radius:50%; background:#FF8FA3; color:#4B1528; font-size:13px; font-weight:500; display:flex; align-items:center; justify-content:center; margin:0 auto 4px; outline:2px solid #FFF; outline-offset:2px;">K</div>
+            <span style="font-size:10px; color:#98989F;">Katie</span>
+          </div>
+        </div>
+        <div style="background:#2C2C2E; border-radius:10px; padding:12px; text-align:center;">
+          <span style="font-size:13px; color:#FF6B6B;">Delete entry</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

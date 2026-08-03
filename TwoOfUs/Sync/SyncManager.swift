@@ -916,7 +916,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     private func sweepGhostsIfNeeded(from records: [CKRecord]) {
         guard !LocalPrefs.shared.demoModeEnabled else { return }
         let eventTypes = [SyncConstants.RecordType.feed, SyncConstants.RecordType.sleep,
-                          SyncConstants.RecordType.diaper]
+                          SyncConstants.RecordType.diaper, SyncConstants.RecordType.note]
         let sawGhost = records.contains { r in
             eventTypes.contains(r.recordType)
                 && ((r["loggedByName"] as? String)?.isEmpty ?? true)
@@ -966,7 +966,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         // an event record arriving WITHOUT a name, or a participant record
         // (whose arrival may newly resolve previously unnamed events).
         let eventTypes = [SyncConstants.RecordType.feed, SyncConstants.RecordType.sleep,
-                          SyncConstants.RecordType.diaper]
+                          SyncConstants.RecordType.diaper, SyncConstants.RecordType.note]
         let relevant = records.contains { r in
             r.recordType == SyncConstants.RecordType.participant
                 || (eventTypes.contains(r.recordType)

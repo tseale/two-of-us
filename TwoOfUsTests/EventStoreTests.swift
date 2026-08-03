@@ -70,6 +70,57 @@ final class EventStoreTests: XCTestCase {
                              "the store must backstop the UI's last-tracker rule")
     }
 
+    // MARK: Notes
+
+    func testLogNoteTrimsAndAttributes() throws {
+        let note = try XCTUnwrap(store.logNote("  gave vitamin D drops  "))
+        XCTAssertEqual(note.text, "gave vitamin D drops")
+        XCTAssertEqual(note.loggedByName, "Taylor")
+        XCTAssertNil(note.deletedAt)
+    }
+
+    func testLogNoteRefusesEmptyText() {
+        XCTAssertNil(store.logNote("   \n  "), "a blank note is never a real entry")
+    }
+
+    func testLogNoteCapsLength() throws {
+        let long = String(repeating: "a", count: EventBounds.noteEventMaxLength + 100)
+        let note = try XCTUnwrap(store.logNote(long))
+        XCTAssertEqual(note.text.count, EventBounds.noteEventMaxLength)
+    }
+
+    func testEditNoteIsAppendOnly() throws {
+        let original = try XCTUnwrap(store.logNote("fussy after feed"))
+        let replacement = store.editNote(original, text: "fussy after the 3pm feed",
+                                         timestamp: original.timestamp)
+
+        XCTAssertNotEqual(replacement.id, original.id)
+        XCTAssertEqual(replacement.editOfID, original.id, "replacement points at the original")
+        XCTAssertNotNil(original.deletedAt, "original is soft-deleted, not mutated")
+        XCTAssertEqual(replacement.text, "fussy after the 3pm feed")
+    }
+
+    func testEditNoteRefusesEmptyTextByReturningOriginal() throws {
+        let original = try XCTUnwrap(store.logNote("keep me"))
+        let result = store.editNote(original, text: "   ", timestamp: original.timestamp)
+
+        XCTAssertEqual(result.id, original.id, "empty edit returns the original untouched")
+        XCTAssertNil(original.deletedAt)
+    }
+
+    func testGhostSweepCoversNotes() throws {
+        let ctx = container.mainContext
+        let baby = try XCTUnwrap(ctx.fetch(FetchDescriptor<Baby>()).first)
+        // Ghost signature: EMPTY logger name + an id no Participant matches.
+        ctx.insert(NoteEvent(baby: baby, text: "ghost", timestamp: .now,
+                             loggedByID: UUID(), loggedByName: "", loggedByColorHex: ""))
+        let mine = try XCTUnwrap(store.logNote("real note"))
+        try ctx.save()
+
+        XCTAssertEqual(store.autoPurgeGhostEvents(), 1)
+        XCTAssertNil(mine.deletedAt, "the household's own note is untouched")
+    }
+
     func testPurgeGhostEventsRemovesOnlyUnknownLoggers() throws {
         // Real entries by the household participant…
         let mine = try XCTUnwrap(store.logFeed(amountOz: 3))

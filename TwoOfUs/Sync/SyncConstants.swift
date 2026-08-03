@@ -18,6 +18,7 @@ enum SyncConstants {
         static let feed = "FeedEvent"
         static let sleep = "SleepEvent"
         static let diaper = "DiaperEvent"
+        static let note = "NoteEvent"
         static let participant = "Participant"
         static let settings = "SharedSettings"
         static let planSlot = "PlanSlot"
@@ -28,7 +29,7 @@ enum SyncConstants {
         /// teach us new record types?" re-fetch (`SyncManager`), which is what
         /// re-delivers records an older build fetched and silently dropped.
         static let all: Set<String> = [
-            baby, feed, sleep, diaper, participant, settings, planSlot, planOverride,
+            baby, feed, sleep, diaper, note, participant, settings, planSlot, planOverride,
         ]
     }
 

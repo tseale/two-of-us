@@ -123,6 +123,50 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertEqual(copy.timestamp, original.timestamp)
     }
 
+    func testNoteRoundTrip() throws {
+        let baby = Baby(name: "Miller", dateOfBirth: .now)
+        context.insert(baby)
+        let original = NoteEvent(
+            baby: baby, text: "gave vitamin D drops",
+            timestamp: Date(timeIntervalSince1970: 1_700_000_000),
+            loggedByID: UUID(), loggedByName: "Taylor", loggedByColorHex: "#AABBCC",
+            editOfID: UUID()
+        )
+        context.insert(original)
+        try context.save()
+
+        let receiver = AppModelContainer.make(inMemory: true)
+        try RecordMapping.apply(try outbound(baby.id), in: receiver.mainContext)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+
+        let notes = try receiver.mainContext.fetch(FetchDescriptor<NoteEvent>())
+        XCTAssertEqual(notes.count, 1)
+        let copy = try XCTUnwrap(notes.first)
+        XCTAssertEqual(copy.id, original.id)
+        XCTAssertEqual(copy.text, "gave vitamin D drops")
+        XCTAssertEqual(copy.timestamp, original.timestamp)
+        XCTAssertEqual(copy.loggedByID, original.loggedByID)
+        XCTAssertEqual(copy.loggedByName, "Taylor")
+        XCTAssertEqual(copy.loggedByColorHex, "#AABBCC")
+        XCTAssertEqual(copy.editOfID, original.editOfID)
+        XCTAssertNil(copy.deletedAt)
+        XCTAssertEqual(copy.baby?.id, baby.id)
+    }
+
+    /// A note record missing its required fields must be skipped, never
+    /// materialized as a placeholder row (the ghost-event rule).
+    func testNoteMissingRequiredFieldsIsSkipped() throws {
+        let receiver = AppModelContainer.make(inMemory: true)
+        let id = UUID()
+        let bare = CKRecord(recordType: SyncConstants.RecordType.note, recordID: recordID(id))
+        bare["timestamp"] = Date()
+        // no text, no logger identity
+        try RecordMapping.apply(bare, in: receiver.mainContext)
+
+        XCTAssertTrue(try receiver.mainContext.fetch(FetchDescriptor<NoteEvent>()).isEmpty,
+                      "junk on the server must not become a local row")
+    }
+
     func testBabyRoundTripIncludingPhotoAsset() throws {
         let original = Baby(name: "Miller", dateOfBirth: Date(timeIntervalSince1970: 1_690_000_000))
         original.photoData = Data([0xDE, 0xAD, 0xBE, 0xEF])

@@ -15,6 +15,8 @@ struct HomeView: View {
     private var sleeps: [SleepEvent]
     @Query(filter: #Predicate<DiaperEvent> { $0.deletedAt == nil }, sort: \DiaperEvent.timestamp, order: .reverse)
     private var diapers: [DiaperEvent]
+    @Query(filter: #Predicate<NoteEvent> { $0.deletedAt == nil }, sort: \NoteEvent.timestamp, order: .reverse)
+    private var noteEvents: [NoteEvent]
     @Query(filter: #Predicate<PlanSlot> { $0.deletedAt == nil })
     private var planSlots: [PlanSlot]
     @Query(filter: #Predicate<PlanOverride> { $0.deletedAt == nil })
@@ -37,7 +39,7 @@ struct HomeView: View {
     /// be the only trigger).
     @State private var dayStart = Calendar.current.startOfDay(for: .now)
 
-    private enum ActiveSheet: String, Identifiable { case feed, diaper; var id: String { rawValue } }
+    private enum ActiveSheet: String, Identifiable { case feed, diaper, note; var id: String { rawValue } }
 
     private var baby: Baby? { babies.first }
     private var store: EventStore { EventStore(context: context) }
@@ -163,6 +165,9 @@ struct HomeView: View {
                 })
                 case .diaper: DiaperSheet(onLogged: { message, undo in
                     showToast(message, accent: AppColor.accentDiaper, undo: undo)
+                })
+                case .note: NoteSheet(onLogged: { message, undo in
+                    showToast(message, accent: AppColor.accentNote, undo: undo)
                 })
                 }
             }
@@ -631,7 +636,18 @@ struct HomeView: View {
                 }
             }
         } header: {
-            Text("Recent · last 24 hours").foregroundStyle(AppColor.text3)
+            HStack {
+                Text("Recent · last 24 hours").foregroundStyle(AppColor.text3)
+                Spacer()
+                // Deliberately quiet — an inline header affordance, not a log
+                // tile: notes are far less frequent than feeds/diapers.
+                Button("+ Add note") { activeSheet = .note }
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(AppColor.accentNote)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Add note")
+                    .accessibilityHint("Writes a timestamped note on the timeline")
+            }
         }
     }
 
@@ -658,6 +674,7 @@ struct HomeView: View {
         entries += feeds.filter { $0.timestamp >= since }.map(TimelineEntry.feed)
         entries += sleeps.filter { !$0.isActive && $0.startedAt >= since }.map(TimelineEntry.sleep)
         entries += diapers.filter { $0.timestamp >= since }.map(TimelineEntry.diaper)
+        entries += noteEvents.filter { $0.timestamp >= since }.map(TimelineEntry.note)
         // Never render one event twice: duplicate rows sharing an id can exist
         // between sweeps (inbound upsert races, legacy data).
         var seen = Set<UUID>()
@@ -674,6 +691,7 @@ struct HomeView: View {
         case .feed(let e): event = e
         case .sleep(let e): event = e
         case .diaper(let e): event = e
+        case .note(let e): event = e
         }
         store.softDelete(event)
         Haptics.warning()
