@@ -78,32 +78,76 @@ final class SnooSyncCoordinator {
     /// adopts it on its next sync — nobody else signs in.
     func signIn(email: String, password: String, context: ModelContext) async throws {
         let tokens = try await client.logIn(email: email, password: password)
+        guard let refresh = tokens.refreshToken else {
+            // No refresh token means the session dies within the hour and can
+            // never be shared with the household — fail the connect honestly
+            // instead of showing "connected" on one phone only (the old
+            // silent skip produced exactly that, with no diagnostic).
+            await client.signOut()
+            AppLog.snoo.error("SNOO login returned no refresh token — refusing the connect")
+            throw SnooAPIError.decoding(underlying: SnooAPIError.needsReauth,
+                                        endpoint: "login (missing RefreshToken)")
+        }
         accountEmail = tokens.email
         connectionState = .connected(email: tokens.email)
         state.clearBackoff()
         state.consecutiveDecodeFailures = 0
         isDegraded = false
-        if let refresh = tokens.refreshToken {
-            // Re-signing in must not reset the household's auto-log choice.
-            let creds = SnooSharedCredentials(refreshToken: refresh, email: tokens.email,
-                                              babyID: tokens.babyID,
-                                              autoLog: sharedCredentialsBlob(context: context)?.autoLog)
-            EventStore(context: context).updateSnooCredentials(creds.jsonString)
-        }
+        // Re-signing in must not reset the household's auto-log choice. The
+        // sign-in stamp lets conflict resolution tell this FRESH blob from a
+        // stale one racing a household sign-out.
+        let creds = SnooSharedCredentials(refreshToken: refresh, email: tokens.email,
+                                          babyID: tokens.babyID,
+                                          autoLog: sharedCredentialsBlob(context: context)?.autoLog,
+                                          signedInAt: .now)
+        EventStore(context: context).updateSnooCredentials(creds.jsonString)
     }
 
     /// The parsed household connection blob, when one is set.
     private func sharedCredentialsBlob(context: ModelContext) -> SnooSharedCredentials? {
-        ((try? context.fetch(FetchDescriptor<SharedSettings>()))?.first?.snooCredentials)
+        sharedSettingsRow(context: context)?.snooCredentials
             .flatMap(SnooSharedCredentials.init(json:))
+    }
+
+    /// The canonical settings row — NEVER an unordered `.first`, which could
+    /// disagree with the row `EventStore` publishes onto if duplicates exist.
+    private func sharedSettingsRow(context: ModelContext) -> SharedSettings? {
+        SharedSettings.canonical((try? context.fetch(FetchDescriptor<SharedSettings>())) ?? [])
     }
 
     /// Household sign-out: clears the shared connection (empty string — the
     /// explicit "signed out" state, distinct from never-set) so every device
-    /// disconnects on its next sync, then disconnects this one.
+    /// disconnects on its next sync, then disconnects this one. If the clear
+    /// couldn't be written (no settings row), the device deliberately STAYS
+    /// connected: disconnecting locally anyway would just re-adopt on the
+    /// next sync while the dialog claimed the household was signed out.
     func signOut(context: ModelContext) async {
-        EventStore(context: context).updateSnooCredentials("")
+        guard EventStore(context: context).updateSnooCredentials("") else { return }
         await disconnectLocally()
+    }
+
+    /// This device lost the household (left the share, was removed by the
+    /// owner, or deleted everything): tear down the SNOO connection locally so
+    /// an ex-member's phone doesn't keep a working token for the owner's
+    /// Happiest Baby account — or re-publish it into a future household via
+    /// the `.publishLocal` migration. The shared field isn't touched: the
+    /// zone either still belongs to the others (who keep their connection) or
+    /// no longer exists.
+    func handleHouseholdLeft() async {
+        await disconnectLocally()
+    }
+
+    /// On-demand household reconciliation for UI surfaces: runs the
+    /// adopt/publish/disconnect decision without a full API sync, so a
+    /// SharedSettings record that lands mid-session flips the Settings row
+    /// the moment it arrives instead of waiting for the next app-foreground.
+    /// Deliberately NOT gated on `isSyncing`: a blob landing mid-sync would
+    /// otherwise be silently skipped with nothing to re-arm the check until
+    /// the next foreground — the exact staleness this entry point removes.
+    func adoptHouseholdConnectionIfNeeded(context: ModelContext) async {
+        guard SnooFeature.isEnabled,
+              !LocalPrefs.shared.demoModeEnabled else { return }
+        await syncSharedCredentials(context: context)
     }
 
     /// Wipes tokens and per-account sync state on THIS device.
@@ -261,7 +305,7 @@ final class SnooSyncCoordinator {
     /// one failed refresh per sync, and the moment a parent signs in again
     /// every device heals from the newly published credentials.
     private func syncSharedCredentials(context: ModelContext) async {
-        let field = (try? context.fetch(FetchDescriptor<SharedSettings>()))?.first?.snooCredentials
+        let field = sharedSettingsRow(context: context)?.snooCredentials
         let local = tokenStore.load()
         switch SnooCredentialSync.action(sharedField: field,
                                          localRefreshToken: local?.refreshToken) {
@@ -278,10 +322,16 @@ final class SnooSyncCoordinator {
         case .publishLocal:
             // Pre-feature migration: this device signed in before the
             // connection was shared — publish it so the household inherits.
-            guard let local, let refresh = local.refreshToken else { break }
+            // `interactive: false`: this fires from background syncs and the
+            // Settings appearance, so a missing settings row must log, not
+            // toast "that didn't save" for an action nobody took.
+            guard let local, let refresh = local.refreshToken else {
+                AppLog.snoo.error("Local SNOO session has no refresh token — cannot publish it to the household")
+                break
+            }
             let creds = SnooSharedCredentials(refreshToken: refresh, email: local.email,
-                                              babyID: local.babyID)
-            EventStore(context: context).updateSnooCredentials(creds.jsonString)
+                                              babyID: local.babyID, signedInAt: .now)
+            EventStore(context: context).updateSnooCredentials(creds.jsonString, interactive: false)
             AppLog.snoo.info("Published this device's SNOO connection to the household")
         case .disconnect:
             await disconnectLocally()
@@ -324,7 +374,11 @@ final class SnooSyncCoordinator {
     private func handleSyncError(_ error: SnooAPIError) {
         switch error {
         case .needsReauth, .invalidCredentials:
-            connectionState = .needsReauth(email: accountEmail)
+            // A sync failing AFTER a teardown (household left mid-flight)
+            // must not resurrect the row as "Sign in again" with no account.
+            connectionState = tokenStore.load() == nil && accountEmail.isEmpty
+                ? .notConnected
+                : .needsReauth(email: accountEmail)
         case .rateLimited(let retryAfter):
             state.registerRateLimit(retryAfter: retryAfter)
         case .decoding(_, let endpoint):

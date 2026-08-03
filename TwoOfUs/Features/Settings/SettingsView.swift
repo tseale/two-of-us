@@ -47,7 +47,7 @@ struct SettingsView: View {
     }
 
     private var baby: Baby? { babies.first }
-    private var settings: SharedSettings? { settingsList.first }
+    private var settings: SharedSettings? { SharedSettings.canonical(settingsList) }
     private var store: EventStore { EventStore(context: context) }
 
     /// The local user's own participant record (for the "You" card).

@@ -38,6 +38,7 @@ struct SnooLoginSheet: View {
                                 .foregroundStyle(AppColor.urgencyRed)
                         }
                         Text("Uses the same sign-in as the SNOO app. Your password is only used to connect and is never stored. \(SnooFeature.disclaimer)")
+                        Text("Already connected on your partner's phone? You don't need to sign in — their connection reaches this phone automatically once it syncs.")
                     }
                 }
 

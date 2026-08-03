@@ -1,3 +1,4 @@
+import CloudKit
 import Foundation
 import SwiftData
 
@@ -98,6 +99,42 @@ final class SharedSettings {
             nightEndMinute: nightEndMinute
         )
         return isNightFeed ? night : TimeInterval(targetFeedIntervalMinutes * 60)
+    }
+
+    /// Deterministic winner among SharedSettings rows. The record is a
+    /// singleton by intent, but a reinstall that re-onboards into an existing
+    /// zone mints a second row (upsert is by UUID) — and an unordered
+    /// `.first` then lets two devices read DIFFERENT rows, splitting a value
+    /// one phone wrote from the row the other phone reads.
+    ///
+    /// The ESTABLISHED record must win — the earliest server creation date
+    /// (from `ckSystemFields`, identical on every synced device), so a
+    /// reinstall's freshly-minted defaults row can never dethrone (and, via
+    /// the merge pass, zone-delete) the household's configured record. Rows
+    /// that never reached the server sort last; ties fall back to UUID so the
+    /// pick stays total and device-independent either way.
+    /// `SyncManager.mergeDuplicateSettingsIfNeeded` folds and deletes losers.
+    static func canonical(_ rows: [SharedSettings]) -> SharedSettings? {
+        rows.min { a, b in
+            switch (a.serverCreatedAt, b.serverCreatedAt) {
+            case let (x?, y?) where x != y: return x < y
+            case (.some, nil): return true
+            case (nil, .some): return false
+            default: return a.id.uuidString < b.id.uuidString
+            }
+        }
+    }
+
+    /// When the server first stored this row — decoded from the archived
+    /// CKRecord system fields; nil until the record has round-tripped.
+    /// Decoded inline (not via RecordMapping) because this file also compiles
+    /// into targets that don't include the Sync sources.
+    private var serverCreatedAt: Date? {
+        guard let data = ckSystemFields,
+              let coder = try? NSKeyedUnarchiver(forReadingFrom: data) else { return nil }
+        coder.requiresSecureCoding = true
+        defer { coder.finishDecoding() }
+        return CKRecord(coder: coder)?.creationDate
     }
 
     /// An unknown raw value (a future build's new pattern) reads as the

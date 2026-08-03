@@ -482,4 +482,39 @@ final class EventStoreTests: XCTestCase {
 
         XCTAssertEqual(store.timeline(since: .distantPast).count, 1)
     }
+
+    // MARK: SNOO household connection
+
+    func testUpdateSnooCredentialsWritesAndReports() throws {
+        XCTAssertTrue(store.updateSnooCredentials(#"{"refreshToken":"rt","email":"t@e.com"}"#))
+        XCTAssertEqual(store.settings?.snooCredentials, #"{"refreshToken":"rt","email":"t@e.com"}"#)
+    }
+
+    func testUpdateSnooCredentialsFailsLoudlyWithoutASettingsRow() throws {
+        let ctx = container.mainContext
+        try ctx.delete(model: SharedSettings.self)
+        try ctx.save()
+
+        XCTAssertFalse(store.updateSnooCredentials(""),
+                       "a household sign-out that can't be written must report failure, not vanish")
+    }
+
+    func testUpdateSnooCredentialsTargetsTheCanonicalRow() throws {
+        // A reinstall can leave two settings rows; the write and every reader
+        // must agree on the same one or the connection splits across devices.
+        let ctx = container.mainContext
+        try ctx.delete(model: SharedSettings.self)
+        let low = UUID(uuidString: "11111111-0000-0000-0000-000000000000")!
+        let high = UUID(uuidString: "ffffffff-0000-0000-0000-000000000000")!
+        ctx.insert(SharedSettings(id: high))
+        ctx.insert(SharedSettings(id: low))
+        try ctx.save()
+
+        XCTAssertTrue(store.updateSnooCredentials("blob"))
+
+        let rows = try ctx.fetch(FetchDescriptor<SharedSettings>())
+        XCTAssertEqual(rows.first { $0.id == low }?.snooCredentials, "blob",
+                       "the write must land on the canonical (lowest-UUID) row")
+        XCTAssertNil(rows.first { $0.id == high }?.snooCredentials)
+    }
 }

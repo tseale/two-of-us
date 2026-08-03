@@ -328,6 +328,77 @@ final class RecordMappingTests: XCTestCase {
                        "an explicit sign-out lands as empty (disconnect), distinct from never-set nil")
     }
 
+    /// Locks the sign-out-is-terminal conflict rule: a device whose pending
+    /// settings save races the other parent's SNOO sign-out must adopt the ""
+    /// instead of re-uploading the stale token blob it still holds — the old
+    /// blanket local-wins policy silently resurrected the connection.
+    func testAbsorbConflictAdoptsSnooSignOut() throws {
+        let original = SharedSettings()
+        original.snooCredentials = #"{"refreshToken":"rt","email":"t@e.com"}"#
+        context.insert(original)
+        try context.save()
+
+        let server = CKRecord(recordType: SyncConstants.RecordType.settings,
+                              recordID: recordID(original.id))
+        server["snooCredentials"] = ""
+        RecordMapping.absorbConflict(server: server, in: context)
+        XCTAssertEqual(original.snooCredentials, "",
+                       "a household sign-out must survive a race with a stale settings save")
+    }
+
+    /// A sign-in stamped NEWER than the sign-out must survive it: parent A
+    /// re-connecting right after parent B signed out is a legitimate new
+    /// connection, not a stale blob to tombstone. (A locally-built server
+    /// record has no modificationDate, which reads as an ancient sign-out.)
+    func testAbsorbConflictKeepsSignInFresherThanTheSignOut() throws {
+        let fresh = SnooSharedCredentials(refreshToken: "new", email: "t@e.com",
+                                          babyID: nil, signedInAt: .now)
+        let original = SharedSettings()
+        original.snooCredentials = fresh.jsonString
+        context.insert(original)
+        try context.save()
+
+        let server = CKRecord(recordType: SyncConstants.RecordType.settings,
+                              recordID: recordID(original.id))
+        server["snooCredentials"] = ""
+        RecordMapping.absorbConflict(server: server, in: context)
+        XCTAssertEqual(original.snooCredentials, fresh.jsonString,
+                       "a sign-in newer than the sign-out must not be destroyed by it")
+    }
+
+    /// Local nil means "this build/row never held the field" — a conflict
+    /// during the whole-zone re-fetch heal must ADOPT the server blob, not
+    /// re-drop it under local-wins (that re-drop was the healed bug back).
+    func testAbsorbConflictAdoptsServerCredentialsOntoLocalNil() throws {
+        let original = SharedSettings()
+        context.insert(original)
+        try context.save()
+
+        let server = CKRecord(recordType: SyncConstants.RecordType.settings,
+                              recordID: recordID(original.id))
+        server["snooCredentials"] = #"{"refreshToken":"rt","email":"t@e.com"}"#
+        RecordMapping.absorbConflict(server: server, in: context)
+        XCTAssertEqual(original.snooCredentials, #"{"refreshToken":"rt","email":"t@e.com"}"#,
+                       "a re-delivered household connection must survive a pending local save")
+    }
+
+    /// The inverse race: a FRESH sign-in racing an older server blob keeps the
+    /// local (newer) credentials — only the explicit sign-out is terminal.
+    func testAbsorbConflictKeepsFreshSignInOverServerBlob() throws {
+        let fresh = #"{"refreshToken":"new","email":"t@e.com"}"#
+        let original = SharedSettings()
+        original.snooCredentials = fresh
+        context.insert(original)
+        try context.save()
+
+        let server = CKRecord(recordType: SyncConstants.RecordType.settings,
+                              recordID: recordID(original.id))
+        server["snooCredentials"] = #"{"refreshToken":"old","email":"t@e.com"}"#
+        RecordMapping.absorbConflict(server: server, in: context)
+        XCTAssertEqual(original.snooCredentials, fresh,
+                       "a re-sign-in racing an older blob must win the conflict")
+    }
+
     /// Clearing the first shift must actually travel: nil is written as an
     /// empty string (CloudKit never transmits an unset key), and an empty
     /// inbound value clears the co-parent's copy — while a record with no

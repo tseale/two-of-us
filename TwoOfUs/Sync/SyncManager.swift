@@ -74,6 +74,10 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         /// Record types the last-run build could apply (see
         /// `resetFetchStateIfRecordTypesExpanded`).
         static let knownRecordTypes = "sync.knownRecordTypes"
+        /// The schema generation the last-run build understood — the manual
+        /// counterpart of `knownRecordTypes` for FIELDS added to existing
+        /// types (see `SyncConstants.RecordType.schemaGeneration`).
+        static let schemaGeneration = "sync.schemaGeneration"
         /// Legacy shared-array widget queue — drained (and cleared) for installs
         /// that queued ids before the per-key scheme below.
         static let widgetWrites = "sync.pendingWidgetWrites"
@@ -157,6 +161,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             startSharedEngine()
         }
         resyncScheduleRecordsIfNeeded()
+        mergeDuplicateSettingsIfNeeded()
         await repairMyIdentityIfDangling()
         // Parked saves (engine down, zone unknown, schema-rejected) get another
         // send attempt whenever sync (re)starts — not only on the first engine
@@ -169,6 +174,46 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             if sharedZoneID != nil { drainPendingSharedChanges() }
         }
         drainExtensionQueue()
+    }
+
+    /// Self-heal for duplicate SharedSettings rows. The record is a singleton
+    /// by intent, but a reinstall that re-onboards into an existing zone mints
+    /// a fresh-UUID row while the whole-zone re-fetch re-inserts the old one
+    /// (the upsert is by UUID — same mechanism as the duplicate Participant
+    /// rows SeedData documents). Two rows split publish from read: a value
+    /// one phone writes can land on a row the other phone never looks at.
+    /// Every reader now picks `SharedSettings.canonical`, and this pass folds
+    /// what the losers uniquely hold into that winner and deletes them — from
+    /// this store and the zone, so both phones converge on the same single
+    /// row. (The winner's other fields stand as-is; a lost night-window
+    /// tweak is re-settable, a split SNOO connection is not.)
+    ///
+    /// Internal so the fold is unit-testable without a live engine
+    /// (`enqueueSave`/`enqueueDelete` park to the hold queues there).
+    func mergeDuplicateSettingsIfNeeded() {
+        let rows = (try? context.fetch(FetchDescriptor<SharedSettings>())) ?? []
+        guard rows.count > 1, let winner = SharedSettings.canonical(rows) else { return }
+        var losers: [UUID] = []
+        var folded = false
+        for row in rows where row.id != winner.id {
+            if winner.snooCredentials == nil, let creds = row.snooCredentials {
+                winner.snooCredentials = creds
+                folded = true
+            }
+            if winner.nightFirstShiftID == nil, let shift = row.nightFirstShiftID {
+                winner.nightFirstShiftID = shift
+                folded = true
+            }
+            losers.append(row.id)
+            context.delete(row)
+        }
+        try? context.save()
+        AppLog.sync.log("Merged \(losers.count) duplicate SharedSettings row(s) into \(winner.id, privacy: .public)")
+        // Only re-upload the winner when the fold actually changed it — an
+        // unchanged re-save just risks a conflict against a server copy this
+        // device hasn't fetched yet (e.g. right after a fetch-state reset).
+        if folded { enqueueSave([winner.id]) }
+        enqueueDelete(losers)
     }
 
     /// Self-heal for a dangling local identity. `myParticipantID` can point at
@@ -242,16 +287,29 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         let defaults = UserDefaults.standard
         let missing = Self.newlyLearnedRecordTypes(
             sincePersisted: defaults.stringArray(forKey: Keys.knownRecordTypes))
-        guard !missing.isEmpty else { return }
+        // Fields added to EXISTING types are invisible to the type-set diff —
+        // the July 2026 hole this closes: a pre-feature build fetched the
+        // SharedSettings record after the co-parent published snooCredentials,
+        // dropped the unknown field, and the checkpoint moved past it for
+        // good. The manual generation bump forces the same heal for fields.
+        // An install with no persisted generation (0) also triggers once —
+        // that IS the heal for drops that already happened.
+        let generationGrew = defaults.integer(forKey: Keys.schemaGeneration)
+            < SyncConstants.RecordType.schemaGeneration
+        guard !missing.isEmpty || generationGrew else { return }
         // A fresh install has no fetch state to reset — record the set quietly.
         let hadState = FileManager.default.fileExists(atPath: stateURL(.private).path)
             || FileManager.default.fileExists(atPath: stateURL(.shared).path)
         if hadState {
-            AppLog.sync.log("Client learned record type(s) \(missing.sorted().joined(separator: ", "), privacy: .public) — resetting fetch state so records dropped by the previous build are re-delivered")
+            let reason = missing.isEmpty
+                ? "schema generation \(SyncConstants.RecordType.schemaGeneration)"
+                : missing.sorted().joined(separator: ", ")
+            AppLog.sync.log("Client learned \(reason, privacy: .public) — resetting fetch state so records dropped by the previous build are re-delivered")
             discardFetchStateParkingUnsent(.private)
             discardFetchStateParkingUnsent(.shared)
         }
         defaults.set(SyncConstants.RecordType.all.sorted(), forKey: Keys.knownRecordTypes)
+        defaults.set(SyncConstants.RecordType.schemaGeneration, forKey: Keys.schemaGeneration)
     }
 
     /// Record types this build understands that the previous run's build (its
@@ -565,6 +623,25 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
                 .deleteRecord(CKRecord.ID(recordName: $0.uuidString, zoneID: privateZoneID))
             })
         }
+    }
+
+    /// Whether a record's save is still queued anywhere — a live engine's
+    /// outbound queue or the parked hold queues. The SNOO Settings row uses
+    /// this to show that a published household connection hasn't actually
+    /// reached CloudKit yet (offline, engine down, or schema-rejected park)
+    /// instead of letting "connected" masquerade as "household connected".
+    func hasPendingSave(_ id: UUID) -> Bool {
+        let name = id.uuidString
+        for engine in [privateEngine, sharedEngine].compactMap({ $0 }) {
+            let pending = engine.state.pendingRecordZoneChanges.contains {
+                if case .saveRecord(let recordID) = $0 { return recordID.recordName == name }
+                return false
+            }
+            if pending { return true }
+        }
+        let defaults = UserDefaults.standard
+        return (defaults.stringArray(forKey: Keys.pendingPrivateSaves) ?? []).contains(name)
+            || (defaults.stringArray(forKey: Keys.pendingSharedSaves) ?? []).contains(name)
     }
 
     private func park(_ ids: [UUID], key: String) {
@@ -1505,6 +1582,11 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             await SlotAlarmManager.cancel()
         }
         NotificationManager.cancelScheduleReminders()
+        // "Delete everything" resets to a fresh install — the SNOO connection
+        // (whose shared record just went with the zone) goes too, so it can't
+        // resurface via the `.publishLocal` migration in whatever household
+        // this device sets up next.
+        Task { await SnooSyncCoordinator.shared.handleHouseholdLeft() }
         WidgetCenter.shared.reloadAllTimelines()
         // Fresh start in-session: onboarding runs next, and its commits need a
         // live engine (previously writes were silently dropped until relaunch).
@@ -1667,6 +1749,12 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             await SlotAlarmManager.cancel()
         }
         NotificationManager.cancelScheduleReminders()
+        // An ex-member must not keep the household's SNOO account either: the
+        // credential arrived through the zone that just revoked, and leaving
+        // it in the Keychain both keeps polling the owner's bassinet and
+        // re-publishes the token into any future household via the
+        // `.publishLocal` migration.
+        Task { await SnooSyncCoordinator.shared.handleHouseholdLeft() }
         WidgetCenter.shared.reloadAllTimelines()
         start()
     }
