@@ -34,6 +34,18 @@ enum SleepActivityManager {
         Task { await endAll() }
     }
 
+    /// Corrects the start time on a running activity — used when the active
+    /// sleep's start is backdated after the timer was already tapped.
+    static func updateStart(to startedAt: Date) {
+        Task {
+            for activity in Activity<SleepActivityAttributes>.activities {
+                let state = SleepActivityAttributes.ContentState(startedAt: startedAt)
+                let content = ActivityContent(state: state, staleDate: startedAt.addingTimeInterval(3600))
+                await activity.update(content)
+            }
+        }
+    }
+
     /// Brings the Live Activity in line with the data — used when the app
     /// becomes active, since sleeps started/stopped from a widget button or
     /// Siri can't manage the Live Activity from their own process.
