@@ -53,6 +53,36 @@ struct FeedingSettingsView: View {
                         Spacer()
                     }
                     .buttonStyle(.plain)
+
+                    Stepper(value: Binding(get: { settings.defaultFeedOz },
+                                           set: { store.updateSettings(defaultFeedOz: $0) }),
+                            in: 0.5...20, step: 0.5) {
+                        SettingsIconLabel(
+                            title: "Default amount \(OzFormat.string(settings.defaultFeedOz)) oz",
+                            systemImage: "drop.fill", tint: AppColor.accentFeed)
+                    }
+                    HStack(spacing: 8) {
+                        ForEach([1.0, 2.0, 3.0, 4.0], id: \.self) { oz in
+                            let selected = settings.defaultFeedOz == oz
+                            Button {
+                                store.updateSettings(defaultFeedOz: oz)
+                            } label: {
+                                Text("\(OzFormat.string(oz)) oz")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(selected ? AppColor.accentFeed : AppColor.text2)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(selected ? AppColor.accentFeed.opacity(0.15) : AppColor.card2,
+                                                in: Capsule())
+                                    .frame(minHeight: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .accessibilityLabel("Default amount \(OzFormat.string(oz)) oz")
+                            .accessibilityAddTraits(selected ? [.isSelected] : [])
+                        }
+                        Spacer()
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 Section {

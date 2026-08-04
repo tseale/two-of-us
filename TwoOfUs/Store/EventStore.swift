@@ -532,6 +532,7 @@ struct EventStore {
 
     /// Updates the shared feeding rhythm and syncs it. Nil fields stay as-is.
     func updateSettings(targetFeedIntervalMinutes: Int? = nil, ozPresets: [Double]? = nil,
+                        defaultFeedOz: Double? = nil,
                         feedLoggingEnabled: Bool? = nil, diaperLoggingEnabled: Bool? = nil,
                         sleepLoggingEnabled: Bool? = nil) {
         guard let settings else { return }
@@ -543,6 +544,11 @@ struct EventStore {
             // Keep the one-tap (widget/Siri) amount one of the presets — same
             // rule as `SeedData.createBaby`.
             settings.defaultFeedOz = settings.ozPresets.max() ?? settings.defaultFeedOz
+        }
+        // Applied after the ozPresets side effect, so an explicit default (the
+        // Settings picker) always wins over the presets-derived fallback.
+        if let defaultFeedOz {
+            settings.defaultFeedOz = defaultFeedOz
         }
         let before = EventKind.allCases.map(settings.isEnabled)
         if let feedLoggingEnabled { settings.feedLoggingEnabled = feedLoggingEnabled }
