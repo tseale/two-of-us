@@ -25,10 +25,7 @@ struct DayTimelineRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Text(TimeFormatting.clock(entry.sortDate))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(AppColor.text3)
-                .frame(width: 64, alignment: .trailing)
+            timeColumn
 
             rail
 
@@ -83,11 +80,47 @@ struct DayTimelineRow: View {
         if case .note = entry {
             return "Note: \(entry.title), \(TimeFormatting.clock(entry.sortDate)), logged by \(loggedByName)"
         }
-        var label = "\(entry.title), \(TimeFormatting.clock(entry.sortDate))"
+        var label: String
+        if case .sleep(let e) = entry, let end = e.endedAt {
+            label = "\(entry.title), from \(TimeFormatting.clock(e.startedAt)) to \(TimeFormatting.clock(end))"
+        } else {
+            label = "\(entry.title), \(TimeFormatting.clock(entry.sortDate))"
+        }
         if !isSleep { label += ", logged by \(loggedByName)" }
         if entry.isFromSnoo { label += ", from SNOO" }
         if let note = entry.notes, !note.isEmpty { label += ", note: \(note)" }
         return label
+    }
+
+    /// The leading time gutter. Sleep with a known end shows both the start
+    /// (bottom, aligned with the base of the rail's capsule) and end (top,
+    /// aligned with its cap) — position alone tells them apart, no labels.
+    /// Everything else keeps the single centered timestamp.
+    @ViewBuilder
+    private var timeColumn: some View {
+        if case .sleep(let e) = entry, let end = e.endedAt {
+            VStack(alignment: .trailing, spacing: 0) {
+                Text(TimeFormatting.clock(end))
+                Spacer(minLength: 0)
+                Text(TimeFormatting.clock(e.startedAt))
+            }
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(AppColor.text3)
+            .frame(width: 64, height: sleepBarLength, alignment: .trailing)
+        } else {
+            Text(TimeFormatting.clock(entry.sortDate))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(AppColor.text3)
+                .frame(width: 64, alignment: .trailing)
+        }
+    }
+
+    /// Length of the sleep duration capsule, shared by the rail's node and
+    /// the time column so the two start/end labels line up with its ends.
+    private var sleepBarLength: CGFloat? {
+        guard case .sleep(let e) = entry else { return nil }
+        let minutes = (e.endedAt ?? e.startedAt).timeIntervalSince(e.startedAt) / 60
+        return max(14, min(40, 14 + CGFloat(max(0, minutes)).squareRoot() * 1.6))
     }
 
     /// The continuous rail line plus this row's node, centered over it. The node
@@ -106,15 +139,13 @@ struct DayTimelineRow: View {
     @ViewBuilder
     private var node: some View {
         switch entry {
-        case .sleep(let e):
-            let minutes = (e.endedAt ?? e.startedAt).timeIntervalSince(e.startedAt) / 60
+        case .sleep:
             // Square-root scaling so longer sleeps keep growing instead of all
             // pinning at the cap — a 4h sleep used to look identical to a 2.5h one
             // (both hit the old 30pt ceiling around ~2h40).
-            let length = max(14, min(40, 14 + CGFloat(max(0, minutes)).squareRoot() * 1.6))
             Capsule()
                 .fill(accent)
-                .frame(width: 9, height: length)
+                .frame(width: 9, height: sleepBarLength)
                 .overlay(Capsule().strokeBorder(AppColor.card, lineWidth: 2))
         default:
             Circle()
