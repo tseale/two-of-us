@@ -316,6 +316,7 @@ struct HomeView: View {
             diaperStatus: tileStatus(since: diapers.first?.timestamp, now: now, target: UrgencyDefaults.diaper),
             feedHint: feedHint(now: now),
             sleepHint: sleepHint(now: now),
+            diaperHint: diaperHint,
             sleepDetail: lastNapDetail,
             sleepActive: activeSleep != nil,
             feedReminderArmed: feedReminderArmed(now: now),
@@ -346,6 +347,15 @@ struct HomeView: View {
         return next < now
             ? "bottle was due ~\(TimeFormatting.clock(next))"
             : "next bottle ~\(TimeFormatting.clock(next))"
+    }
+
+    /// Diapers aren't on a predictable schedule the way feeds/naps are, so
+    /// there's no "next" to project — the useful thing to surface instead is
+    /// when the last change actually happened, complementing the tile's
+    /// relative "38m ago" with a fixed clock time.
+    private var diaperHint: String {
+        guard let last = diapers.first?.timestamp else { return "log a change" }
+        return "changed at \(TimeFormatting.clock(last))"
     }
 
     /// The wide Sleep row has horizontal room the square tiles don't: a
