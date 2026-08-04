@@ -20,10 +20,19 @@ struct TimelineRow: View {
                     .foregroundStyle(AppColor.text3)
             }
             Spacer()
-            ParticipantBadge(name: entry.loggedByName, colorHex: entry.loggedByColorHex)
+            // Sleep carries no logger attribution — it's the baby's doing,
+            // not a caregiver task.
+            if !isSleep {
+                ParticipantBadge(name: entry.loggedByName, colorHex: entry.loggedByColorHex)
+            }
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(entry.title), \(TimeFormatting.clock(entry.sortDate))\(entry.isFromSnoo ? ", from SNOO" : ""), logged by \(entry.loggedByName)")
+        .accessibilityLabel("\(entry.title), \(TimeFormatting.clock(entry.sortDate))\(entry.isFromSnoo ? ", from SNOO" : "")\(isSleep ? "" : ", logged by \(entry.loggedByName)")")
+    }
+
+    private var isSleep: Bool {
+        if case .sleep = entry { return true }
+        return false
     }
 }

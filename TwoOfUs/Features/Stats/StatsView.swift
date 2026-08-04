@@ -438,7 +438,9 @@ struct StatsView: View {
                             if s.id != shares.last?.id { Spacer() }
                         }
                     }
-                    Text("\(total) events logged together")
+                    // Sleeps aren't attributed to a person, so the split
+                    // covers feeds and diapers only — say so.
+                    Text("\(total) feeds & diapers logged together")
                         .font(.caption).foregroundStyle(AppColor.text3)
                 }
             }
