@@ -92,11 +92,16 @@ struct FeedSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        // The initial amount must be one of the family's presets — with custom
-        // presets that skip 3 oz (e.g. 2/4/6), the hardcoded default left no
-        // chip highlighted while the confirm button still said "Log 3 oz".
+        // Pre-fill from the shared default (Settings → Feeding & Tracking), so
+        // the sheet opens ready to log without the user re-picking an amount
+        // every time. Falls back to a preset if there's no settings row yet —
+        // same "always highlight a chip" guarantee the old hardcoded-3 default
+        // relied on, for a family whose presets skip that default (e.g. 2/4/6).
         .onAppear {
-            if !usingCustom, !presets.isEmpty, !presets.contains(amount) {
+            guard !usingCustom else { return }
+            if let defaultOz = settingsList.first?.defaultFeedOz, defaultOz > 0 {
+                amount = defaultOz
+            } else if !presets.isEmpty, !presets.contains(amount) {
                 amount = presets[presets.count / 2]
             }
         }
