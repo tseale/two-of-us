@@ -34,6 +34,7 @@ struct LogButtons: View {
     let diaperStatus: TileStatus?
     let feedHint: String
     let sleepHint: String
+    let diaperHint: String
     let sleepDetail: TileDetail?
     let sleepActive: Bool
     /// True when a feed alarm is armed on this device — shows a bell affordance
@@ -59,7 +60,7 @@ struct LogButtons: View {
                                  status: feedStatus, reminderArmed: feedReminderArmed, action: onFeed)
                         }
                         if showDiaper {
-                            tile(title: "Diaper", hint: "wet · dirty · both", emoji: "💩", color: AppColor.accentDiaper,
+                            tile(title: "Diaper", hint: diaperHint, emoji: "💩", color: AppColor.accentDiaper,
                                  status: diaperStatus, action: onDiaper)
                         }
                     }
