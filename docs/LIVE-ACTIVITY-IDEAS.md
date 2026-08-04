@@ -1,5 +1,10 @@
 # Replacing the "Wake up" button on the Sleep Live Activity
 
+> **Decision (2026-08-04):** the recommendation below was picked and built —
+> #7 (no button) combined with #1 (next-feed countdown), upgrading to #2's
+> owner label during the nighttime window. See CHANGELOG "sleep Live Activity
+> shows the next feed instead of a Wake button".
+
 The lock-screen Live Activity currently spends its right-hand column on a
 "Wake up ☀️" button (`TwoOfUsWidgets/SleepLiveActivityView.swift`). It's
 redundant — tapping anywhere on the card already deep-links into the app,

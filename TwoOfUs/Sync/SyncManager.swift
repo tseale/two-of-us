@@ -1102,7 +1102,8 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         )
         d.fetchLimit = 1
         let active = try? context.fetch(d).first
-        SleepActivityManager.reconcile(babyName: babyName, activeSleepStartedAt: active?.startedAt)
+        SleepActivityManager.reconcile(babyName: babyName, activeSleepStartedAt: active?.startedAt,
+                                       nextFeed: QuickLogger(context: context).nextFeedPrediction())
     }
 
     /// Re-arms this device's feed alarm + gentle reminders + daily summary off the

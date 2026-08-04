@@ -73,7 +73,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         let babyName = logger.babyName ?? "Baby"
         SleepActivityManager.reconcile(
             babyName: babyName,
-            activeSleepStartedAt: logger.activeSleep?.startedAt
+            activeSleepStartedAt: logger.activeSleep?.startedAt,
+            nextFeed: logger.nextFeedPrediction()
         )
         // Re-arm the feed alarm off whatever's in the store now — this catches
         // feeds logged via widget/Siri or synced from the co-parent's device.
