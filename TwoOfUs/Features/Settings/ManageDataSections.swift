@@ -1,12 +1,15 @@
 import SwiftUI
 import SwiftData
 
-/// "Manage data" screen: export a backup, clear the log, or permanently delete
-/// everything — pure data lifecycle. Reached from Settings. (The pediatrician
+/// The data-lifecycle sections of the "Data" settings subpage: export a
+/// backup, clear the log, or permanently delete everything. (The pediatrician
 /// care summary lives on the Stats tab — see `CareSummarySheet`.) Destructive
 /// actions are confirmation-gated; "Delete everything" runs the multi-step
-/// `DeleteEverythingFlow`.
-struct ManageDataView: View {
+/// `DeleteEverythingFlow`. Embedded in `DataSettingsView`'s Form rather than
+/// being its own screen — each presentation modifier is attached to the
+/// section that triggers it, since a modifier on the whole group would be
+/// re-applied per section.
+struct ManageDataSections: View {
     @Environment(\.modelContext) private var context
     @Query private var participants: [Participant]
     @State private var prefs = LocalPrefs.shared
@@ -33,76 +36,40 @@ struct ManageDataView: View {
     }
 
     var body: some View {
-        Form {
-            Section {
-                if let exportURL {
-                    ShareLink(item: exportURL) {
-                        Label("Export log (CSV)", systemImage: "square.and.arrow.up")
-                    }
-                } else if exportFailed {
-                    Button { exportRetry += 1 } label: {
-                        Label("Couldn't build the export — tap to try again", systemImage: "arrow.clockwise")
-                            .foregroundStyle(AppColor.urgencyAmber)
-                    }
-                } else {
-                    HStack(spacing: 10) {
-                        ProgressView()
-                        Text("Preparing export…").foregroundStyle(AppColor.text2)
-                    }
-                }
-            } header: {
-                Text("Backup")
-            } footer: {
-                Text("Saves the current log as a CSV file. Deleted entries are not included.")
-            }
-
-            if canEditShared {
-                Section {
-                    Button(role: .destructive) {
-                        showClearConfirm = true
-                    } label: {
-                        Label("Clear all logs", systemImage: "trash")
-                    }
-                } footer: {
-                    Text("Removes every feed, sleep, and diaper entry. Your baby and profile settings stay.")
-                }
-            }
-
-            if canEditShared, ghostCount > 0 || ghostsPurged != nil {
-                Section {
-                    if let purged = ghostsPurged {
-                        Label("Removed \(purged) unknown \(purged == 1 ? "entry" : "entries")",
-                              systemImage: "checkmark.circle")
-                            .foregroundStyle(AppColor.text2)
-                    } else {
-                        Button(role: .destructive) {
-                            showGhostConfirm = true
-                        } label: {
-                            Label("Remove \(ghostCount) unknown \(ghostCount == 1 ? "entry" : "entries")",
-                                  systemImage: "person.fill.questionmark")
-                        }
-                    }
-                } header: {
-                    Text("Unknown entries")
-                } footer: {
-                    Text("Entries logged by someone who isn't part of your household — usually stray sample data. Removing them syncs to both parents.")
-                }
-            }
-
-            if canDeleteEverything {
-                Section {
-                    Button(role: .destructive) {
-                        showDeleteFlow = true
-                    } label: {
-                        Label("Delete everything", systemImage: "exclamationmark.triangle")
-                    }
-                } footer: {
-                    Text("Permanently deletes all data for both parents and starts over. This cannot be undone.")
-                }
-            }
+        backupSection
+        if canEditShared {
+            clearSection
         }
-        .navigationTitle("Manage data")
-        .navigationBarTitleDisplayMode(.inline)
+        if canEditShared, ghostCount > 0 || ghostsPurged != nil {
+            ghostSection
+        }
+        if canDeleteEverything {
+            deleteSection
+        }
+    }
+
+    private var backupSection: some View {
+        Section {
+            if let exportURL {
+                ShareLink(item: exportURL) {
+                    Label("Export log (CSV)", systemImage: "square.and.arrow.up")
+                }
+            } else if exportFailed {
+                Button { exportRetry += 1 } label: {
+                    Label("Couldn't build the export — tap to try again", systemImage: "arrow.clockwise")
+                        .foregroundStyle(AppColor.urgencyAmber)
+                }
+            } else {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("Preparing export…").foregroundStyle(AppColor.text2)
+                }
+            }
+        } header: {
+            Text("Backup")
+        } footer: {
+            Text("Saves the current log as a CSV file. Deleted entries are not included.")
+        }
         // Re-runs on "try again" (exportRetry). A nil result means generation
         // failed — surface it instead of spinning "Preparing…" forever.
         .task(id: exportRetry) {
@@ -117,6 +84,45 @@ struct ManageDataView: View {
             // so a healthy household never sees it.
             if !prefs.demoModeEnabled { ghostCount = store.ghostEvents().count }
         }
+    }
+
+    private var clearSection: some View {
+        Section {
+            Button(role: .destructive) {
+                showClearConfirm = true
+            } label: {
+                Label("Clear all logs", systemImage: "trash")
+            }
+        } footer: {
+            Text("Removes every feed, sleep, and diaper entry. Your baby and profile settings stay.")
+        }
+        .confirmationDialog("Clear all logs?", isPresented: $showClearConfirm, titleVisibility: .visible) {
+            Button("Clear all logs", role: .destructive) { store.clearAllLogs() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes every logged entry for both parents. Your baby and settings are kept.")
+        }
+    }
+
+    private var ghostSection: some View {
+        Section {
+            if let purged = ghostsPurged {
+                Label("Removed \(purged) unknown \(purged == 1 ? "entry" : "entries")",
+                      systemImage: "checkmark.circle")
+                    .foregroundStyle(AppColor.text2)
+            } else {
+                Button(role: .destructive) {
+                    showGhostConfirm = true
+                } label: {
+                    Label("Remove \(ghostCount) unknown \(ghostCount == 1 ? "entry" : "entries")",
+                          systemImage: "person.fill.questionmark")
+                }
+            }
+        } header: {
+            Text("Unknown entries")
+        } footer: {
+            Text("Entries logged by someone who isn't part of your household — usually stray sample data. Removing them syncs to both parents.")
+        }
         .confirmationDialog("Remove unknown entries?", isPresented: $showGhostConfirm, titleVisibility: .visible) {
             Button("Remove \(ghostCount) \(ghostCount == 1 ? "entry" : "entries")", role: .destructive) {
                 ghostsPurged = store.purgeGhostEvents()
@@ -125,11 +131,17 @@ struct ManageDataView: View {
         } message: {
             Text("Removes every feed, sleep, and diaper entry whose logger isn't one of your household's participants. Your own entries are untouched. This syncs to the other parent.")
         }
-        .confirmationDialog("Clear all logs?", isPresented: $showClearConfirm, titleVisibility: .visible) {
-            Button("Clear all logs", role: .destructive) { store.clearAllLogs() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This removes every logged entry for both parents. Your baby and settings are kept.")
+    }
+
+    private var deleteSection: some View {
+        Section {
+            Button(role: .destructive) {
+                showDeleteFlow = true
+            } label: {
+                Label("Delete everything", systemImage: "exclamationmark.triangle")
+            }
+        } footer: {
+            Text("Permanently deletes all data for both parents and starts over. This cannot be undone.")
         }
         .sheet(isPresented: $showDeleteFlow) {
             DeleteEverythingFlow {
