@@ -312,6 +312,12 @@ struct EventStore {
         context.insert(replacement)
         save()
         sync(save: [original.id, replacement.id])
+        // The edit replaced the running sleep's identity (append-only), so the
+        // Live Activity — which only knows about the old record — needs its
+        // start time corrected explicitly rather than picked up automatically.
+        if !demo, replacement.isActive {
+            SleepActivityManager.updateStart(to: replacement.startedAt)
+        }
         reloadWidgets()
         return replacement
     }

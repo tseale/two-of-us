@@ -24,6 +24,7 @@ struct HomeView: View {
 
     @State private var activeSheet: ActiveSheet?
     @State private var editing: TimelineEntry?
+    @State private var editingSleepStart = false
     @State private var toast: ToastData?
     @State private var showSettings = false
     @State private var questSheet: SetupQuest?
@@ -85,8 +86,12 @@ struct HomeView: View {
                         VStack(spacing: 12) {
                             logButtons(now: ctx.date)
                             if let sleep = activeSleep {
-                                SleepActiveCard(sleep: sleep, now: ctx.date) { endSleep(sleep) }
-                                    .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
+                                SleepActiveCard(
+                                    sleep: sleep, now: ctx.date,
+                                    onWake: { endSleep(sleep) },
+                                    onEditStart: sleep.isFromSnoo ? nil : { editingSleepStart = true }
+                                )
+                                .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
                             }
                             // SNOO suggestions sit directly under the sleep
                             // button — never pushed down by the schedule card
@@ -173,6 +178,11 @@ struct HomeView: View {
             }
             .sheet(item: $editing) { entry in
                 EditEventSheet(entry: entry)
+            }
+            .sheet(isPresented: $editingSleepStart) {
+                if let sleep = activeSleep {
+                    SleepStartEditSheet(sleep: sleep)
+                }
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
