@@ -1,14 +1,6 @@
 import SwiftUI
 import WidgetKit
 import ActivityKit
-import AppIntents
-
-/// `SetSleepIntent` driven to "awake" — the Live Activity's Wake button. The
-/// intent runs in-process against the shared App Group store, same as the
-/// widget quick-log buttons.
-private func wakeIntent() -> SetSleepIntent {
-    .driving(asleep: false)
-}
 
 /// `Text(timerInterval:)` needs a concrete range end, and the counter freezes
 /// once it's reached. A week is far past any real sleep but still comfortably
@@ -25,37 +17,58 @@ private func sleepRange(from start: Date) -> ClosedRange<Date> {
 /// Full live activity view shown on the lock screen while the baby sleeps.
 /// A calm night scene: a glowing moon, an eyebrow, and a large rounded timer over
 /// a deep-indigo gradient — the same brand gradient as the in-app "record" hero.
-/// Mirrors the in-app `SleepActiveCard`, down to the Wake up ☀️ button.
 ///
-/// **The layout is fixed against the timer string's width.** That string is not
-/// stable: it renders `1:23:45` normally, but the system re-renders the card at
-/// minute granularity once the screen dims (Always-On / off), where the elapsed
-/// time can come back spelled out ("2 hours, 14 minutes") — several times wider.
-/// A plain `.timer` style also jumps from `M:SS` to `H:MM:SS` at the one-hour
-/// mark. Letting any of that drive layout is what cramped the card and pushed
-/// "since 6:03 PM" out of frame.
+/// The trailing column is the **next-feed countdown** — "GT IS UP / 1:47:23 /
+/// at 2:30 AM" — not a button. The old Wake up ☀️ button was redundant
+/// (tapping the card already opens the app, where the active-sleep card keeps
+/// its Wake button) and this is the question a parent actually has at 3am:
+/// how long do I have, and whose turn is it. The countdown self-ticks; the
+/// prediction is snapshotted into ContentState by the app (see
+/// `QuickLogger.nextFeedPrediction`) and refreshed on every reconcile. With no
+/// prediction the column disappears and the timer breathes.
+///
+/// **The layout is fixed against the timer strings' widths.** Those strings are
+/// not stable: they render `1:23:45` normally, but the system re-renders the
+/// card at minute granularity once the screen dims (Always-On / off), where an
+/// interval can come back spelled out ("2 hours, 14 minutes") — several times
+/// wider. A plain `.timer` style also jumps from `M:SS` to `H:MM:SS` at the
+/// one-hour mark. Letting any of that drive layout is what cramped the card
+/// and pushed "since 6:03 PM" out of frame.
 ///
 /// Two rules keep one layout working for every one of those strings:
-/// 1. The text column claims all slack (`maxWidth: .infinity`) and the moon and
-///    button are `fixedSize`, so the column's width is a constant that content
-///    can't renegotiate.
-/// 2. Every line is `lineLimit(1)` with a `minimumScaleFactor`, so a long string
-///    scales down inside that constant box instead of wrapping (which grew the
-///    card until it clipped) or stealing width from the Wake button.
+/// 1. The text column claims all slack (`maxWidth: .infinity`), the moon is
+///    `fixedSize`, and the next-feed column has a **constant width** — so no
+///    content can renegotiate the columns.
+/// 2. Every line is `lineLimit(1)` with a `minimumScaleFactor`, so a long
+///    string scales down inside its constant box instead of wrapping (which
+///    grew the card until it clipped) or stealing width from a neighbor.
 struct SleepLockScreenView: View {
     let babyName: String
     let startedAt: Date
+    let nextFeedAt: Date?
+    let nextFeedOwnerName: String?
+    let nextFeedOwnerColorHex: String?
 
-    init(babyName: String, startedAt: Date) {
+    init(babyName: String, startedAt: Date,
+         nextFeedAt: Date? = nil,
+         nextFeedOwnerName: String? = nil,
+         nextFeedOwnerColorHex: String? = nil) {
         self.babyName = babyName
         self.startedAt = startedAt
+        self.nextFeedAt = nextFeedAt
+        self.nextFeedOwnerName = nextFeedOwnerName
+        self.nextFeedOwnerColorHex = nextFeedOwnerColorHex
     }
 
     /// Takes plain values rather than the `ActivityViewContext` so the view can
     /// be previewed and rendered outside ActivityKit — a context can't be
     /// constructed by hand, which is why this layout went so long unverified.
     init(context: ActivityViewContext<SleepActivityAttributes>) {
-        self.init(babyName: context.attributes.babyName, startedAt: context.state.startedAt)
+        self.init(babyName: context.attributes.babyName,
+                  startedAt: context.state.startedAt,
+                  nextFeedAt: context.state.nextFeedAt,
+                  nextFeedOwnerName: context.state.nextFeedOwnerName,
+                  nextFeedOwnerColorHex: context.state.nextFeedOwnerColorHex)
     }
 
     var body: some View {
@@ -98,8 +111,9 @@ struct SleepLockScreenView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            wakeButton
-                .fixedSize()
+            if let nextFeedAt {
+                nextFeedColumn(date: nextFeedAt)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -111,22 +125,44 @@ struct SleepLockScreenView: View {
         )
     }
 
-    /// Ends the sleep right from the lock screen — same solid periwinkle
-    /// treatment as the in-app Wake button.
-    private var wakeButton: some View {
-        Button(intent: wakeIntent()) {
-            VStack(spacing: 1) {
-                Text("Wake up")
-                    .lineLimit(1)
-                Text("☀️")
-            }
-            .font(.subheadline.weight(.semibold))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+    /// The next-feed countdown. Constant-width (rule 1): the countdown string
+    /// has the same dimmed-screen instability as the sleep timer, so it scales
+    /// inside a fixed box rather than pushing the text column around.
+    private func nextFeedColumn(date: Date) -> some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            Text(nextFeedOwnerName.map { "\($0.uppercased()) IS UP" } ?? "NEXT FEED")
+                .sectionLabelStyle(color: ownerColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+
+            // Counts down to the predicted bottle, freezing at 0:00 once it's
+            // due — "feed time" — until the next reconcile moves the target.
+            // The range starts at the sleep start purely to satisfy
+            // ClosedRange (start ≤ now ≤ end while the countdown runs).
+            Text(timerInterval: min(startedAt, date)...date,
+                 countsDown: true,
+                 showsHours: true)
+                .font(AppFont.display(18, weight: .bold))
+                .foregroundStyle(AppColor.nightlightCream)
+                .multilineTextAlignment(.trailing)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+
+            Text("at \(TimeFormatting.clock(date))")
+                .font(.caption2)
+                .foregroundStyle(AppColor.nightlightCream.opacity(0.6))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(.white)
-        .background(AppColor.accentSleep, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .frame(width: 92, alignment: .trailing)
+    }
+
+    /// The assigned parent's color when the nighttime schedule named one,
+    /// else the feed accent — never the sleep periwinkle, so the column reads
+    /// as "about the next bottle" at a glance.
+    private var ownerColor: Color {
+        if let hex = nextFeedOwnerColorHex, !hex.isEmpty { return Color(hex: hex) }
+        return AppColor.accentFeed
     }
 }
 
@@ -159,15 +195,27 @@ struct SleepLiveActivity: Widget {
                         .padding(.trailing, 8)
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text("\(context.attributes.babyName) is sleeping")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                    VStack(spacing: 1) {
+                        Text("\(context.attributes.babyName) is sleeping")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                        if let next = context.state.nextFeedAt {
+                            // Static clock time, not a countdown — the center
+                            // region is too narrow for a third live timer.
+                            Text(islandNextFeedCaption(
+                                at: next, owner: context.state.nextFeedOwnerName))
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                    }
                 }
                 // No action button in the Island — it stays a calm glance (zzz +
-                // running timer). Waking happens from the lock-screen Live Activity
-                // or the in-app card.
+                // running timer). Waking happens from the in-app card, which the
+                // whole activity deep-links to.
             } compactLeading: {
                 // DESIGN.md §9: the compact island reads "💤 23:47".
                 Text("💤")
@@ -197,12 +245,23 @@ struct SleepLiveActivity: Widget {
     }
 }
 
+private func islandNextFeedCaption(at date: Date, owner: String?) -> String {
+    let time = TimeFormatting.clock(date)
+    return owner.map { "next feed \(time) · \($0)" } ?? "next feed \(time)"
+}
+
 // MARK: - Previews
 
 #Preview("Lock screen", as: .content, using: SleepActivityAttributes(babyName: "Miller")) {
     SleepLiveActivity()
 } contentStates: {
-    SleepActivityAttributes.ContentState(startedAt: .now.addingTimeInterval(-45))       // seconds in
-    SleepActivityAttributes.ContentState(startedAt: .now.addingTimeInterval(-2 * 3600)) // past an hour
-    SleepActivityAttributes.ContentState(startedAt: .now.addingTimeInterval(-11 * 3600))// long night
+    SleepActivityAttributes.ContentState(startedAt: .now.addingTimeInterval(-45))       // seconds in, no prediction
+    SleepActivityAttributes.ContentState(startedAt: .now.addingTimeInterval(-2 * 3600), // daytime prediction
+                                         nextFeedAt: .now.addingTimeInterval(45 * 60))
+    SleepActivityAttributes.ContentState(startedAt: .now.addingTimeInterval(-3 * 3600), // night: GT's slot
+                                         nextFeedAt: .now.addingTimeInterval(107 * 60),
+                                         nextFeedOwnerName: "GT",
+                                         nextFeedOwnerColorHex: "#E8A0BF")
+    SleepActivityAttributes.ContentState(startedAt: .now.addingTimeInterval(-11 * 3600),// long night, feed due
+                                         nextFeedAt: .now.addingTimeInterval(-5 * 60))
 }

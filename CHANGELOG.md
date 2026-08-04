@@ -6,6 +6,20 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Changed — sleep Live Activity shows the next feed instead of a Wake button
+- The lock-screen sleep card's trailing column is now a self-ticking
+  **next-feed countdown** — "NEXT FEED / 1:47:23 / at 2:30 AM", or the
+  assigned parent's turn ("GT IS UP") in their color while the nighttime
+  schedule is speaking. The old Wake up ☀️ button was redundant: tapping the
+  activity already opens the app, where the active-sleep card keeps its Wake
+  button (widget and Siri wake paths are unchanged).
+- The prediction is the earlier of tonight's next scheduled slot and the
+  canonical last-feed + interval maths the feed alarm uses, and it refreshes
+  whenever a feed is logged, edited, or deleted mid-sleep on this phone —
+  or arrives from the co-parent via sync/foreground reconcile.
+- The expanded Dynamic Island adds a quiet "next feed 2:30 AM · GT" caption
+  under the sleeping line; compact and minimal Island are unchanged.
+
 ### Changed — sleep is no longer attributed to a person in the UI
 - Sleep rows on the Home timeline (and the legacy timeline row) no longer
   show the logger's avatar, and VoiceOver no longer reads "logged by …"

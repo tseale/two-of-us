@@ -335,9 +335,12 @@ Subtle and quick. Nothing bounces for attention.
 - **Glanceable companions** share the language at tiny sizes: lock-screen widgets use the
   monochrome ribbon variant; the Dynamic Island sleep timer is `💤 23:47` compact /
   moon + "{baby} is sleeping" + timer expanded — **a calm glance, no action button**.
-  Waking happens on the **lock-screen Live Activity**, which carries the **Wake up ☀️**
-  button (solid periwinkle, radius 16) over the deep indigo gradient, mirroring the in-app
-  active-sleep card.
+  The **lock-screen Live Activity** is a glance too: moon + sleep timer over the deep
+  indigo gradient, with a **next-feed countdown** in the trailing column ("GT IS UP /
+  1:47:23 / at 2:30 AM" — owner label in the assigned parent's color during the nighttime
+  schedule, "NEXT FEED" in the feed accent otherwise; column absent when there's nothing
+  to predict). No Wake button — tapping the activity opens the app, whose active-sleep
+  card carries the Wake up ☀️ action.
 - Touch targets ≥44px; no hover-dependent affordances (it's a touch product).
 
 ---

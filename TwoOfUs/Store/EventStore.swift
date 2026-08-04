@@ -72,6 +72,20 @@ struct EventStore {
         return try? context.fetch(descriptor).first
     }
 
+    /// Next-feed snapshot for the sleep Live Activity, computed over this
+    /// store's own context via the shared schedule assembly.
+    private var liveActivityNextFeed: SleepActivityManager.NextFeed? {
+        QuickLogger(context: context).nextFeedPrediction()
+    }
+
+    /// Keeps a running sleep Live Activity's next-feed countdown honest after
+    /// a write that moves the prediction (feed logged/edited/deleted while the
+    /// baby sleeps — the dream-feed case). No-op when no sleep is running.
+    private func refreshSleepActivityNextFeed() {
+        guard !demo, let active = activeSleep else { return }
+        SleepActivityManager.refresh(startedAt: active.startedAt, nextFeed: liveActivityNextFeed)
+    }
+
     // MARK: Logging
     //
     // Every creation requires a resolved owner. The old `owner?.id ?? UUID()`
@@ -124,6 +138,7 @@ struct EventStore {
         context.insert(event)
         guard save() else { context.delete(event); return nil }
         sync(save: [event.id])
+        refreshSleepActivityNextFeed()
         reloadWidgets()
         refreshLocalReminders()
         donate(LogFeedIntent(amountOz: amountOz))
@@ -190,7 +205,10 @@ struct EventStore {
         context.insert(event)
         guard save() else { context.delete(event); return nil }
         sync(save: [event.id])
-        if !demo { SleepActivityManager.start(babyName: baby?.name ?? "Baby", at: date) }
+        if !demo {
+            SleepActivityManager.start(babyName: baby?.name ?? "Baby", at: date,
+                                       nextFeed: liveActivityNextFeed)
+        }
         reloadWidgets()
         // A started sleep fulfills its schedule slot — sweep tonight's reminder.
         refreshLocalReminders()
@@ -251,7 +269,10 @@ struct EventStore {
         event.deletedAt = nil
         save()
         sync(save: [event.id])
-        if !demo { SleepActivityManager.start(babyName: baby?.name ?? "Baby", at: event.startedAt) }
+        if !demo {
+            SleepActivityManager.start(babyName: baby?.name ?? "Baby", at: event.startedAt,
+                                       nextFeed: liveActivityNextFeed)
+        }
         reloadWidgets()
         refreshLocalReminders()
     }
@@ -291,6 +312,7 @@ struct EventStore {
         context.insert(replacement)
         save()
         sync(save: [original.id, replacement.id])
+        refreshSleepActivityNextFeed()
         reloadWidgets()
         refreshLocalReminders()
         return replacement
@@ -316,7 +338,8 @@ struct EventStore {
         // Live Activity — which only knows about the old record — needs its
         // start time corrected explicitly rather than picked up automatically.
         if !demo, replacement.isActive {
-            SleepActivityManager.updateStart(to: replacement.startedAt)
+            SleepActivityManager.refresh(startedAt: replacement.startedAt,
+                                         nextFeed: liveActivityNextFeed)
         }
         reloadWidgets()
         return replacement
@@ -372,6 +395,7 @@ struct EventStore {
         event.deletedAt = .now
         save()
         sync(save: [event.id])   // soft delete travels as a `deletedAt` update
+        refreshSleepActivityNextFeed()
         reloadWidgets()
         // Re-arms/cancels the loud alarms too: deleting the latest feed must not
         // leave a "feed due" alarm armed for an event that no longer exists.
@@ -385,6 +409,7 @@ struct EventStore {
         event.deletedAt = nil
         save()
         sync(save: [event.id])
+        refreshSleepActivityNextFeed()
         reloadWidgets()
         refreshLocalReminders()
     }

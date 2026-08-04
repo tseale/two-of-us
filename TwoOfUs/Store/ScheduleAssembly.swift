@@ -58,4 +58,32 @@ extension QuickLogger {
         }
         return merged.sorted { $0.date < $1.date }
     }
+
+    /// The next expected feed, for the sleep Live Activity's trailing column.
+    /// Two candidates, earliest wins:
+    /// - the schedule's next upcoming feed occurrence (tonight's dynamic slot,
+    ///   carrying its assigned parent) — but the schedule speaks for TONIGHT
+    ///   even at noon, so it can't be taken unconditionally;
+    /// - the canonical last-feed + interval prediction (the same
+    ///   `feedInterval(after:)` maths the feed alarm re-arms with), which is
+    ///   what "next feed" means during the day.
+    /// A tie prefers the scheduled slot — it knows whose turn it is. Nil when
+    /// there's nothing to predict from, or the only prediction is already past
+    /// (the countdown would render frozen at 0:00 from the start).
+    func nextFeedPrediction(now: Date = .now) -> SleepActivityManager.NextFeed? {
+        let predicted: Date? = lastFeed.flatMap {
+            let date = $0.timestamp.addingTimeInterval(feedInterval(after: $0.timestamp))
+            return date > now ? date : nil
+        }
+        if let slot = scheduleOccurrences(now: now)
+            .first(where: { $0.kind == .feed && $0.status == .upcoming }),
+           slot.date <= predicted ?? .distantFuture {
+            return SleepActivityManager.NextFeed(
+                date: slot.date,
+                ownerName: slot.assignedToName.isEmpty ? nil : slot.assignedToName,
+                ownerColorHex: slot.assignedToColorHex.isEmpty ? nil : slot.assignedToColorHex
+            )
+        }
+        return predicted.map { SleepActivityManager.NextFeed(date: $0, ownerName: nil, ownerColorHex: nil) }
+    }
 }
