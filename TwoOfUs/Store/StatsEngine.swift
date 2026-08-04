@@ -452,8 +452,9 @@ struct StatsEngine {
             let existing = map[key]
             map[key] = (existing?.color ?? color, (existing?.count ?? 0) + 1)
         }
+        // Sleeps are deliberately left out: sleep carries no logger
+        // attribution in the UI, so it can't count toward anyone's share.
         for f in feeds where f.deletedAt == nil { tally(f.loggedByName, f.loggedByColorHex) }
-        for s in sleeps where s.deletedAt == nil { tally(s.loggedByName, s.loggedByColorHex) }
         for d in diapers where d.deletedAt == nil { tally(d.loggedByName, d.loggedByColorHex) }
         return map
             .map { CaregiverContribution(name: $0.key, colorHex: $0.value.color, count: $0.value.count) }

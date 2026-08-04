@@ -6,6 +6,18 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Changed — sleep is no longer attributed to a person in the UI
+- Sleep rows on the Home timeline (and the legacy timeline row) no longer
+  show the logger's avatar, and VoiceOver no longer reads "logged by …"
+  for them — sleep is the baby's doing, not a caregiver task.
+- The sleep edit sheet no longer offers the "Logged by" reassignment picker.
+- A fulfilled sleep slot on the Nighttime schedule reads "Done ✓" instead of
+  "Covered by ⟨name⟩ ✓".
+- The Stats "Teamwork" split (and Wrapped's caregiver credit) now counts
+  feeds and diapers only; its caption says so.
+- UI-only: events still record `loggedBy` internally (sync, ghost-event
+  detection, and the CSV export are unchanged).
+
 ### Fixed — ghost "?" events, duplicates, and 0 oz feeds
 - Timeline rows with a grey "?" avatar, batches of identical events stamped
   the same minute, and impossible "Feed · 0 oz" entries are eliminated at

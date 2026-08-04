@@ -108,9 +108,10 @@ struct EditEventSheet: View {
 
                 // Reassigning is common enough to live in the sheet: one parent
                 // logs what the other actually did (or fixes a ghost-attributed
-                // row). Hidden with a single participant — nothing to change.
+                // row). Hidden with a single participant — nothing to change —
+                // and for sleep, which carries no logger attribution in the UI.
                 // Same face-row look as the night-shift picker (SlotActionsSheet).
-                if activeParticipants.count > 1 {
+                if activeParticipants.count > 1, !isSleep {
                     Section("Logged by") {
                         HStack(spacing: 12) {
                             ForEach(activeParticipants) { p in
@@ -151,6 +152,11 @@ struct EditEventSheet: View {
                 Text("This removes the logged event from the timeline and your stats.")
             }
         }
+    }
+
+    private var isSleep: Bool {
+        if case .sleep = entry { return true }
+        return false
     }
 
     /// A completed sleep must span at least a minute — guards the 0-duration case

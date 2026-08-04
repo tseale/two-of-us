@@ -237,7 +237,9 @@ struct ScheduleView: View {
     private func loggerName(of eventID: UUID, kind: EventKind) -> String {
         switch kind {
         case .feed: feeds.first { $0.id == eventID }?.loggedByName ?? ""
-        case .sleep: sleeps.first { $0.id == eventID }?.loggedByName ?? ""
+        // Sleep carries no logger attribution in the UI — a fulfilled sleep
+        // slot reads "Done ✓", not "Covered by …".
+        case .sleep: ""
         case .diaper: ""
         }
     }

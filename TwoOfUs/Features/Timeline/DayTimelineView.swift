@@ -52,8 +52,12 @@ struct DayTimelineRow: View {
                 Spacer(minLength: 8)
                 // Shows the parent's profile photo when they have one, else the
                 // colored initial — same monogram fallback as `ParticipantBadge`.
-                Avatar(photoData: loggedByPhoto, name: loggedByName,
-                       colorHex: entry.loggedByColorHex, size: 24)
+                // Sleep is the baby's doing, not a caregiver task, so it
+                // carries no logger attribution.
+                if !isSleep {
+                    Avatar(photoData: loggedByPhoto, name: loggedByName,
+                           colorHex: entry.loggedByColorHex, size: 24)
+                }
             }
         }
         .frame(minHeight: 46)
@@ -70,11 +74,17 @@ struct DayTimelineRow: View {
         }
     }
 
+    private var isSleep: Bool {
+        if case .sleep = entry { return true }
+        return false
+    }
+
     private var accessibilityLabel: String {
         if case .note = entry {
             return "Note: \(entry.title), \(TimeFormatting.clock(entry.sortDate)), logged by \(loggedByName)"
         }
-        var label = "\(entry.title), \(TimeFormatting.clock(entry.sortDate)), logged by \(loggedByName)"
+        var label = "\(entry.title), \(TimeFormatting.clock(entry.sortDate))"
+        if !isSleep { label += ", logged by \(loggedByName)" }
         if entry.isFromSnoo { label += ", from SNOO" }
         if let note = entry.notes, !note.isEmpty { label += ", note: \(note)" }
         return label
