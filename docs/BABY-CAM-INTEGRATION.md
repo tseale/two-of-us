@@ -153,7 +153,7 @@ Its Android counterpart (`com.oceanwing.care.cam`) registered exactly two scheme
 
 </details>
 
-### URL scheme — `eufysecurity://` [V on Android, L on iOS]
+### URL scheme — `eufysecurity://` [V on Android and iOS]
 
 Read directly from the unified app's decompiled Android manifest (`com.oceanwing.battery.cam`, target SDK 34, in the TapTrap research dataset). Of **1273 activities, only 7 are exported**, and just one declares a custom scheme:
 
@@ -170,7 +170,7 @@ Read directly from the unified app's decompiled Android manifest (`com.oceanwing
 
 Two further exported activities (`ExploreWebviewActivity` → `/explore/web`, `WebOpenSettingActivity` → `/deviceUtil`) declare their scheme via unresolved resource references (`@7F122116`), so their literal value isn't readable from this dataset — but `eufysecurity` is the only custom scheme the app resolves, so they are almost certainly the same [L].
 
-This is **better evidence than we had for the Baby app**: the scheme name is read from a manifest rather than inferred. iOS still needs a `canOpenURL` confirmation [L], but eufy reuses scheme names across platforms, and independent iOS scheme databases list `eufysecurity://` for this app.
+This is **better evidence than we had for the Baby app**: the scheme name is read from a manifest rather than inferred. eufy reuses scheme names across platforms, and independent iOS scheme databases list `eufysecurity://` for this app — and Taylor confirmed it opens on a real iPhone on 2026-08-05, so it is **[V] on iOS too**, not just Android.
 
 ### Can we deep link to the camera view? **Still no.** [V]
 
