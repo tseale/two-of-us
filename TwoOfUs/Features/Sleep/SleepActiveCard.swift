@@ -81,41 +81,42 @@ struct SleepActiveCard: View {
                     .accessibilityLabel(statusLabel)
             }
 
-            HStack(spacing: 10) {
-                // Only for SNOO sessions: the camera is pointed at the bassinet,
-                // so off-SNOO sleeps (a contact nap, the stroller) would link to
-                // a view of an empty crib.
-                if sleep.isFromSnoo {
-                    Button(action: openCamera) {
-                        Image(systemName: "video.fill")
-                            .font(.headline)
-                            .frame(width: 52)
-                            .padding(.vertical, 14)
-                    }
-                    .background(AppColor.accentSleep.opacity(0.16),
-                                in: RoundedRectangle(cornerRadius: 16))
-                    .foregroundStyle(AppColor.accentSleep)
-                    .accessibilityLabel("View camera")
-                    .accessibilityHint("Opens the eufy app")
-                }
-
-                Button(action: {
-                    onWake()
-                    Haptics.success()
-                }) {
-                    Text("Wake up")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                }
-                .background(AppColor.accentSleep, in: RoundedRectangle(cornerRadius: 16))
-                .foregroundStyle(.white)
-                .accessibilityHint("Ends the sleep timer")
+            Button(action: {
+                onWake()
+                Haptics.success()
+            }) {
+                Text("Wake up")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
             }
+            .background(AppColor.accentSleep, in: RoundedRectangle(cornerRadius: 16))
+            .foregroundStyle(.white)
             .padding(.top, 8)
+            .accessibilityHint("Ends the sleep timer")
         }
         .frame(maxWidth: .infinity)
         .padding(20)
+        // Corner badge in the same spot and idiom as the log tiles' plus badges.
+        // Only for SNOO sessions: the camera is pointed at the bassinet, so
+        // off-SNOO sleeps (a contact nap, the stroller) would link to an empty
+        // crib. The 44pt frame keeps the tap target honest — the glyph alone is
+        // well under it.
+        .overlay(alignment: .topTrailing) {
+            if sleep.isFromSnoo {
+                Button(action: openCamera) {
+                    Image(systemName: "video.circle.fill")
+                        .font(.system(size: 26))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, AppColor.accentSleep)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .padding(5)
+                .accessibilityLabel("View camera")
+                .accessibilityHint("Opens the eufy app")
+            }
+        }
         .glassTile(cornerRadius: 22, tint: AppColor.accentSleep)
     }
 }
