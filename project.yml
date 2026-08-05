@@ -52,6 +52,14 @@ targets:
           - CFBundleURLName: com.taylorseale.twoofus.deeplink
             CFBundleURLSchemes:
               - twoofus
+        # Schemes the sleep card's camera button probes before falling back to
+        # the App Store. Undeclared schemes make canOpenURL return false with no
+        # error, so omitting one here silently sends every tap to the App Store.
+        # eufysecurity = unified eufy app; eufybaby/eufycare = legacy eufy Baby.
+        LSApplicationQueriesSchemes:
+          - eufysecurity
+          - eufybaby
+          - eufycare
         # Plain launch field matching the app background in both schemes (the
         # LaunchBackground colorset), so cold launch lands directly on the first
         # screen with no flash. No animated splash — removed once onboarding

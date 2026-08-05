@@ -388,6 +388,27 @@ final class SnooDecodingTests: XCTestCase {
                        .adopt(creds), "re-signed-in credentials replace the stale ones")
     }
 
+    /// Equal credentials must encode to identical bytes. Without `.sortedKeys`
+    /// JSONEncoder's key order is hash-seeded per process, so the same session
+    /// serialized on each parent's phone produces different blobs, CloudKit
+    /// reads an unchanged field as changed, and the two devices churn writes at
+    /// each other. This also kept RecordMappingTests flaky roughly 2 runs in 3.
+    func testCredentialEncodingIsStableForEqualValues() throws {
+        let stamp = Date()
+        func make() -> SnooSharedCredentials {
+            SnooSharedCredentials(refreshToken: "rt-1", email: "t@e.com", babyID: "b-1",
+                                  autoLog: true, signedInAt: stamp)
+        }
+        let first = try XCTUnwrap(make().jsonString)
+        for _ in 0..<50 {
+            XCTAssertEqual(try XCTUnwrap(make().jsonString), first,
+                           "equal credentials must serialize identically every time")
+        }
+        // Sorted, so the order is a fixed property of the type, not of this run.
+        XCTAssertTrue(first.hasPrefix("{\"autoLog\""),
+                      "keys should be alphabetical under .sortedKeys, got \(first)")
+    }
+
     func testCredentialSyncLeavesMatchingSessionAlone() throws {
         let creds = SnooSharedCredentials(refreshToken: "rt-1", email: "t@e.com", babyID: nil)
         let json = try XCTUnwrap(creds.jsonString)

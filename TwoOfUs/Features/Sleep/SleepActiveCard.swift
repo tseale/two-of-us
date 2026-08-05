@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Shown on Home while a sleep timer is running. Elapsed is computed from
 /// `startedAt` (never a stored ticking counter), so it survives backgrounding.
@@ -9,11 +10,18 @@ struct SleepActiveCard: View {
     /// Nil for SNOO sessions — their start time is authoritative from the device.
     var onEditStart: (() -> Void)? = nil
 
+    @Environment(\.openURL) private var openURL
+
     private var elapsed: String {
         TimeFormatting.duration(from: sleep.startedAt, to: now)
     }
 
     private var babyName: String { sleep.baby?.name ?? "Baby" }
+
+    private func openCamera() {
+        Haptics.tap()
+        openURL(BabyCamLink.destination { UIApplication.shared.canOpenURL($0) })
+    }
 
     private var statusLabel: String {
         "\(babyName) is sleeping, \(elapsed), since \(TimeFormatting.clock(sleep.startedAt))\(sleep.isFromSnoo ? ", from SNOO" : "")"
@@ -89,6 +97,26 @@ struct SleepActiveCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding(20)
+        // Corner badge in the same spot and idiom as the log tiles' plus badges.
+        // Only for SNOO sessions: the camera is pointed at the bassinet, so
+        // off-SNOO sleeps (a contact nap, the stroller) would link to an empty
+        // crib. The 44pt frame keeps the tap target honest — the glyph alone is
+        // well under it.
+        .overlay(alignment: .topTrailing) {
+            if sleep.isFromSnoo {
+                Button(action: openCamera) {
+                    Image(systemName: "video.circle.fill")
+                        .font(.system(size: 26))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, AppColor.accentSleep)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .padding(5)
+                .accessibilityLabel("View camera")
+                .accessibilityHint("Opens the eufy app")
+            }
+        }
         .glassTile(cornerRadius: 22, tint: AppColor.accentSleep)
     }
 }

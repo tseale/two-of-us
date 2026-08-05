@@ -57,8 +57,15 @@ struct SnooSharedCredentials: Codable, Equatable, Sendable {
         self = decoded
     }
 
+    /// `.sortedKeys` is load-bearing, not cosmetic: JSONEncoder's key order is
+    /// otherwise hash-seeded and varies per process, so the same credentials
+    /// encode to different bytes on each device and each launch. That makes
+    /// CloudKit see an unchanged field as changed and churn writes between the
+    /// two phones. Sorting pins one blob per value.
     var jsonString: String? {
-        (try? JSONEncoder().encode(self)).flatMap { String(data: $0, encoding: .utf8) }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        return (try? encoder.encode(self)).flatMap { String(data: $0, encoding: .utf8) }
     }
 }
 
