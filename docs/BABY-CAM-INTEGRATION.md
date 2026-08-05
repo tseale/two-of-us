@@ -490,7 +490,7 @@ Three things that mattered in the build:
 2. **The App Store URL must keep its canonical slug.** The first attempt used the slugless `…/us/app/id1424956516`, which returns 200 to `curl` but is a **301 redirect** — and iOS matches universal links against the App Store's association file *before* making any request. Tapping it in the simulator produced "Safari cannot open the page because the address is invalid"; the canonical `…/us/app/eufy/id1424956516` is recognized as an App Store link. Reproduced with `simctl openurl` alone, so it's not app-side.
 3. **Probe order is deliberate.** `eufysecurity://` first, so a parent with both apps installed lands in the one eufy is still developing; the two legacy Baby schemes trail it for a phone that hasn't migrated. Delete them once both phones have.
 
-⚠️ **Still unverified: the iOS scheme.** `eufysecurity://` is read from the Android manifest and inferred for iOS [L]. The simulator can't install the eufy app, so this needs one tap on a real phone — if the button opens the App Store instead of eufy, the scheme name is wrong.
+✅ **The iOS scheme is confirmed.** `eufysecurity://` was read from the Android manifest and only inferred for iOS; Taylor verified it on a real phone on 2026-08-05, which the simulator could not do (the eufy app can't be installed there). It is now [V] on both platforms.
 
 Because the only Universal Links are OAuth callbacks, the fallback is an explicit `canOpenURL` branch rather than an https link that degrades on its own.
 
@@ -509,7 +509,7 @@ A settings toggle, if it's ever wanted, belongs in [IntegrationsSettingsView.swi
 
 ## Recommended sequence
 
-1. ~~**Now — build Option 6.**~~ ✅ **Done 2026-08-05** — corner camera button on the SNOO sleep card, `LSApplicationQueriesSchemes` wired, tests green. One step outstanding: confirm `eufysecurity://` resolves on a real phone.
+1. ~~**Now — build Option 6.**~~ ✅ **Done 2026-08-05** — corner camera button on the SNOO sleep card, `LSApplicationQueriesSchemes` wired, tests green, and `eufysecurity://` confirmed on a real phone.
 2. **Next — run the Option 2 spike.** ~30 minutes with the phone. The one-hour `ffmpeg` soak is the decisive test; everything before it is setup.
 3. **If the soak passes** — build in-app RTSP with MobileVLCKit (pending a licence review) or go2rtc → WebRTC. Keep Option 6 as the away-from-home path.
 4. **If the soak fails** — stop. Option 6 is the answer, and the cheapest route to real in-app video becomes *different hardware*: a HomeKit or plain-RTSP camera in the nursery makes Option 3 immediately viable with no vendor games at all.
