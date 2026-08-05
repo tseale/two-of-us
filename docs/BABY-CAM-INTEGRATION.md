@@ -11,7 +11,15 @@ Research compiled **2026-08-05** on whether the eufy Baby Monitor E21 can be sur
 | LAN address | `192.168.86.66` (router DNS name: `eufy_baby_camera.lan`) |
 | MAC | `90:BF:D9:2E:12:F1` |
 | Firmware | 2.4.3.7 |
-| Companion app | **eufy Baby** — but see Option 2; the main **eufy Security** app matters more |
+| Companion app | **eufy** (the unified app) — the legacy eufy Baby app is being retired; see below |
+
+> ### ⚠️ App consolidation — read this first
+>
+> eufy has folded five apps (eufy Security, eufy Clean, eufy Life, **eufy Baby**, eufy Pet) into a single unified app now listed simply as **"eufy"** on the App Store. Per eufy's own [Introduction to New eufy App](https://service.eufy.com/article-description/Introduction-to-New-eufy-App), it *"includes all the features of eufy Security but also integrates the key functionalities of eufy Clean, eufy Life, eufy Baby, and eufy Pet."*
+>
+> **All integration in this document targets the unified `eufy` app, not the legacy `eufy Baby` app.** Taylor confirmed the Baby app is on its way out, and the evidence agrees: the `NAS(RTSP)` setting that Option 2 depends on exists *only* in the unified app, and eufy's separate "eufy Mega" backend migration is retiring the legacy APIs.
+>
+> ⚠️ One honest caveat: **eufy has not published a sunset date.** Their support article still says users of the non-Security legacy apps *"can continue using both the old app and the new eufy App simultaneously."* So the direction of travel is unambiguous, but don't plan around a specific cutoff — build against the unified app because it's where the functionality is, not because the old app is guaranteed to stop working on a known date.
 
 **Confidence tags used throughout**
 
@@ -26,13 +34,15 @@ Research compiled **2026-08-05** on whether the eufy Baby Monitor E21 can be sur
 
 There is **one real path to live video in Two of Us, and it is local RTSP** — not deep links, not HomeKit, not the eufy cloud, and not the P2P stack every Homebridge/Home Assistant integration is built on.
 
-The E21 runs an **RTSP server on the camera itself** (port 554, path `/live0`), which is unlocked by a `NAS(RTSP)` setting that exists only in the main **eufy Security** app, not the eufy Baby app. Two independent users confirmed this working on E20/E21 hardware in January 2026 [V]. No HomeBase, no cloud in the video path, no reverse engineering.
+The E21 runs an **RTSP server on the camera itself** (port 554, path `/live0`), which is unlocked by a `NAS(RTSP)` setting that exists only in the **unified `eufy` app**, not the legacy eufy Baby app. Two independent users confirmed this working on E20/E21 hardware in January 2026 [V]. No HomeBase, no cloud in the video path, no reverse engineering.
+
+That the setting lives only in the unified app is a happy alignment: the app consolidation pushes us toward the same app the streaming path already requires.
 
 The catch is reliability: eufy cameras deliberately stop publishing RTSP after a few minutes, and the "Continuous recording" workaround that fixes it is community-discovered, undocumented by eufy, and reported as still-flaky by some users through 2026 [V]. **This has not been verified on Taylor's actual unit.**
 
 **Recommendation — two phases:**
 
-1. **Ship Option 6 now.** A camera button on the sleep card that opens the eufy Baby app. A few hours of work, always works, zero risk. This is worth doing regardless of what happens next.
+1. **Ship Option 6 now.** A camera button on the sleep card that opens the unified `eufy` app. A few hours of work, always works, zero risk. This is worth doing regardless of what happens next.
 2. **Run the Option 2 verification spike** (protocol below, ~30 minutes with the phone in hand). If RTSP holds a stable stream on Taylor's E21 for an hour, in-app video becomes a real project. If it doesn't, Option 6 is the permanent answer and we've spent half an hour finding out.
 
 | # | Option | Feasibility | Complexity | Reliability | UX | Verdict |
@@ -108,66 +118,91 @@ The eufy P2P relay is *already* failing regularly for the IndoorCams and doorbel
 
 ---
 
-## Option 1 — Deep link to the eufy Baby app
+## Option 1 — Deep link to the eufy app
 
 ### App identity [V]
 
-Confirmed directly against Apple's lookup API (`https://itunes.apple.com/lookup?id=1544694845`):
+Confirmed directly against Apple's lookup API (`https://itunes.apple.com/lookup?id=1424956516`):
+
+| Field | Value |
+|---|---|
+| Name | **eufy** (formerly "eufy Security"; now the unified app) |
+| **Bundle ID** | **`com.security.BatteryCam`** |
+| **App Store ID** | **`1424956516`** |
+| Seller | Power Mobile Life LLC |
+| Minimum iOS | **15.1** |
+| Version | 6.0.70 (released 2026-07-30) |
+| Category | Lifestyle |
+
+Its own App Store description confirms the consolidation: *"The new all-in-one eufy app … bring together all your favorite eufy products—eufy Security, eufy Clean, eufy Baby, eufy Life, and eufy Pet—into one seamless platform."*
+
+<details>
+<summary>Legacy eufy Baby app details (superseded — kept for reference)</summary>
 
 | Field | Value |
 |---|---|
 | Name | eufy Baby |
-| **Bundle ID** | **`com.security.care`** |
-| **App Store ID** | **`1544694845`** |
-| Seller | Power Mobile Life LLC |
-| Minimum iOS | **12.0** |
-| Version | 2.2.4 (released 2026-07-28) |
-| Category | Lifestyle |
+| Bundle ID | `com.security.care` |
+| App Store ID | `1544694845` |
+| Minimum iOS | 12.0 |
+| Version | 2.2.4 (2026-07-28) |
 
-Corroborated by eufy's HackerOne scope asset list, which enumerates their iOS bundle IDs as `com.security.care`, `com.security.BatteryCam`, `com.eufylife.EufyHome`, `com.anker.AnkerMake`.
+Its Android counterpart (`com.oceanwing.care.cam`) registered exactly two schemes, `eufybaby://` and `eufycare://`, both routing only to WebView activities (`/web`, `/explore/web`, `/referral/web`, `/community/web`). No AASA existed for any eufy Baby domain — Apple's CDN returns `Not Found` for both `mybaby.eufylife.com` and `care-app.eufylife.com`.
 
-**Common wrong guesses, ruled out** [V]: `com.eufylife.smarthome` is the *Android* eufyHome package (iOS is `com.eufylife.EufyHome`). `com.anker.eufybaby` and `com.eufy.baby` don't exist. `com.security.BatteryCam` is the *unified eufy / eufy Security* app (App Store ID `1424956516`) — a different app, though a relevant one for Option 2.
+**Wrong guesses ruled out** [V]: `com.eufylife.smarthome` is the *Android* eufyHome package (iOS is `com.eufylife.EufyHome`); `com.anker.eufybaby` and `com.eufy.baby` don't exist.
 
-### URL schemes — `eufybaby://` and `eufycare://` [V on Android, L on iOS]
+</details>
 
-The Android eufy Baby package (`com.oceanwing.care.cam`) has a published decompiled-manifest analysis in the TapTrap research dataset. Its complete set of scheme handlers:
+### URL scheme — `eufysecurity://` [V on Android, L on iOS]
 
-```
-eufybaby://eufy/web             → common.ui.WebActivity
-eufycare://eufy/web             → common.ui.WebActivity
-eufybaby://eufy/explore/web     → main.ui.ExploreWebviewActivity
-eufycare://eufy/explore/web     → main.ui.ExploreWebviewActivity
-eufybaby://eufy/referral/web    → main.ui.ReferralActivity
-eufycare://eufy/referral/web    → main.ui.CommunityActivity
-eufybaby://eufy/community/web   → main.ui.CommunityActivity
-```
+Read directly from the unified app's decompiled Android manifest (`com.oceanwing.battery.cam`, target SDK 34, in the TapTrap research dataset). Of **1273 activities, only 7 are exported**, and just one declares a custom scheme:
 
-Those two schemes are the only ones in the app, and just 5 of 198 activities are exported.
-
-iOS almost certainly matches [L]: eufy reuses scheme names across platforms — the Android eufy Security app registers `eufysecurity`, and three independent iOS URL-scheme databases list the iOS eufy Security app as `eufysecurity://`. But **no iOS-side source confirms `eufybaby://`**. This needs a two-minute `canOpenURL` test on a real device.
-
-### Can we deep link to the camera view? **No.** [V/L]
-
-Every scheme-handling activity is a **WebView** — marketing, community, and referral pages. The live-view activity (`CameraPreviewActivity`) is **not exported and has no intent filter**, so it's unreachable from outside the app on Android [V]. On iOS the outcome is the same [L]: the scheme opens the app cold to its device list, and the user taps the camera. No documented `?device_id=` or `?sn=` parameter, and no evidence one exists.
-
-Whether the iOS binary hides an undocumented internal router is **[U]** — answering that would mean decrypting the IPA, which is out of scope and against eufy's terms.
-
-### No Universal Links [V]
-
-Verified independently against Apple's own AASA CDN:
-
-```
-app-site-association.cdn-apple.com/a/v1/mybaby.eufylife.com    → Not Found
-app-site-association.cdn-apple.com/a/v1/care-app.eufylife.com  → Not Found
+```xml
+<activity name="com.oceanwing.battery.cam.main.DeepLinkSupportActivity" exported="true">
+  <intent-filter>
+    <action android:name="android.intent.action.VIEW"/>
+    <category android:name="android.intent.category.DEFAULT"/>
+    <category android:name="android.intent.category.BROWSABLE"/>
+    <data android:scheme="eufysecurity" android:host="eufy.com" android:path="/app/support"/>
+  </intent-filter>
+</activity>
 ```
 
-`mybaby.eufylife.com` returns HTTP 200 for the AASA path, but the body is `text/html` — an SPA catch-all, not an association file. The only eufy AASA that exists is on `security-app.eufylife.com`, covering `BVL93LPC7F.com.security.BatteryCam` with OAuth/Alexa callback paths — nothing for eufy Baby.
+Two further exported activities (`ExploreWebviewActivity` → `/explore/web`, `WebOpenSettingActivity` → `/deviceUtil`) declare their scheme via unresolved resource references (`@7F122116`), so their literal value isn't readable from this dataset — but `eufysecurity` is the only custom scheme the app resolves, so they are almost certainly the same [L].
 
-Consequence: no "https link that falls back to the App Store automatically". You must branch manually on `canOpenURL`.
+This is **better evidence than we had for the Baby app**: the scheme name is read from a manifest rather than inferred. iOS still needs a `canOpenURL` confirmation [L], but eufy reuses scheme names across platforms, and independent iOS scheme databases list `eufysecurity://` for this app.
+
+### Can we deep link to the camera view? **Still no.** [V]
+
+I checked this specifically for the unified app, since consolidation might have changed it. It hasn't:
+
+```json
+{"activity_name": "com.oceanwing.battery.cam.camera.ui.CameraPreviewActivity",
+ "is_exported": "false", "intent_filters": []}
+```
+
+The live-view activity is **not exported and declares no intent filter** — unreachable from outside the app. The three reachable scheme paths (`/app/support`, `/explore/web`, `/deviceUtil`) are a support page, a marketing WebView, and a device-utility page. None takes a camera identifier.
+
+On iOS the outcome is the same [L]: the scheme opens the app cold, and the user taps through to the camera. Whether the iOS binary hides an undocumented internal router is **[U]** — answering that would mean decrypting the IPA, which is out of scope and against eufy's terms.
+
+### Universal Links exist, but not usefully [V]
+
+Unlike eufy Baby, the unified app **does** have an association file:
+
+```
+https://security-app.eufylife.com/.well-known/apple-app-site-association
+→ {"applinks":{"details":[{"appID":"BVL93LPC7F.com.security.BatteryCam",
+   "paths":["/passport/app_to_app_access/*","/app/*",
+            "/smart/external/callbackapp.*","/v1/smart/workwith/alexa/*"]}]}}
+```
+
+Corroborated on the Android side, where `AlexaCallbackActivity` and `AuthorizationActivity` both declare `autoVerify="true"` App Links against `security-app.eufylife.com` and `security-smart.eufylife.com`.
+
+But every path is an **OAuth or Alexa account-linking callback** — machinery for connecting third-party services, not content deep links. There is no universal link that opens a camera. So the practical consequence is unchanged: **you must branch manually on `canOpenURL`**, because there's no https link that degrades to the App Store on its own.
 
 ### No App Intents, no Siri, no widget [U, strongly negative]
 
-No Siri/Shortcuts/Widget badges on the listing; the Android manifest declares zero shortcut metadata and zero AppWidget receivers. The clincher is the **iOS 12.0 minimum deployment target** — App Intents needs iOS 16, WidgetKit needs 14, Live Activities need 16.1. An app still supporting iOS 12 ships none of them.
+No Siri/Shortcuts/Widget badges on the App Store listing, and the Android manifest declares zero shortcut metadata and zero AppWidget receivers. The **iOS 15.1 minimum deployment target** rules out App Intents (needs 16) and Live Activities (16.1) outright. WidgetKit (14) would now be technically possible — the unified app raised the floor from the Baby app's iOS 12 — but there's no evidence any widget ships. Don't plan around one.
 
 ### Ratings
 
@@ -208,7 +243,7 @@ Public: OPTIONS, DESCRIBE, SETUP, TEARDOWN, PLAY, GET_PARAMETER
 
 Reproduced verbatim from @squeaky-nose, with the key step emphasised:
 
-1. Open the **eufy Security app — NOT the eufy Baby app**. eufy recently began surfacing eufy Baby devices in the main app (under a "Care" tab).
+1. Open the **unified `eufy` app — NOT the legacy eufy Baby app**. eufy surfaces Baby devices in the main app under a "Care" tab. (The original report predates the rename and says "eufy Security app"; that is the same app.)
 2. Select the camera → **Settings → General → Storage → NAS(RTSP)**.
 3. Enable the RTSP stream (a few screens of setup).
 4. **Under "Video type store to NAS", select "Continuous recording".** ← *"Step 4 is the key to it all — it allowed me to finally get the stream to work for more than 5 minutes."*
@@ -261,7 +296,7 @@ Two things that *do* remain relevant:
 
 About 30 minutes, needs Taylor's phone. Every step has a clear pass/fail.
 
-1. **Does the E21 appear in the eufy Security app?** Open it (not eufy Baby) and look for a "Care" tab. ⚠️ *Homebridge not seeing the device does not predict this* — the app and the API expose different device sets. **If the device isn't there, Option 2 is dead** and Option 6 is the answer.
+1. **Does the E21 appear in the unified `eufy` app?** Open it (not the legacy Baby app) and look for a "Care" tab. ⚠️ *Homebridge not seeing the device does not predict this* — the app and the API expose different device sets. **If the device isn't there, Option 2 is dead** and Option 6 is the answer.
 2. **Enable RTSP:** Settings → General → Storage → NAS(RTSP). Set a strong password. Set **"Video type store to NAS" → "Continuous recording"**. Note the RTSP URL the app shows.
 3. **Pin the IP.** Add a DHCP reservation for `90:BF:D9:2E:12:F1` on the Nest router so it stays at `192.168.86.66`.
 4. **Confirm the port opens** — run the appendix scan. Expect `554` open. If it's still closed, the setting didn't apply.
@@ -429,7 +464,7 @@ Scrypted is the better relay here on the merits: faster streams than Homebridge,
 
 ## Option 6 — Simple deep link ✅ **Ship this now**
 
-A camera button on the sleep card that opens the eufy Baby app. No video inside Two of Us; one tap to get to it.
+A camera button on the sleep card that opens the unified `eufy` app. No video inside Two of Us; one tap to get to it.
 
 Mechanically identical to Option 1 — the difference is scoping it to what actually works: **launch the app, land on its device list, parent taps the camera.** One extra tap versus a true deep link, achievable today, with no dependency on anything undocumented staying put.
 
@@ -438,6 +473,7 @@ Mechanically identical to Option 1 — the difference is scoping it to what actu
 - **It always works.** Falls back cleanly to the App Store when the app is absent.
 - **Zero risk.** No cloud auth, no second eufy account, no 2FA downgrade, no ToS exposure.
 - **It stays useful even if Option 2 succeeds.** In-app RTSP is LAN-only; the deep link is the natural away-from-home path, since the eufy app handles remote viewing properly.
+- **It points at the app that's actually being invested in.** Targeting the unified app rather than the legacy Baby app means the button doesn't rot as consolidation proceeds — and it's the same app the parent must already use to enable RTSP for Option 2.
 - **Cheap to remove** if it stops earning its place.
 
 ### Sketch
@@ -446,10 +482,11 @@ The natural home is [SleepActiveCard.swift](../TwoOfUs/Features/Sleep/SleepActiv
 
 ```swift
 enum BabyCam {
-    // Verified on Android (com.oceanwing.care.cam manifest); iOS inferred.
-    // Probe in order — the first that opens wins.
-    static let schemes = ["eufybaby://", "eufycare://"]
-    static let appStore = URL(string: "https://apps.apple.com/us/app/eufy-baby/id1544694845")!
+    // Unified eufy app. `eufysecurity` is read from the Android manifest
+    // (com.oceanwing.battery.cam, DeepLinkSupportActivity); iOS inferred.
+    // The legacy eufy Baby schemes trail it only as a migration cushion.
+    static let schemes = ["eufysecurity://", "eufybaby://", "eufycare://"]
+    static let appStore = URL(string: "https://apps.apple.com/us/app/id1424956516")!
 
     static var installedScheme: URL? {
         schemes.compactMap(URL.init(string:)).first(UIApplication.shared.canOpenURL)
@@ -457,12 +494,13 @@ enum BabyCam {
 }
 ```
 
-Two implementation notes:
+Three implementation notes:
 
-1. **`LSApplicationQueriesSchemes` is required.** `canOpenURL` silently returns `false` for unlisted schemes on iOS 9+. Both `eufybaby` and `eufycare` must be declared in the Info.plist — there is currently no such key in `project.yml` [M], so it needs adding. This is the single most likely thing to make the feature quietly fail.
-2. **Verify the scheme on-device first.** The iOS scheme is inferred from the Android manifest [L]. A two-minute `canOpenURL` check on Taylor's iPhone settles it. If neither scheme resolves, the button still works — it just always routes to the App Store, which is a poor experience, so **don't ship until this is confirmed.**
+1. **`LSApplicationQueriesSchemes` is required.** `canOpenURL` silently returns `false` for unlisted schemes on iOS 9+. All three schemes must be declared in the Info.plist — there is currently no such key in `project.yml` [M], so it needs adding. This is the single most likely thing to make the feature quietly fail.
+2. **Verify the scheme on-device first.** The iOS scheme is inferred from the Android manifest [L]. A two-minute `canOpenURL` check on Taylor's iPhone settles it. If it doesn't resolve, the button still works — it just always routes to the App Store, which is a poor experience, so **don't ship until this is confirmed.**
+3. **Order matters, and the legacy schemes are deliberate.** Probing `eufysecurity://` first means a parent with both apps installed lands in the one being actively developed. Keeping the two Baby schemes as trailing fallbacks costs nothing and covers the window where someone hasn't migrated yet. Once the Baby app is gone from both phones, delete them.
 
-Because there are no Universal Links, the fallback must be an explicit `canOpenURL` branch rather than an https link that degrades on its own.
+Because the only Universal Links are OAuth callbacks, the fallback must be an explicit `canOpenURL` branch rather than an https link that degrades on its own.
 
 ### Ratings
 
@@ -477,7 +515,7 @@ Because there are no Universal Links, the fallback must be an explicit `canOpenU
 
 ## Recommended sequence
 
-1. **Now — build Option 6.** Confirm `eufybaby://` on device, add `LSApplicationQueriesSchemes`, add the button. Half a day, useful permanently.
+1. **Now — build Option 6.** Confirm `eufysecurity://` on device, add `LSApplicationQueriesSchemes`, add the button pointing at the unified `eufy` app. Half a day, useful permanently.
 2. **Next — run the Option 2 spike.** ~30 minutes with the phone. The one-hour `ffmpeg` soak is the decisive test; everything before it is setup.
 3. **If the soak passes** — build in-app RTSP with MobileVLCKit (pending a licence review) or go2rtc → WebRTC. Keep Option 6 as the away-from-home path.
 4. **If the soak fails** — stop. Option 6 is the answer, and the cheapest route to real in-app video becomes *different hardware*: a HomeKit or plain-RTSP camera in the nursery makes Option 3 immediately viable with no vendor games at all.
@@ -492,7 +530,7 @@ Because there are no Universal Links, the fallback must be an explicit `canOpenU
 
 ## Appendix — repeatable port scan
 
-Run this **while the eufy Baby app has a live view open** (the camera sleeps otherwise), and again after enabling `NAS(RTSP)`:
+Run this **while the `eufy` app has a live view open** (the camera sleeps otherwise), and again after enabling `NAS(RTSP)`:
 
 ```bash
 python3 - <<'PY'
@@ -525,7 +563,8 @@ Expected before enabling RTSP: `none`. Expected after: `554`.
 - [iSpyConnect — eufy RTSP paths and ports](https://www.ispyconnect.com/camera/eufy)
 
 **Apple**
-- [iTunes Lookup API — id1544694845](https://itunes.apple.com/lookup?id=1544694845) · [eufy Baby on the App Store](https://apps.apple.com/us/app/eufy-baby/id1544694845)
+- [iTunes Lookup API — id1424956516](https://itunes.apple.com/lookup?id=1424956516) · [eufy (unified app) on the App Store](https://apps.apple.com/us/app/id1424956516) · [Introduction to New eufy App](https://service.eufy.com/article-description/Introduction-to-New-eufy-App)
+- Legacy, superseded: [iTunes Lookup API — id1544694845](https://itunes.apple.com/lookup?id=1544694845) · [eufy Baby on the App Store](https://apps.apple.com/us/app/eufy-baby/id1544694845)
 - [`HMCameraStreamControl`](https://developer.apple.com/documentation/homekit/hmcamerastreamcontrol) · [`HMCameraView`](https://developer.apple.com/documentation/homekit/hmcameraview) · [Developer forum #766087](https://developer.apple.com/forums/thread/766087)
 - [HomeCam for HomeKit](https://apps.apple.com/us/app/homecam-for-homekit/id1292995895) (third-party HomeKit streaming existence proof)
 
