@@ -71,11 +71,15 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         }
         guard let logger = QuickLogger.make() else { return }
         let babyName = logger.babyName ?? "Baby"
-        SleepActivityManager.reconcile(
-            babyName: babyName,
-            activeSleepStartedAt: logger.activeSleep?.startedAt,
-            nextFeed: logger.nextFeedPrediction()
-        )
+        let activeSleepStartedAt = logger.activeSleep?.startedAt
+        let nextFeed = logger.nextFeedPrediction()
+        MainActor.assumeIsolated {
+            SleepActivityManager.reconcile(
+                babyName: babyName,
+                activeSleepStartedAt: activeSleepStartedAt,
+                nextFeed: nextFeed
+            )
+        }
         // Re-arm the feed alarm off whatever's in the store now — this catches
         // feeds logged via widget/Siri or synced from the co-parent's device.
         let lastFeed = logger.lastFeed?.timestamp
