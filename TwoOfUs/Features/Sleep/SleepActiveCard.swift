@@ -77,7 +77,7 @@ struct SleepActiveCard: View {
                 onWake()
                 Haptics.success()
             }) {
-                Text("Wake up ☀️")
+                Text("Wake up")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
@@ -85,7 +85,6 @@ struct SleepActiveCard: View {
             .background(AppColor.accentSleep, in: RoundedRectangle(cornerRadius: 16))
             .foregroundStyle(.white)
             .padding(.top, 8)
-            .accessibilityLabel("Wake up")
             .accessibilityHint("Ends the sleep timer")
         }
         .frame(maxWidth: .infinity)
