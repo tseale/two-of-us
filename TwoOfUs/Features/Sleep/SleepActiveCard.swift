@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Shown on Home while a sleep timer is running. Elapsed is computed from
 /// `startedAt` (never a stored ticking counter), so it survives backgrounding.
@@ -9,11 +10,18 @@ struct SleepActiveCard: View {
     /// Nil for SNOO sessions — their start time is authoritative from the device.
     var onEditStart: (() -> Void)? = nil
 
+    @Environment(\.openURL) private var openURL
+
     private var elapsed: String {
         TimeFormatting.duration(from: sleep.startedAt, to: now)
     }
 
     private var babyName: String { sleep.baby?.name ?? "Baby" }
+
+    private func openCamera() {
+        Haptics.tap()
+        openURL(BabyCamLink.destination { UIApplication.shared.canOpenURL($0) })
+    }
 
     private var statusLabel: String {
         "\(babyName) is sleeping, \(elapsed), since \(TimeFormatting.clock(sleep.startedAt))\(sleep.isFromSnoo ? ", from SNOO" : "")"
@@ -73,19 +81,38 @@ struct SleepActiveCard: View {
                     .accessibilityLabel(statusLabel)
             }
 
-            Button(action: {
-                onWake()
-                Haptics.success()
-            }) {
-                Text("Wake up")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
+            HStack(spacing: 10) {
+                // Only for SNOO sessions: the camera is pointed at the bassinet,
+                // so off-SNOO sleeps (a contact nap, the stroller) would link to
+                // a view of an empty crib.
+                if sleep.isFromSnoo {
+                    Button(action: openCamera) {
+                        Image(systemName: "video.fill")
+                            .font(.headline)
+                            .frame(width: 52)
+                            .padding(.vertical, 14)
+                    }
+                    .background(AppColor.accentSleep.opacity(0.16),
+                                in: RoundedRectangle(cornerRadius: 16))
+                    .foregroundStyle(AppColor.accentSleep)
+                    .accessibilityLabel("View camera")
+                    .accessibilityHint("Opens the eufy app")
+                }
+
+                Button(action: {
+                    onWake()
+                    Haptics.success()
+                }) {
+                    Text("Wake up")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .background(AppColor.accentSleep, in: RoundedRectangle(cornerRadius: 16))
+                .foregroundStyle(.white)
+                .accessibilityHint("Ends the sleep timer")
             }
-            .background(AppColor.accentSleep, in: RoundedRectangle(cornerRadius: 16))
-            .foregroundStyle(.white)
             .padding(.top, 8)
-            .accessibilityHint("Ends the sleep timer")
         }
         .frame(maxWidth: .infinity)
         .padding(20)
