@@ -442,7 +442,7 @@ Mechanically identical to Option 1 — the difference is scoping it to what actu
 
 ### Sketch
 
-The natural home is [SleepActiveCard.swift](TwoOfUs/Features/Sleep/SleepActiveCard.swift) — a small camera button beside the existing "Wake up" button (currently the only control on the card, at line 76). A settings toggle belongs in [IntegrationsSettingsView.swift](TwoOfUs/Features/Settings/IntegrationsSettingsView.swift), whose doc comment already anticipates this: *"SNOO today, with room for future integrations."*
+The natural home is [SleepActiveCard.swift](../TwoOfUs/Features/Sleep/SleepActiveCard.swift) — a small camera button beside the existing "Wake up" button (currently the only control on the card, at line 76). A settings toggle belongs in [IntegrationsSettingsView.swift](../TwoOfUs/Features/Settings/IntegrationsSettingsView.swift), whose doc comment already anticipates this: *"SNOO today, with room for future integrations."*
 
 ```swift
 enum BabyCam {
