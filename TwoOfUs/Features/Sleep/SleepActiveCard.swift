@@ -97,11 +97,18 @@ struct SleepActiveCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding(20)
+        .glassTile(cornerRadius: 22, tint: AppColor.accentSleep)
         // Corner badge in the same spot and idiom as the log tiles' plus badges.
         // Only for SNOO sessions: the camera is pointed at the bassinet, so
         // off-SNOO sleeps (a contact nap, the stroller) would link to an empty
         // crib. The 44pt frame keeps the tap target honest — the glyph alone is
         // well under it.
+        //
+        // Applied AFTER .glassTile (not before): the tile's glassEffect(.interactive())
+        // installs one shared gesture recognizer across everything inside its
+        // subtree, and this button's taps were landing on Wake up's action
+        // instead of opening the camera. Stacking the overlay on top of the
+        // already-glass-styled card keeps it a fully independent tap target.
         .overlay(alignment: .topTrailing) {
             if sleep.isFromSnoo {
                 Button(action: openCamera) {
@@ -112,11 +119,11 @@ struct SleepActiveCard: View {
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .padding(5)
                 .accessibilityLabel("View camera")
                 .accessibilityHint("Opens the eufy app")
             }
         }
-        .glassTile(cornerRadius: 22, tint: AppColor.accentSleep)
     }
 }
