@@ -42,7 +42,7 @@ The catch is reliability: eufy cameras deliberately stop publishing RTSP after a
 
 **Recommendation — two phases:**
 
-1. **Ship Option 6 now.** A camera button on the sleep card that opens the unified `eufy` app. A few hours of work, always works, zero risk. This is worth doing regardless of what happens next.
+1. ~~**Ship Option 6 now.**~~ ✅ **Built 2026-08-05** — a camera button on the SNOO sleep card that opens the unified `eufy` app. Always works, zero risk, and it stays useful even if RTSP pans out, since in-app video would be LAN-only.
 2. **Run the Option 2 verification spike** (protocol below, ~30 minutes with the phone in hand). If RTSP holds a stable stream on Taylor's E21 for an hour, in-app video becomes a real project. If it doesn't, Option 6 is the permanent answer and we've spent half an hour finding out.
 
 | # | Option | Feasibility | Complexity | Reliability | UX | Verdict |
@@ -52,7 +52,7 @@ The catch is reliability: eufy cameras deliberately stop publishing RTSP after a
 | 3 | HomeKit | ❌ Direct: blocked | Medium | — | — | No native HomeKit; possible indirectly via 5 |
 | 4 | eufy cloud API | ❌ Blocked | Very high | Very low | — | No API; Baby line unsupported; ToS violation |
 | 5 | Homebridge / Scrypted relay | 🟡 Viable **via RTSP only** | Medium | Inherits Option 2's risk | Good | Useful as a fallback shape |
-| 6 | **Deep link out** | ✅ **High** | ✅ **Very low** | ✅ **High** | 🟡 Fair | ✅ **Ship now** |
+| 6 | **Deep link out** | ✅ **High** | ✅ **Very low** | ✅ **High** | 🟡 Fair | ✅ **Built 2026-08-05** |
 
 ⚠️ **A correction worth flagging up front:** the obvious-looking path — Homebridge's `eufy-security` plugin, already running on Taylor's Mac mini — is a dead end, and not for a fixable reason. Details in Options 2 and 5.
 
@@ -462,7 +462,7 @@ Scrypted is the better relay here on the merits: faster streams than Homebridge,
 
 ---
 
-## Option 6 — Simple deep link ✅ **Ship this now**
+## Option 6 — Simple deep link ✅ **Built**
 
 A camera button on the sleep card that opens the unified `eufy` app. No video inside Two of Us; one tap to get to it.
 
@@ -476,31 +476,25 @@ Mechanically identical to Option 1 — the difference is scoping it to what actu
 - **It points at the app that's actually being invested in.** Targeting the unified app rather than the legacy Baby app means the button doesn't rot as consolidation proceeds — and it's the same app the parent must already use to enable RTSP for Option 2.
 - **Cheap to remove** if it stops earning its place.
 
-### Sketch
+### ✅ Built — 2026-08-05
 
-The natural home is [SleepActiveCard.swift](../TwoOfUs/Features/Sleep/SleepActiveCard.swift) — a small camera button beside the existing "Wake up" button (currently the only control on the card, at line 76). A settings toggle belongs in [IntegrationsSettingsView.swift](../TwoOfUs/Features/Settings/IntegrationsSettingsView.swift), whose doc comment already anticipates this: *"SNOO today, with room for future integrations."*
+Shipped as [BabyCamLink.swift](../TwoOfUs/Features/Sleep/BabyCamLink.swift) plus a corner button on [SleepActiveCard.swift](../TwoOfUs/Features/Sleep/SleepActiveCard.swift), covered by [BabyCamLinkTests.swift](../TwoOfUsTests/BabyCamLinkTests.swift).
 
-```swift
-enum BabyCam {
-    // Unified eufy app. `eufysecurity` is read from the Android manifest
-    // (com.oceanwing.battery.cam, DeepLinkSupportActivity); iOS inferred.
-    // The legacy eufy Baby schemes trail it only as a migration cushion.
-    static let schemes = ["eufysecurity://", "eufybaby://", "eufycare://"]
-    static let appStore = URL(string: "https://apps.apple.com/us/app/id1424956516")!
+**Gated on SNOO sessions only** (`sleep.isFromSnoo`). The camera points at the bassinet, so a contact nap or a stroller sleep would link to an empty crib.
 
-    static var installedScheme: URL? {
-        schemes.compactMap(URL.init(string:)).first(UIApplication.shared.canOpenURL)
-    }
-}
-```
+**Placement:** a `video.circle.fill` badge in the card's top-right corner, matching the position, size, and palette rendering of the log tiles' plus badges. The glyph is 26pt but the button carries a 44pt frame and an explicit `contentShape`, so the tap target meets the accessibility minimum rather than matching the artwork.
 
-Three implementation notes:
+Three things that mattered in the build:
 
-1. **`LSApplicationQueriesSchemes` is required.** `canOpenURL` silently returns `false` for unlisted schemes on iOS 9+. All three schemes must be declared in the Info.plist — there is currently no such key in `project.yml` [M], so it needs adding. This is the single most likely thing to make the feature quietly fail.
-2. **Verify the scheme on-device first.** The iOS scheme is inferred from the Android manifest [L]. A two-minute `canOpenURL` check on Taylor's iPhone settles it. If it doesn't resolve, the button still works — it just always routes to the App Store, which is a poor experience, so **don't ship until this is confirmed.**
-3. **Order matters, and the legacy schemes are deliberate.** Probing `eufysecurity://` first means a parent with both apps installed lands in the one being actively developed. Keeping the two Baby schemes as trailing fallbacks costs nothing and covers the window where someone hasn't migrated yet. Once the Baby app is gone from both phones, delete them.
+1. **`LSApplicationQueriesSchemes` is required** — added to `project.yml`. `canOpenURL` returns `false` with no error for unlisted schemes, so without it every tap would have silently detoured to the App Store.
+2. **The App Store URL must keep its canonical slug.** The first attempt used the slugless `…/us/app/id1424956516`, which returns 200 to `curl` but is a **301 redirect** — and iOS matches universal links against the App Store's association file *before* making any request. Tapping it in the simulator produced "Safari cannot open the page because the address is invalid"; the canonical `…/us/app/eufy/id1424956516` is recognized as an App Store link. Reproduced with `simctl openurl` alone, so it's not app-side.
+3. **Probe order is deliberate.** `eufysecurity://` first, so a parent with both apps installed lands in the one eufy is still developing; the two legacy Baby schemes trail it for a phone that hasn't migrated. Delete them once both phones have.
 
-Because the only Universal Links are OAuth callbacks, the fallback must be an explicit `canOpenURL` branch rather than an https link that degrades on its own.
+⚠️ **Still unverified: the iOS scheme.** `eufysecurity://` is read from the Android manifest and inferred for iOS [L]. The simulator can't install the eufy app, so this needs one tap on a real phone — if the button opens the App Store instead of eufy, the scheme name is wrong.
+
+Because the only Universal Links are OAuth callbacks, the fallback is an explicit `canOpenURL` branch rather than an https link that degrades on its own.
+
+A settings toggle, if it's ever wanted, belongs in [IntegrationsSettingsView.swift](../TwoOfUs/Features/Settings/IntegrationsSettingsView.swift), whose doc comment already anticipates it: *"SNOO today, with room for future integrations."*
 
 ### Ratings
 
@@ -515,7 +509,7 @@ Because the only Universal Links are OAuth callbacks, the fallback must be an ex
 
 ## Recommended sequence
 
-1. **Now — build Option 6.** Confirm `eufysecurity://` on device, add `LSApplicationQueriesSchemes`, add the button pointing at the unified `eufy` app. Half a day, useful permanently.
+1. ~~**Now — build Option 6.**~~ ✅ **Done 2026-08-05** — corner camera button on the SNOO sleep card, `LSApplicationQueriesSchemes` wired, tests green. One step outstanding: confirm `eufysecurity://` resolves on a real phone.
 2. **Next — run the Option 2 spike.** ~30 minutes with the phone. The one-hour `ffmpeg` soak is the decisive test; everything before it is setup.
 3. **If the soak passes** — build in-app RTSP with MobileVLCKit (pending a licence review) or go2rtc → WebRTC. Keep Option 6 as the away-from-home path.
 4. **If the soak fails** — stop. Option 6 is the answer, and the cheapest route to real in-app video becomes *different hardware*: a HomeKit or plain-RTSP camera in the nursery makes Option 3 immediately viable with no vendor games at all.
