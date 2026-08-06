@@ -6,6 +6,26 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Added — Apple Watch companion app
+- New **TwoOfUsWatch** target: a minimal watchOS app installed with the
+  iPhone app. One screen, three rows — Feed (one tap logs the default
+  amount), Diaper (wet/dirty/both dialog), Sleep (start/wake toggle) — each
+  showing time since the last event, plus a **Last Feed complication**
+  (circular/corner/rectangular/inline) that ticks by itself.
+- The watch syncs with CloudKit directly (`WatchSyncManager`, a trimmed
+  sibling of the phone's `SyncManager` on its own `CKSyncEngine`), so it
+  works with the phone out of reach. It discovers whether this iCloud
+  account owns the family zone or joined it as a share participant, applies
+  fetches through the same `RecordMapping` dialect, and attributes watch
+  logs to the right parent by matching the account's `cloudUserID`. The
+  watch never creates zones or shares and never bulk-uploads — it is a
+  cache device; the phones own the household lifecycle.
+- Writes reuse `QuickLogger` (the widget/Siri write path) unchanged; its
+  per-key outbound queue is drained into the watch's engine in-process.
+- Freshness model: every app activation fetches; there is no background
+  push on the watch, so remote changes land when the app is opened (the
+  complication re-reads the local store after every fetch/log).
+
 ### Changed — sleep Live Activity shows the next feed instead of a Wake button
 - The lock-screen sleep card's trailing column is now a self-ticking
   **next-feed countdown** — "NEXT FEED / 1:47:23 / at 2:30 AM", or the

@@ -3,18 +3,6 @@ import SwiftData
 import WidgetKit
 import AppIntents
 
-/// Anything that can be soft-deleted.
-protocol SoftDeletable: AnyObject {
-    var deletedAt: Date? { get set }
-    var id: UUID { get }
-}
-extension FeedEvent: SoftDeletable {}
-extension SleepEvent: SoftDeletable {}
-extension DiaperEvent: SoftDeletable {}
-extension NoteEvent: SoftDeletable {}
-extension PlanSlot: SoftDeletable {}
-extension PlanOverride: SoftDeletable {}
-
 /// Thin layer over `ModelContext` so views never hand-roll predicates.
 /// Stamps every write with the local user's identity (denormalized) and hands
 /// changed record ids to `SyncManager` for CloudKit. MainActor since it's only
