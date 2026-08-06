@@ -22,6 +22,19 @@ All notable changes to Two of Us are recorded here. The format loosely follows
   cache device; the phones own the household lifecycle.
 - Writes reuse `QuickLogger` (the widget/Siri write path) unchanged; its
   per-key outbound queue is drained into the watch's engine in-process.
+- The UI speaks the app's design language: emoji iconography, the absolute
+  kind-accent mapping (feed teal · diaper amber · sleep periwinkle) as
+  18%-tinted cards over the card surface, the full green/amber/red urgency
+  model on all three rows (feed target night-aware from SharedSettings),
+  phone-verbatim status copy ("2h 31m ago", "next bottle ~6:15 PM",
+  "changed at 2:44 PM", "MILLER IS SLEEPING"), rounded mono numerals, and
+  the CradleMark on the pre-sync waiting screen. Scene backdrop is the
+  sleep Live Activity's indigo-night gradient. `WatchDesign.swift` provides
+  watch-native `AppColor`/`AppFont` tokens (same semantic names, no UIKit)
+  so `Urgency.swift` and `CradleMark.swift` compile into the watch targets
+  unchanged. The complication mirrors the phone's next-feed gauge: a
+  self-advancing `ProgressView(timerInterval:)` ring with urgency-staged
+  tint flips at 66%/100% of target.
 - Freshness model: every app activation fetches; there is no background
   push on the watch, so remote changes land when the app is opened (the
   complication re-reads the local store after every fetch/log).

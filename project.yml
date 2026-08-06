@@ -184,6 +184,11 @@ targets:
       - path: TwoOfUs/Support/AppGroup.swift
       - path: TwoOfUs/Support/AppLog.swift
       - path: TwoOfUs/DesignSystem/TimeFormatting.swift
+      # Pure-SwiftUI design-system files that compile against the watch's own
+      # AppColor/AppFont tokens (WatchDesign.swift) — same semantic names,
+      # no-UIKit implementations.
+      - path: TwoOfUs/DesignSystem/Urgency.swift
+      - path: TwoOfUs/DesignSystem/CradleMark.swift
       - path: TwoOfUs/Sync/SyncConstants.swift
       - path: TwoOfUs/Sync/RecordMapping.swift
       # Keychain-free pieces of the SNOO credential model — RecordMapping's
@@ -248,6 +253,9 @@ targets:
       - path: TwoOfUs/Store/NightScheduleGenerator.swift
       - path: TwoOfUs/Support/AppGroup.swift
       - path: TwoOfUs/DesignSystem/TimeFormatting.swift
+      - path: TwoOfUs/DesignSystem/Urgency.swift
+      # Watch-native AppColor/AppFont tokens (shared with the watch app).
+      - path: TwoOfUsWatch/WatchDesign.swift
     info:
       path: TwoOfUsWatchComplication/Info.plist
       properties:

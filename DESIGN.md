@@ -157,7 +157,8 @@ The most important component in the app. Status display and button in one.
 - **Content (leading column):** emoji 30px → title (17px bold rounded) → *since-line*
   (15px: "2h 40m since last") → hint caption ("next bottle ~10:45", `--text2`).
 - **Urgency:** at green the since-line is plain `--text2`, nothing else. At amber/red it takes
-  `--urgency-*-text` plus an **8px dot** before the text.
+  `--urgency-*-text` plus an **8px dot** after the text (value first, marker trailing — matches
+  `LogButtons.sinceLine`, the canonical implementation).
 - **⊕ badge** top-right corner (22px, accent color) so the status-bearing tile still reads as a button.
 - **Press:** scale 0.96 with a quick spring; medium haptic.
 - **Layout:** Feed + Diaper side-by-side (highest-frequency); Sleep full-width below.
