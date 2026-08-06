@@ -47,13 +47,13 @@ struct WatchRootView: View {
                 Button { logFeed() } label: {
                     row(icon: "waterbottle.fill", tint: .orange, title: "Feed",
                         subtitle: lastFeeds.first.map {
-                            "\(OzFormat.string($0.amountOz)) oz · \(TimeFormatting.since($0.timestamp, now: timeline.date)) ago"
+                            "\(OzFormat.string($0.amountOz)) oz · \(agoText($0.timestamp, now: timeline.date))"
                         } ?? "No feeds yet")
                 }
                 Button { showDiaperPicker = true } label: {
                     row(icon: "drop.fill", tint: .teal, title: "Diaper",
                         subtitle: lastDiapers.first.map {
-                            "\($0.type.label) · \(TimeFormatting.since($0.timestamp, now: timeline.date)) ago"
+                            "\($0.type.label) · \(agoText($0.timestamp, now: timeline.date))"
                         } ?? "No changes yet")
                 }
                 Button { toggleSleep() } label: {
@@ -63,9 +63,7 @@ struct WatchRootView: View {
                     } else {
                         row(icon: "moon.fill", tint: .indigo, title: "Sleep",
                             subtitle: endedSleeps.first.flatMap { sleep in
-                                sleep.endedAt.map {
-                                    "Woke \(TimeFormatting.since($0, now: timeline.date)) ago"
-                                }
+                                sleep.endedAt.map { "Woke \(agoText($0, now: timeline.date))" }
                             } ?? "Tap to start")
                     }
                 }
@@ -90,6 +88,12 @@ struct WatchRootView: View {
                 .multilineTextAlignment(.center)
         }
         .padding(.horizontal)
+    }
+
+    /// "2h 15m ago", except sub-minute reads "just now" (no trailing "ago").
+    private func agoText(_ date: Date, now: Date) -> String {
+        let since = TimeFormatting.since(date, now: now)
+        return since == "just now" ? since : "\(since) ago"
     }
 
     private func row(icon: String, tint: Color, title: String, subtitle: String) -> some View {
