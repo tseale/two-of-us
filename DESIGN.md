@@ -204,8 +204,10 @@ People list share this `Avatar` component.
 ### Sheets (Feed / Diaper / Edit)
 Bottom sheets, medium detent (Feed also large), visible drag indicator, title with emoji
 ("Log a feed 🍼"). Content patterns:
-- **Preset chips** (Feed oz: 2/3/4): equal-width, radius 14, stacked value+unit; selected =
-  accent stroke 2px + accent fill @ 25%.
+- **Quick chips** (Feed oz): the default amount is the bottle that was made — the most the
+  baby will take — so the chips are the bottle plus quarter-ounce steps DOWN from it
+  (4 → 3.75 → 3.5 → 3.25); anything else goes through the custom field. Equal-width,
+  radius 14, stacked value+unit; selected = accent stroke 2px + accent fill @ 25%.
 - **Choice buttons** (Diaper Wet/Dirty/Both): equal-width `--card2` tiles, radius 16, emoji over
   label; tap selects (medium haptic + accent stroke 2px, matching the Feed preset chips), then an
   explicit "Log ‹type›" confirm logs-and-dismisses (success haptic) — so a stray tap can't mislog.

@@ -86,10 +86,7 @@ struct WatchRootView: View {
             }
         }
         .sheet(isPresented: $showFeedSheet) {
-            FeedAmountSheet(
-                initial: logger.defaultFeedOz,
-                presets: allSettings.first?.ozPresets ?? [2, 3, 4]
-            ) { oz in
+            FeedAmountSheet(bottleOz: logger.defaultFeedOz) { oz in
                 logFeed(amountOz: oz)
             }
         }
@@ -389,27 +386,36 @@ private struct ActiveSleepRow: View {
 
 // MARK: - Feed amount sheet
 
-/// The watch edition of the phone's feed sheet: starts on the default amount,
-/// adjustable by Digital Crown, the − / + buttons (half-ounce steps), or the
-/// household's preset chips — then one explicit Log tap. Bounds mirror
-/// QuickLogger's validation (0.5…32 oz).
+/// The watch edition of the phone's feed sheet, shaped by how bottles work in
+/// this house: the default IS the bottle that was made, i.e. the most he'll
+/// eat — so the sheet starts there and the quick-pick chips step DOWN in
+/// quarter-ounce increments ("he left a little"). Crown and − / + also move
+/// in 0.25 steps. Anything lower is a few crown clicks away; + stays for the
+/// odd topped-up bottle. Bounds mirror QuickLogger's validation (0.5…32 oz).
 private struct FeedAmountSheet: View {
-    let presets: [Double]
+    let bottleOz: Double
     let onLog: (Double) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var amount: Double
 
-    init(initial: Double, presets: [Double], onLog: @escaping (Double) -> Void) {
-        self.presets = presets
+    init(bottleOz: Double, onLog: @escaping (Double) -> Void) {
+        self.bottleOz = min(max(bottleOz, 0.5), 32)
         self.onLog = onLog
-        _amount = State(initialValue: min(max(initial, 0.5), 32))
+        _amount = State(initialValue: min(max(bottleOz, 0.5), 32))
+    }
+
+    /// The first four quarter-ounce steps below the bottle size (only those
+    /// still loggable): 4 oz → 3.75 · 3.5 · 3.25 · 3.
+    private var quickPicks: [Double] {
+        stride(from: bottleOz - 0.25, through: bottleOz - 1.0, by: -0.25)
+            .filter { $0 >= 0.5 }
     }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 10) {
                 HStack(spacing: 0) {
-                    adjustButton("minus") { amount = max(0.5, amount - 0.5) }
+                    adjustButton("minus") { amount = max(0.5, amount - 0.25) }
                     Spacer(minLength: 4)
                     VStack(spacing: 0) {
                         Text(OzFormat.string(amount))
@@ -422,37 +428,18 @@ private struct FeedAmountSheet: View {
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("\(OzFormat.string(amount)) ounces")
                     Spacer(minLength: 4)
-                    adjustButton("plus") { amount = min(32, amount + 0.5) }
+                    adjustButton("plus") { amount = min(32, amount + 0.25) }
                 }
                 .focusable()
-                .digitalCrownRotation($amount, from: 0.5, through: 32, by: 0.5,
+                .digitalCrownRotation($amount, from: 0.5, through: 32, by: 0.25,
                                       sensitivity: .medium, isContinuous: false,
                                       isHapticFeedbackEnabled: true)
 
-                // The household's oz presets, same as the phone sheet's chips:
-                // tap selects the amount; Log stays the explicit confirm.
-                HStack(spacing: 6) {
-                    ForEach(presets, id: \.self) { oz in
-                        Button {
-                            amount = oz
-                        } label: {
-                            Text(OzFormat.string(oz))
-                                .font(.system(.body, design: .rounded, weight: .semibold))
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.vertical, 6)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(amount == oz ? AppColor.accentFeed.opacity(0.25) : AppColor.card2)
-                        )
-                        .overlay {
-                            if amount == oz {
-                                RoundedRectangle(cornerRadius: 10)
-                                    .strokeBorder(AppColor.accentFeed, lineWidth: 2)
-                            }
-                        }
-                        .accessibilityLabel("\(OzFormat.string(oz)) ounces")
+                // "He left a little": quarter-ounce steps down from the bottle.
+                // Tap selects the amount; Log stays the explicit confirm.
+                HStack(spacing: 4) {
+                    ForEach(quickPicks, id: \.self) { oz in
+                        quickPickChip(oz)
                     }
                 }
 
@@ -470,6 +457,32 @@ private struct FeedAmountSheet: View {
             }
         }
         .navigationTitle("Log a feed")
+    }
+
+    private func quickPickChip(_ oz: Double) -> some View {
+        let selected = amount == oz
+        return Button {
+            amount = oz
+        } label: {
+            Text(OzFormat.string(oz))
+                .font(.system(.footnote, design: .rounded, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(selected ? AppColor.accentFeed.opacity(0.25) : AppColor.card2)
+        )
+        .overlay {
+            if selected {
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(AppColor.accentFeed, lineWidth: 2)
+            }
+        }
+        .accessibilityLabel("\(OzFormat.string(oz)) ounces")
     }
 
     private func adjustButton(_ symbol: String, action: @escaping () -> Void) -> some View {
