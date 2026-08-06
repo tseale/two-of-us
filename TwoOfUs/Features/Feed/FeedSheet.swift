@@ -1,7 +1,11 @@
 import SwiftUI
 import SwiftData
 
-/// Log a formula feed: an oz amount (presets + half-ounce custom) at a time.
+/// Log a formula feed: an oz amount at a time.
+///
+/// The default amount IS the bottle that was made — the most the baby will
+/// take — so the quick chips are the bottle itself plus quarter-ounce steps
+/// DOWN from it ("he left a little"); the custom field covers everything else.
 struct FeedSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -17,7 +21,18 @@ struct FeedSheet: View {
     @State private var date = Date()
     @State private var note = ""
 
-    private var presets: [Double] { settingsList.first?.ozPresets ?? [2, 3, 4] }
+    /// The bottle size (Settings → Feeding & Tracking → default amount).
+    private var bottleOz: Double {
+        let oz = settingsList.first?.defaultFeedOz ?? 4
+        return oz > 0 ? min(oz, 32) : 4
+    }
+
+    /// Bottle first (so the sheet always opens with a chip highlighted), then
+    /// the first quarter-ounce steps down that are still loggable.
+    private var presets: [Double] {
+        [bottleOz] + stride(from: bottleOz - 0.25, through: bottleOz - 0.75, by: -0.25)
+            .filter { $0 >= 0.5 }
+    }
     private var nextBottle: Date {
         date.addingTimeInterval(settingsList.first?.feedInterval(after: date) ?? TimeInterval(180 * 60))
     }
@@ -92,18 +107,12 @@ struct FeedSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        // Pre-fill from the shared default (Settings → Feeding & Tracking), so
-        // the sheet opens ready to log without the user re-picking an amount
-        // every time. Falls back to a preset if there's no settings row yet —
-        // same "always highlight a chip" guarantee the old hardcoded-3 default
-        // relied on, for a family whose presets skip that default (e.g. 2/4/6).
+        // Open on the bottle size — it's the first chip, so the sheet always
+        // opens with a highlighted chip and is one Log tap from the common case
+        // (he finished the bottle).
         .onAppear {
             guard !usingCustom else { return }
-            if let defaultOz = settingsList.first?.defaultFeedOz, defaultOz > 0 {
-                amount = defaultOz
-            } else if !presets.isEmpty, !presets.contains(amount) {
-                amount = presets[presets.count / 2]
-            }
+            amount = bottleOz
         }
     }
 
@@ -116,7 +125,11 @@ struct FeedSheet: View {
             Haptics.tap()
         } label: {
             VStack(spacing: 2) {
-                Text(OzFormat.string(oz)).font(.system(.title2, design: .rounded).weight(.bold))
+                // "3.75" is wider than the old whole-oz labels — scale, don't wrap.
+                Text(OzFormat.string(oz))
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                 Text("oz").font(.caption2)
             }
             .frame(maxWidth: .infinity)
