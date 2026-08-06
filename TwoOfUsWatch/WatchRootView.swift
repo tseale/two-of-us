@@ -22,6 +22,7 @@ struct WatchRootView: View {
     @Query private var allSettings: [SharedSettings]
 
     @State private var showDiaperPicker = false
+    @State private var showFeedSheet = false
     @State private var confirmation: Confirmation?
     @State private var confirmationTask: Task<Void, Never>?
 
@@ -54,15 +55,42 @@ struct WatchRootView: View {
 
     private var rows: some View {
         TimelineView(.everyMinute) { timeline in
-            List {
-                feedRow(now: timeline.date)
-                diaperRow(now: timeline.date)
-                sleepRow(now: timeline.date)
+            ScrollViewReader { proxy in
+                List {
+                    // The running sleep jumps to the TOP — on a screen this
+                    // small, the live thing must be visible without scrolling.
+                    // (The phone keeps Feed/Diaper stationary; deliberate
+                    // watch deviation.)
+                    if let open = openSleeps.first {
+                        activeSleepRow(open)
+                            .id("activeSleep")
+                    }
+                    feedRow(now: timeline.date)
+                    diaperRow(now: timeline.date)
+                    if openSleeps.isEmpty {
+                        idleSleepRow(now: timeline.date)
+                    }
+                }
+                .onChange(of: openSleeps.first?.id) { _, id in
+                    // Starting a sleep from a scrolled-down list must land the
+                    // card on screen, not reorder it into the void above.
+                    guard id != nil else { return }
+                    withAnimation(.snappy) { proxy.scrollTo("activeSleep", anchor: .top) }
+                }
             }
         }
+        .animation(.snappy, value: openSleeps.first?.id)
         .confirmationDialog("Diaper", isPresented: $showDiaperPicker) {
             ForEach(DiaperType.allCases) { type in
                 Button("\(type.emoji) \(type.label)") { logDiaper(type) }
+            }
+        }
+        .sheet(isPresented: $showFeedSheet) {
+            FeedAmountSheet(
+                initial: logger.defaultFeedOz,
+                presets: allSettings.first?.ozPresets ?? [2, 3, 4]
+            ) { oz in
+                logFeed(amountOz: oz)
             }
         }
     }
@@ -75,8 +103,8 @@ struct WatchRootView: View {
             since: last.map { agoText($0, now: now) },
             urgency: urgency,
             hint: feedHint(now: now)
-        ) { logFeed() }
-            .accessibilityHint("Logs a bottle of \(OzFormat.string(logger.defaultFeedOz)) ounces")
+        ) { showFeedSheet = true }
+            .accessibilityHint("Choose the bottle amount")
     }
 
     private func diaperRow(now: Date) -> some View {
@@ -91,23 +119,22 @@ struct WatchRootView: View {
             .accessibilityHint("Choose wet, dirty, or both")
     }
 
-    @ViewBuilder
-    private func sleepRow(now: Date) -> some View {
-        if let open = openSleeps.first {
-            ActiveSleepRow(babyName: babies.first?.name ?? "Baby", startedAt: open.startedAt) {
-                toggleSleep()
-            }
-        } else {
-            let lastEnd = endedSleeps.first?.endedAt
-            let urgency = Urgency.from(since: lastEnd, now: now, target: UrgencyDefaults.sleep)
-            EventRow(
-                emoji: "💤", title: "Sleep", tint: AppColor.accentSleep,
-                since: lastEnd.map { agoText($0, now: now) },
-                urgency: urgency,
-                hint: sleepHint(now: now)
-            ) { toggleSleep() }
-                .accessibilityHint("Starts the sleep timer")
+    private func activeSleepRow(_ open: SleepEvent) -> some View {
+        ActiveSleepRow(babyName: babies.first?.name ?? "Baby", startedAt: open.startedAt) {
+            toggleSleep()
         }
+    }
+
+    private func idleSleepRow(now: Date) -> some View {
+        let lastEnd = endedSleeps.first?.endedAt
+        let urgency = Urgency.from(since: lastEnd, now: now, target: UrgencyDefaults.sleep)
+        return EventRow(
+            emoji: "💤", title: "Sleep", tint: AppColor.accentSleep,
+            since: lastEnd.map { agoText($0, now: now) },
+            urgency: urgency,
+            hint: sleepHint(now: now)
+        ) { toggleSleep() }
+            .accessibilityHint("Starts the sleep timer")
     }
 
     // MARK: Status copy (mirrors the phone's Home tiles)
@@ -167,10 +194,9 @@ struct WatchRootView: View {
 
     // MARK: Actions
 
-    private func logFeed() {
-        let amount = logger.defaultFeedOz
-        if logger.logFeed(amountOz: amount) != nil {
-            didLog("🍼", "Logged \(OzFormat.string(amount)) oz", tint: AppColor.accentFeed)
+    private func logFeed(amountOz: Double) {
+        if logger.logFeed(amountOz: amountOz) != nil {
+            didLog("🍼", "Logged \(OzFormat.string(amountOz)) oz", tint: AppColor.accentFeed)
         } else {
             didFail()
         }
@@ -358,6 +384,103 @@ private struct ActiveSleepRow: View {
         .listRowBackground(tintedCard(AppColor.accentSleep))
         .accessibilityLabel("\(babyName) is sleeping, since \(TimeFormatting.clock(startedAt))")
         .accessibilityHint("Ends the sleep session")
+    }
+}
+
+// MARK: - Feed amount sheet
+
+/// The watch edition of the phone's feed sheet: starts on the default amount,
+/// adjustable by Digital Crown, the − / + buttons (half-ounce steps), or the
+/// household's preset chips — then one explicit Log tap. Bounds mirror
+/// QuickLogger's validation (0.5…32 oz).
+private struct FeedAmountSheet: View {
+    let presets: [Double]
+    let onLog: (Double) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var amount: Double
+
+    init(initial: Double, presets: [Double], onLog: @escaping (Double) -> Void) {
+        self.presets = presets
+        self.onLog = onLog
+        _amount = State(initialValue: min(max(initial, 0.5), 32))
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                HStack(spacing: 0) {
+                    adjustButton("minus") { amount = max(0.5, amount - 0.5) }
+                    Spacer(minLength: 4)
+                    VStack(spacing: 0) {
+                        Text(OzFormat.string(amount))
+                            .font(.system(.largeTitle, design: .rounded, weight: .heavy).monospacedDigit())
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        Text("ounces")
+                            .sectionLabelStyle()
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(OzFormat.string(amount)) ounces")
+                    Spacer(minLength: 4)
+                    adjustButton("plus") { amount = min(32, amount + 0.5) }
+                }
+                .focusable()
+                .digitalCrownRotation($amount, from: 0.5, through: 32, by: 0.5,
+                                      sensitivity: .medium, isContinuous: false,
+                                      isHapticFeedbackEnabled: true)
+
+                // The household's oz presets, same as the phone sheet's chips:
+                // tap selects the amount; Log stays the explicit confirm.
+                HStack(spacing: 6) {
+                    ForEach(presets, id: \.self) { oz in
+                        Button {
+                            amount = oz
+                        } label: {
+                            Text(OzFormat.string(oz))
+                                .font(.system(.body, design: .rounded, weight: .semibold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(amount == oz ? AppColor.accentFeed.opacity(0.25) : AppColor.card2)
+                        )
+                        .overlay {
+                            if amount == oz {
+                                RoundedRectangle(cornerRadius: 10)
+                                    .strokeBorder(AppColor.accentFeed, lineWidth: 2)
+                            }
+                        }
+                        .accessibilityLabel("\(OzFormat.string(oz)) ounces")
+                    }
+                }
+
+                Button {
+                    dismiss()
+                    onLog(amount)
+                } label: {
+                    Text("Log \(OzFormat.string(amount)) oz")
+                        .font(.system(.body, design: .rounded, weight: .bold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(AppColor.accentFeed)
+                .foregroundStyle(.black)
+            }
+        }
+        .navigationTitle("Log a feed")
+    }
+
+    private func adjustButton(_ symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 16, weight: .bold))
+                .frame(width: 36, height: 36)
+                .background(Circle().fill(AppColor.card2))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(symbol == "plus" ? "Increase amount" : "Decrease amount")
     }
 }
 
