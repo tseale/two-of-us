@@ -13,6 +13,7 @@ struct SettingsView: View {
     @Query private var participants: [Participant]
     @State private var prefs = LocalPrefs.shared
     @State private var setup = SetupProgress.shared
+    @State private var watchStatus = WatchAppStatus.shared
     @State private var showBabyEdit = false
     @State private var showProfileEdit = false
     @State private var questSheet: SetupQuest?
@@ -71,6 +72,17 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    // Read-only: whether the companion app is on the paired
+                    // watch. There is no "connection" beyond this — the watch
+                    // syncs through CloudKit, never through the phone.
+                    if let watchLabel = watchStatus.state.label {
+                        LabeledContent {
+                            Text(watchLabel)
+                        } label: {
+                            SettingsIconLabel(title: "Apple Watch", systemImage: "applewatch",
+                                              tint: .gray)
+                        }
+                    }
                     NavigationLink {
                         DataSettingsView()
                     } label: {
