@@ -69,39 +69,6 @@ struct SleepStateProvider: ControlValueProvider {
     }
 }
 
-/// `SetValueIntent` backing the sleep toggle: drives sleep to the requested
-/// state, reusing `QuickLogger.toggleSleep()` only when a change is needed.
-struct SetSleepIntent: SetValueIntent {
-    static var title: LocalizedStringResource = "Set Sleep State"
-    static var description = IntentDescription("Starts or stops your baby's sleep timer.")
-
-    @Parameter(title: "Asleep")
-    var value: Bool
-
-    init() {}
-
-    @MainActor
-    func perform() async throws -> some IntentResult {
-        guard let logger = QuickLogger.make() else { return .result() }
-        let isActive = logger.activeSleep != nil
-        if value != isActive { logger.toggleSleep() }
-        // Waking up: end the Live Activity right here. This intent backs the
-        // lock-screen / Dynamic Island Wake button and runs in the widget
-        // process, which can't rely on the app foregrounding to reconcile.
-        if !value { await SleepActivityAttributes.endAllRunning() }
-        return .result()
-    }
-}
-
-extension SetSleepIntent {
-    /// A copy driven to a specific state. Widget buttons pass the OPPOSITE of
-    /// the state they rendered, so a tap means what the parent saw on screen —
-    /// a stale "Wake ☀️" tapped after the co-parent already stopped the sleep
-    /// is a no-op, where a blind `ToggleSleepIntent` would start a phantom
-    /// session nobody asked for.
-    static func driving(asleep: Bool) -> SetSleepIntent {
-        var intent = SetSleepIntent()
-        intent.value = asleep
-        return intent
-    }
-}
+// `SetSleepIntent` (the sleep toggle these controls drive) lives in
+// TwoOfUs/Intents/ToggleSleepIntent.swift: as a `LiveActivityIntent` it runs
+// in the app process, so its type must be compiled into the app target too.

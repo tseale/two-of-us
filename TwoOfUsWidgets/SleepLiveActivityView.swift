@@ -8,8 +8,14 @@ import ActivityKit
 /// 39-hour "sleeps" — so the card never sits on a frozen, wrong number.
 private let maxSleepDuration: TimeInterval = 7 * 24 * 3600
 
-private func sleepRange(from start: Date) -> ClosedRange<Date> {
-    start...start.addingTimeInterval(maxSleepDuration)
+/// While the sleep runs the range end is effectively unbounded so the timer
+/// counts up; once `endedAt` is set (the final content update) the range stops
+/// there, freezing the same timer text at the total duration — the "slept X"
+/// summary needs no second rendering path.
+private func sleepRange(from start: Date, until end: Date? = nil) -> ClosedRange<Date> {
+    let cap = start.addingTimeInterval(maxSleepDuration)
+    if let end { return start...min(max(end, start.addingTimeInterval(1)), cap) }
+    return start...cap
 }
 
 // MARK: - Lock Screen View
@@ -45,16 +51,19 @@ private func sleepRange(from start: Date) -> ClosedRange<Date> {
 struct SleepLockScreenView: View {
     let babyName: String
     let startedAt: Date
+    let endedAt: Date?
     let nextFeedAt: Date?
     let nextFeedOwnerName: String?
     let nextFeedOwnerColorHex: String?
 
     init(babyName: String, startedAt: Date,
+         endedAt: Date? = nil,
          nextFeedAt: Date? = nil,
          nextFeedOwnerName: String? = nil,
          nextFeedOwnerColorHex: String? = nil) {
         self.babyName = babyName
         self.startedAt = startedAt
+        self.endedAt = endedAt
         self.nextFeedAt = nextFeedAt
         self.nextFeedOwnerName = nextFeedOwnerName
         self.nextFeedOwnerColorHex = nextFeedOwnerColorHex
@@ -66,6 +75,7 @@ struct SleepLockScreenView: View {
     init(context: ActivityViewContext<SleepActivityAttributes>) {
         self.init(babyName: context.attributes.babyName,
                   startedAt: context.state.startedAt,
+                  endedAt: context.state.endedAt,
                   nextFeedAt: context.state.nextFeedAt,
                   nextFeedOwnerName: context.state.nextFeedOwnerName,
                   nextFeedOwnerColorHex: context.state.nextFeedOwnerColorHex)
@@ -85,15 +95,18 @@ struct SleepLockScreenView: View {
             .fixedSize()
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(babyName.uppercased()) IS SLEEPING")
+                Text(endedAt == nil ? "\(babyName.uppercased()) IS SLEEPING"
+                                    : "\(babyName.uppercased()) SLEPT")
                     .sectionLabelStyle(color: AppColor.accentSleep)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
 
                 // Counts up on its own — no periodic push needed. `showsHours`
                 // pins the shape to H:MM:SS from second zero, so crossing an
-                // hour doesn't silently widen the string mid-sleep.
-                Text(timerInterval: sleepRange(from: startedAt),
+                // hour doesn't silently widen the string mid-sleep. Once the
+                // sleep ends, the bounded range freezes this same timer at the
+                // total duration (the linger-summary card).
+                Text(timerInterval: sleepRange(from: startedAt, until: endedAt),
                      countsDown: false,
                      showsHours: true)
                     .font(AppFont.display(26, weight: .heavy))
@@ -103,7 +116,8 @@ struct SleepLockScreenView: View {
                     // minutes" fits on one line rather than truncating.
                     .minimumScaleFactor(0.5)
 
-                Text("since \(TimeFormatting.clock(startedAt))")
+                Text(endedAt.map { "until \(TimeFormatting.clock($0))" }
+                        ?? "since \(TimeFormatting.clock(startedAt))")
                     .font(.caption2)
                     .foregroundStyle(AppColor.nightlightCream.opacity(0.6))
                     .lineLimit(1)
@@ -185,7 +199,8 @@ struct SleepLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.trailing) {
                     // Same fixed H:MM:SS shape as the lock screen, so the
                     // expanded island doesn't reflow at the one-hour mark.
-                    Text(timerInterval: sleepRange(from: context.state.startedAt),
+                    Text(timerInterval: sleepRange(from: context.state.startedAt,
+                                                   until: context.state.endedAt),
                          countsDown: false,
                          showsHours: true)
                         .font(AppFont.display(20, weight: .bold, relativeTo: .title3))
@@ -264,4 +279,7 @@ private func islandNextFeedCaption(at date: Date, owner: String?) -> String {
                                          nextFeedOwnerColorHex: "#E8A0BF")
     SleepActivityAttributes.ContentState(startedAt: .now.addingTimeInterval(-11 * 3600),// long night, feed due
                                          nextFeedAt: .now.addingTimeInterval(-5 * 60))
+    SleepActivityAttributes.ContentState(startedAt: .now.addingTimeInterval(-135 * 60), // ended: linger summary
+                                         nextFeedAt: .now.addingTimeInterval(50 * 60),
+                                         endedAt: .now.addingTimeInterval(-3 * 60))
 }

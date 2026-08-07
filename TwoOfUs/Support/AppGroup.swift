@@ -16,8 +16,8 @@ enum AppGroup {
         containerURL?.appendingPathComponent("twoofus.sqlite")
     }
 
-    /// Shared UserDefaults suite — used by SleepActivityManager to persist the
-    /// live-activity ID across app relaunches.
+    /// Shared UserDefaults suite — cross-process prefs (participant identity,
+    /// demo override, the widget-origin sync queue).
     static var userDefaults: UserDefaults? {
         UserDefaults(suiteName: id)
     }
