@@ -203,7 +203,18 @@ final class WatchSyncManager: NSObject, CKSyncEngineDelegate {
            Participant.fetchByID(id, in: context)?.isActive == true { return }
         guard let recordName = (try? await SyncConstants.container.userRecordID())?.recordName else { return }
         let all = (try? context.fetch(FetchDescriptor<Participant>())) ?? []
-        guard let mine = all.first(where: { $0.isActive && $0.cloudUserID == recordName }) else { return }
+        guard let mine = all.first(where: { $0.isActive && $0.cloudUserID == recordName }) else {
+            // Not an error yet — the participants may simply not have synced
+            // down. It IS terminal if a row exists but carries no stamp: nothing
+            // on the watch can fix that, so say so loudly enough to diagnose
+            // from a sysdiagnose (see SyncManager.backfillMyCloudUserIDIfMissing,
+            // which heals it from the phone).
+            let active = all.filter(\.isActive)
+            if !active.isEmpty, active.allSatisfy({ $0.cloudUserID == nil }) {
+                AppLog.sync.error("Watch identity unresolved: \(active.count, privacy: .public) active participant(s), none stamped with an iCloud id — logging will refuse until the phone back-fills it")
+            }
+            return
+        }
         defaults?.set(mine.id.uuidString, forKey: Keys.myParticipantID)
         AppLog.sync.log("Watch resolved local identity → participant \(mine.id, privacy: .public)")
     }
