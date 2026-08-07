@@ -322,7 +322,7 @@ struct HomeView: View {
                 tileStatus(since: $0.timestamp, now: now, target: targetFeed(after: $0.timestamp))
             },
             sleepStatus: activeSleep == nil
-                ? tileStatus(since: lastSleepEnd, now: now, target: UrgencyDefaults.sleep) : nil,
+                ? tileStatus(since: lastSleepEnd, now: now, target: sleepTarget) : nil,
             diaperStatus: tileStatus(since: diapers.first?.timestamp, now: now, target: UrgencyDefaults.diaper),
             feedHint: feedHint(now: now),
             sleepHint: sleepHint(now: now),
@@ -381,11 +381,19 @@ struct HomeView: View {
     /// Same idea for Sleep: the projected next nap, from the last wake time
     /// plus the sleep target that already drives the tile's urgency dot.
     private func sleepHint(now: Date) -> String {
-        guard let lastEnd = lastSleepEnd else { return "start timer" }
-        let next = lastEnd.addingTimeInterval(UrgencyDefaults.sleep)
-        return next < now
-            ? "nap was due ~\(TimeFormatting.clock(next))"
-            : "next nap ~\(TimeFormatting.clock(next))"
+        WakeWindow.napHint(lastWake: lastSleepEnd, target: sleepTarget, now: now)
+    }
+
+    /// The wake window this baby is actually working with — his age, adjusted
+    /// by his own recent history. Drives both the hint and the tile's urgency
+    /// dot, so the dot and the projection can never disagree.
+    private var sleepTarget: TimeInterval {
+        WakeWindow.predicted(
+            ageInDays: baby.map { WakeWindow.ageInDays(dateOfBirth: $0.dateOfBirth) } ?? 0,
+            observedGaps: WakeWindow.wakeGaps(
+                sleeps: sleeps.map { ($0.startedAt, $0.endedAt) },
+                nightStartMinute: settingsList.first?.nightStartMinute ?? 1200,
+                nightEndMinute: settingsList.first?.nightEndMinute ?? 480))
     }
 
     // MARK: Tonight (nighttime schedule card)

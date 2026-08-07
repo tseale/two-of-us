@@ -14,6 +14,9 @@ struct WidgetEntry: TimelineEntry {
     let lastDiaperDate: Date?
 
     let feedTargetInterval: TimeInterval   // from SharedSettings
+    /// Projected wake window (age + observed history — see `WakeWindow`), the
+    /// sleep-side counterpart to `feedTargetInterval`.
+    let sleepTargetInterval: TimeInterval
     let isActiveSleep: Bool
     let activeSleepStartedAt: Date?
 
@@ -60,6 +63,7 @@ struct WidgetEntry: TimelineEntry {
         lastSleepDate: Date(timeIntervalSinceNow: -2700),  // 45m ago
         lastDiaperDate: Date(timeIntervalSinceNow: -4200), // 1h 10m ago
         feedTargetInterval: 10800,
+        sleepTargetInterval: 5400,
         isActiveSleep: false,
         activeSleepStartedAt: nil,
         recentItems: [
@@ -77,6 +81,7 @@ struct WidgetEntry: TimelineEntry {
         lastSleepDate: nil,
         lastDiaperDate: nil,
         feedTargetInterval: 10800,
+        sleepTargetInterval: 5400,
         isActiveSleep: false,
         activeSleepStartedAt: nil,
         recentItems: [],

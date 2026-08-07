@@ -101,6 +101,21 @@ struct WidgetProvider: TimelineProvider {
         let isActive = lastSleepEvent?.isActive ?? false
         let lastSleepDate: Date? = isActive ? nil : lastSleepEvent?.endedAt
 
+        // Wake window: his age, adjusted by the wake gaps he's actually been
+        // running this past week (WakeWindow) — the sleep-side counterpart to
+        // the feed target above.
+        let weekAgo = Date.now.addingTimeInterval(-7 * 24 * 3600)
+        let recentSleeps = (try? ctx.fetch(FetchDescriptor<SleepEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.startedAt >= weekAgo }
+        ))) ?? []
+        let dob = (try? ctx.fetch(FetchDescriptor<Baby>()))?.first?.dateOfBirth
+        let sleepTarget = WakeWindow.predicted(
+            ageInDays: dob.map { WakeWindow.ageInDays(dateOfBirth: $0) } ?? 0,
+            observedGaps: WakeWindow.wakeGaps(
+                sleeps: recentSleeps.map { ($0.startedAt, $0.endedAt) },
+                nightStartMinute: settings?.nightStartMinute ?? 1200,
+                nightEndMinute: settings?.nightEndMinute ?? 480))
+
         // Last diaper
         var diaperDesc = FetchDescriptor<DiaperEvent>(
             predicate: #Predicate { $0.deletedAt == nil },
@@ -122,6 +137,7 @@ struct WidgetProvider: TimelineProvider {
             lastSleepDate: lastSleepDate,
             lastDiaperDate: lastDiaperDate,
             feedTargetInterval: feedTarget,
+            sleepTargetInterval: sleepTarget,
             isActiveSleep: isActive,
             activeSleepStartedAt: isActive ? lastSleepEvent?.startedAt : nil,
             recentItems: recentItems,

@@ -56,8 +56,11 @@ enum Urgency {
     }
 }
 
-/// Default target intervals per event kind (seconds). Feed comes from SharedSettings.
+/// Default target intervals per event kind (seconds). Feed comes from
+/// SharedSettings; sleep from `WakeWindow` (age + observed history) — there is
+/// deliberately no flat `sleep` default here any more, because one number can't
+/// be right for both a newborn and a one-year-old and the old 2.5h was right
+/// for neither.
 enum UrgencyDefaults {
     static let diaper: TimeInterval = 3 * 3600
-    static let sleep: TimeInterval = 2.5 * 3600
 }

@@ -236,10 +236,11 @@ struct SmallEventWidgetView: View {
             return "wet · dirty · both"
         case .sleep:
             if showingActiveSleep { return "tap to wake" }
-            guard let lastEnd = entry.lastSleepDate else { return "start timer" }
-            let next = lastEnd.addingTimeInterval(UrgencyDefaults.sleep)
-            return next < now ? "nap was due ~\(TimeFormatting.clock(next))"
-                              : "next nap ~\(TimeFormatting.clock(next))"
+            // .compact: a small widget's hint line is watch-narrow, not
+            // Home-tile-wide — the trailing "awake" is what truncates.
+            return WakeWindow.napHint(lastWake: entry.lastSleepDate,
+                                      target: entry.sleepTargetInterval, now: now,
+                                      style: .compact)
         }
     }
 
@@ -273,7 +274,7 @@ struct SmallEventWidgetView: View {
     private var targetInterval: TimeInterval {
         switch kind {
         case .feed:   return entry.feedTargetInterval
-        case .sleep:  return UrgencyDefaults.sleep
+        case .sleep:  return entry.sleepTargetInterval
         case .diaper: return UrgencyDefaults.diaper
         }
     }

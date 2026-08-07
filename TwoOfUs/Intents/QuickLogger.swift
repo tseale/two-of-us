@@ -170,6 +170,28 @@ struct QuickLogger {
         ))) ?? []
     }
 
+    /// The projected wake window — how long this baby comfortably stays awake
+    /// between sleeps, from his age and his own recent history (`WakeWindow`).
+    ///
+    /// The single source for every "next nap" projection outside the app
+    /// process (watch, widgets), mirroring how `feedInterval(after:)` serves the
+    /// feed side. Falls back to the age table when history is thin, and to the
+    /// newborn band when there's no baby row yet.
+    var sleepTarget: TimeInterval {
+        let ageInDays = baby.map { WakeWindow.ageInDays(dateOfBirth: $0.dateOfBirth) } ?? 0
+        let gaps = WakeWindow.wakeGaps(
+            sleeps: recentSleeps(hours: 7 * 24).map { ($0.startedAt, $0.endedAt) },
+            nightStartMinute: settings?.nightStartMinute ?? 1200,
+            nightEndMinute: settings?.nightEndMinute ?? 480)
+        return WakeWindow.predicted(ageInDays: ageInDays, observedGaps: gaps)
+    }
+
+    /// When the next nap is projected to be due, or nil with nothing to project
+    /// from (no completed sleep yet).
+    var nextNapAt: Date? {
+        lastEndedSleep?.endedAt?.addingTimeInterval(sleepTarget)
+    }
+
     /// Most recent live diaper (by timestamp).
     var lastDiaper: DiaperEvent? {
         var d = FetchDescriptor<DiaperEvent>(
