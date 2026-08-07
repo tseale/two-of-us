@@ -23,6 +23,7 @@ struct WatchRootView: View {
 
     @State private var showDiaperPicker = false
     @State private var showFeedSheet = false
+    @State private var showEndSleepConfirmation = false
     @State private var confirmation: Confirmation?
     @State private var confirmationTask: Task<Void, Never>?
 
@@ -117,6 +118,10 @@ struct WatchRootView: View {
                 logFeed(amountOz: oz)
             }
         }
+        .confirmationDialog("End sleep?", isPresented: $showEndSleepConfirmation) {
+            Button("Confirm", role: .destructive) { toggleSleep() }
+            Button("Cancel", role: .cancel) {}
+        }
     }
 
     private func feedRow(now: Date) -> some View {
@@ -145,7 +150,7 @@ struct WatchRootView: View {
 
     private func activeSleepRow(_ open: SleepEvent) -> some View {
         ActiveSleepRow(babyName: babies.first?.name ?? "Baby", startedAt: open.startedAt) {
-            toggleSleep()
+            showEndSleepConfirmation = true
         }
     }
 
@@ -407,7 +412,7 @@ private struct ActiveSleepRow: View {
         }
         .listRowBackground(tintedCard(AppColor.accentSleep))
         .accessibilityLabel("\(babyName) is sleeping, since \(TimeFormatting.clock(startedAt))")
-        .accessibilityHint("Ends the sleep session")
+        .accessibilityHint("Asks to confirm before ending the sleep session")
     }
 }
 
