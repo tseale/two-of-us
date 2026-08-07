@@ -163,6 +163,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         resyncScheduleRecordsIfNeeded()
         mergeDuplicateSettingsIfNeeded()
         await repairMyIdentityIfDangling()
+        backfillMyCloudUserIDIfMissing()
         // Parked saves (engine down, zone unknown, schema-rejected) get another
         // send attempt whenever sync (re)starts — not only on the first engine
         // build of the process, or a mid-session schema deploy would need a
@@ -216,6 +217,50 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         enqueueDelete(losers)
     }
 
+    /// Whether `p` is a row this device should stamp with its iCloud user record
+    /// name. Callers pass the row `myParticipantID` already claims, so the only
+    /// questions left are "still active?" and "not already stamped?" — the second
+    /// keeps the back-fill idempotent and stops it fighting a real identity.
+    static func needsCloudUserIDBackfill(_ p: Participant) -> Bool {
+        p.isActive && p.cloudUserID == nil
+    }
+
+    /// The active participant carrying `cloudUserID`, if any — the match
+    /// `repairMyIdentityIfDangling` (phone) and `resolveIdentityIfNeeded` (watch)
+    /// both make against this device's iCloud user record name.
+    static func participantMatching(cloudUserID: String, in context: ModelContext) -> Participant? {
+        ((try? context.fetch(FetchDescriptor<Participant>())) ?? [])
+            .first { $0.isActive && $0.cloudUserID == cloudUserID }
+    }
+
+    /// Back-fill for owner rows that predate owner-side stamping.
+    ///
+    /// `cloudUserID` is what lets a device recognise its own participant row from
+    /// the iCloud account alone. Joiners have been stamped since 2026-06-12
+    /// (JoinFlowView), but the OWNER only started being stamped on 2026-07-29,
+    /// in `SeedData` — which runs once, at first onboarding. An owner who
+    /// onboarded before that date has a permanently nil `cloudUserID`, and
+    /// nothing re-stamps it: `repairMyIdentityIfDangling` only READS the field,
+    /// and it early-returns anyway because the phone's own identity is fine.
+    ///
+    /// The phone never noticed (its identity went straight into LocalPrefs at
+    /// seed time). The watch has no onboarding and no LocalPrefs of its own, so
+    /// the `cloudUserID` match is its ONLY route to an identity — an unstamped
+    /// owner meant `QuickLogger.owner` came back nil and every watch log was
+    /// refused with "try from the phone".
+    ///
+    /// Safe because it asserts exactly what `myParticipantID` already means on
+    /// this device: "this iCloud account is that participant". Every phone log
+    /// is already attributed on that basis, so this adds no new trust.
+    private func backfillMyCloudUserIDIfMissing() {
+        guard !LocalPrefs.shared.demoModeEnabled else { return }
+        guard let myID = LocalPrefs.shared.myParticipantID,
+              let me = Participant.fetchByID(myID, in: context),
+              Self.needsCloudUserIDBackfill(me) else { return }
+        AppLog.sync.log("Back-filling missing cloudUserID for \(myID, privacy: .public) — watch identity depends on it")
+        captureCloudUserID(for: myID)
+    }
+
     /// Self-heal for a dangling local identity. `myParticipantID` can point at
     /// a row that no longer exists (hard-deleted by an old build's purge, store
     /// quarantine, interrupted join) — and since writes now REFUSE rather than
@@ -227,8 +272,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         if let myID = LocalPrefs.shared.myParticipantID,
            Participant.fetchByID(myID, in: context)?.isActive == true { return }
         guard let recordName = (try? await SyncConstants.container.userRecordID())?.recordName else { return }
-        let all = (try? context.fetch(FetchDescriptor<Participant>())) ?? []
-        guard let mine = all.first(where: { $0.isActive && $0.cloudUserID == recordName }) else { return }
+        guard let mine = Self.participantMatching(cloudUserID: recordName, in: context) else { return }
         guard LocalPrefs.shared.myParticipantID != mine.id else { return }
         AppLog.sync.log("Repaired dangling local identity → participant \(mine.id, privacy: .public)")
         LocalPrefs.shared.myParticipantID = mine.id
