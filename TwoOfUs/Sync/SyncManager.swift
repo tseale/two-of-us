@@ -217,6 +217,17 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         enqueueDelete(losers)
     }
 
+    /// Wake the paired watch's complication when a batch touched what it
+    /// displays — feeds and sleeps. Filtering by record type is budget hygiene:
+    /// participant/settings/plan churn would otherwise burn the 50/day
+    /// complication-transfer allowance on records the watch face never shows.
+    private func nudgeWatchIfComplicationRelevant(recordTypes: [CKRecord.RecordType]) {
+        let relevant: Set<CKRecord.RecordType> = [SyncConstants.RecordType.feed,
+                                                 SyncConstants.RecordType.sleep]
+        guard recordTypes.contains(where: relevant.contains) else { return }
+        WatchAppStatus.shared.nudgeComplication()
+    }
+
     /// Whether `p` is a row this device should stamp with its iCloud user record
     /// name. Callers pass the row `myParticipantID` already claims, so the only
     /// questions left are "still active?" and "not already stamped?" — the second
@@ -915,6 +926,11 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             reconcileLiveActivity()
             WidgetCenter.shared.reloadAllTimelines()
             notifyCoParentActivity(from: e.modifications.map(\.record))
+            // The co-parent's log just landed on THIS phone — relay the wake to
+            // this phone's paired watch so its complication re-fetches now
+            // instead of on the next background-refresh slot. (Their phone
+            // can't nudge our watch; only a paired phone can.)
+            nudgeWatchIfComplicationRelevant(recordTypes: e.modifications.map(\.record.recordType))
             // A co-parent's feed (or a synced-in delete) changes what "next feed"
             // is on THIS device — re-arm the alarm/reminders off the new state so
             // we don't fire a stale/false overnight alarm.
@@ -937,6 +953,10 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         for saved in e.savedRecords {
             RecordMapping.persistSystemFields(of: saved, in: context)
         }
+        // This phone's own log is now ON the server — the earliest moment a
+        // watch fetch is guaranteed to find it, so this (not the local write)
+        // is when the paired watch gets its wake.
+        nudgeWatchIfComplicationRelevant(recordTypes: e.savedRecords.map(\.recordType))
 
         var reenqueueSaves: [CKSyncEngine.PendingRecordZoneChange] = []
         var detach = false

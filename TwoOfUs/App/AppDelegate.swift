@@ -21,6 +21,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // connects and `TwoOfUsApp.configure()` never runs.
         MainActor.assumeIsolated {
             SyncManager.bootstrap(container: AppModelContainer.shared)
+            // Activate Watch Connectivity now, not on the first Settings visit:
+            // a background silent-push launch must be able to nudge the paired
+            // watch's complication, and the session must already be activated
+            // when that sync event lands.
+            WatchAppStatus.shared.activate()
         }
 
         // Local notifications: become the delegate so action buttons route to us,

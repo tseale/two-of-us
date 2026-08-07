@@ -11,6 +11,16 @@ struct TwoOfUsWatchApp: App {
     /// `.backgroundTask(.appRefresh(_:))` handler below.
     private static let refreshTaskID = "sync-refresh"
 
+    init() {
+        // In the App init, not `.active`: watchOS instantiates the App struct
+        // for background userInfo deliveries too, and the session must be
+        // activated before the phone's nudge can be handed to the delegate.
+        // (Demo runs keep the session dark along with everything else network.)
+        if !WatchModelContainer.isDemoRun {
+            WatchSessionRelay.shared.activate()
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             WatchRootView()
