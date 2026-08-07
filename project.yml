@@ -189,6 +189,7 @@ targets:
       # no-UIKit implementations.
       - path: TwoOfUs/DesignSystem/Urgency.swift
       - path: TwoOfUs/DesignSystem/CradleMark.swift
+      - path: TwoOfUs/Features/Shared/Avatar.swift
       - path: TwoOfUs/Sync/SyncConstants.swift
       - path: TwoOfUs/Sync/RecordMapping.swift
       # Keychain-free pieces of the SNOO credential model — RecordMapping's

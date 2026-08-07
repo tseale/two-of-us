@@ -55,6 +55,14 @@ enum AppColor {
     static let indigoNight = Color(hex: "15151F")
 }
 
+/// Mirrors the phone's `ParticipantColors` (Colors.swift) — that file can't join
+/// the watch target (it redefines `AppColor` against UIKit), so the one token the
+/// watch needs is restated here. Keep in step with the phone.
+enum ParticipantColors {
+    /// The baby's own avatar tint (feed teal) for the monogram fallback.
+    static let babyHex = "5AC8B8"
+}
+
 /// The type ramp, minus `UIFontMetrics` (watchOS scales system styles itself;
 /// fixed display sizes get `minimumScaleFactor` at the call site instead).
 enum AppFont {
@@ -81,5 +89,15 @@ extension View {
             .textCase(.uppercase)
             .tracking(0.6)
             .foregroundStyle(color)
+    }
+
+    /// Stands in for watchOS's own nav-bar title, for the hand-built header that
+    /// puts the baby's avatar beside his name. Matches the system title's muted
+    /// gray; rounded to stay in the app's voice.
+    func titleHeaderStyle() -> some View {
+        self.font(.system(.title3, design: .rounded, weight: .semibold))
+            .foregroundStyle(AppColor.text2)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
     }
 }
