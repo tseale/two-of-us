@@ -38,7 +38,9 @@ struct WatchRootView: View {
                     rows
                 }
             }
-            .navigationTitle(babies.first?.name ?? "Two of Us")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { titleHeader }
+            }
             .containerBackground(
                 LinearGradient(colors: [AppColor.indigoHi, AppColor.indigoNight],
                                startPoint: .top, endPoint: .bottom),
@@ -50,6 +52,31 @@ struct WatchRootView: View {
             }
         }
         .animation(.snappy, value: confirmation)
+    }
+
+    // MARK: Title header
+
+    /// The nav-bar title, hand-built so the baby's avatar can sit to the LEFT of
+    /// his name. `.navigationTitle` can't take a leading view: pairing it with a
+    /// `.topBarLeading` item pushes the title onto its own right-aligned second
+    /// line, so the whole header lives in the toolbar item instead.
+    ///
+    /// Before the first sync there's no baby — and therefore no photo — so the
+    /// name-only title stands alone rather than showing a placeholder silhouette
+    /// next to "Two of Us".
+    @ViewBuilder
+    private var titleHeader: some View {
+        if let baby = babies.first {
+            HStack(spacing: 5) {
+                Avatar(photoData: baby.photoData, name: baby.name,
+                       colorHex: ParticipantColors.babyHex, size: 22)
+                Text(baby.name)
+                    .titleHeaderStyle()
+            }
+        } else {
+            Text("Two of Us")
+                .titleHeaderStyle()
+        }
     }
 
     // MARK: Rows
