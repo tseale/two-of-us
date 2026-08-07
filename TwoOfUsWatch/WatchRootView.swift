@@ -166,7 +166,7 @@ struct WatchRootView: View {
 
     private func idleSleepRow(now: Date) -> some View {
         let lastEnd = endedSleeps.first?.endedAt
-        let urgency = Urgency.from(since: lastEnd, now: now, target: UrgencyDefaults.sleep)
+        let urgency = Urgency.from(since: lastEnd, now: now, target: sleepTarget)
         return EventRow(
             emoji: "💤", title: "Sleep", tint: AppColor.accentSleep,
             since: lastEnd.map { agoText($0, now: now) },
@@ -204,12 +204,14 @@ struct WatchRootView: View {
     }
 
     private func sleepHint(now: Date) -> String {
-        guard let lastEnd = endedSleeps.first?.endedAt else { return "start timer" }
-        let next = lastEnd.addingTimeInterval(UrgencyDefaults.sleep)
-        return next < now
-            ? "nap was due ~\(TimeFormatting.clock(next))"
-            : "next nap ~\(TimeFormatting.clock(next))"
+        WakeWindow.napHint(lastWake: endedSleeps.first?.endedAt, target: sleepTarget,
+                           now: now, style: .compact)
     }
+
+    /// Age- and history-derived wake window, via the same QuickLogger accessor
+    /// the widgets use — one implementation, so the watch and phone can't
+    /// project different naps from the same data.
+    private var sleepTarget: TimeInterval { logger.sleepTarget }
 
     // MARK: Waiting state
 
@@ -361,7 +363,9 @@ private struct EventRow: View {
                     .font(.caption2)
                     .foregroundStyle(AppColor.text2)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.9)
+                    // 0.75, not 0.9: the sleep hint now carries a clock time AND
+                    // the projected window, which truncated at the old floor.
+                    .minimumScaleFactor(0.75)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 4)

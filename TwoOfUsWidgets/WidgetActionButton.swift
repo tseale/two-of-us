@@ -94,7 +94,7 @@ struct WidgetMetricColumns: View {
         } else {
             column(emoji: "💤", label: "sleep",
                    value: value(for: entry.lastSleepDate),
-                   urgency: Urgency.from(since: entry.lastSleepDate, target: UrgencyDefaults.sleep))
+                   urgency: Urgency.from(since: entry.lastSleepDate, target: entry.sleepTargetInterval))
         }
     }
 
