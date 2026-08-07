@@ -230,8 +230,9 @@ targets:
     dependencies:
       - target: TwoOfUsWatchComplication
 
-  # Watch complication (WidgetKit): time since last feed on the watch face.
-  # Reads the watch app's App Group store — no CloudKit access of its own.
+  # Watch complication (WidgetKit): the running sleep timer while the baby is
+  # down, else time since the last feed. Reads the watch app's App Group store
+  # — no CloudKit access of its own.
   TwoOfUsWatchComplication:
     type: app-extension
     platform: watchOS
