@@ -23,6 +23,7 @@ struct WatchRootView: View {
 
     @State private var showDiaperPicker = false
     @State private var showFeedSheet = false
+    @State private var showStartSleepConfirmation = false
     @State private var showEndSleepConfirmation = false
     @State private var confirmation: Confirmation?
     @State private var confirmationTask: Task<Void, Never>?
@@ -41,10 +42,11 @@ struct WatchRootView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { titleHeader }
             }
-            .containerBackground(
-                LinearGradient(colors: [AppColor.indigoHi, AppColor.indigoNight],
-                               startPoint: .top, endPoint: .bottom),
-                for: .navigation)
+            // True black, not the phone's indigo scene: on the watch's OLED a
+            // black background costs no light at all, so a 3am glance doesn't
+            // wash the room — and the accent-tinted cards read cleaner against
+            // it than against a purple wash.
+            .containerBackground(AppColor.bg, for: .navigation)
         }
         .overlay {
             if let confirmation {
@@ -118,6 +120,14 @@ struct WatchRootView: View {
                 logFeed(amountOz: oz)
             }
         }
+        // Both directions confirm: the rows are big tap targets on a screen
+        // that lives on a moving wrist, and either misfire costs a correction
+        // on the phone. Start is NOT destructive-styled — it creates nothing
+        // that a second tap can't undo.
+        .confirmationDialog("Start sleep?", isPresented: $showStartSleepConfirmation) {
+            Button("Confirm") { toggleSleep() }
+            Button("Cancel", role: .cancel) {}
+        }
         .confirmationDialog("End sleep?", isPresented: $showEndSleepConfirmation) {
             Button("Confirm", role: .destructive) { toggleSleep() }
             Button("Cancel", role: .cancel) {}
@@ -162,8 +172,8 @@ struct WatchRootView: View {
             since: lastEnd.map { agoText($0, now: now) },
             urgency: urgency,
             hint: sleepHint(now: now)
-        ) { toggleSleep() }
-            .accessibilityHint("Starts the sleep timer")
+        ) { showStartSleepConfirmation = true }
+            .accessibilityHint("Asks to confirm before starting the sleep timer")
     }
 
     // MARK: Status copy (mirrors the phone's Home tiles)

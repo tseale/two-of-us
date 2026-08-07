@@ -4,23 +4,40 @@ import SwiftData
 import Foundation
 import os
 
-/// Watch complication: time since the last feed — the one number a parent
-/// checks most. Reads the watch app's App Group store (kept fresh by
-/// WatchSyncManager, which reloads timelines after every fetch/log).
+/// Watch complication: the one thing a parent needs at a glance, which is not
+/// always the same thing. While the baby sleeps it's the running sleep timer
+/// (the wrist edition of the lock-screen Live Activity); the rest of the time
+/// it's time since the last feed. Reads the watch app's App Group store (kept
+/// fresh by WatchSyncManager, which reloads timelines after every fetch/log).
 @main
 struct TwoOfUsWatchComplicationBundle: WidgetBundle {
     var body: some Widget {
-        LastFeedComplication()
+        GlanceComplication()
     }
 }
 
-struct LastFeedEntry: TimelineEntry {
+/// `Text(timerInterval:)` needs a concrete range end and freezes once it's
+/// reached — same bound and reasoning as the Live Activity's `maxSleepDuration`
+/// (SleepLiveActivityView.swift): a week covers even a timer someone forgot to
+/// stop, so the complication never sits on a frozen, wrong number.
+private let maxSleepDuration: TimeInterval = 7 * 24 * 3600
+
+private func sleepRange(from start: Date) -> ClosedRange<Date> {
+    start...start.addingTimeInterval(maxSleepDuration)
+}
+
+struct GlanceEntry: TimelineEntry {
     let date: Date
+    let babyName: String
+    /// Set while a sleep is running — when present it wins the whole surface.
+    let sleepStartedAt: Date?
     let lastFeedDate: Date?
     let lastAmountOz: Double?
     /// Target interval after the last feed (night-aware, from SharedSettings) —
     /// drives the circular gauge and the urgency tint, same math as the phone.
     let targetInterval: TimeInterval
+
+    var isSleeping: Bool { sleepStartedAt != nil }
 
     var nextFeedDate: Date? {
         lastFeedDate.map { $0.addingTimeInterval(targetInterval) }
@@ -30,28 +47,50 @@ struct LastFeedEntry: TimelineEntry {
         Urgency.from(since: lastFeedDate, now: date, target: targetInterval)
     }
 
-    static let placeholder = LastFeedEntry(
+    static let placeholder = GlanceEntry(
         date: .now,
+        babyName: "Miller",
+        sleepStartedAt: nil,
         lastFeedDate: Calendar.current.date(byAdding: .minute, value: -135, to: .now),
         lastAmountOz: 4,
         targetInterval: 180 * 60)
-    static let empty = LastFeedEntry(date: .now, lastFeedDate: nil, lastAmountOz: nil,
-                                     targetInterval: 180 * 60)
+
+    static let sleepingPlaceholder = GlanceEntry(
+        date: .now,
+        babyName: "Miller",
+        sleepStartedAt: Calendar.current.date(byAdding: .minute, value: -47, to: .now),
+        lastFeedDate: Calendar.current.date(byAdding: .minute, value: -75, to: .now),
+        lastAmountOz: 4,
+        targetInterval: 180 * 60)
+
+    static let empty = GlanceEntry(date: .now, babyName: "Baby", sleepStartedAt: nil,
+                                   lastFeedDate: nil, lastAmountOz: nil,
+                                   targetInterval: 180 * 60)
 }
 
-struct LastFeedProvider: TimelineProvider {
+struct GlanceProvider: TimelineProvider {
     private static let log = Logger(subsystem: "com.taylorseale.twoofus", category: "watchComplication")
 
-    func placeholder(in context: Context) -> LastFeedEntry {
+    func placeholder(in context: Context) -> GlanceEntry {
         .placeholder
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (LastFeedEntry) -> Void) {
+    func getSnapshot(in context: Context, completion: @escaping (GlanceEntry) -> Void) {
         completion(context.isPreview ? .placeholder : buildEntry())
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<LastFeedEntry>) -> Void) {
+    func getTimeline(in context: Context, completion: @escaping (Timeline<GlanceEntry>) -> Void) {
         let base = buildEntry()
+
+        // A running sleep needs no staged entries: the timer text ticks itself
+        // and there's no threshold to cross. The reload that matters is the one
+        // WatchSyncManager fires when the sleep ends (or a co-parent ends it),
+        // so this is only a safety-net refresh.
+        guard !base.isSleeping else {
+            completion(Timeline(entries: [base], policy: .after(base.date.addingTimeInterval(30 * 60))))
+            return
+        }
+
         // Stage entries at the urgency thresholds so the tint flips at the
         // exact moment with no waking code — the same staging the phone
         // widgets use. The red entry lands 1s PAST the target: `Urgency.from`
@@ -62,16 +101,18 @@ struct LastFeedProvider: TimelineProvider {
         if let last = base.lastFeedDate, base.targetInterval > 0 {
             for date in [last.addingTimeInterval(base.targetInterval * 2 / 3),
                          last.addingTimeInterval(base.targetInterval + 1)] where date > base.date {
-                entries.append(LastFeedEntry(date: date, lastFeedDate: last,
-                                             lastAmountOz: base.lastAmountOz,
-                                             targetInterval: base.targetInterval))
+                entries.append(GlanceEntry(date: date, babyName: base.babyName,
+                                           sleepStartedAt: nil,
+                                           lastFeedDate: last,
+                                           lastAmountOz: base.lastAmountOz,
+                                           targetInterval: base.targetInterval))
             }
         }
         let anchor = entries.last?.date ?? base.date
         completion(Timeline(entries: entries, policy: .after(anchor.addingTimeInterval(30 * 60))))
     }
 
-    private func buildEntry() -> LastFeedEntry {
+    private func buildEntry() -> GlanceEntry {
         guard
             let storeURL = AppGroup.storeURL,
             FileManager.default.fileExists(atPath: storeURL.path)
@@ -86,6 +127,15 @@ struct LastFeedProvider: TimelineProvider {
             return .empty
         }
         let ctx = ModelContext(container)
+
+        let babyName = (try? ctx.fetch(FetchDescriptor<Baby>()))?.first?.name ?? "Baby"
+
+        var sleepDescriptor = FetchDescriptor<SleepEvent>(
+            predicate: #Predicate { $0.endedAt == nil && $0.deletedAt == nil }
+        )
+        sleepDescriptor.fetchLimit = 1
+        let openSleep = (try? ctx.fetch(sleepDescriptor))?.first
+
         var d = FetchDescriptor<FeedEvent>(
             predicate: #Predicate { $0.deletedAt == nil },
             sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
@@ -93,40 +143,128 @@ struct LastFeedProvider: TimelineProvider {
         d.fetchLimit = 1
         let settings = (try? ctx.fetch(FetchDescriptor<SharedSettings>()))?.first
         guard let feed = try? ctx.fetch(d).first else {
-            return LastFeedEntry(date: .now, lastFeedDate: nil, lastAmountOz: nil,
-                                 targetInterval: TimeInterval((settings?.targetFeedIntervalMinutes ?? 180) * 60))
+            return GlanceEntry(date: .now, babyName: babyName,
+                               sleepStartedAt: openSleep?.startedAt,
+                               lastFeedDate: nil, lastAmountOz: nil,
+                               targetInterval: TimeInterval((settings?.targetFeedIntervalMinutes ?? 180) * 60))
         }
         let target = settings?.feedInterval(after: feed.timestamp)
             ?? TimeInterval((settings?.targetFeedIntervalMinutes ?? 180) * 60)
-        return LastFeedEntry(date: .now, lastFeedDate: feed.timestamp,
-                             lastAmountOz: feed.amountOz, targetInterval: target)
+        return GlanceEntry(date: .now, babyName: babyName,
+                           sleepStartedAt: openSleep?.startedAt,
+                           lastFeedDate: feed.timestamp,
+                           lastAmountOz: feed.amountOz, targetInterval: target)
     }
 }
 
-struct LastFeedComplication: Widget {
+struct GlanceComplication: Widget {
+    /// Kind is unchanged from when this shipped as feed-only — renaming it would
+    /// silently orphan every complication already placed on a watch face.
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "LastFeedComplication", provider: LastFeedProvider()) { entry in
-            LastFeedComplicationView(entry: entry)
+        StaticConfiguration(kind: "LastFeedComplication", provider: GlanceProvider()) { entry in
+            GlanceComplicationView(entry: entry)
                 .containerBackground(.clear, for: .widget)
         }
-        .configurationDisplayName("Last Feed")
-        .description("Time since the last feed.")
+        .configurationDisplayName("Feed & Sleep")
+        .description("Time since the last feed — or the running sleep timer while he's down.")
         .supportedFamilies([.accessoryCircular, .accessoryCorner, .accessoryRectangular, .accessoryInline])
     }
 }
 
-struct LastFeedComplicationView: View {
+struct GlanceComplicationView: View {
     @Environment(\.widgetFamily) private var family
-    let entry: LastFeedEntry
+    let entry: GlanceEntry
 
     /// Feed teal at rest, urgency amber/red as the next bottle nears/passes —
-    /// the same "quiet until it matters" flip as every phone surface.
+    /// the same "quiet until it matters" flip as every phone surface. While a
+    /// sleep runs the surface belongs to sleep, so it takes the periwinkle.
     private var tint: Color {
+        if entry.isSleeping { return AppColor.accentSleep }
         let urgency = entry.urgency(at: entry.date)
         return urgency.needsAttention ? urgency.color : AppColor.accentFeed
     }
 
     var body: some View {
+        if let startedAt = entry.sleepStartedAt {
+            sleeping(startedAt: startedAt)
+        } else {
+            feed
+        }
+    }
+
+    // MARK: Sleeping — the Live Activity's language, wrist-sized
+
+    @ViewBuilder
+    private func sleeping(startedAt: Date) -> some View {
+        switch family {
+        case .accessoryCircular:
+            // No ring: a sleep has no target to fill toward, and a full-looking
+            // gauge would read as "done". Glyph over a self-ticking timer.
+            ZStack {
+                AccessoryWidgetBackground()
+                VStack(spacing: 0) {
+                    Image(systemName: "moon.zzz.fill")
+                        .font(.system(size: 11))
+                        .widgetAccentable()
+                    Text(startedAt, style: .timer)
+                        .font(.system(.caption2, design: .rounded).monospacedDigit())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                        .padding(.horizontal, 2)
+                }
+            }
+
+        case .accessoryCorner:
+            Image(systemName: "moon.zzz.fill")
+                .font(.title3)
+                .foregroundStyle(tint)
+                .widgetAccentable()
+                .widgetLabel {
+                    Text(startedAt, style: .timer)
+                }
+
+        case .accessoryRectangular:
+            // The lock-screen card's structure, minus the moon halo: eyebrow,
+            // big rounded-mono timer, "since 7:42 PM". `showsHours` pins the
+            // shape to H:MM:SS from second zero so crossing an hour doesn't
+            // silently widen the string mid-sleep.
+            HStack(spacing: 4) {
+                Text("💤")
+                    .font(.subheadline)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("\(entry.babyName) is sleeping")
+                        .sectionLabelStyle(color: tint)
+                        .widgetAccentable()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Text(timerInterval: sleepRange(from: startedAt),
+                         countsDown: false,
+                         showsHours: true)
+                        .font(.system(.headline, design: .rounded).monospacedDigit())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                    Text("since \(TimeFormatting.clock(startedAt))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+        default: // .accessoryInline
+            Label {
+                Text(startedAt, style: .timer)
+            } icon: {
+                Image(systemName: "moon.zzz.fill")
+            }
+        }
+    }
+
+    // MARK: Awake — time since the last bottle
+
+    @ViewBuilder
+    private var feed: some View {
         switch family {
         case .accessoryCircular:
             // The phone's NextFeedGaugeWidget, wrist edition: a
@@ -214,4 +352,26 @@ struct LastFeedComplicationView: View {
             }
         }
     }
+}
+
+// MARK: - Previews
+
+// Both states, at both sizes that carry real layout risk: the rectangular one
+// has three stacked lines to fit, and the circular one has to hold a live
+// H:MM:SS timer inside a small circle.
+
+#Preview("Rectangular", as: .accessoryRectangular) {
+    GlanceComplication()
+} timeline: {
+    GlanceEntry.sleepingPlaceholder
+    GlanceEntry.placeholder
+    GlanceEntry.empty
+}
+
+#Preview("Circular", as: .accessoryCircular) {
+    GlanceComplication()
+} timeline: {
+    GlanceEntry.sleepingPlaceholder
+    GlanceEntry.placeholder
+    GlanceEntry.empty
 }
