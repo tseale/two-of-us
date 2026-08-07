@@ -68,20 +68,37 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             // Reload widgets again once the foreground fetch actually lands, so a
             // glance reflects the co-parent's just-synced changes rather than the
             // pre-fetch snapshot. (The in-app UI self-heals via reactive @Query.)
+            // Then reconcile the Live Activity a second time: the fetch may have
+            // brought in (or ended) a sleep the pre-fetch reconcile below
+            // couldn't see. SyncManager also reconciles when a fetch delivers
+            // changes; this post-fetch pass is the backstop for every other
+            // shape (nothing fetched, fetch failed, changes landed earlier via
+            // a background push). Both are serialized no-ops when nothing
+            // changed, so the redundancy costs nothing.
             Task {
                 await SyncManager.shared?.handleRemoteNotification()
                 WidgetCenter.shared.reloadAllTimelines()
+                SyncManager.shared?.reconcileLiveActivityFromStore()
             }
             SyncManager.shared?.drainExtensionQueue()
         }
-        guard let logger = QuickLogger.make() else { return }
+        // Reconcile against the SAME store the UI reads (the shared container's
+        // main context) — not a QuickLogger-built throwaway container whose
+        // construction can fail and silently skip the reconcile. THE contract:
+        // if the app shows an active sleep, the lock screen shows the timer.
+        let logger = MainActor.assumeIsolated {
+            QuickLogger(context: AppModelContainer.shared.mainContext)
+        }
         let babyName = logger.babyName ?? "Baby"
         let activeSleepStartedAt = logger.activeSleep?.startedAt
+        let lastSleepEndedAt = logger.lastEndedSleep?.endedAt
         let nextFeed = logger.nextFeedPrediction()
         MainActor.assumeIsolated {
+            AppLog.liveActivity.debug("Foreground reconcile: activeSleep=\(activeSleepStartedAt.map(String.init(describing:)) ?? "none", privacy: .public)")
             SleepActivityManager.reconcile(
                 babyName: babyName,
                 activeSleepStartedAt: activeSleepStartedAt,
+                lastSleepEndedAt: lastSleepEndedAt,
                 nextFeed: nextFeed
             )
         }

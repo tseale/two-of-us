@@ -923,7 +923,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             sweepGhostsIfNeeded(from: e.modifications.map(\.record))
             mergeDuplicateParticipantsIfNeeded(from: e.modifications.map(\.record))
             healUnnamedEventsIfNeeded(from: e.modifications.map(\.record))
-            reconcileLiveActivity()
+            reconcileLiveActivityFromStore()
             WidgetCenter.shared.reloadAllTimelines()
             notifyCoParentActivity(from: e.modifications.map(\.record))
             // The co-parent's log just landed on THIS phone — relay the wake to
@@ -1157,8 +1157,11 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
 
     /// Keeps the sleep Live Activity truthful when the change arrives via sync:
     /// the co-parent stopping (or starting) a sleep must end/start the timer on
-    /// this lock screen too, not only after the next app foreground.
-    private func reconcileLiveActivity() {
+    /// this lock screen too, not only after the next app foreground. Not
+    /// private: `AppDelegate` calls it again after the foreground fetch
+    /// completes, as the backstop for fetches that deliver nothing (the change
+    /// already landed via an earlier background push).
+    func reconcileLiveActivityFromStore() {
         guard !LocalPrefs.shared.demoModeEnabled else { return }
         let babyName = (try? context.fetch(FetchDescriptor<Baby>()))?.first?.name ?? "Baby"
         var d = FetchDescriptor<SleepEvent>(
@@ -1166,8 +1169,10 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         )
         d.fetchLimit = 1
         let active = try? context.fetch(d).first
+        let logger = QuickLogger(context: context)
         SleepActivityManager.reconcile(babyName: babyName, activeSleepStartedAt: active?.startedAt,
-                                       nextFeed: QuickLogger(context: context).nextFeedPrediction())
+                                       lastSleepEndedAt: logger.lastEndedSleep?.endedAt,
+                                       nextFeed: logger.nextFeedPrediction())
     }
 
     /// Re-arms this device's feed alarm + gentle reminders + daily summary off the

@@ -233,17 +233,17 @@ struct EventStore {
         event.endedAt = date
         save()
         sync(save: [event.id])
-        if !demo { SleepActivityManager.end() }
+        if !demo { SleepActivityManager.end(at: date) }
         reloadWidgets()
         refreshLocalReminders()
         donate(ToggleSleepIntent())
     }
 
     /// Undo of a just-started sleep: soft-deletes it AND tears down the Live
-    /// Activity `startSleep` spun up — a plain `softDelete` would leave the
-    /// lock-screen timer running for a sleep that no longer exists.
+    /// Activity `startSleep` spun up — immediately, with no "slept X" summary
+    /// card, because the sleep never really happened.
     func cancelSleep(_ event: SleepEvent) {
-        if !demo { SleepActivityManager.end() }
+        if !demo { SleepActivityManager.end(at: nil) }
         softDelete(event)
     }
 
@@ -328,6 +328,11 @@ struct EventStore {
         if !demo, replacement.isActive {
             SleepActivityManager.refresh(startedAt: replacement.startedAt,
                                          nextFeed: liveActivityNextFeed)
+        } else if !demo, original.endedAt == nil, let endedAt = replacement.endedAt {
+            // The ACTIVE sleep was edited into a completed one — the timer on
+            // the lock screen must end now, not on the next foreground
+            // reconcile.
+            SleepActivityManager.end(at: endedAt)
         }
         reloadWidgets()
         return replacement
@@ -380,6 +385,12 @@ struct EventStore {
     // MARK: Delete / undo
 
     func softDelete(_ event: any SoftDeletable) {
+        // Deleting the RUNNING sleep (swipe-to-delete on the timeline) must
+        // take the lock-screen timer with it — the sleep it counts no longer
+        // exists, so no summary card either.
+        if !demo, let sleep = event as? SleepEvent, sleep.endedAt == nil {
+            SleepActivityManager.end(at: nil)
+        }
         event.deletedAt = .now
         save()
         sync(save: [event.id])   // soft delete travels as a `deletedAt` update
@@ -417,7 +428,7 @@ struct EventStore {
         purge(SleepEvent.self)
         purge(DiaperEvent.self)
         purge(NoteEvent.self)
-        if !demo { SleepActivityManager.end() }   // tear down any running sleep Live Activity
+        if !demo { SleepActivityManager.end(at: nil) }   // tear down any running sleep Live Activity
         save()
         sync(save: ids)
         reloadWidgets()

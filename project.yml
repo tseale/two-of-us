@@ -130,6 +130,11 @@ targets:
       - path: TwoOfUs/DesignSystem/Urgency.swift
       - path: TwoOfUs/DesignSystem/DayRibbon.swift
       - path: TwoOfUs/LiveActivities/SleepActivityAttributes.swift
+      # The sleep intents below are LiveActivityIntents (they run in the APP
+      # process so they can start/stop the Live Activity); this file must
+      # compile wherever the intents do. Brings AppLog with it.
+      - path: TwoOfUs/LiveActivities/SleepActivityManager.swift
+      - path: TwoOfUs/Support/AppLog.swift
       # Shared with the app target: interactive-widget / Siri App Intents + their writer.
       - path: TwoOfUs/Intents/QuickLogger.swift
       - path: TwoOfUs/Intents/LogFeedIntent.swift
