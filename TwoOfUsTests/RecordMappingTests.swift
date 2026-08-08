@@ -708,6 +708,40 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertNil(copy.deletedAt)
     }
 
+    func testSleepWindowSlotRoundTripKeepsEndMinute() throws {
+        let assignee = UUID()
+        let original = PlanSlot(kind: .sleep, minuteOfDay: 22 * 60, endMinuteOfDay: 5 * 60,
+                                assignedToID: assignee, assignedToName: "Katie",
+                                assignedToColorHex: "#FF8FA3")
+        context.insert(original)
+        try context.save()
+
+        let receiver = AppModelContainer.make(inMemory: true)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+
+        let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<PlanSlot>()).first)
+        XCTAssertEqual(copy.endMinuteOfDay, 5 * 60)
+        XCTAssertEqual(copy.windowDurationMinutes, 7 * 60, "22:00–05:00 wraps to a 7h window")
+    }
+
+    func testLegacyPlanSlotRecordDecodesWithNilEndMinute() throws {
+        // A record from a build that predates sleep windows carries no
+        // endMinuteOfDay field — it must land as a legacy instant, not crash
+        // or invent a window.
+        let original = PlanSlot(kind: .sleep, minuteOfDay: 20 * 60, endMinuteOfDay: 3 * 60)
+        context.insert(original)
+        try context.save()
+        let record = try outbound(original.id)
+        record["endMinuteOfDay"] = nil
+
+        let receiver = AppModelContainer.make(inMemory: true)
+        try RecordMapping.apply(record, in: receiver.mainContext)
+
+        let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<PlanSlot>()).first)
+        XCTAssertNil(copy.endMinuteOfDay)
+        XCTAssertNil(copy.windowDurationMinutes)
+    }
+
     func testUnassignedPlanSlotRoundTripStaysUnassigned() throws {
         let original = PlanSlot(kind: .sleep, minuteOfDay: 1170)
         context.insert(original)

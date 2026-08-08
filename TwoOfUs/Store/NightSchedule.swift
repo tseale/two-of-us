@@ -28,17 +28,50 @@ import Foundation
 /// Later slots are anchor + k·night-spacing until the (lead-extended) window
 /// closes.
 ///
-/// **Assignment.** Slots alternate through the active parents starting from
+/// **Assignment.** The standing sleep windows decide first: a bottle that
+/// lands while exactly one parent is planned-asleep goes to the one who's
+/// awake. Where the windows don't decide (nobody asleep, everybody asleep,
+/// no windows), slots alternate through the active parents starting from
 /// the configured first-shift parent (`SharedSettings.nightFirstShiftID`;
-/// nil = the first parent in join order), and any single night slot can be
+/// nil = the first parent in join order). Any single night slot can still be
 /// overridden — swapped or skipped — via the same synced `PlanOverride`
 /// records the standing plan uses, keyed on the slot's deterministic
-/// synthetic id.
+/// synthetic id, and an override beats windows and rotation alike.
 ///
 /// Nothing per-night is stored; both phones derive the identical schedule.
 /// Sibling of `ScheduleEngine`/`StatsEngine`: no store access, no side
 /// effects — callers pass fetched arrays, tests pass fixtures with a pinned
 /// calendar and `now`.
+/// A parent's standing nightly sleep window, reduced to pure wall-clock terms —
+/// the shape `NightSchedule` routes feeds around. Built from a `.sleep`
+/// `PlanSlot` that carries an end minute and an assignee; legacy put-down
+/// slots and unassigned windows reduce to nothing.
+struct SleepWindow: Equatable {
+    let parentID: UUID
+    let startMinute: Int          // 0..<1440 wall clock
+    let durationMinutes: Int      // 1...1439, wrapping midnight
+
+    init(parentID: UUID, startMinute: Int, durationMinutes: Int) {
+        self.parentID = parentID
+        self.startMinute = startMinute
+        self.durationMinutes = durationMinutes
+    }
+
+    init?(slot: PlanSlot) {
+        guard slot.deletedAt == nil,
+              let parentID = slot.assignedToID,
+              let duration = slot.windowDurationMinutes else { return nil }
+        self.init(parentID: parentID, startMinute: slot.minuteOfDay, durationMinutes: duration)
+    }
+
+    /// Whether a wall-clock minute falls inside the window, wrap included:
+    /// a 22:00–03:00 window contains 23:30 and 01:00, not 12:00.
+    func contains(minuteOfDay minute: Int) -> Bool {
+        let offset = (((minute - startMinute) % 1440) + 1440) % 1440
+        return offset < durationMinutes
+    }
+}
+
 struct NightSchedule {
     /// Minimal parent identity the rotation needs, decoupled from SwiftData.
     struct Parent: Equatable {
@@ -68,6 +101,10 @@ struct NightSchedule {
     /// Per-night swap/skip records (shared with the standing plan). Matched by
     /// the dynamic slot's synthetic id + the night's key.
     let overrides: [PlanOverride]
+    /// The parents' standing sleep windows. When a feed lands during exactly
+    /// one parent's sleep, it's assigned to the parent who's awake — the
+    /// sleeping phone stays dark. Empty = pure rotation, the old behavior.
+    var sleepWindows: [SleepWindow] = []
     var calendar: Calendar = .current
     var now: Date = .now
 
@@ -128,7 +165,10 @@ struct NightSchedule {
             } else {
                 status = .upcoming
             }
-            let assignee = assignees[index]
+            // Sleep windows outrank the rotation: the parent who's awake at
+            // this bottle's time takes it. A per-night override still beats
+            // both (applied below, same as always).
+            let assignee = awakeParent(at: date) ?? assignees[index]
             return ScheduleOccurrence(
                 id: "night.\(nightKey).\(index)",
                 slotID: Self.syntheticSlotID(nightKey: nightKey, index: index),
@@ -294,6 +334,20 @@ struct NightSchedule {
         }
         let firstIndex = firstShiftID.flatMap { id in parents.firstIndex { $0.id == id } } ?? 0
         return (0..<count).map { parents[(firstIndex + $0) % parents.count] }
+    }
+
+    /// The sole awake parent at `date` per the standing sleep windows, or nil
+    /// when the windows don't decide it — nobody's asleep then, everybody is,
+    /// or the roster is solo. Nil falls back to the rotation (and ultimately
+    /// to unassigned, which rings BOTH phones — the fail-open stands whenever
+    /// the plan can't name one on-duty parent).
+    private func awakeParent(at date: Date) -> Parent? {
+        guard !sleepWindows.isEmpty, parents.count >= 2 else { return nil }
+        let minute = minuteOfDay(date)
+        let awake = parents.filter { parent in
+            !sleepWindows.contains { $0.parentID == parent.id && $0.contains(minuteOfDay: minute) }
+        }
+        return awake.count == 1 ? awake.first : nil
     }
 
     /// The winning live override per slot index for this night. Concurrent

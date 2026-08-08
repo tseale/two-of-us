@@ -32,6 +32,10 @@ struct ScheduleOccurrence: Identifiable, Equatable {
     let assignedToColorHex: String
     let activeOverrideID: UUID?           // non-nil when a live override applied (drives "changed" + undo)
     let overrideCreatedByID: UUID?        // who made tonight's change
+    /// Non-nil makes this a SPAN — a parent's sleep window from `date` to
+    /// `endDate` — rather than an instant. Spans never ring, remind, or match
+    /// logged events; they exist to be seen (and swapped) on the timeline.
+    var endDate: Date? = nil
     var source: Source = .slot
 }
 
@@ -65,28 +69,32 @@ struct ScheduleEngine {
         // bottle covered. The display window only filters the OUTPUT.
         let matchStart = now.addingTimeInterval(-max(lookback, Self.overdueGrace + Self.fulfillmentWindow))
         return materializedPinned(from: matchStart, to: windowEnd)
-            .filter { $0.date >= windowStart }
+            // A span still covering the display window stays visible: last
+            // night's 10pm–7am sleep window is very much "the schedule" at
+            // 2am, even with its start hours outside the lookback.
+            .filter { ($0.endDate ?? $0.date) >= windowStart }
             .sorted { $0.date < $1.date }
     }
 
     /// Upcoming occurrences assigned to one parent — the reminder planner's
-    /// input (each device passes its own `myParticipantID`).
+    /// input (each device passes its own `myParticipantID`). Spans (sleep
+    /// windows) are excluded: nobody needs a wake-up call to go to bed.
     func upcomingAssigned(to participantID: UUID,
                           horizon: TimeInterval = 12 * 3600) -> [ScheduleOccurrence] {
         occurrences(lookback: 0, horizon: horizon)
-            .filter { $0.status == .upcoming && $0.assignedToID == participantID }
+            .filter { $0.status == .upcoming && $0.assignedToID == participantID && $0.endDate == nil }
     }
 
     /// Upcoming occurrences that should ring on `participantID`'s device: their
     /// own slots plus every unassigned one. Unassigned is the deliberate
     /// both-phones case — nobody claimed the 3am, so nobody gets to sleep
     /// through it silently. Only a slot pinned to the OTHER parent stays quiet
-    /// here.
+    /// here. Spans (sleep windows) never ring.
     func upcomingAlarmable(for participantID: UUID,
                            horizon: TimeInterval = 12 * 3600) -> [ScheduleOccurrence] {
         occurrences(lookback: 0, horizon: horizon)
             .filter {
-                $0.status == .upcoming
+                $0.status == .upcoming && $0.endDate == nil
                     && ($0.assignedToID == nil || $0.assignedToID == participantID)
             }
     }
@@ -151,11 +159,18 @@ struct ScheduleEngine {
             let override: PlanOverride?
         }
         var instances: [Instance] = []
-        var day = calendar.startOfDay(for: windowStart)
+        // One day of extra reach-back so a window that STARTED before the
+        // fetch window but is still running inside it (yesterday 10pm–7am,
+        // now 2am) gets materialized; instants keep zero reach and fall to
+        // the same guard as before.
+        var day = calendar.date(byAdding: .day, value: -1,
+                                to: calendar.startOfDay(for: windowStart))
+            ?? calendar.startOfDay(for: windowStart)
         while day <= windowEnd {
             for slot in liveSlots {
+                let reach = TimeInterval((slot.windowDurationMinutes ?? 0) * 60)
                 guard let standing = Self.materialize(minuteOfDay: slot.minuteOfDay, on: day, calendar: calendar),
-                      standing >= windowStart, standing <= windowEnd else { continue }
+                      standing >= windowStart.addingTimeInterval(-reach), standing <= windowEnd else { continue }
                 let key = Self.dayKey(for: standing, calendar: calendar)
                 // Concurrent overrides land as separate records; pick a
                 // deterministic winner so both phones agree.
@@ -176,6 +191,11 @@ struct ScheduleEngine {
         struct Pair { let distance: TimeInterval; let instanceIndex: Int; let eventID: UUID }
         var pairs: [Pair] = []
         for (i, instance) in instances.enumerated() where !(instance.override?.isSkipped ?? false) {
+            // Sleep WINDOWS (parent sleep) never match logged events — the
+            // window is the parent's sleep, not the baby's, so a logged baby
+            // sleep neither fulfills it nor makes it overdue. Legacy instant
+            // sleep slots keep the old put-down matching.
+            if instance.slot.windowDurationMinutes != nil { continue }
             let candidates: [(UUID, Date)] = switch instance.slot.kind {
             case .feed: feeds.filter { $0.deletedAt == nil }.map { ($0.id, $0.timestamp) }
             case .sleep: sleeps.filter { $0.deletedAt == nil }.map { ($0.id, $0.startedAt) }
@@ -201,9 +221,20 @@ struct ScheduleEngine {
         }
 
         return instances.enumerated().compactMap { i, instance in
+            // A moved window keeps its standing duration — shifting the start
+            // shifts the whole night's sleep, it doesn't stretch it.
+            let endDate = instance.slot.windowDurationMinutes.map {
+                instance.date.addingTimeInterval(TimeInterval($0 * 60))
+            }
             let status: ScheduleOccurrence.Status
             if instance.override?.isSkipped == true {
                 status = .skipped
+            } else if let endDate {
+                // A window is "upcoming" until it fully ends (in progress
+                // counts — it's still tonight's plan), then drops without an
+                // overdue phase: sleep that already happened can't be late.
+                guard endDate > now else { return nil }
+                status = .upcoming
             } else if let eventID = fulfilledBy[i] {
                 status = .fulfilled(byEventID: eventID)
             } else if instance.date < now {
@@ -226,7 +257,8 @@ struct ScheduleEngine {
                 assignedToName: override?.assignedToName ?? instance.slot.assignedToName,
                 assignedToColorHex: override?.assignedToColorHex ?? instance.slot.assignedToColorHex,
                 activeOverrideID: override?.id,
-                overrideCreatedByID: override?.createdByID
+                overrideCreatedByID: override?.createdByID,
+                endDate: endDate
             )
         }
     }

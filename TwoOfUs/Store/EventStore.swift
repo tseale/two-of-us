@@ -745,10 +745,12 @@ struct EventStore {
     }
 
     @discardableResult
-    func addPlanSlot(kind: EventKind, minuteOfDay: Int, assignedTo: Participant?) -> PlanSlot {
+    func addPlanSlot(kind: EventKind, minuteOfDay: Int, endMinuteOfDay: Int? = nil,
+                     assignedTo: Participant?) -> PlanSlot {
         let slot = PlanSlot(
             kind: kind,
             minuteOfDay: EventBounds.wrapMinuteOfDay(minuteOfDay),
+            endMinuteOfDay: endMinuteOfDay.map(EventBounds.wrapMinuteOfDay),
             assignedToID: assignedTo?.id,
             assignedToName: assignedTo?.displayName ?? "",
             assignedToColorHex: assignedTo?.colorHex ?? ""
@@ -761,11 +763,15 @@ struct EventStore {
     }
 
     /// Edits a standing slot in place. `assignedTo: .some(nil)` unassigns;
-    /// `.none` (the default) leaves the assignment untouched.
+    /// `.none` (the default) leaves the assignment untouched — and the same
+    /// double-optional convention applies to `endMinuteOfDay`.
     func updatePlanSlot(_ slot: PlanSlot, kind: EventKind? = nil, minuteOfDay: Int? = nil,
-                        assignedTo: Participant?? = .none) {
+                        endMinuteOfDay: Int?? = .none, assignedTo: Participant?? = .none) {
         if let kind { slot.kind = kind }
         if let minuteOfDay { slot.minuteOfDay = EventBounds.wrapMinuteOfDay(minuteOfDay) }
+        if case let .some(end) = endMinuteOfDay {
+            slot.endMinuteOfDay = end.map(EventBounds.wrapMinuteOfDay)
+        }
         if case let .some(participant) = assignedTo {
             slot.assignedToID = participant?.id
             slot.assignedToName = participant?.displayName ?? ""

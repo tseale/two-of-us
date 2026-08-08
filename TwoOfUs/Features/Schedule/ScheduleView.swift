@@ -69,7 +69,11 @@ struct ScheduleView: View {
 
     private func scheduleList(now: Date) -> some View {
         let occurrences = mergedOccurrences(now: now)
-        let upNext = occurrences.first { $0.status == .upcoming && $0.date >= now }
+        // The hero is the next FEED — a sleep window isn't a "you're up next"
+        // (it's the opposite: someone lying down).
+        let upNext = occurrences.first {
+            $0.kind == .feed && $0.status == .upcoming && $0.date >= now
+        }
         return List {
             if occurrences.isEmpty {
                 emptySection(now: now)
@@ -95,7 +99,8 @@ struct ScheduleView: View {
         var merged = engine(now: now).occurrences()
         if let s = settingsList.first {
             merged += NightSchedule(settings: s, participants: participants,
-                                    feeds: feeds, overrides: overrides, now: now).occurrences()
+                                    feeds: feeds, overrides: overrides,
+                                    sleepSlots: sleepSlots, now: now).occurrences()
         }
         return merged.sorted { $0.date < $1.date }
     }
@@ -228,9 +233,16 @@ struct ScheduleView: View {
         case .skipped:
             return "Skipped tonight"
         case .upcoming:
-            guard occ.activeOverrideID != nil else { return nil }
-            let name = participants.first { $0.id == occ.overrideCreatedByID }?.displayName ?? ""
-            return name.isEmpty ? "Changed for tonight" : "Changed by \(name)"
+            if occ.activeOverrideID != nil {
+                let name = participants.first { $0.id == occ.overrideCreatedByID }?.displayName ?? ""
+                return name.isEmpty ? "Changed for tonight" : "Changed by \(name)"
+            }
+            // A window row carries its span — the start clock sits in the
+            // gutter, so the line under the title says where it runs to.
+            if let end = occ.endDate {
+                return "Until \(TimeFormatting.clock(end)) · \(TimeFormatting.duration(from: occ.date, to: end))"
+            }
+            return nil
         }
     }
 
@@ -266,16 +278,31 @@ struct ScheduleView: View {
                 planRow(slot)
             }
             Button { addingSlot = true } label: {
-                Label("Add a sleep slot", systemImage: "plus.circle.fill")
+                Label("Add a sleep window", systemImage: "plus.circle.fill")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppColor.accentSleep)
             }
             .accessibilityIdentifier("schedule.addSlot")
         } header: {
-            Text("Standing sleep plan").foregroundStyle(AppColor.text3)
+            Text("Your sleep, planned").foregroundStyle(AppColor.text3)
         } footer: {
-            Text("\(nightSummary)Feeds build themselves each night from the first logged bottle — no standing feed slots. Sleep slots repeat every night until changed; tap one on the timeline to swap just one night.")
+            Text("\(balanceSummary)\(nightSummary)Set when each of you sleeps — a feed that lands during someone's window goes to the other parent, and the sleeping phone stays quiet. Feeds build themselves each night from the first logged bottle. Windows repeat every night until changed; tap one on the timeline to change just one night.")
         }
+    }
+
+    /// "Planned sleep: Taylor 7h · Katie 6h 30m · " — whether the night's
+    /// balanced, read straight off the standing windows.
+    private var balanceSummary: String {
+        let windows = sleepSlots.compactMap(SleepWindow.init)
+        guard !windows.isEmpty else { return "" }
+        let totals = Dictionary(grouping: windows, by: \.parentID)
+            .mapValues { $0.reduce(0) { $0 + $1.durationMinutes } }
+        let parts = participants
+            .filter { totals[$0.id] != nil }
+            .sorted { ($0.invitedAt, $0.id.uuidString) < ($1.invitedAt, $1.id.uuidString) }
+            .map { "\($0.displayName) \(TimeFormatting.duration(minutes: totals[$0.id] ?? 0))" }
+        guard !parts.isEmpty else { return "" }
+        return "Planned sleep: \(parts.joined(separator: " · ")) · "
     }
 
     /// "Every 3h · Night 8:00 PM–8:00 AM · " — the settings tonight's feeds
@@ -298,9 +325,14 @@ struct ScheduleView: View {
         Button { editingSlot = slot } label: {
             HStack(spacing: 10) {
                 Text(slot.kind.emoji).font(.callout)
-                Text(slotClock(slot))
+                Text(slotRange(slot))
                     .font(.subheadline.weight(.semibold).monospacedDigit())
                     .foregroundStyle(AppColor.text)
+                if let duration = slot.windowDurationMinutes {
+                    Text(TimeFormatting.duration(minutes: duration))
+                        .font(.caption)
+                        .foregroundStyle(AppColor.text3)
+                }
                 Spacer()
                 if let assignedID = slot.assignedToID {
                     Avatar(photoData: participantPhoto[assignedID], name: slot.assignedToName,
@@ -319,12 +351,20 @@ struct ScheduleView: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(slot.kind == .sleep ? "Sleep" : "Bottle") at \(slotClock(slot)), \(slot.assignedToName.isEmpty ? "unassigned" : slot.assignedToName)")
-        .accessibilityHint("Edits this standing slot")
+        .accessibilityLabel("\(slot.assignedToName.isEmpty ? "Sleep" : "\(slot.assignedToName) sleeps") \(slotRange(slot))")
+        .accessibilityHint("Edits this sleep window")
     }
 
-    private func slotClock(_ slot: PlanSlot) -> String {
-        guard let date = ScheduleEngine.materialize(minuteOfDay: slot.minuteOfDay, on: .now,
+    /// "10:00 PM–5:00 AM" for a window; the bare start clock for a legacy
+    /// instant slot.
+    private func slotRange(_ slot: PlanSlot) -> String {
+        let start = slotClock(minuteOfDay: slot.minuteOfDay)
+        guard let end = slot.endMinuteOfDay, slot.windowDurationMinutes != nil else { return start }
+        return "\(start)–\(slotClock(minuteOfDay: end))"
+    }
+
+    private func slotClock(minuteOfDay minute: Int) -> String {
+        guard let date = ScheduleEngine.materialize(minuteOfDay: minute, on: .now,
                                                     calendar: .current) else { return "" }
         return TimeFormatting.clock(date)
     }

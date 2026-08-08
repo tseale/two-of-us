@@ -76,7 +76,12 @@ struct ScheduleRow: View {
     }
 
     private var title: String {
-        occurrence.kind == .sleep ? "Sleep" : "Bottle"
+        // A span is a PARENT's sleep window — lead with whose night it is.
+        if occurrence.endDate != nil {
+            return occurrence.assignedToName.isEmpty
+                ? "Sleep" : "\(occurrence.assignedToName) sleeps"
+        }
+        return occurrence.kind == .sleep ? "Sleep" : "Bottle"
     }
 
     private var captionColor: Color {
@@ -127,7 +132,10 @@ struct ScheduleRow: View {
 
     private var accessibilityLabel: String {
         var label = "\(title), \(TimeFormatting.clock(occurrence.date))"
-        if !occurrence.assignedToName.isEmpty {
+        if let end = occurrence.endDate {
+            label += " to \(TimeFormatting.clock(end))"
+        }
+        if !occurrence.assignedToName.isEmpty, occurrence.endDate == nil {
             label += isMine ? ", assigned to you" : ", assigned to \(occurrence.assignedToName)"
         }
         if let caption, !caption.isEmpty { label += ", \(caption)" }

@@ -108,6 +108,7 @@ enum RecordMapping {
             let r = baseRecord(type: SyncConstants.RecordType.planSlot, recordID: recordID, archived: m.ckSystemFields)
             r["kindRaw"] = m.kindRaw
             r["minuteOfDay"] = m.minuteOfDay
+            r["endMinuteOfDay"] = m.endMinuteOfDay
             r["assignedToID"] = m.assignedToID?.uuidString
             r["assignedToName"] = m.assignedToName
             r["assignedToColorHex"] = m.assignedToColorHex
@@ -524,6 +525,7 @@ enum RecordMapping {
             ?? insert(PlanSlot(kind: .feed, minuteOfDay: 0), id: uuid, in: context)
         m.kindRaw = r["kindRaw"] as? String ?? m.kindRaw
         m.minuteOfDay = r["minuteOfDay"] as? Int ?? m.minuteOfDay
+        m.endMinuteOfDay = r["endMinuteOfDay"] as? Int
         if let s = r["assignedToID"] as? String { m.assignedToID = UUID(uuidString: s) } else { m.assignedToID = nil }
         m.assignedToName = r["assignedToName"] as? String ?? m.assignedToName
         m.assignedToColorHex = r["assignedToColorHex"] as? String ?? m.assignedToColorHex

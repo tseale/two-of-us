@@ -11,7 +11,8 @@ extension NightSchedule {
     /// ordered here (active, join order) so every call site derives the same
     /// rotation both phones agree on.
     init(settings: SharedSettings, participants: [Participant], feeds: [FeedEvent],
-         overrides: [PlanOverride] = [], calendar: Calendar = .current, now: Date = .now) {
+         overrides: [PlanOverride] = [], sleepSlots: [PlanSlot] = [],
+         calendar: Calendar = .current, now: Date = .now) {
         self.init(
             nightStartMinute: settings.nightStartMinute,
             nightEndMinute: settings.nightEndMinute,
@@ -24,6 +25,7 @@ extension NightSchedule {
                 .map { Parent(id: $0.id, name: $0.displayName, colorHex: $0.colorHex) },
             feeds: feeds,
             overrides: overrides,
+            sleepWindows: sleepSlots.compactMap(SleepWindow.init),
             calendar: calendar,
             now: now
         )
@@ -41,8 +43,9 @@ extension QuickLogger {
                              horizon: TimeInterval = 24 * 3600,
                              now: Date = .now) -> [ScheduleOccurrence] {
         let feeds = recentFeeds()
+        let sleepSlots = planSlots.filter { $0.kind != .feed }
         let engine = ScheduleEngine(
-            slots: planSlots.filter { $0.kind != .feed },
+            slots: sleepSlots,
             overrides: planOverrides,
             feeds: feeds, sleeps: recentSleeps(),
             now: now
@@ -50,7 +53,8 @@ extension QuickLogger {
         var merged = engine.occurrences(lookback: lookback, horizon: horizon)
         if let settings = sharedSettings {
             let night = NightSchedule(settings: settings, participants: allParticipants,
-                                      feeds: feeds, overrides: planOverrides, now: now)
+                                      feeds: feeds, overrides: planOverrides,
+                                      sleepSlots: sleepSlots, now: now)
             merged += night.occurrences().filter {
                 $0.date >= now.addingTimeInterval(-lookback)
                     && $0.date <= now.addingTimeInterval(horizon)
