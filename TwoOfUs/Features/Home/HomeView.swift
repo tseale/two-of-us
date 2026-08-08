@@ -230,6 +230,10 @@ struct HomeView: View {
             .task { await advanceAtMidnight() }
             // The SNOO poll rides app foreground only (poll-on-open, throttled
             // to 5 minutes inside the coordinator — §7 of the SNOO spec).
+            // `.task` covers the cold launch, where the scene can already be
+            // `.active` before `onChange` attaches — without it the first open
+            // after a SNOO session starts may never poll at all.
+            .task { snoo.syncOnForeground(context: context) }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { snoo.syncOnForeground(context: context) }
             }
