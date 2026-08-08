@@ -5,32 +5,8 @@ import SwiftData
 // (sleep-only) plan and the dynamic night feed schedule — into one occurrence
 // list. Lives outside QuickLogger.swift on purpose: QuickLogger also compiles
 // into the widget/notification extensions, which don't carry the engines.
-
-extension NightSchedule {
-    /// Builds tonight's engine from app models. Participants are filtered and
-    /// ordered here (active, join order) so every call site derives the same
-    /// rotation both phones agree on.
-    init(settings: SharedSettings, participants: [Participant], feeds: [FeedEvent],
-         overrides: [PlanOverride] = [], sleepSlots: [PlanSlot] = [],
-         calendar: Calendar = .current, now: Date = .now) {
-        self.init(
-            nightStartMinute: settings.nightStartMinute,
-            nightEndMinute: settings.nightEndMinute,
-            spacingMinutes: settings.nightFeedSpacingMinutes,
-            rotation: settings.nightRotation,
-            firstShiftID: settings.nightFirstShiftID,
-            parents: participants
-                .filter(\.isActive)
-                .sorted { ($0.invitedAt, $0.id.uuidString) < ($1.invitedAt, $1.id.uuidString) }
-                .map { Parent(id: $0.id, name: $0.displayName, colorHex: $0.colorHex) },
-            feeds: feeds,
-            overrides: overrides,
-            sleepWindows: sleepSlots.compactMap(SleepWindow.init),
-            calendar: calendar,
-            now: now
-        )
-    }
-}
+// (The `NightSchedule(settings:participants:…)` init lives in
+// NightSchedule.swift — the watch complication carries the engines too.)
 
 extension QuickLogger {
     /// The full upcoming schedule this device should act on: standing sleep

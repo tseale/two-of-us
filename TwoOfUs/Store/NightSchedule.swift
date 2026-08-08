@@ -414,3 +414,29 @@ struct NightSchedule {
         ((minute % 1440) + 1440) % 1440
     }
 }
+
+extension NightSchedule {
+    /// Builds tonight's engine from app models. Participants are filtered and
+    /// ordered here (active, join order) so every call site — the phones AND
+    /// the watch complication — derives the same rotation both phones agree on.
+    init(settings: SharedSettings, participants: [Participant], feeds: [FeedEvent],
+         overrides: [PlanOverride] = [], sleepSlots: [PlanSlot] = [],
+         calendar: Calendar = .current, now: Date = .now) {
+        self.init(
+            nightStartMinute: settings.nightStartMinute,
+            nightEndMinute: settings.nightEndMinute,
+            spacingMinutes: settings.nightFeedSpacingMinutes,
+            rotation: settings.nightRotation,
+            firstShiftID: settings.nightFirstShiftID,
+            parents: participants
+                .filter(\.isActive)
+                .sorted { ($0.invitedAt, $0.id.uuidString) < ($1.invitedAt, $1.id.uuidString) }
+                .map { Parent(id: $0.id, name: $0.displayName, colorHex: $0.colorHex) },
+            feeds: feeds,
+            overrides: overrides,
+            sleepWindows: sleepSlots.compactMap(SleepWindow.init),
+            calendar: calendar,
+            now: now
+        )
+    }
+}

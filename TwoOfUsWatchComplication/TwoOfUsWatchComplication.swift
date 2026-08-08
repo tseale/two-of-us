@@ -4,26 +4,28 @@ import SwiftData
 import Foundation
 import os
 
-/// Watch complication: the one thing a parent needs at a glance, which is not
-/// always the same thing. While the baby sleeps it's the running sleep timer
-/// (the wrist edition of the lock-screen Live Activity); the rest of the time
-/// it's time since the last feed. Reads the watch app's App Group store (kept
-/// fresh by WatchSyncManager, which reloads timelines after every fetch/log).
+/// The watch complication family. `GlanceComplication` is the original
+/// switch-hitter (sleep timer while he's down, else last feed); the rest are
+/// single-purpose faces added around it. All read the watch app's App Group
+/// store (kept fresh by WatchSyncManager, which reloads timelines after every
+/// fetch/log). Nested bundle keeps each builder under the block limit.
 @main
 struct TwoOfUsWatchComplicationBundle: WidgetBundle {
     var body: some Widget {
         GlanceComplication()
+        FeedComplication()
+        DiaperComplication()
+        SleepComplication()
+        MoreComplicationsBundle().body
     }
 }
 
-/// `Text(timerInterval:)` needs a concrete range end and freezes once it's
-/// reached — same bound and reasoning as the Live Activity's `maxSleepDuration`
-/// (SleepLiveActivityView.swift): a week covers even a timer someone forgot to
-/// stop, so the complication never sits on a frozen, wrong number.
-private let maxSleepDuration: TimeInterval = 7 * 24 * 3600
-
-private func sleepRange(from start: Date) -> ClosedRange<Date> {
-    start...start.addingTimeInterval(maxSleepDuration)
+struct MoreComplicationsBundle: WidgetBundle {
+    var body: some Widget {
+        NextFeedComplication()
+        DailySummaryComplication()
+        NightShiftComplication()
+    }
 }
 
 struct GlanceEntry: TimelineEntry {
