@@ -38,6 +38,8 @@ struct SlotActionsSheet: View {
         isNight ? nil : PlanSlot.fetchByID(occurrence.slotID, in: context)
     }
     private var kindWord: String { occurrence.kind == .sleep ? "sleep" : "bottle" }
+    /// A span row — a parent's sleep window, not a baby-care instant.
+    private var isWindow: Bool { occurrence.endDate != nil }
     private var accent: Color { occurrence.kind == .sleep ? AppColor.accentSleep : AppColor.accentFeed }
     private var clock: String { TimeFormatting.clock(occurrence.date) }
 
@@ -69,7 +71,8 @@ struct SlotActionsSheet: View {
     }
 
     private var whoSectionTitle: String {
-        occurrence.status == .skipped ? "Skipped tonight — reassign?" : "Who takes tonight's \(kindWord)?"
+        if occurrence.status == .skipped { return "Skipped tonight — reassign?" }
+        return isWindow ? "Who takes this sleep tonight?" : "Who takes tonight's \(kindWord)?"
     }
 
     private func personButton(_ p: Participant) -> some View {
@@ -139,7 +142,7 @@ struct SlotActionsSheet: View {
                 Button("Skip tonight") { skipTonight() }
             }
             if let slot {
-                Button("Edit standing slot…") {
+                Button(isWindow ? "Edit sleep window…" : "Edit standing slot…") {
                     dismiss()
                     onEditSlot?(slot)
                 }
@@ -169,7 +172,10 @@ struct SlotActionsSheet: View {
             return
         }
         Haptics.success()
-        onDone?("Tonight's \(clock) \(kindWord) is \(p.displayName)'s", accent) { store.clearOverride(override) }
+        onDone?(isWindow
+                ? "\(p.displayName) takes the \(clock) sleep tonight"
+                : "Tonight's \(clock) \(kindWord) is \(p.displayName)'s",
+                accent) { store.clearOverride(override) }
         dismiss()
     }
 

@@ -35,6 +35,16 @@ enum TimeFormatting {
         elapsed(from: start, to: end, zeroText: "0m")
     }
 
+    /// Duration from a minute count, e.g. "6h 30m" — the sleep-window sums.
+    static func duration(minutes: Int) -> String {
+        let clamped = max(0, minutes)
+        let h = clamped / 60
+        let m = clamped % 60
+        if h == 0 { return "\(m)m" }
+        if m == 0 { return "\(h)h" }
+        return "\(h)h \(m)m"
+    }
+
     private static func elapsed(from start: Date, to end: Date, zeroText: String = "just now") -> String {
         let seconds = max(0, Int(end.timeIntervalSince(start)))
         let minutes = seconds / 60

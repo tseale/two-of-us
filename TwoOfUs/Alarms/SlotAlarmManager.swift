@@ -53,9 +53,11 @@ enum SlotAlarmManager {
         // sleeps through it silently); only a slot pinned to the OTHER parent
         // stays quiet here. Skip kinds whose shared tracker is off — a paused
         // sleep tracker must not keep waking the on-duty parent.
+        // Spans (parent sleep windows) never alarm — they decide who a feed
+        // rings, they aren't appointments themselves.
         guard let next = logger.scheduleOccurrences(horizon: 24 * 3600)
             .first(where: {
-                $0.status == .upcoming
+                $0.status == .upcoming && $0.endDate == nil
                     && ($0.assignedToID == nil || $0.assignedToID == myID)
                     && logger.isTrackingEnabled($0.kind)
             }) else { return }

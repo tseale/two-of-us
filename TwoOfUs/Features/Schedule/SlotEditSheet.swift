@@ -1,27 +1,28 @@
 import SwiftUI
 import SwiftData
 
-/// Create or edit a standing SLEEP slot: a wall-clock time and who's on duty.
-/// Sleep-only since the schedule went dynamic — night feeds construct
-/// themselves from the first logged bottle and have no standing slots to edit.
-/// House sheet idiom (Form, medium/large detents, Cancel/confirm toolbar,
-/// undo toast via callback).
+/// Create or edit a standing SLEEP WINDOW: when one of the parents sleeps,
+/// every night until changed. The window is whose sleep it is (required — an
+/// unowned window can't route anything) plus a falls-asleep and wakes time;
+/// feeds that land inside it are assigned to the other parent
+/// (`NightSchedule.awakeParent`). House sheet idiom (Form, medium/large
+/// detents, Cancel/confirm toolbar, undo toast via callback).
 struct SlotEditSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query(filter: #Predicate<Participant> { $0.isActive }, sort: \Participant.invitedAt)
     private var participants: [Participant]
 
-    /// Nil creates a new slot.
+    /// Nil creates a new window.
     var slot: PlanSlot? = nil
-    /// Seed time for create mode.
+    /// Seed start for create mode.
     var initialMinute: Int = 22 * 60
     /// Reports the change back to the host for the toast (message, kind accent,
     /// undo).
     var onDone: ((String, Color, (() -> Void)?) -> Void)? = nil
 
-    @State private var time: Date = .now
-    @State private var kind: EventKind = .feed
+    @State private var start: Date = .now
+    @State private var end: Date = .now
     @State private var assignedToID: UUID?
     @State private var seeded = false
 
@@ -30,18 +31,22 @@ struct SlotEditSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Time") {
-                    DatePicker("Every day at", selection: $time, displayedComponents: .hourAndMinute)
-                }
-
-                Section("Who's on duty") {
+                Section {
                     HStack(spacing: 12) {
                         ForEach(participants) { p in
                             personChip(p)
                         }
-                        nobodyChip
                     }
                     .frame(maxWidth: .infinity)
+                } header: {
+                    Text("Who's sleeping")
+                } footer: {
+                    Text("Feeds during this window go to the other parent — this phone stays quiet.")
+                }
+
+                Section("Every night") {
+                    DatePicker("Falls asleep", selection: $start, displayedComponents: .hourAndMinute)
+                    DatePicker("Wakes", selection: $end, displayedComponents: .hourAndMinute)
                 }
 
                 if let slot {
@@ -50,7 +55,7 @@ struct SlotEditSheet: View {
                     }
                 }
             }
-            .navigationTitle(editing ? "Edit slot" : "Add to plan")
+            .navigationTitle(editing ? "Edit sleep window" : "Add sleep window")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -58,6 +63,7 @@ struct SlotEditSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(editing ? "Save" : "Add") { saveAndDismiss() }
+                        .disabled(assignedToID == nil || startMinute == endMinute)
                         .accessibilityIdentifier("slotEditSheet.confirm")
                 }
             }
@@ -70,10 +76,13 @@ struct SlotEditSheet: View {
     private func seed() {
         guard !seeded else { return }
         seeded = true
-        let minute = slot?.minuteOfDay ?? initialMinute
-        kind = slot?.kind ?? .sleep
-        assignedToID = slot?.assignedToID
-        time = ScheduleEngine.materialize(minuteOfDay: minute, on: .now, calendar: .current) ?? .now
+        let startSeed = slot?.minuteOfDay ?? initialMinute
+        // Default a fresh window to start + 7h — a real night's sleep to edit
+        // from, not a zero-length one the confirm button refuses.
+        let endSeed = slot?.endMinuteOfDay ?? (startSeed + 7 * 60) % 1440
+        assignedToID = slot?.assignedToID ?? LocalPrefs.shared.myParticipantID
+        start = ScheduleEngine.materialize(minuteOfDay: startSeed, on: .now, calendar: .current) ?? .now
+        end = ScheduleEngine.materialize(minuteOfDay: endSeed, on: .now, calendar: .current) ?? .now
     }
 
     private func personChip(_ p: Participant) -> some View {
@@ -102,50 +111,35 @@ struct SlotEditSheet: View {
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
-    private var nobodyChip: some View {
-        let selected = assignedToID == nil
-        return Button {
-            assignedToID = nil
-            Haptics.tap()
-        } label: {
-            VStack(spacing: 6) {
-                Circle()
-                    .strokeBorder(selected ? AppColor.text2 : AppColor.text3.opacity(0.5),
-                                  style: StrokeStyle(lineWidth: selected ? 3 : 1, dash: [4, 4]))
-                    .frame(width: 52, height: 52)
-                    .overlay {
-                        Image(systemName: "person.slash")
-                            .font(.callout)
-                            .foregroundStyle(AppColor.text3)
-                    }
-                Text("No one")
-                    .font(.caption.weight(selected ? .bold : .regular))
-                    .foregroundStyle(AppColor.text2)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? [.isSelected] : [])
+    private var startMinute: Int {
+        minuteOfDay(start)
     }
 
-    private var minuteOfDay: Int {
-        let c = Calendar.current.dateComponents([.hour, .minute], from: time)
+    private var endMinute: Int {
+        minuteOfDay(end)
+    }
+
+    private func minuteOfDay(_ date: Date) -> Int {
+        let c = Calendar.current.dateComponents([.hour, .minute], from: date)
         return (c.hour ?? 0) * 60 + (c.minute ?? 0)
     }
 
-    private var accent: Color { kind == .sleep ? AppColor.accentSleep : AppColor.accentFeed }
+    private var rangeLabel: String {
+        "\(TimeFormatting.clock(start))–\(TimeFormatting.clock(end))"
+    }
 
     private func saveAndDismiss() {
         let store = EventStore(context: context)
-        let assignee = participants.first { $0.id == assignedToID }
-        let clock = TimeFormatting.clock(time)
+        guard let assignee = participants.first(where: { $0.id == assignedToID }) else { return }
         if let slot {
-            store.updatePlanSlot(slot, kind: kind, minuteOfDay: minuteOfDay, assignedTo: .some(assignee))
-            onDone?("Updated \(clock) \(kind == .sleep ? "sleep" : "bottle")", accent, nil)
+            store.updatePlanSlot(slot, kind: .sleep, minuteOfDay: startMinute,
+                                 endMinuteOfDay: .some(endMinute), assignedTo: .some(assignee))
+            onDone?("Updated \(assignee.displayName)'s \(rangeLabel) sleep", AppColor.accentSleep, nil)
         } else {
-            let created = store.addPlanSlot(kind: kind, minuteOfDay: minuteOfDay, assignedTo: assignee)
-            onDone?("Added \(clock) \(kind == .sleep ? "sleep" : "bottle") to the plan", accent) {
+            let created = store.addPlanSlot(kind: .sleep, minuteOfDay: startMinute,
+                                            endMinuteOfDay: endMinute, assignedTo: assignee)
+            onDone?("\(assignee.displayName) sleeps \(rangeLabel) — added to the plan",
+                    AppColor.accentSleep) {
                 store.removePlanSlot(created)
             }
         }
@@ -156,7 +150,7 @@ struct SlotEditSheet: View {
     private func remove(_ slot: PlanSlot) {
         let store = EventStore(context: context)
         store.removePlanSlot(slot)
-        onDone?("Removed from the plan", accent) { store.restorePlanSlot(slot) }
+        onDone?("Removed from the plan", AppColor.accentSleep) { store.restorePlanSlot(slot) }
         Haptics.warning()
         dismiss()
     }

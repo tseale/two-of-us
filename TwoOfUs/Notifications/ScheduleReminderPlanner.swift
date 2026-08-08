@@ -32,7 +32,9 @@ enum ScheduleReminderPlanner {
         guard let myID else { return [] }
         let mine = occurrences
             .filter {
-                $0.status == .upcoming
+                // Spans (parent sleep windows) never remind — they shape the
+                // night's feed routing; nobody needs a ping to go to bed.
+                $0.status == .upcoming && $0.endDate == nil
                     && ($0.assignedToID == myID || $0.assignedToID == nil)
             }
             .compactMap { occ -> PlannedReminder? in

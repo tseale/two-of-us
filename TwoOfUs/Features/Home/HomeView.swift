@@ -408,7 +408,7 @@ struct HomeView: View {
     private func nightState(now: Date) -> NightSchedule.State? {
         guard let s = settingsList.first, isTracked(.feed) || !sleepSlots.isEmpty else { return nil }
         return NightSchedule(settings: s, participants: participants, feeds: feeds,
-                             overrides: planOverrides, now: now).state
+                             overrides: planOverrides, sleepSlots: sleepSlots, now: now).state
     }
 
     /// Standing slots minus feed ones: night feeds are computed now, so a
@@ -425,7 +425,7 @@ struct HomeView: View {
     private func tonightOccurrences(now: Date) -> [ScheduleOccurrence] {
         guard let s = settingsList.first else { return [] }
         let night = NightSchedule(settings: s, participants: participants, feeds: feeds,
-                                  overrides: planOverrides, now: now)
+                                  overrides: planOverrides, sleepSlots: sleepSlots, now: now)
         var merged = isTracked(.feed)
             ? night.occurrences().filter { $0.status != .skipped }
             : []
@@ -440,8 +440,10 @@ struct HomeView: View {
                                         feeds: feeds, sleeps: sleeps, now: now)
             merged += engine.occurrences(lookback: lookback, horizon: horizon)
                 .filter { occ in
+                    // Spans overlap-test against tonight: a 10pm–5am sleep
+                    // window belongs on the card of an 11pm-start night.
                     occ.status != .skipped
-                        && occ.date >= window.start && occ.date <= window.end
+                        && (occ.endDate ?? occ.date) >= window.start && occ.date <= window.end
                 }
         }
         return merged.sorted { $0.date < $1.date }
@@ -558,9 +560,13 @@ struct HomeView: View {
         let engine = ScheduleEngine(slots: sleepSlots, overrides: planOverrides,
                                     feeds: feeds, sleeps: sleeps, now: now)
         // First *assigned* occurrence — an unassigned slot must not hide the
-        // row. Slots for a paused tracker stay off the glance too.
+        // row. Slots for a paused tracker stay off the glance too, and spans
+        // (sleep windows) aren't duty — the glance answers "who's up".
         return engine.occurrences(lookback: 0, horizon: 8 * 3600)
-            .first { $0.status == .upcoming && $0.assignedToID != nil && isTracked($0.kind) }
+            .first {
+                $0.status == .upcoming && $0.assignedToID != nil
+                    && $0.endDate == nil && isTracked($0.kind)
+            }
     }
 
     private func upNextRow(_ occ: ScheduleOccurrence) -> some View {

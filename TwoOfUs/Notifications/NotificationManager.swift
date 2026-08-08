@@ -305,7 +305,9 @@ enum NotificationManager {
     private static func assignedSlotCovers(_ date: Date, kind: EventKind, logger: QuickLogger) -> Bool {
         let horizon = max(3600, date.timeIntervalSinceNow + 1800)
         return logger.scheduleOccurrences(horizon: horizon).contains {
-            $0.kind == kind && $0.status == .upcoming
+            // Spans (parent sleep windows) don't cover anything — they carry
+            // no reminder of their own to stand down against.
+            $0.kind == kind && $0.status == .upcoming && $0.endDate == nil
                 && abs($0.date.timeIntervalSince(date)) <= 30 * 60
         }
     }
