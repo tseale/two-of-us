@@ -105,6 +105,7 @@ DEFINE SCHEMA
         assignedToName STRING,
         createdAt TIMESTAMP,
         deletedAt TIMESTAMP,
+        endMinuteOfDay INT64,
         kindRaw STRING,
         minuteOfDay INT64,
         GRANT WRITE TO "_creator",
