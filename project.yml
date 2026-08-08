@@ -269,6 +269,8 @@ targets:
       - path: TwoOfUs/Support/AppGroup.swift
       - path: TwoOfUs/DesignSystem/TimeFormatting.swift
       - path: TwoOfUs/DesignSystem/Urgency.swift
+      # The brand mark, for the launcher complication.
+      - path: TwoOfUs/DesignSystem/CradleMark.swift
       # Watch-native AppColor/AppFont tokens (shared with the watch app).
       - path: TwoOfUsWatch/WatchDesign.swift
     info:

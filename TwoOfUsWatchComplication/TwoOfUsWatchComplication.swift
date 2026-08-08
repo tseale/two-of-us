@@ -25,6 +25,7 @@ struct MoreComplicationsBundle: WidgetBundle {
         NextFeedComplication()
         DailySummaryComplication()
         NightShiftComplication()
+        LauncherComplication()
     }
 }
 
