@@ -43,6 +43,7 @@ enum TimelineEntry: Identifiable {
     var emoji: String {
         switch self {
         case .note: return "📝"
+        case .diaper(let e): return e.type == .wet ? "💧" : "💩"
         default: return kind?.emoji ?? ""
         }
     }
