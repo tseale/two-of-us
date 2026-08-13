@@ -8,14 +8,21 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ### Changed — sleep windows paint as lanes beside the nighttime timeline
 - The Nighttime tab's "Next 24 hours" rail is bottles-only now. Each parent
-  gets a thin vertical lane between the clock gutter and the rail — avatar
-  chip on top, a soft band in their color where they're planned-asleep, a
-  solid cap with a tiny clock where they fall asleep or wake — so any bottle
-  row reads at a glance who's down, who's up, and why it's assigned the way
-  it is (the both-asleep overlap is two filled lanes side by side). Bands run
-  unbroken through the NOW cap, dim above it, and clamp to the rail's range;
-  same-parent windows that touch merge into one block, and a get-up gap
-  between two bottles renders as a labeled notch.
+  gets a slim vertical lane between the clock gutter and the rail — avatar
+  chip on top, a solid line in their color while they're planned-asleep, the
+  Home timeline's sleep-capsule language stretched down the rail — so any
+  bottle row reads at a glance who's down, who's up, and why it's assigned
+  the way it is (the both-asleep overlap is two filled lanes side by side).
+- A block's real fall-asleep end is rounded and carries a small 💤; its real
+  wake end is rounded; everywhere a block merely continues into the next row
+  the line is cut square and bled past the row boundary, so one window reads
+  as one unbroken band however many rows it crosses (row spacing pinned to
+  zero for the same reason). Bands run through the NOW cap, dim above it,
+  and clamp to the rail's range; same-parent windows that touch merge into
+  one block, and a get-up gap between two bottles is a visible break between
+  two rounded ends. No clock labels ride the lanes — exact times live in
+  "Your sleep, planned", in the sheet a band tap opens, and in VoiceOver, so
+  the gutter belongs to the bottle times alone.
 - Tapping a band opens the same per-night actions the old "GT sleeps" rows
   offered (VoiceOver gets them as named row actions, plus a "Both asleep" /
   "GT asleep" summary per row). Windows themselves still live in "Your

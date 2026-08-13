@@ -1,11 +1,14 @@
 import SwiftUI
 
-/// The thin per-parent sleep lanes between the schedule's clock gutter and the
-/// bottle rail: a soft tinted band where that parent is planned-asleep, a
-/// solid cap with a tiny clock where they fall asleep or wake, nothing where
-/// they're up. Geometry arrives precomputed (`SleepLaneLayout` slices) — this
-/// view only paints one element's worth, so every list row, and the NOW cap,
-/// composes it independently and the bands connect edge-to-edge.
+/// The slim per-parent sleep lanes between the schedule's clock gutter and the
+/// bottle rail: a solid line in each parent's color while they're planned-
+/// asleep — the Home timeline's sleep-capsule language, stretched down the
+/// rail. A block's real fall-asleep end is rounded and carries a small 💤;
+/// its real wake end is rounded; everywhere a block merely continues into the
+/// neighboring row the line is cut square and bled past the row boundary, so
+/// one window reads as one unbroken band no matter how many rows it crosses.
+/// Geometry arrives precomputed (`SleepLaneLayout` slices) — this view only
+/// paints one element's worth.
 struct SleepLaneColumn: View {
     /// Minimal parent identity a lane renders with, resolved by the host.
     struct Lane: Identifiable, Equatable {
@@ -14,8 +17,11 @@ struct SleepLaneColumn: View {
         let colorHex: String
     }
 
-    static let laneWidth: CGFloat = 10
-    static let laneSpacing: CGFloat = 8
+    static let laneWidth: CGFloat = 6
+    static let laneSpacing: CGFloat = 14
+    /// How far a continuing end bleeds past the row boundary so adjacent
+    /// rows' segments fuse into one line.
+    private static let bleed: CGFloat = 3
 
     static func width(for laneCount: Int) -> CGFloat {
         CGFloat(laneCount) * laneWidth + CGFloat(max(0, laneCount - 1)) * laneSpacing
@@ -47,28 +53,7 @@ struct SleepLaneColumn: View {
         return GeometryReader { geo in
             ZStack(alignment: .topLeading) {
                 ForEach(slice.runs.indices, id: \.self) { i in
-                    let run = slice.runs[i]
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(tint.opacity(0.26))
-                        .frame(width: Self.laneWidth,
-                               height: max(2, (run.upperBound - run.lowerBound) * geo.size.height))
-                        .offset(y: run.lowerBound * geo.size.height)
-                }
-                ForEach(slice.caps.indices, id: \.self) { i in
-                    let cap = slice.caps[i]
-                    Capsule()
-                        .fill(tint)
-                        .frame(width: Self.laneWidth, height: 2.5)
-                        .offset(y: cap.y * geo.size.height - 1.25)
-                    if showsLabel(for: cap) {
-                        Text(cap.time, format: .dateTime
-                            .hour(.defaultDigits(amPM: .omitted)).minute(.twoDigits))
-                            .font(.system(size: 9, weight: .semibold, design: .rounded))
-                            .monospacedDigit()
-                            .foregroundStyle(tint)
-                            .fixedSize()
-                            .position(x: -16, y: cap.y * geo.size.height)
-                    }
+                    band(slice.runs[i], tint: tint, height: geo.size.height)
                 }
             }
         }
@@ -81,12 +66,33 @@ struct SleepLaneColumn: View {
         }
     }
 
-    /// The row's own clock sits vertically centered in the gutter the labels
-    /// spill into — a cap label landing in that band would collide, so it
-    /// stays quiet there (the band position still shows the transition, and
-    /// the row's a11y summary carries the exact time).
-    private func showsLabel(for cap: SleepLaneLayout.Cap) -> Bool {
-        cap.y < 0.36 || cap.y > 0.64
+    @ViewBuilder
+    private func band(_ run: SleepLaneLayout.Run, tint: Color, height: CGFloat) -> some View {
+        // Continuing ends land on the element's edge — square them off and
+        // bleed past the boundary so the neighbor's segment fuses seamlessly.
+        // Real transitions get the rounded cap.
+        let bleedTop = !run.startsHere && run.range.lowerBound < 0.001 ? Self.bleed : 0
+        let bleedBottom = !run.endsHere && run.range.upperBound > 0.999 ? Self.bleed : 0
+        let radius = Self.laneWidth / 2
+        UnevenRoundedRectangle(
+            topLeadingRadius: run.startsHere ? radius : 0,
+            bottomLeadingRadius: run.endsHere ? radius : 0,
+            bottomTrailingRadius: run.endsHere ? radius : 0,
+            topTrailingRadius: run.startsHere ? radius : 0)
+            .fill(tint.opacity(0.85))
+            .frame(width: Self.laneWidth,
+                   height: max(2, (run.range.upperBound - run.range.lowerBound) * height
+                                + bleedTop + bleedBottom))
+            .offset(y: run.range.lowerBound * height - bleedTop)
+        if run.startsHere {
+            // The block self-labels as sleep right where it begins — the
+            // Home timeline's 💤, sitting on the line like a station marker.
+            Text("💤")
+                .font(.system(size: 10))
+                .fixedSize()
+                .position(x: Self.laneWidth / 2,
+                          y: run.range.lowerBound * height + 10)
+        }
     }
 }
 
