@@ -30,9 +30,12 @@ import Foundation
 ///
 /// **Assignment.** The standing sleep windows decide first: a bottle that
 /// lands while exactly one parent is planned-asleep goes to the one who's
-/// awake. Where the windows don't decide (nobody asleep, everybody asleep,
-/// no windows), slots alternate through the active parents starting from
-/// the configured first-shift parent (`SharedSettings.nightFirstShiftID`;
+/// awake — and one that lands while BOTH are planned-asleep goes to the
+/// parent whose planned wake-up comes soonest (their block was ending
+/// anyway; the other's long stretch stays whole; back-to-back windows chain
+/// into one block). Where the windows still don't decide (nobody asleep, a
+/// dead tie, no windows), slots alternate through the active parents
+/// starting from the configured first-shift parent (`SharedSettings.nightFirstShiftID`;
 /// nil = the first parent in join order). Any single night slot can still be
 /// overridden — swapped or skipped — via the same synced `PlanOverride`
 /// records the standing plan uses, keyed on the slot's deterministic
@@ -101,9 +104,10 @@ struct NightSchedule {
     /// Per-night swap/skip records (shared with the standing plan). Matched by
     /// the dynamic slot's synthetic id + the night's key.
     let overrides: [PlanOverride]
-    /// The parents' standing sleep windows. When a feed lands during exactly
-    /// one parent's sleep, it's assigned to the parent who's awake — the
-    /// sleeping phone stays dark. Empty = pure rotation, the old behavior.
+    /// The parents' standing sleep windows. A feed during one parent's sleep
+    /// goes to the parent who's awake — the sleeping phone stays dark. A feed
+    /// during BOTH parents' sleep goes to whoever's planned wake-up comes
+    /// soonest. Empty = pure rotation, the old behavior.
     var sleepWindows: [SleepWindow] = []
     var calendar: Calendar = .current
     var now: Date = .now
@@ -166,9 +170,10 @@ struct NightSchedule {
                 status = .upcoming
             }
             // Sleep windows outrank the rotation: the parent who's awake at
-            // this bottle's time takes it. A per-night override still beats
-            // both (applied below, same as always).
-            let assignee = awakeParent(at: date) ?? assignees[index]
+            // this bottle's time takes it — and when both are asleep, the
+            // one whose planned wake-up comes soonest. A per-night override
+            // still beats both (applied below, same as always).
+            let assignee = onDutyParent(at: date) ?? assignees[index]
             return ScheduleOccurrence(
                 id: "night.\(nightKey).\(index)",
                 slotID: Self.syntheticSlotID(nightKey: nightKey, index: index),
@@ -336,18 +341,47 @@ struct NightSchedule {
         return (0..<count).map { parents[(firstIndex + $0) % parents.count] }
     }
 
-    /// The sole awake parent at `date` per the standing sleep windows, or nil
-    /// when the windows don't decide it — nobody's asleep then, everybody is,
-    /// or the roster is solo. Nil falls back to the rotation (and ultimately
-    /// to unassigned, which rings BOTH phones — the fail-open stands whenever
-    /// the plan can't name one on-duty parent).
-    private func awakeParent(at date: Date) -> Parent? {
+    /// The parent on duty at `date` per the standing sleep windows, or nil
+    /// when the windows don't decide it. Exactly one parent awake → them.
+    /// Everybody asleep → the one whose planned wake-up comes soonest (their
+    /// block was ending anyway; the other's long stretch stays whole) —
+    /// unless it's a dead tie. Nobody asleep, a tie, or a solo roster → nil:
+    /// the rotation stands (and ultimately unassigned rings BOTH phones —
+    /// the fail-open holds whenever the plan can't name one on-duty parent).
+    private func onDutyParent(at date: Date) -> Parent? {
         guard !sleepWindows.isEmpty, parents.count >= 2 else { return nil }
         let minute = minuteOfDay(date)
-        let awake = parents.filter { parent in
-            !sleepWindows.contains { $0.parentID == parent.id && $0.contains(minuteOfDay: minute) }
+        let untilAwake = parents.map {
+            (parent: $0, minutes: minutesUntilAwake(parentID: $0.id, atMinute: minute))
         }
-        return awake.count == 1 ? awake.first : nil
+        let awake = untilAwake.filter { $0.minutes == 0 }
+        if awake.count == 1 { return awake.first?.parent }
+        guard awake.isEmpty, let soonest = untilAwake.map(\.minutes).min() else { return nil }
+        let candidates = untilAwake.filter { $0.minutes == soonest }
+        return candidates.count == 1 ? candidates.first?.parent : nil
+    }
+
+    /// Minutes until `parentID` is next planned-awake at wall-clock `minute` —
+    /// 0 means awake right now. Back-to-back and overlapping windows read as
+    /// one unbroken block (a 3:00–5:30 nap chained to 5:30–7:00 is asleep
+    /// until 7:00). Windows covering the whole clock cap at a full day, so
+    /// that parent never wins "soonest awake" and the walk can't loop forever.
+    private func minutesUntilAwake(parentID: UUID, atMinute minute: Int) -> Int {
+        let windows = sleepWindows.filter { $0.parentID == parentID }
+        var wake = minute
+        var total = 0
+        while total < 1440 {
+            // The furthest end among windows covering the current minute;
+            // `contains` guarantees each step is ≥ 1 minute, so the walk
+            // always advances.
+            let furthest = windows.filter { $0.contains(minuteOfDay: wake) }
+                .map { $0.durationMinutes - wrap(wake - $0.startMinute) }
+                .max()
+            guard let furthest else { break }
+            total += furthest
+            wake = wrap(wake + furthest)
+        }
+        return min(total, 1440)
     }
 
     /// The winning live override per slot index for this night. Concurrent

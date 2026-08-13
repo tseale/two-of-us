@@ -2,7 +2,8 @@ import XCTest
 @testable import TwoOfUs
 
 /// Pure-logic tests for parent sleep windows: the wall-clock window itself
-/// (midnight wrap), `NightSchedule` routing feeds to the awake parent, and
+/// (midnight wrap), `NightSchedule` routing feeds to the awake parent (or,
+/// when both are asleep, the one whose planned wake-up comes soonest), and
 /// `ScheduleEngine` materializing windows as timeline spans that never ring,
 /// never match logged events, and never go "overdue". No store, no CloudKit —
 /// pinned calendar and `now`, same idiom as the sibling engine tests.
@@ -105,9 +106,58 @@ final class SleepWindowTests: XCTestCase {
         XCTAssertEqual(occs.map(\.assignedToID), [katieID, katieID, taylorID])
     }
 
-    func testBothAsleepFallsBackToRotation() {
-        // Overlapping windows cover 9:30pm for BOTH parents — the windows
-        // can't name the awake one, so the rotation (Taylor first) stands.
+    func testBothAsleepGoesToTheSoonestWakeUp() {
+        // Both are asleep at the 9:30pm bottle, but Katie's up at 11pm while
+        // Taylor sleeps through to 5am — the bottle is hers (her block was
+        // ending anyway) and Taylor's long stretch stays whole. The 1:30am
+        // (only Taylor asleep) is hers by the awake rule; 5:30am (both up)
+        // falls to the rotation, which has Taylor at index 2.
+        let windows = [
+            SleepWindow(parentID: taylorID, startMinute: 21 * 60, durationMinutes: 8 * 60),
+            SleepWindow(parentID: katieID, startMinute: 20 * 60, durationMinutes: 3 * 60),
+        ]
+        let occs = schedule(feeds: [feed(at: date(2026, 7, 21, 17, 30))],
+                            windows: windows, now: date(2026, 7, 21, 20, 0)).occurrences()
+
+        XCTAssertEqual(occs.map(\.assignedToID), [katieID, katieID, taylorID])
+    }
+
+    func testSoonestWakeUpReadsChainedWindowsAsOneBlock() {
+        // Katie's 8–11pm and 11pm–2am windows touch: one block until 2am.
+        // Taylor sleeps 9pm–1am. Both are asleep at 9:30 — Taylor's up first
+        // (1am vs her 2am), so the bottle is his despite Katie's first
+        // window "ending" at 11.
+        let windows = [
+            SleepWindow(parentID: taylorID, startMinute: 21 * 60, durationMinutes: 4 * 60),
+            SleepWindow(parentID: katieID, startMinute: 20 * 60, durationMinutes: 3 * 60),
+            SleepWindow(parentID: katieID, startMinute: 23 * 60, durationMinutes: 3 * 60),
+        ]
+        let occs = schedule(feeds: [feed(at: date(2026, 7, 21, 17, 30))],
+                            windows: windows, now: date(2026, 7, 21, 20, 0)).occurrences()
+
+        XCTAssertEqual(occs[0].assignedToID, taylorID,
+                       "without chaining Katie would look up at 11pm and lose her block")
+    }
+
+    func testRoundTheClockWindowsNeverWinTheBottle() {
+        // Taylor's windows cover the entire clock — he's never planned-awake,
+        // so the wake-up walk caps at a full day instead of looping, and
+        // Katie (up at 11pm) takes the 9:30 bottle.
+        let windows = [
+            SleepWindow(parentID: taylorID, startMinute: 0, durationMinutes: 12 * 60),
+            SleepWindow(parentID: taylorID, startMinute: 12 * 60, durationMinutes: 12 * 60),
+            SleepWindow(parentID: katieID, startMinute: 20 * 60, durationMinutes: 3 * 60),
+        ]
+        let occs = schedule(feeds: [feed(at: date(2026, 7, 21, 17, 30))],
+                            windows: windows, now: date(2026, 7, 21, 20, 0)).occurrences()
+
+        XCTAssertEqual(occs[0].assignedToID, katieID)
+    }
+
+    func testBothAsleepDeadTieFallsBackToRotation() {
+        // Identical windows cover 9:30pm for BOTH parents with the same
+        // wake-up — "soonest awake" can't pick either, so the rotation
+        // (Taylor first) stands.
         let windows = [
             SleepWindow(parentID: taylorID, startMinute: 21 * 60, durationMinutes: 120),
             SleepWindow(parentID: katieID, startMinute: 21 * 60, durationMinutes: 120),
@@ -117,6 +167,31 @@ final class SleepWindowTests: XCTestCase {
 
         XCTAssertEqual(occs[0].assignedToID, taylorID,
                        "windows that don't decide leave the rotation in charge")
+    }
+
+    func testDriftedNightStaysWithTheParentWhoPlannedToBeUp() {
+        // The real night this rule exists for. Katie front-loads 8pm–2:30am,
+        // then naps 3–5:30 and 6–7:45 with get-up gaps left around the
+        // expected ~2:30 and ~5:30 bottles; Taylor sleeps 1–9am. The night
+        // anchors 27 minutes late (first bottle 10:27pm, every 2½h), sliding
+        // the later bottles INTO her naps. Soonest-wake still hands the whole
+        // night out right — 10:27 and 12:57 his (she's down, he's up), 3:27
+        // hers (both down, but she's up at 5:30 vs his 9:00), 5:57 hers (her
+        // get-up gap) — with zero manual overrides.
+        let windows = [
+            SleepWindow(parentID: katieID, startMinute: 20 * 60, durationMinutes: 6 * 60 + 30),
+            SleepWindow(parentID: katieID, startMinute: 3 * 60, durationMinutes: 2 * 60 + 30),
+            SleepWindow(parentID: katieID, startMinute: 6 * 60, durationMinutes: 1 * 60 + 45),
+            SleepWindow(parentID: taylorID, startMinute: 1 * 60, durationMinutes: 8 * 60),
+        ]
+        let night = NightSchedule(
+            nightStartMinute: 21 * 60, nightEndMinute: 7 * 60, spacingMinutes: 150,
+            rotation: .alternating, firstShiftID: nil, parents: parents,
+            feeds: [feed(at: date(2026, 8, 12, 22, 27))], overrides: [],
+            sleepWindows: windows, calendar: calendar, now: date(2026, 8, 12, 22, 30))
+
+        XCTAssertEqual(night.occurrences().map(\.assignedToID),
+                       [taylorID, taylorID, katieID, katieID])
     }
 
     func testNobodyAsleepFallsBackToRotation() {

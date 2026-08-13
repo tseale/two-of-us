@@ -286,7 +286,7 @@ struct ScheduleView: View {
         } header: {
             Text("Your sleep, planned").foregroundStyle(AppColor.text3)
         } footer: {
-            Text("\(balanceSummary)\(nightSummary)Set when each of you sleeps — a feed that lands during someone's window goes to the other parent, and the sleeping phone stays quiet. Feeds build themselves each night from the first logged bottle. Windows repeat every night until changed; tap one on the timeline to change just one night.")
+            Text("\(balanceSummary)\(nightSummary)Set when each of you sleeps — a feed that lands during someone's window goes to the other parent, and the sleeping phone stays quiet. If you're both asleep, it goes to whoever's wake-up comes soonest. Feeds build themselves each night from the first logged bottle. Windows repeat every night until changed; tap one on the timeline to change just one night.")
         }
     }
 

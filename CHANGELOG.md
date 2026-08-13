@@ -6,6 +6,17 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Changed — overlapping sleep windows route feeds to the soonest wake-up
+- A night bottle that lands while BOTH parents are inside planned sleep
+  windows now goes to the parent whose planned wake-up comes soonest — their
+  block was ending anyway, and the other parent's long stretch stays whole —
+  instead of falling back to the blind alternation (which could assign a
+  bottle mid-window and needed a manual swap). Back-to-back and overlapping
+  windows chain into one block for the wake-up walk; an exact tie still
+  falls to the rotation, and a per-night override still beats everything.
+  The "exactly one parent asleep → the other takes it" rule is unchanged.
+  The schedule footer documents the new rule.
+
 ### Added — Apple Watch companion app
 - New **TwoOfUsWatch** target: a minimal watchOS app installed with the
   iPhone app. One screen, three rows — Feed (one tap logs the default

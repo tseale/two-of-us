@@ -5,7 +5,7 @@ import SwiftData
 /// every night until changed. The window is whose sleep it is (required — an
 /// unowned window can't route anything) plus a falls-asleep and wakes time;
 /// feeds that land inside it are assigned to the other parent
-/// (`NightSchedule.awakeParent`). House sheet idiom (Form, medium/large
+/// (`NightSchedule.onDutyParent`). House sheet idiom (Form, medium/large
 /// detents, Cancel/confirm toolbar, undo toast via callback).
 struct SlotEditSheet: View {
     @Environment(\.modelContext) private var context
