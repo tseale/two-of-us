@@ -16,6 +16,15 @@ struct ScheduleRow: View {
     var isMine: Bool = false
     /// Show the weekday under the clock when the date isn't today.
     var showsDay: Bool = false
+    /// Sleep lanes: the parents' strips between the clock and the rail, and
+    /// this row's precomputed slice of their bands. Empty = no lane column.
+    var lanes: [SleepLaneColumn.Lane] = []
+    var laneSlices: [SleepLaneLayout.Slice] = []
+    var laneDimmed: Bool = false
+    /// Band tap → the covering window's per-night actions (lane index).
+    var onLaneTap: ((Int) -> Void)? = nil
+    /// A11y suffix describing who's planned-asleep at this row's time.
+    var laneSummary: String? = nil
 
     private var settled: Bool {   // rendered quiet: already handled or waved off
         if case .fulfilled = occurrence.status { return true }
@@ -43,6 +52,11 @@ struct ScheduleRow: View {
                 }
             }
             .frame(width: 64, alignment: .trailing)
+
+            if !lanes.isEmpty {
+                SleepLaneColumn(lanes: lanes, slices: laneSlices,
+                                dimmed: laneDimmed, onTap: onLaneTap)
+            }
 
             rail
 
@@ -139,6 +153,7 @@ struct ScheduleRow: View {
             label += isMine ? ", assigned to you" : ", assigned to \(occurrence.assignedToName)"
         }
         if let caption, !caption.isEmpty { label += ", \(caption)" }
+        if let laneSummary, !laneSummary.isEmpty { label += ", \(laneSummary)" }
         return label
     }
 }
