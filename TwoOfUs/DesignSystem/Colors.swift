@@ -5,6 +5,30 @@ extension Color {
     init(hex: String) {
         self.init(uiColor: UIColor(hex: hex))
     }
+
+    /// This color composited over `base` at `alpha`, flattened into an OPAQUE
+    /// color: the same pixel `.opacity(alpha)` would paint on `base`, but
+    /// carrying no transparency, so two copies that overlap don't darken where
+    /// they meet. What the schedule's sleep bands need — they're drawn per row
+    /// and deliberately bleed into each other to fuse, and a translucent fill
+    /// doubles up in that overlap and draws a dark seam at every row boundary.
+    func flattened(over base: Color, alpha: Double) -> Color {
+        let top = UIColor(self)
+        let bottom = UIColor(base)
+        let a = min(max(alpha, 0), 1)
+        return Color(uiColor: UIColor { traits in
+            let t = top.resolvedColor(with: traits)
+            let b = bottom.resolvedColor(with: traits)
+            var tr: CGFloat = 0, tg: CGFloat = 0, tb: CGFloat = 0, ta: CGFloat = 0
+            var br: CGFloat = 0, bg: CGFloat = 0, bb: CGFloat = 0, ba: CGFloat = 0
+            t.getRed(&tr, green: &tg, blue: &tb, alpha: &ta)
+            b.getRed(&br, green: &bg, blue: &bb, alpha: &ba)
+            return UIColor(red: tr * a + br * (1 - a),
+                           green: tg * a + bg * (1 - a),
+                           blue: tb * a + bb * (1 - a),
+                           alpha: 1)
+        })
+    }
 }
 
 extension UIColor {
@@ -32,6 +56,11 @@ enum AppColor {
     static let bg        = dyn(light: "F2F2F7", dark: "000000")
     static let card      = dyn(light: "FFFFFF", dark: "1C1C1E")
     static let card2     = dyn(light: "ECECF0", dark: "2C2C2E")
+    /// The surface a plain List paints behind its own cells — distinct from
+    /// both `bg` (the page) and `card` (a raised surface). What a row's
+    /// content composites onto, so it's the base to flatten a translucent fill
+    /// against and the color to knock a glyph out to.
+    static let row       = Color(uiColor: .systemBackground)
     static let separator = dyn(light: "D1D1D6", dark: "38383A")
     static let text      = dyn(light: "000000", dark: "FFFFFF")
     static let text2     = dyn(light: "6C6C70", dark: "98989F")
