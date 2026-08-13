@@ -37,6 +37,9 @@ struct ScheduleView: View {
                 scheduleList(now: ctx.date)
             }
             .listStyle(.plain)
+            // Zero row spacing so lane bands (and the rail) fuse across rows
+            // into continuous lines instead of per-row chunks.
+            .listRowSpacing(0)
             .background(AppColor.bg)
             .navigationTitle("Nighttime Schedule")
             .toolbar {

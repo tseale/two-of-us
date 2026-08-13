@@ -2,20 +2,22 @@ import Foundation
 
 /// Row-aligned geometry for the schedule's sleep lanes: given the rail's
 /// rendered elements (bottle rows and the NOW cap, in list order) and the
-/// parents' sleep-window spans, produce per-element, per-lane band slices in
+/// parents' sleep-window spans, produce per-element, per-lane band runs in
 /// row-local coordinates — 0 at the row's top, 0.5 on the node line, 1 at the
 /// bottom.
 ///
 /// The vertical axis is the LIST's, not the clock's: each element's lane
 /// represents the stretch from the midpoint above its node to the midpoint
-/// below, and times map linearly within those two halves. Transitions carry
-/// their exact clock on a cap, so the lanes stay honest even though row
-/// spacing isn't time-proportional. Same-parent windows that touch or overlap
-/// merge into one unbroken block — the same reading the assignment engine
-/// uses. Anything before the first element or after the last is clamped: an
-/// in-progress block runs off the edge, and windows entirely outside the
-/// rendered range contribute nothing (the standing-plan list below the
-/// timeline still shows every window).
+/// below, and times map linearly within those two halves. Every run carries
+/// whether its ends are REAL transitions (a fall-asleep / wake) or clamps at
+/// the element's edge — the view rounds only real ends and bleeds clamped
+/// ends past the row boundary, so a block spanning many rows renders as one
+/// unbroken band. Same-parent windows that touch or overlap merge into one
+/// block — the same reading the assignment engine uses. Anything before the
+/// first element or after the last is clamped: an in-progress block runs off
+/// the edge, and windows entirely outside the rendered range contribute
+/// nothing (the standing-plan list below the timeline still shows every
+/// window).
 ///
 /// Pure and store-free, same idiom as the engines: callers pass plain values,
 /// tests pass fixtures.
@@ -30,18 +32,19 @@ struct SleepLaneLayout {
         let end: Date
     }
 
-    /// A fall-asleep or wake moment rendered on a band edge.
-    struct Cap: Equatable {
-        enum Kind { case fallsAsleep, wakes }
-        let y: Double            // 0...1 row-local; 0.5 is the node line
-        let time: Date
-        let kind: Kind
+    /// One filled stretch of a lane inside one element. The flags say whether
+    /// each end is a real transition owned by this element (rounded, and the
+    /// fall-asleep end carries the 💤) or a continuation to be fused with the
+    /// neighboring element's run (squared and overshot).
+    struct Run: Equatable {
+        let range: ClosedRange<Double>
+        let startsHere: Bool     // top is the block's real fall-asleep
+        let endsHere: Bool       // bottom is the block's real wake
     }
 
     /// One lane's rendering inside one rail element.
     struct Slice: Equatable {
-        var runs: [ClosedRange<Double>] = []
-        var caps: [Cap] = []
+        var runs: [Run] = []
         /// Whether the parent is asleep at the element's own time — the
         /// "who's down at THIS bottle" read, and the a11y summary.
         var asleepAtNode = false
@@ -108,8 +111,9 @@ struct SleepLaneLayout {
         slice.asleepAtNode = asleep(at: node, intervals)
         slice.primarySpanID = (intervals.first { $0.start <= node && node < $0.end }
             ?? intervals.first { $0.end > top && $0.start < bottom })?.spanID
-        // Each element owns transitions in [top, bottom) — half-open, so a cap
-        // landing exactly on a midpoint belongs to exactly one element.
+        // Each element owns the transitions inside its own [top, bottom)
+        // stretch — half-open, so a transition landing exactly on a midpoint
+        // is drawn (rounded) by exactly one element.
         appendHalf(&slice, intervals, from: top, to: node, yStart: 0)
         appendHalf(&slice, intervals, from: node, to: bottom, yStart: 0.5)
         slice.runs = merged(slice.runs)
@@ -117,30 +121,29 @@ struct SleepLaneLayout {
     }
 
     /// Fills one half of the element (`yStart` 0 = top half, 0.5 = bottom)
-    /// from the asleep intervals overlapping (from, to), with caps for the
-    /// transitions inside [from, to). A zero-length half — the clamped edge of
-    /// the first/last element — fills on the state a second beyond the node,
-    /// so an in-progress block runs off the edge without inventing caps.
+    /// from the asleep intervals overlapping (from, to). An interval edge
+    /// inside the half is a real transition (`startsHere`/`endsHere`); one
+    /// clamped at the half's bounds continues into the neighbor. A zero-length
+    /// half — the clamped edge of the first/last element — fills on the state
+    /// a second beyond the node, flagless, so an in-progress block runs off
+    /// the rail's edge.
     private static func appendHalf(_ slice: inout Slice, _ intervals: [Interval],
                                    from: Date, to: Date, yStart: Double) {
         let duration = to.timeIntervalSince(from)
         guard duration > 1 else {
             let probe = from.addingTimeInterval(yStart == 0 ? -1 : 1)
             if asleep(at: probe, intervals) {
-                slice.runs.append(yStart...(yStart + 0.5))
+                slice.runs.append(Run(range: yStart...(yStart + 0.5),
+                                      startsHere: false, endsHere: false))
             }
             return
         }
         for interval in intervals where interval.end > from && interval.start < to {
             let lower = yStart + 0.5 * max(0, interval.start.timeIntervalSince(from)) / duration
             let upper = yStart + 0.5 * min(duration, interval.end.timeIntervalSince(from)) / duration
-            slice.runs.append(lower...upper)
-            if interval.start >= from && interval.start < to {
-                slice.caps.append(Cap(y: lower, time: interval.start, kind: .fallsAsleep))
-            }
-            if interval.end >= from && interval.end < to {
-                slice.caps.append(Cap(y: upper, time: interval.end, kind: .wakes))
-            }
+            slice.runs.append(Run(range: lower...upper,
+                                  startsHere: interval.start >= from,
+                                  endsHere: interval.end <= to))
         }
     }
 
@@ -149,12 +152,17 @@ struct SleepLaneLayout {
     }
 
     /// Runs sorted and stitched — an interval crossing the node line arrives
-    /// as two half-runs that must read as one unbroken band.
-    private static func merged(_ runs: [ClosedRange<Double>]) -> [ClosedRange<Double>] {
-        var out: [ClosedRange<Double>] = []
-        for run in runs.sorted(by: { $0.lowerBound < $1.lowerBound }) {
-            if let last = out.last, run.lowerBound <= last.upperBound + 0.0001 {
-                out[out.count - 1] = last.lowerBound...max(last.upperBound, run.upperBound)
+    /// as two half-runs that must read as one unbroken band. The fused run
+    /// keeps the outer ends' flags.
+    private static func merged(_ runs: [Run]) -> [Run] {
+        var out: [Run] = []
+        for run in runs.sorted(by: { $0.range.lowerBound < $1.range.lowerBound }) {
+            if let last = out.last, run.range.lowerBound <= last.range.upperBound + 0.0001 {
+                out[out.count - 1] = Run(
+                    range: last.range.lowerBound...max(last.range.upperBound, run.range.upperBound),
+                    startsHere: last.startsHere,
+                    endsHere: run.range.upperBound >= last.range.upperBound
+                        ? run.endsHere : last.endsHere)
             } else {
                 out.append(run)
             }
