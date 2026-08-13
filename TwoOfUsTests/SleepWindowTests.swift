@@ -2,8 +2,9 @@ import XCTest
 @testable import TwoOfUs
 
 /// Pure-logic tests for parent sleep windows: the wall-clock window itself
-/// (midnight wrap), `NightSchedule` routing feeds to the awake parent (or,
-/// when both are asleep, the one whose planned wake-up comes soonest), and
+/// (midnight wrap), `NightSchedule` sliding a both-asleep bottle into the
+/// nearest get-up gap and routing feeds to the awake parent (or, when they
+/// really are both down, the one whose planned wake-up comes soonest), and
 /// `ScheduleEngine` materializing windows as timeline spans that never ring,
 /// never match logged events, and never go "overdue". No store, no CloudKit —
 /// pinned calendar and `now`, same idiom as the sibling engine tests.
@@ -169,29 +170,117 @@ final class SleepWindowTests: XCTestCase {
                        "windows that don't decide leave the rotation in charge")
     }
 
-    func testDriftedNightStaysWithTheParentWhoPlannedToBeUp() {
-        // The real night this rule exists for. Katie front-loads 8pm–2:30am,
-        // then naps 3–5:30 and 6–7:45 with get-up gaps left around the
-        // expected ~2:30 and ~5:30 bottles; Taylor sleeps 1–9am. The night
-        // anchors 27 minutes late (first bottle 10:27pm, every 2½h), sliding
-        // the later bottles INTO her naps. Soonest-wake still hands the whole
-        // night out right — 10:27 and 12:57 his (she's down, he's up), 3:27
-        // hers (both down, but she's up at 5:30 vs his 9:00), 5:57 hers (her
-        // get-up gap) — with zero manual overrides.
-        let windows = [
-            SleepWindow(parentID: katieID, startMinute: 20 * 60, durationMinutes: 6 * 60 + 30),
-            SleepWindow(parentID: katieID, startMinute: 3 * 60, durationMinutes: 2 * 60 + 30),
-            SleepWindow(parentID: katieID, startMinute: 6 * 60, durationMinutes: 1 * 60 + 45),
-            SleepWindow(parentID: taylorID, startMinute: 1 * 60, durationMinutes: 8 * 60),
-        ]
-        let night = NightSchedule(
+    /// The real night both rules exist for. Katie front-loads 8pm–2:30am, then
+    /// naps 3–5:30 and 6–7:45, leaving get-up gaps at 2:30–3:00 and 5:30–6:00;
+    /// Taylor sleeps 1–9am. The night anchors 27 minutes late (first bottle
+    /// 10:27pm, every 2½h), which slides the later bottles INTO her naps.
+    private func driftedNight() -> NightSchedule {
+        NightSchedule(
             nightStartMinute: 21 * 60, nightEndMinute: 7 * 60, spacingMinutes: 150,
             rotation: .alternating, firstShiftID: nil, parents: parents,
             feeds: [feed(at: date(2026, 8, 12, 22, 27))], overrides: [],
-            sleepWindows: windows, calendar: calendar, now: date(2026, 8, 12, 22, 30))
+            sleepWindows: [
+                SleepWindow(parentID: katieID, startMinute: 20 * 60, durationMinutes: 6 * 60 + 30),
+                SleepWindow(parentID: katieID, startMinute: 3 * 60, durationMinutes: 2 * 60 + 30),
+                SleepWindow(parentID: katieID, startMinute: 6 * 60, durationMinutes: 1 * 60 + 45),
+                SleepWindow(parentID: taylorID, startMinute: 1 * 60, durationMinutes: 8 * 60),
+            ],
+            calendar: calendar, now: date(2026, 8, 12, 22, 30))
+    }
 
-        XCTAssertEqual(night.occurrences().map(\.assignedToID),
+    func testDriftedNightStaysWithTheParentWhoPlannedToBeUp() {
+        // The whole night hands out right with zero manual overrides — 10:27
+        // and 12:57 his (she's down, he's up), the 3:27 (slid to 2:59, see
+        // below) and 5:57 hers, both landing in her get-up gaps.
+        XCTAssertEqual(driftedNight().occurrences().map(\.assignedToID),
                        [taylorID, taylorID, katieID, katieID])
+    }
+
+    func testBottleSlidesIntoTheGetUpGapInsteadOfWakingSomeone() {
+        // 3:27am is 27 minutes into Katie's nap and 2½h into Taylor's night —
+        // whoever takes it gets woken. She's up 2:30–3:00, so the bottle moves
+        // to the nearest minute of that gap (2:59, 28 early) and she takes it
+        // on her way to bed. Nobody's sleep is broken all night.
+        let occs = driftedNight().occurrences()
+
+        XCTAssertEqual(occs.map(\.date), [
+            date(2026, 8, 12, 22, 27), date(2026, 8, 13, 0, 57),
+            date(2026, 8, 13, 2, 59), date(2026, 8, 13, 5, 57),
+        ])
+        XCTAssertEqual(occs[2].shiftedFrom, date(2026, 8, 13, 3, 27),
+                       "the row says what rhythm time it came off")
+        XCTAssertEqual(occs[2].assignedToID, katieID, "the parent who's up takes it")
+        XCTAssertEqual(occs.filter { $0.shiftedFrom != nil }.count, 1,
+                       "bottles that already land on an awake parent don't move")
+    }
+
+    func testTheNightsFirstBottleNeverSlides() {
+        // Both are down at the 9:30pm anchor and Taylor was up until 9:00 —
+        // 30 minutes back, well inside the budget. It still doesn't move: the
+        // anchor is a logged bottle (or an explicit choice), not a proposal.
+        let windows = [
+            SleepWindow(parentID: taylorID, startMinute: 21 * 60, durationMinutes: 8 * 60),
+            SleepWindow(parentID: katieID, startMinute: 20 * 60, durationMinutes: 3 * 60),
+        ]
+        let occs = schedule(feeds: [feed(at: date(2026, 7, 21, 17, 30))],
+                            windows: windows, now: date(2026, 7, 21, 20, 0)).occurrences()
+
+        XCTAssertEqual(occs[0].date, date(2026, 7, 21, 21, 30))
+        XCTAssertNil(occs[0].shiftedFrom)
+    }
+
+    func testBottleSlidesLaterWhenTheNearerGapIsAhead() {
+        // Taylor is down 9pm–1:50am, Katie 8pm–6am. Nobody is up in the 45
+        // minutes BEFORE the 1:30 bottle, but Taylor's alarm is 20 minutes
+        // after it — so the bottle moves forward to 1:50 and he takes it.
+        let windows = [
+            SleepWindow(parentID: taylorID, startMinute: 21 * 60, durationMinutes: 290),
+            SleepWindow(parentID: katieID, startMinute: 20 * 60, durationMinutes: 600),
+        ]
+        let occs = schedule(feeds: [feed(at: date(2026, 7, 21, 17, 30))],
+                            windows: windows, now: date(2026, 7, 21, 20, 0)).occurrences()
+
+        XCTAssertEqual(occs[1].date, date(2026, 7, 22, 1, 50))
+        XCTAssertEqual(occs[1].shiftedFrom, date(2026, 7, 22, 1, 30))
+        XCTAssertEqual(occs[1].assignedToID, taylorID)
+    }
+
+    func testNoReachableGapLeavesTheBottleOnTheRhythm() {
+        // Down together 9pm–4am (her) and 9pm–5am (his): there is no awake
+        // minute within reach of the 1:30 bottle. The plan doesn't invent one
+        // — the time stands and soonest-wake picks who gets up.
+        let windows = [
+            SleepWindow(parentID: taylorID, startMinute: 21 * 60, durationMinutes: 480),
+            SleepWindow(parentID: katieID, startMinute: 21 * 60, durationMinutes: 420),
+        ]
+        let occs = schedule(feeds: [feed(at: date(2026, 7, 21, 17, 30))],
+                            windows: windows, now: date(2026, 7, 21, 20, 0)).occurrences()
+
+        XCTAssertEqual(occs[1].date, date(2026, 7, 22, 1, 30))
+        XCTAssertNil(occs[1].shiftedFrom)
+        XCTAssertEqual(occs[1].assignedToID, katieID, "she's up at 4, he's not until 5")
+    }
+
+    func testSlideBudgetStaysUnderHalfTheSpacing() {
+        // Hourly bottles: the budget caps at 29 minutes, not the usual 45, so
+        // slid slots can never crowd or overtake their neighbors. Katie's up
+        // at 10:35pm — 35 minutes past the 10pm bottle, reachable at 45 but
+        // NOT at 29 — so the bottle holds its rhythm time.
+        let windows = [
+            SleepWindow(parentID: katieID, startMinute: 20 * 60, durationMinutes: 155),
+            SleepWindow(parentID: taylorID, startMinute: 21 * 60, durationMinutes: 480),
+        ]
+        let night = NightSchedule(
+            nightStartMinute: 21 * 60, nightEndMinute: 8 * 60, spacingMinutes: 60,
+            rotation: .alternating, firstShiftID: nil, parents: parents,
+            feeds: [feed(at: date(2026, 7, 21, 18, 0))], overrides: [],
+            sleepWindows: windows, calendar: calendar, now: date(2026, 7, 21, 21, 0))
+        let occs = night.occurrences()
+
+        XCTAssertEqual(occs[1].date, date(2026, 7, 21, 22, 0))
+        XCTAssertNil(occs[1].shiftedFrom)
+        XCTAssertEqual(occs.map(\.date), occs.map(\.date).sorted(),
+                       "slides never reorder the night")
     }
 
     func testNobodyAsleepFallsBackToRotation() {

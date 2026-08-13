@@ -6,6 +6,41 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Changed — night bottles slide into a get-up gap instead of waking someone
+- A bottle whose rhythm time would land while BOTH parents are planned-asleep
+  now slides to the nearest minute one of them is already up — at most 45
+  minutes, and never more than half the night's spacing, so slid bottles can't
+  crowd or overtake their neighbors. A 3:27am bottle against a 2:30–3:00
+  get-up gap becomes 2:59: the parent who's up anyway takes it on her way to
+  bed, and nobody's sleep is broken. Ties slide earlier (a bottle slightly
+  early beats waking someone).
+- The night's FIRST bottle never moves — it's a logged feed, an explicit
+  "move tonight", or the window opening. Every slide measures off the rhythm
+  grid, never off the previous slide, so one nudge can't cascade through the
+  night or change how many bottles there are (per-night overrides stay
+  attached to their slot).
+- When no reachable minute has anyone up, the time stands and the existing
+  soonest-wake-up rule picks who gets woken — the plan never invents a gap.
+  A slid row says so on the timeline ("Moved off 3:27 AM — both asleep").
+
+### Fixed — sleep bands no longer break apart between rows
+- The schedule rows put their 46pt height floor on the OUTSIDE of the row's
+  stack, which padded the row without telling its children: the sleep bands
+  (and the rail) stretched only to the text's natural height, leaving a gap at
+  every row boundary — a different gap per row, since captions and weekday
+  labels change that height. The floor now lives on a full-height child, so a
+  window that spans six rows draws as one unbroken bar. Same fix on the NOW
+  cap, whose fixed height had the same shape.
+- Bands no longer dim above the NOW line. A sleep block is one object; fading
+  half of it read as a break in the sleep rather than a break in the past.
+
+### Changed — sleep bands got wide enough to read
+- The lanes went from 6pt hairlines to 16pt bars, and the fall-asleep marker
+  from a 10pt 💤 (which spilled outside the lane and vanished into blue and
+  violet bands) to a `zzz` glyph knocked out of the band in the page color —
+  legible on any parent's tint in either appearance. The legend strip labels
+  the column "asleep" once, under the avatar chips.
+
 ### Changed — sleep windows paint as lanes beside the nighttime timeline
 - The Nighttime tab's "Next 24 hours" rail is bottles-only now. Each parent
   gets a slim vertical lane between the clock gutter and the rail — avatar
@@ -17,8 +52,8 @@ All notable changes to Two of Us are recorded here. The format loosely follows
   wake end is rounded; everywhere a block merely continues into the next row
   the line is cut square and bled past the row boundary, so one window reads
   as one unbroken band however many rows it crosses (row spacing pinned to
-  zero for the same reason). Bands run through the NOW cap, dim above it,
-  and clamp to the rail's range; same-parent windows that touch merge into
+  zero for the same reason). Bands run through the NOW cap and clamp to the
+  rail's range; same-parent windows that touch merge into
   one block, and a get-up gap between two bottles is a visible break between
   two rounded ends. No clock labels ride the lanes — exact times live in
   "Your sleep, planned", in the sheet a band tap opens, and in VoiceOver, so

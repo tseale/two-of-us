@@ -220,8 +220,7 @@ struct ScheduleView: View {
                     .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
             }
             ForEach(Array(earlier.enumerated()), id: \.element.id) { index, occ in
-                row(occ, now: now, lanes: lanes, spans: spans,
-                    slices: slices(index), dimmed: true)
+                row(occ, now: now, lanes: lanes, spans: spans, slices: slices(index))
             }
             TimelineNowCap {
                 if !lanes.isEmpty {
@@ -232,7 +231,7 @@ struct ScheduleView: View {
             .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
             ForEach(Array(upcoming.enumerated()), id: \.element.id) { index, occ in
                 row(occ, now: now, lanes: lanes, spans: spans,
-                    slices: slices(nowIndex + 1 + index), dimmed: false)
+                    slices: slices(nowIndex + 1 + index))
             }
         } header: {
             Text("Next 24 hours").foregroundStyle(AppColor.text3)
@@ -241,7 +240,7 @@ struct ScheduleView: View {
 
     private func row(_ occ: ScheduleOccurrence, now: Date,
                      lanes: [SleepLaneColumn.Lane], spans: [ScheduleOccurrence],
-                     slices: [SleepLaneLayout.Slice], dimmed: Bool) -> some View {
+                     slices: [SleepLaneLayout.Slice]) -> some View {
         ScheduleRow(
             occurrence: occ,
             caption: caption(for: occ),
@@ -250,7 +249,6 @@ struct ScheduleView: View {
             showsDay: !Calendar.current.isDate(occ.date, inSameDayAs: now),
             lanes: lanes,
             laneSlices: slices,
-            laneDimmed: dimmed,
             onLaneTap: { openLaneTarget(slices: slices, laneIndex: $0, spans: spans) },
             laneSummary: laneSummary(lanes: lanes, slices: slices)
         )
@@ -322,6 +320,11 @@ struct ScheduleView: View {
                 let name = participants.first { $0.id == occ.overrideCreatedByID }?.displayName ?? ""
                 return name.isEmpty ? "Changed for tonight" : "Changed by \(name)"
             }
+            // A bottle off the night's rhythm needs to say why, or it reads
+            // as a bug: it was slid to a minute one of you is already up.
+            if let rhythm = occ.shiftedFrom {
+                return "Moved off \(TimeFormatting.clock(rhythm)) — both asleep"
+            }
             return nil
         }
     }
@@ -366,7 +369,7 @@ struct ScheduleView: View {
         } header: {
             Text("Your sleep, planned").foregroundStyle(AppColor.text3)
         } footer: {
-            Text("\(balanceSummary)\(nightSummary)Set when each of you sleeps — a feed that lands during someone's window goes to the other parent, and the sleeping phone stays quiet. If you're both asleep, it goes to whoever's wake-up comes soonest. Feeds build themselves each night from the first logged bottle. Windows repeat every night until changed; tap a band on the timeline to change just one night.")
+            Text("\(balanceSummary)\(nightSummary)Set when each of you sleeps — a feed that lands during someone's window goes to the other parent, and the sleeping phone stays quiet. If you'd both be asleep, the bottle slides up to 45 minutes to the nearest moment one of you is already up; when there's no gap to reach, it goes to whoever's wake-up comes soonest. Feeds build themselves each night from the first logged bottle. Windows repeat every night until changed; tap a band on the timeline to change just one night.")
         }
     }
 
