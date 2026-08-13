@@ -171,13 +171,19 @@ struct SnooTag: View {
 }
 
 /// The soft "NOW" marker that caps the top of the timeline rail. A hollow node
-/// with the rail line dropping down to meet the newest event below it.
-struct TimelineNowCap: View {
+/// with the rail line dropping down to meet the newest event below it. The
+/// schedule tab slots its sleep lanes between the label and the rail so the
+/// bands run through NOW unbroken; everyone else takes the empty default.
+struct TimelineNowCap<Lanes: View>: View {
+    @ViewBuilder var lanes: Lanes
+
     var body: some View {
         HStack(spacing: 10) {
             Text("NOW")
                 .sectionLabelStyle(color: AppColor.text3)
                 .frame(width: 64, alignment: .trailing)
+
+            lanes
 
             VStack(spacing: 0) {
                 Circle()
@@ -195,6 +201,10 @@ struct TimelineNowCap: View {
         .frame(height: 26)
         .accessibilityHidden(true)
     }
+}
+
+extension TimelineNowCap where Lanes == EmptyView {
+    init() { self.init { EmptyView() } }
 }
 
 #Preview {

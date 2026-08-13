@@ -6,6 +6,22 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Changed — sleep windows paint as lanes beside the nighttime timeline
+- The Nighttime tab's "Next 24 hours" rail is bottles-only now. Each parent
+  gets a thin vertical lane between the clock gutter and the rail — avatar
+  chip on top, a soft band in their color where they're planned-asleep, a
+  solid cap with a tiny clock where they fall asleep or wake — so any bottle
+  row reads at a glance who's down, who's up, and why it's assigned the way
+  it is (the both-asleep overlap is two filled lanes side by side). Bands run
+  unbroken through the NOW cap, dim above it, and clamp to the rail's range;
+  same-parent windows that touch merge into one block, and a get-up gap
+  between two bottles renders as a labeled notch.
+- Tapping a band opens the same per-night actions the old "GT sleeps" rows
+  offered (VoiceOver gets them as named row actions, plus a "Both asleep" /
+  "GT asleep" summary per row). Windows themselves still live in "Your
+  sleep, planned" below. Geometry is a pure, unit-tested layout
+  (`SleepLaneLayout`); no engine, model, or sync changes.
+
 ### Changed — overlapping sleep windows route feeds to the soonest wake-up
 - A night bottle that lands while BOTH parents are inside planned sleep
   windows now goes to the parent whose planned wake-up comes soonest — their

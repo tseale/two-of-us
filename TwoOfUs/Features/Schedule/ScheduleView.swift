@@ -69,17 +69,22 @@ struct ScheduleView: View {
 
     private func scheduleList(now: Date) -> some View {
         let occurrences = mergedOccurrences(now: now)
+        // Window spans paint the sleep lanes; instants (bottles, plus any
+        // legacy put-down slots) stay rows. A skipped window is not sleep
+        // tonight — it paints nothing.
+        let rows = occurrences.filter { $0.endDate == nil }
+        let spans = occurrences.filter { $0.endDate != nil && $0.status != .skipped }
         // The hero is the next FEED — a sleep window isn't a "you're up next"
         // (it's the opposite: someone lying down).
-        let upNext = occurrences.first {
+        let upNext = rows.first {
             $0.kind == .feed && $0.status == .upcoming && $0.date >= now
         }
         return List {
-            if occurrences.isEmpty {
+            if rows.isEmpty {
                 emptySection(now: now)
             } else {
                 if let upNext { heroSection(upNext, now: now) }
-                timelineSection(occurrences, now: now)
+                timelineSection(rows, spans: spans, now: now)
             }
             planSection
         }
@@ -186,27 +191,65 @@ struct ScheduleView: View {
 
     // MARK: Timeline
 
-    private func timelineSection(_ occurrences: [ScheduleOccurrence], now: Date) -> some View {
-        let earlier = occurrences.filter { $0.date < now }
-        let upcoming = occurrences.filter { $0.date >= now }
+    private func timelineSection(_ rows: [ScheduleOccurrence],
+                                 spans: [ScheduleOccurrence], now: Date) -> some View {
+        let earlier = rows.filter { $0.date < now }
+        let upcoming = rows.filter { $0.date >= now }
+        let lanes = laneStyles(spans: spans)
+        // The rail's elements in list order — every bottle row plus the NOW
+        // cap — so the lane bands connect edge-to-edge through all of them.
+        let layout = SleepLaneLayout(
+            elementDates: earlier.map(\.date) + [now] + upcoming.map(\.date),
+            laneParentIDs: lanes.map(\.id),
+            spans: spans.compactMap { occ in
+                guard let end = occ.endDate, let parentID = occ.assignedToID else { return nil }
+                return SleepLaneLayout.Span(id: occ.id, parentID: parentID,
+                                            start: occ.date, end: end)
+            })
+        let slices = { (index: Int) -> [SleepLaneLayout.Slice] in
+            index < layout.slices.count ? layout.slices[index] : []
+        }
+        let nowIndex = earlier.count
         return Section {
-            ForEach(earlier) { row($0, now: now) }
-            TimelineNowCap()
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-            ForEach(upcoming) { row($0, now: now) }
+            if !lanes.isEmpty {
+                SleepLaneLegendRow(lanes: lanes, photos: participantPhoto)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+            }
+            ForEach(Array(earlier.enumerated()), id: \.element.id) { index, occ in
+                row(occ, now: now, lanes: lanes, spans: spans,
+                    slices: slices(index), dimmed: true)
+            }
+            TimelineNowCap {
+                if !lanes.isEmpty {
+                    SleepLaneColumn(lanes: lanes, slices: slices(nowIndex))
+                }
+            }
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+            ForEach(Array(upcoming.enumerated()), id: \.element.id) { index, occ in
+                row(occ, now: now, lanes: lanes, spans: spans,
+                    slices: slices(nowIndex + 1 + index), dimmed: false)
+            }
         } header: {
             Text("Next 24 hours").foregroundStyle(AppColor.text3)
         }
     }
 
-    private func row(_ occ: ScheduleOccurrence, now: Date) -> some View {
+    private func row(_ occ: ScheduleOccurrence, now: Date,
+                     lanes: [SleepLaneColumn.Lane], spans: [ScheduleOccurrence],
+                     slices: [SleepLaneLayout.Slice], dimmed: Bool) -> some View {
         ScheduleRow(
             occurrence: occ,
             caption: caption(for: occ),
             assigneePhoto: occ.assignedToID.flatMap { participantPhoto[$0] },
             isMine: isMine(occ),
-            showsDay: !Calendar.current.isDate(occ.date, inSameDayAs: now)
+            showsDay: !Calendar.current.isDate(occ.date, inSameDayAs: now),
+            lanes: lanes,
+            laneSlices: slices,
+            laneDimmed: dimmed,
+            onLaneTap: { openLaneTarget(slices: slices, laneIndex: $0, spans: spans) },
+            laneSummary: laneSummary(lanes: lanes, slices: slices)
         )
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
@@ -215,6 +258,45 @@ struct ScheduleView: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityHint(occ.source == .night
             ? "Reassign or skip tonight's feed" : "Reassign, move, or change this slot")
+        .accessibilityActions {
+            ForEach(Array(lanes.enumerated()), id: \.element.id) { index, lane in
+                if index < slices.count, slices[index].primarySpanID != nil {
+                    Button("Change \(lane.name)'s sleep window") {
+                        openLaneTarget(slices: slices, laneIndex: index, spans: spans)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Lanes for the active parents in join order — the stable left-to-right
+    /// the legend chips label. No windows on the schedule = no lane column.
+    private func laneStyles(spans: [ScheduleOccurrence]) -> [SleepLaneColumn.Lane] {
+        guard !spans.isEmpty else { return [] }
+        return participants
+            .filter(\.isActive)
+            .sorted { ($0.invitedAt, $0.id.uuidString) < ($1.invitedAt, $1.id.uuidString) }
+            .map { .init(id: $0.id, name: $0.displayName, colorHex: $0.colorHex) }
+    }
+
+    /// A lane band tap (or its VoiceOver action) opens the covering window's
+    /// per-night actions — the same sheet its timeline row used to offer.
+    private func openLaneTarget(slices: [SleepLaneLayout.Slice], laneIndex: Int,
+                                spans: [ScheduleOccurrence]) {
+        guard laneIndex < slices.count,
+              let spanID = slices[laneIndex].primarySpanID,
+              let target = spans.first(where: { $0.id == spanID }) else { return }
+        actionTarget = target
+    }
+
+    /// "GT asleep" / "Both asleep" — the who's-down state each row folds into
+    /// its VoiceOver label now that windows paint as lanes, not rows.
+    private func laneSummary(lanes: [SleepLaneColumn.Lane],
+                             slices: [SleepLaneLayout.Slice]) -> String? {
+        let asleep = zip(lanes, slices).filter { $1.asleepAtNode }.map(\.0.name)
+        guard !asleep.isEmpty else { return nil }
+        if lanes.count > 1, asleep.count == lanes.count { return "Both asleep" }
+        return "\(asleep.joined(separator: " and ")) asleep"
     }
 
     /// Both sources open the per-night actions sheet — a dynamic night row
@@ -236,11 +318,6 @@ struct ScheduleView: View {
             if occ.activeOverrideID != nil {
                 let name = participants.first { $0.id == occ.overrideCreatedByID }?.displayName ?? ""
                 return name.isEmpty ? "Changed for tonight" : "Changed by \(name)"
-            }
-            // A window row carries its span — the start clock sits in the
-            // gutter, so the line under the title says where it runs to.
-            if let end = occ.endDate {
-                return "Until \(TimeFormatting.clock(end)) · \(TimeFormatting.duration(from: occ.date, to: end))"
             }
             return nil
         }
@@ -286,7 +363,7 @@ struct ScheduleView: View {
         } header: {
             Text("Your sleep, planned").foregroundStyle(AppColor.text3)
         } footer: {
-            Text("\(balanceSummary)\(nightSummary)Set when each of you sleeps — a feed that lands during someone's window goes to the other parent, and the sleeping phone stays quiet. If you're both asleep, it goes to whoever's wake-up comes soonest. Feeds build themselves each night from the first logged bottle. Windows repeat every night until changed; tap one on the timeline to change just one night.")
+            Text("\(balanceSummary)\(nightSummary)Set when each of you sleeps — a feed that lands during someone's window goes to the other parent, and the sleeping phone stays quiet. If you're both asleep, it goes to whoever's wake-up comes soonest. Feeds build themselves each night from the first logged bottle. Windows repeat every night until changed; tap a band on the timeline to change just one night.")
         }
     }
 
