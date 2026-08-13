@@ -28,6 +28,17 @@ import Foundation
 /// Later slots are anchor + k·night-spacing until the (lead-extended) window
 /// closes.
 ///
+/// **Timing around sleep.** Before anyone is assigned, a bottle whose rhythm
+/// time lands while BOTH parents are planned-asleep slides to the nearest
+/// minute where one of them is already up — at most `maxAwakeShiftMinutes`,
+/// and never more than half the spacing, so the night keeps its order and its
+/// shape. A 3:27am bottle against a 2:30–3:00 get-up gap becomes 2:59: the
+/// parent who's up anyway takes it, and nobody gets woken. Ties go earlier (a
+/// bottle slightly early beats waking someone). The night's FIRST bottle never
+/// moves — it's a logged feed, an explicit choice, or the window opening.
+/// Every slide is off the grid, never off the previous slide, so one nudge
+/// can't cascade through the night or change how many bottles there are.
+///
 /// **Assignment.** The standing sleep windows decide first: a bottle that
 /// lands while exactly one parent is planned-asleep goes to the one who's
 /// awake — and one that lands while BOTH are planned-asleep goes to the
@@ -115,6 +126,10 @@ struct NightSchedule {
     /// A feed this close BEFORE the window opens still counts as the night's
     /// first bottle — an 8:15pm feed against a 9pm window starts the night.
     static let preWindowGraceMinutes = 60
+    /// How far a bottle may slide off the rhythm to land while a parent is
+    /// already awake. Matches `ScheduleEngine.fulfillmentWindow`, so a bottle
+    /// logged at the un-slid time still ticks its slot off.
+    static let maxAwakeShiftMinutes = 45
 
     // MARK: Public API
 
@@ -147,9 +162,15 @@ struct NightSchedule {
         // same lead so the night keeps its full length (8:15pm against a
         // 9pm–8am window runs through 8:15am).
         let lead = max(0, window.start.timeIntervalSince(anchor))
-        let times = Self.slotTimes(anchor: anchor,
-                                   windowEnd: window.end.addingTimeInterval(lead),
-                                   spacingMinutes: spacingMinutes)
+        let rhythm = Self.slotTimes(anchor: anchor,
+                                    windowEnd: window.end.addingTimeInterval(lead),
+                                    spacingMinutes: spacingMinutes)
+        // Bottles that would land while you're BOTH down slide to the nearest
+        // minute one of you is up. The anchor stays put — it already happened,
+        // or you set it.
+        let times = rhythm.enumerated().map { index, date in
+            index == 0 ? date : awakeShifted(date)
+        }
         let nightKey = ScheduleEngine.dayKey(for: window.start, calendar: calendar)
         let assignees = rotationAssignees(count: times.count)
         let liveOverrides = nightOverrides(nightKey: nightKey)
@@ -189,7 +210,8 @@ struct NightSchedule {
                 assignedToColorHex: override?.assignedToColorHex ?? assignee?.colorHex ?? "",
                 activeOverrideID: override?.id,
                 overrideCreatedByID: override?.createdByID,
-                source: .night
+                source: .night,
+                shiftedFrom: date == rhythm[index] ? nil : rhythm[index]
             )
         }
     }
@@ -323,6 +345,43 @@ struct NightSchedule {
             t = t.addingTimeInterval(TimeInterval(spacingMinutes * 60))
         }
         return times
+    }
+
+    // MARK: Timing around sleep
+
+    /// A bottle's time, slid to the nearest minute where at least one parent
+    /// is planned-awake — but only when its rhythm time would land while
+    /// they're BOTH down. Earlier wins ties: a bottle a few minutes early
+    /// beats waking someone up. The budget is capped below half the spacing so
+    /// slid slots can never cross or reorder. When nothing within the budget
+    /// has anyone up (a long stretch you're both asleep for), the time stands
+    /// and `onDutyParent` decides who gets woken — the plan doesn't pretend a
+    /// gap exists.
+    private func awakeShifted(_ date: Date) -> Date {
+        guard !sleepWindows.isEmpty, parents.count >= 2 else { return date }
+        let minute = minuteOfDay(date)
+        guard !anyoneAwake(atMinute: minute) else { return date }
+        let budget = min(Self.maxAwakeShiftMinutes, spacingMinutes / 2 - 1)
+        guard budget >= 1 else { return date }
+        for offset in 1...budget {
+            if anyoneAwake(atMinute: wrap(minute - offset)) {
+                return date.addingTimeInterval(TimeInterval(-offset * 60))
+            }
+            if anyoneAwake(atMinute: wrap(minute + offset)) {
+                return date.addingTimeInterval(TimeInterval(offset * 60))
+            }
+        }
+        return date
+    }
+
+    /// Whether any parent still on the roster is planned-awake at a wall-clock
+    /// minute. A window belonging to someone who left decides nothing.
+    private func anyoneAwake(atMinute minute: Int) -> Bool {
+        parents.contains { parent in
+            !sleepWindows.contains {
+                $0.parentID == parent.id && $0.contains(minuteOfDay: minute)
+            }
+        }
     }
 
     // MARK: Assignment

@@ -37,6 +37,10 @@ struct ScheduleOccurrence: Identifiable, Equatable {
     /// logged events; they exist to be seen (and swapped) on the timeline.
     var endDate: Date? = nil
     var source: Source = .slot
+    /// For a `.night` bottle that was slid off its rhythm so it lands while a
+    /// parent is awake: the time it would otherwise have been. Nil means the
+    /// bottle is exactly on the night's spacing.
+    var shiftedFrom: Date? = nil
 }
 
 /// Pure merge of the standing plan, per-night overrides, and the event log into

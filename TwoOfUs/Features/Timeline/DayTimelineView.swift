@@ -195,10 +195,13 @@ struct TimelineNowCap<Lanes: View>: View {
                     .frame(maxHeight: .infinity)
             }
             .frame(width: 16)
+            // The cap's height lives on the rail, not the stack: sized from
+            // the outside, `lanes` would stretch only to the "NOW" label's
+            // natural height and break the bands running through it.
+            .frame(height: 26)
 
             Spacer(minLength: 0)
         }
-        .frame(height: 26)
         .accessibilityHidden(true)
     }
 }

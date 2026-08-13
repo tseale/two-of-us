@@ -16,11 +16,10 @@ struct ScheduleRow: View {
     var isMine: Bool = false
     /// Show the weekday under the clock when the date isn't today.
     var showsDay: Bool = false
-    /// Sleep lanes: the parents' strips between the clock and the rail, and
-    /// this row's precomputed slice of their bands. Empty = no lane column.
+    /// Sleep bands: the parents' bars between the clock and the rail, and
+    /// this row's precomputed slice of them. Empty = no band column.
     var lanes: [SleepLaneColumn.Lane] = []
     var laneSlices: [SleepLaneLayout.Slice] = []
-    var laneDimmed: Bool = false
     /// Band tap → the covering window's per-night actions (lane index).
     var onLaneTap: ((Int) -> Void)? = nil
     /// A11y suffix describing who's planned-asleep at this row's time.
@@ -54,8 +53,7 @@ struct ScheduleRow: View {
             .frame(width: 64, alignment: .trailing)
 
             if !lanes.isEmpty {
-                SleepLaneColumn(lanes: lanes, slices: laneSlices,
-                                dimmed: laneDimmed, onTap: onLaneTap)
+                SleepLaneColumn(lanes: lanes, slices: laneSlices, onTap: onLaneTap)
             }
 
             rail
@@ -80,7 +78,6 @@ struct ScheduleRow: View {
                 assignee
             }
         }
-        .frame(minHeight: 46)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
     }
@@ -103,6 +100,14 @@ struct ScheduleRow: View {
     }
 
     /// The continuous rail plus this row's node, dimmed once settled.
+    ///
+    /// The row's height floor lives HERE, not on the enclosing `HStack`: an
+    /// outer `.frame(minHeight:)` pads the row without telling its children,
+    /// so the rail and the sleep bands would stretch only to the text's
+    /// natural height and leave a ragged gap at every row boundary — and a
+    /// different gap per row, since captions and weekday labels change that
+    /// height. Setting the floor on a full-height child makes the stack itself
+    /// 46pt, so every greedy sibling spans the whole row and the lines fuse.
     private var rail: some View {
         ZStack {
             Rectangle()
@@ -112,6 +117,7 @@ struct ScheduleRow: View {
             node
         }
         .frame(width: 16)
+        .frame(minHeight: 46)
     }
 
     private var node: some View {
