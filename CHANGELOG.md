@@ -34,6 +34,25 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 - Bands no longer dim above the NOW line. A sleep block is one object; fading
   half of it read as a break in the sleep rather than a break in the past.
 
+### Fixed — sleep bands are one flat color, and the night gets an end
+- A band no longer darkens where it crosses a row. The bars are drawn per row
+  and deliberately bleed a couple of points past each boundary so neighbors
+  fuse, but the fill was translucent, so every overlap composited with itself
+  and striped the bar with a dark line every row or two. The softening alpha
+  is now flattened into the color itself — same shade, no seam.
+- A fall-asleep or wake landing a minute from a row boundary left a 2pt stub
+  in one row carrying the rounded cap and the `zzz`, with the real block
+  starting square-topped in the next: an 8pt corner radius squashed flat, and
+  a marker floating off a thing too small to be a block. Such a transition is
+  now drawn by the neighboring row, which has room for it — one clean cap at
+  the boundary, at the cost of a few points of drift on a rail that was never
+  to scale.
+- Sleep that outlasts the last bottle used to run off the bottom of the
+  schedule, open-ended — the parent sleeping latest never saw their night
+  finish. The rail now ends in a hollow "awake" node at the night's last
+  wake, so every window has two real ends and windows that fell entirely past
+  the last bottle (an early-morning nap) are on the timeline at all.
+
 ### Changed — sleep bands got wide enough to read
 - The lanes went from 6pt hairlines to 16pt bars, and the fall-asleep marker
   from a 10pt 💤 (which spilled outside the lane and vanished into blue and

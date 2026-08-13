@@ -199,16 +199,27 @@ struct ScheduleView: View {
         let earlier = rows.filter { $0.date < now }
         let upcoming = rows.filter { $0.date >= now }
         let lanes = laneStyles(spans: spans)
+        let laneSpans: [SleepLaneLayout.Span] = spans.compactMap { occ in
+            guard let end = occ.endDate, let parentID = occ.assignedToID else { return nil }
+            return SleepLaneLayout.Span(id: occ.id, parentID: parentID,
+                                        start: occ.date, end: end)
+        }
         // The rail's elements in list order — every bottle row plus the NOW
         // cap — so the lane bands connect edge-to-edge through all of them.
+        let railDates = earlier.map(\.date) + [now] + upcoming.map(\.date)
+        let laneIDs = Set(lanes.map(\.id))
+        // …and one more when someone is still asleep past the last bottle: the
+        // rail's range would end there and leave the longest sleeper's band
+        // running off the bottom, open-ended. A terminal element at the night's
+        // last wake gives every window two real ends, so the whole night of
+        // sleep is on screen rather than most of it.
+        let wake = laneSpans.filter { laneIDs.contains($0.parentID) }
+            .map(\.end).max()
+            .flatMap { $0 > (railDates.last ?? now) ? $0 : nil }
         let layout = SleepLaneLayout(
-            elementDates: earlier.map(\.date) + [now] + upcoming.map(\.date),
+            elementDates: railDates + (wake.map { [$0] } ?? []),
             laneParentIDs: lanes.map(\.id),
-            spans: spans.compactMap { occ in
-                guard let end = occ.endDate, let parentID = occ.assignedToID else { return nil }
-                return SleepLaneLayout.Span(id: occ.id, parentID: parentID,
-                                            start: occ.date, end: end)
-            })
+            spans: laneSpans)
         let slices = { (index: Int) -> [SleepLaneLayout.Slice] in
             index < layout.slices.count ? layout.slices[index] : []
         }
@@ -232,6 +243,11 @@ struct ScheduleView: View {
             ForEach(Array(upcoming.enumerated()), id: \.element.id) { index, occ in
                 row(occ, now: now, lanes: lanes, spans: spans,
                     slices: slices(nowIndex + 1 + index))
+            }
+            if let wake, !lanes.isEmpty {
+                SleepLaneWakeCap(date: wake, lanes: lanes, slices: slices(railDates.count))
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
             }
         } header: {
             Text("Next 24 hours").foregroundStyle(AppColor.text3)

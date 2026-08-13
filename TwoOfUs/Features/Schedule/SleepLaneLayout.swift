@@ -12,8 +12,10 @@ import Foundation
 /// whether its ends are REAL transitions (a fall-asleep / wake) or clamps at
 /// the element's edge — the view rounds only real ends and bleeds clamped
 /// ends past the row boundary, so a block spanning many rows renders as one
-/// unbroken band. Same-parent windows that touch or overlap merge into one
-/// block — the same reading the assignment engine uses. Anything before the
+/// unbroken band. A transition landing too close to an element boundary to
+/// draw its own cap is handed to the neighboring element, which has the room.
+/// Same-parent windows that touch or overlap merge into one block — the same
+/// reading the assignment engine uses. Anything before the
 /// first element or after the last is clamped: an in-progress block runs off
 /// the edge, and windows entirely outside the rendered range contribute
 /// nothing (the standing-plan list below the timeline still shows every
@@ -61,7 +63,7 @@ struct SleepLaneLayout {
             return
         }
         let intervals = Self.mergedIntervals(spans: spans, parentIDs: laneParentIDs)
-        slices = elementDates.indices.map { index in
+        let built = elementDates.indices.map { index in
             let node = elementDates[index]
             let top = index == 0 ? node
                 : Self.midpoint(elementDates[index - 1], node)
@@ -71,6 +73,7 @@ struct SleepLaneLayout {
                 Self.slice(intervals: intervals[$0] ?? [], node: node, top: top, bottom: bottom)
             }
         }
+        slices = Self.handingOffCrampedCaps(built)
     }
 
     // MARK: Interval merging
@@ -149,6 +152,62 @@ struct SleepLaneLayout {
 
     private static func asleep(at date: Date, _ intervals: [Interval]) -> Bool {
         intervals.contains { $0.start <= date && date < $0.end }
+    }
+
+    // MARK: Cap hand-off
+
+    /// A run this short can't draw its own cap: the band's rounded end wants a
+    /// radius' worth of height (8pt of a row that's 46pt at its shortest,
+    /// hence ~0.18) and a stub gets the corners squashed flat — plus, on a
+    /// fall-asleep, a 💤 with nowhere to sit.
+    private static let minCapRun = 0.18
+
+    /// Moves a transition that lands a hair from an element boundary onto the
+    /// boundary itself, so the cap is drawn by the element with room for it.
+    ///
+    /// A fall-asleep three minutes before a row boundary would otherwise leave
+    /// a 2pt rounded stub at the bottom of one row with the real block starting
+    /// square-topped in the next — the cap detached from the thing it caps.
+    /// Dropping the stub and handing `startsHere` to the neighbor's leading run
+    /// puts one clean cap at the row boundary; a wake landing just *after* a
+    /// boundary hands `endsHere` back the other way. The band shifts by less
+    /// than the cap's own radius — a broken cap reads as a rendering bug, a
+    /// few points of drift on a rail that isn't to scale reads as nothing.
+    private static func handingOffCrampedCaps(_ built: [[Slice]]) -> [[Slice]] {
+        var out = built
+        guard out.count > 1, let laneCount = out.first?.count else { return out }
+        func isStub(_ run: Run) -> Bool {
+            run.range.upperBound - run.range.lowerBound < minCapRun
+        }
+        for lane in 0..<laneCount {
+            // Fall-asleep stub at an element's bottom edge → the next element.
+            for i in 0..<(out.count - 1) {
+                guard let stub = out[i][lane].runs.last,
+                      stub.startsHere, !stub.endsHere,
+                      stub.range.upperBound > 0.999, isStub(stub),
+                      let j = out[i + 1][lane].runs
+                        .firstIndex(where: { $0.range.lowerBound < 0.001 })
+                else { continue }
+                out[i][lane].runs.removeLast()
+                let heir = out[i + 1][lane].runs[j]
+                out[i + 1][lane].runs[j] = Run(range: heir.range, startsHere: true,
+                                               endsHere: heir.endsHere)
+            }
+            // Wake stub at an element's top edge → the previous element.
+            for i in stride(from: out.count - 1, to: 0, by: -1) {
+                guard let stub = out[i][lane].runs.first,
+                      stub.endsHere, !stub.startsHere,
+                      stub.range.lowerBound < 0.001, isStub(stub),
+                      let j = out[i - 1][lane].runs
+                        .firstIndex(where: { $0.range.upperBound > 0.999 })
+                else { continue }
+                out[i][lane].runs.removeFirst()
+                let heir = out[i - 1][lane].runs[j]
+                out[i - 1][lane].runs[j] = Run(range: heir.range,
+                                               startsHere: heir.startsHere, endsHere: true)
+            }
+        }
+        return out
     }
 
     /// Runs sorted and stitched — an interval crossing the node line arrives
