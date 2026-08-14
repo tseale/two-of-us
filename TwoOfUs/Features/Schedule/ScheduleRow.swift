@@ -24,6 +24,9 @@ struct ScheduleRow: View {
     var onLaneTap: ((Int) -> Void)? = nil
     /// A11y suffix describing who's planned-asleep at this row's time.
     var laneSummary: String? = nil
+    /// True on the timeline's last row: the rail line stops at the node
+    /// instead of continuing to the bottom of the row.
+    var isLastRow: Bool = false
 
     private var settled: Bool {   // rendered quiet: already handled or waved off
         if case .fulfilled = occurrence.status { return true }
@@ -110,10 +113,20 @@ struct ScheduleRow: View {
     /// 46pt, so every greedy sibling spans the whole row and the lines fuse.
     private var rail: some View {
         ZStack {
-            Rectangle()
-                .fill(AppColor.separator.opacity(0.6))
-                .frame(width: 2)
-                .frame(maxHeight: .infinity)
+            if isLastRow {
+                VStack(spacing: 0) {
+                    Rectangle()
+                        .fill(AppColor.separator.opacity(0.6))
+                        .frame(width: 2)
+                        .frame(maxHeight: .infinity)
+                    Color.clear.frame(maxHeight: .infinity)
+                }
+            } else {
+                Rectangle()
+                    .fill(AppColor.separator.opacity(0.6))
+                    .frame(width: 2)
+                    .frame(maxHeight: .infinity)
+            }
             node
         }
         .frame(width: 16)

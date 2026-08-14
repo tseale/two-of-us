@@ -224,12 +224,8 @@ struct ScheduleView: View {
             index < layout.slices.count ? layout.slices[index] : []
         }
         let nowIndex = earlier.count
+        let hasWakeCap = wake != nil && !lanes.isEmpty
         return Section {
-            if !lanes.isEmpty {
-                SleepLaneLegendRow(lanes: lanes, photos: participantPhoto)
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-            }
             ForEach(Array(earlier.enumerated()), id: \.element.id) { index, occ in
                 row(occ, now: now, lanes: lanes, spans: spans, slices: slices(index))
             }
@@ -241,8 +237,9 @@ struct ScheduleView: View {
             .listRowSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
             ForEach(Array(upcoming.enumerated()), id: \.element.id) { index, occ in
+                let last = !hasWakeCap && index == upcoming.count - 1
                 row(occ, now: now, lanes: lanes, spans: spans,
-                    slices: slices(nowIndex + 1 + index))
+                    slices: slices(nowIndex + 1 + index), isLastRow: last)
             }
             if let wake, !lanes.isEmpty {
                 SleepLaneWakeCap(date: wake, lanes: lanes, slices: slices(railDates.count))
@@ -256,7 +253,8 @@ struct ScheduleView: View {
 
     private func row(_ occ: ScheduleOccurrence, now: Date,
                      lanes: [SleepLaneColumn.Lane], spans: [ScheduleOccurrence],
-                     slices: [SleepLaneLayout.Slice]) -> some View {
+                     slices: [SleepLaneLayout.Slice],
+                     isLastRow: Bool = false) -> some View {
         ScheduleRow(
             occurrence: occ,
             caption: caption(for: occ),
@@ -266,7 +264,8 @@ struct ScheduleView: View {
             lanes: lanes,
             laneSlices: slices,
             onLaneTap: { openLaneTarget(slices: slices, laneIndex: $0, spans: spans) },
-            laneSummary: laneSummary(lanes: lanes, slices: slices)
+            laneSummary: laneSummary(lanes: lanes, slices: slices),
+            isLastRow: isLastRow
         )
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
@@ -339,7 +338,7 @@ struct ScheduleView: View {
             // A bottle off the night's rhythm needs to say why, or it reads
             // as a bug: it was slid to a minute one of you is already up.
             if let rhythm = occ.shiftedFrom {
-                return "Moved off \(TimeFormatting.clock(rhythm)) — both asleep"
+                return "From \(TimeFormatting.clock(rhythm))"
             }
             return nil
         }
