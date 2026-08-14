@@ -433,18 +433,10 @@ struct HomeView: View {
         // schedule speaks for), not minute-of-day arithmetic — during the
         // run-up to the window, "time since night start" would otherwise
         // reach back into LAST night and drag its stale slots onto the card.
-        if !sleepSlots.isEmpty, isTracked(.sleep), let window = night.relevantWindow {
-            let lookback = max(0, now.timeIntervalSince(window.start))
-            let horizon = max(0, window.end.timeIntervalSince(now))
+        if !sleepSlots.isEmpty, isTracked(.sleep) {
             let engine = ScheduleEngine(slots: sleepSlots, overrides: planOverrides,
                                         feeds: feeds, sleeps: sleeps, now: now)
-            merged += engine.occurrences(lookback: lookback, horizon: horizon)
-                .filter { occ in
-                    // Spans overlap-test against tonight: a 10pm–5am sleep
-                    // window belongs on the card of an 11pm-start night.
-                    occ.status != .skipped
-                        && (occ.endDate ?? occ.date) >= window.start && occ.date <= window.end
-                }
+            merged += night.planOccurrences(from: engine).filter { $0.status != .skipped }
         }
         return merged.sorted { $0.date < $1.date }
     }

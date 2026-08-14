@@ -103,13 +103,20 @@ struct ScheduleView: View {
     /// The standing (sleep) plan merged with the night's dynamically
     /// constructed feed schedule — anchored to the night's first (logged or
     /// projected) bottle, per-night overrides applied.
+    ///
+    /// Both halves speak for the SAME night: the sleep windows come through
+    /// `planOccurrences(from:)`, clipped to the window the feed schedule is
+    /// built on, rather than the engine's rolling 24 hours — which reached
+    /// into the night AFTER this one and put tomorrow morning's sleep beside
+    /// last night's bottles.
     private func mergedOccurrences(now: Date) -> [ScheduleOccurrence] {
-        var merged = engine(now: now).occurrences()
-        if let s = settingsList.first {
-            merged += NightSchedule(settings: s, participants: participants,
-                                    feeds: feeds, overrides: overrides,
-                                    sleepSlots: sleepSlots, now: now).occurrences()
+        guard let s = settingsList.first else {
+            return engine(now: now).occurrences().sorted { $0.date < $1.date }
         }
+        let night = NightSchedule(settings: s, participants: participants,
+                                  feeds: feeds, overrides: overrides,
+                                  sleepSlots: sleepSlots, now: now)
+        let merged = night.occurrences() + night.planOccurrences(from: engine(now: now))
         return merged.sorted { $0.date < $1.date }
     }
 
@@ -242,12 +249,19 @@ struct ScheduleView: View {
                     slices: slices(nowIndex + 1 + index), isLastRow: last)
             }
             if let wake, !lanes.isEmpty {
-                SleepLaneWakeCap(date: wake, lanes: lanes, slices: slices(railDates.count))
+                SleepLaneWakeCap(date: wake, lanes: lanes, slices: slices(railDates.count),
+                                 showsDay: !Calendar.current.isDate(wake, inSameDayAs: now))
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
             }
         } header: {
-            Text("Next 24 hours").foregroundStyle(AppColor.text3)
+            // The rail is ONE night, not a rolling day — "Next 24 hours" was
+            // never true of it, and read as a promise of tomorrow. It's
+            // "Tonight" while any of the night's bottles is still ahead
+            // (evening run-up and the small hours alike) and "Last night"
+            // once they're all behind: at 8am the rail is a record.
+            Text(upcoming.isEmpty ? "Last night" : "Tonight")
+                .foregroundStyle(AppColor.text3)
         }
     }
 

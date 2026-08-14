@@ -386,6 +386,35 @@ final class SleepWindowTests: XCTestCase {
         XCTAssertEqual(tonight?.endDate, date(2026, 7, 22, 6, 0))
     }
 
+    // MARK: One screen, one night
+
+    func testPlanOccurrencesClipToTheNightTheFeedsAreFor() {
+        // 7:30pm–9:30am night; Katie sleeps 8pm–2:30am, Taylor 1am–9am. At
+        // 8:39am the only window still standing is Taylor's, ending at 9. The
+        // engine's own rolling 24 hours also hands back TONIGHT's windows and
+        // tomorrow's 1am–9am, so the sleep bands (and the rail's wake cap,
+        // which lands on the latest wake) would describe a different night
+        // than the bottles they sit beside.
+        let katie = PlanSlot(kind: .sleep, minuteOfDay: 20 * 60, endMinuteOfDay: 2 * 60 + 30,
+                             assignedToID: katieID, assignedToName: "Katie")
+        let taylor = PlanSlot(kind: .sleep, minuteOfDay: 60, endMinuteOfDay: 9 * 60,
+                              assignedToID: taylorID, assignedToName: "Taylor")
+        let now = date(2026, 8, 14, 8, 39)
+        let night = NightSchedule(
+            nightStartMinute: 19 * 60 + 30, nightEndMinute: 9 * 60 + 30,
+            spacingMinutes: 150, rotation: .alternating, firstShiftID: nil,
+            parents: parents, feeds: [feed(at: date(2026, 8, 13, 21, 35))],
+            overrides: [], sleepWindows: [], calendar: calendar, now: now)
+        let e = engine(slots: [katie, taylor], now: now)
+
+        let clipped = night.planOccurrences(from: e)
+        XCTAssertEqual(clipped.map(\.date), [date(2026, 8, 14, 1, 0)])
+        XCTAssertEqual(clipped.first?.endDate, date(2026, 8, 14, 9, 0),
+                       "the wake cap belongs on THIS morning's 9, not tomorrow's")
+        XCTAssertTrue(e.occurrences().contains { $0.date >= date(2026, 8, 14, 20, 0) },
+                      "the unclipped engine really does reach into tomorrow night")
+    }
+
     // MARK: Ring surfaces stay dark
 
     func testWindowsNeverAlarmOrRemind() {
