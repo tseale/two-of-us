@@ -342,6 +342,11 @@ struct ScheduleView: View {
             return name.isEmpty ? "Done ✓" : "Covered by \(name) ✓"
         case .overdue:
             return "Overdue"
+        case .missed:
+            // Not a scolding: the night moved past this one and a later bottle
+            // covered it. It says "fed later" so the row explains itself
+            // rather than reading as an accusation at 8am.
+            return "Skipped — fed later"
         case .skipped:
             return "Skipped tonight"
         case .upcoming:

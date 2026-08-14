@@ -52,6 +52,14 @@ import Foundation
 /// records the standing plan uses, keyed on the slot's deterministic
 /// synthetic id, and an override beats windows and rotation alike.
 ///
+/// **What the night still owes you.** A slot matches a logged bottle within
+/// `fulfillmentWindow` — half the night's own spacing, so "nearest slot wins"
+/// — and nothing logged before the anchor matches at all. Past slots the night
+/// has already run PAST read `.missed`, not `.overdue`: once a later bottle is
+/// in, the ones behind it are settled, whether the baby stretched or nobody
+/// logged them. Only the tail after the last logged bottle is still owed, and
+/// only it stays red.
+///
 /// Nothing per-night is stored; both phones derive the identical schedule.
 /// Sibling of `ScheduleEngine`/`StatsEngine`: no store access, no side
 /// effects — callers pass fetched arrays, tests pass fixtures with a pinned
@@ -201,6 +209,12 @@ struct NightSchedule {
         let fulfilled = fulfillment(times: times, anchor: anchor, skippedIndices: Set(
             liveOverrides.filter { $0.value.isSkipped }.map(\.key)
         ))
+        // The night only owes you the bottles it hasn't run past. Once a LATER
+        // bottle is logged, every unfulfilled slot behind it is settled — the
+        // baby went longer, or it went unlogged, and nobody is going back at
+        // 8am to mark the 12:05. Only the tail after the last logged bottle is
+        // still genuinely outstanding, so only it stays red.
+        let lastFulfilled = fulfilled.keys.max()
 
         return times.enumerated().map { index, date in
             let override = liveOverrides[index]
@@ -210,7 +224,7 @@ struct NightSchedule {
             } else if let eventID = fulfilled[index] {
                 status = .fulfilled(byEventID: eventID)
             } else if date < now {
-                status = .overdue
+                status = index < (lastFulfilled ?? -1) ? .missed : .overdue
             } else {
                 status = .upcoming
             }

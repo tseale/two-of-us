@@ -535,7 +535,8 @@ final class NightScheduleTests: XCTestCase {
                        "70 minutes late against a 2½h rhythm is still that bottle")
         XCTAssertEqual(occs[3].status, .overdue,
                        "one bottle covers one slot — the 5:05 is genuinely unfed")
-        XCTAssertEqual(occs[4].status, .overdue)
+        XCTAssertEqual(occs[4].status, .overdue,
+                       "nothing landed after them, so the tail is still owed")
     }
 
     func testBottlePastHalfTheSpacingBelongsToTheNextSlot() {
@@ -548,8 +549,37 @@ final class NightScheduleTests: XCTestCase {
         let occs = realNight(feeds: [nine35, three55],
                              now: date(2026, 8, 14, 8, 39)).occurrences()
 
-        XCTAssertEqual(occs[2].status, .overdue)
         XCTAssertEqual(occs[3].status, .fulfilled(byEventID: three55.id))
+    }
+
+    func testSlotsBehindALoggedBottleReadAsSkipped() {
+        // Same night, only the 9:35 and a 3:55 logged. The 12:05 and 2:35 came
+        // and went — the baby stretched, or nobody logged them — and a later
+        // bottle has since landed, so they are settled, not outstanding:
+        // nobody goes back at 8am to mark the 12:05. The 7:35 is the only one
+        // still owed, because nothing landed after it.
+        let nine35 = feed(at: date(2026, 8, 13, 21, 35))
+        let three55 = feed(at: date(2026, 8, 14, 3, 55))
+        let occs = realNight(feeds: [nine35, three55],
+                             now: date(2026, 8, 14, 8, 39)).occurrences()
+
+        XCTAssertEqual(occs.map(\.status), [
+            .fulfilled(byEventID: nine35.id), .missed, .missed,
+            .fulfilled(byEventID: three55.id), .overdue,
+        ])
+    }
+
+    func testSkippedByTheNightIsNotAnOverride() {
+        // `.missed` is derived, not authored: there's no PlanOverride behind
+        // it, so the actions sheet offers no "Undo tonight's change" and the
+        // Home card keeps the row (a `.skipped` one leaves).
+        let nine35 = feed(at: date(2026, 8, 13, 21, 35))
+        let three55 = feed(at: date(2026, 8, 14, 3, 55))
+        let occs = realNight(feeds: [nine35, three55],
+                             now: date(2026, 8, 14, 8, 39)).occurrences()
+
+        XCTAssertNil(occs[1].activeOverrideID)
+        XCTAssertNotEqual(occs[1].status, .skipped)
     }
 
     func testFeedBeforeTheAnchorNeverFulfills() {

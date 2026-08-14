@@ -28,9 +28,15 @@ struct ScheduleRow: View {
     /// instead of continuing to the bottom of the row.
     var isLastRow: Bool = false
 
-    private var settled: Bool {   // rendered quiet: already handled or waved off
+    private var settled: Bool {   // rendered quiet: handled, waved off, or run past
         if case .fulfilled = occurrence.status { return true }
-        return occurrence.status == .skipped
+        return didNotHappen
+    }
+
+    /// Waved off for tonight, or overtaken by a later bottle — either way the
+    /// bottle never happened, and the title says so with a strikethrough.
+    private var didNotHappen: Bool {
+        occurrence.status == .skipped || occurrence.status == .missed
     }
 
     private var accent: Color {
@@ -69,7 +75,7 @@ struct ScheduleRow: View {
                     Text(title)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(settled ? AppColor.text3 : AppColor.text)
-                        .strikethrough(occurrence.status == .skipped)
+                        .strikethrough(didNotHappen)
                     if let caption, !caption.isEmpty {
                         Text(caption)
                             .font(.caption)
