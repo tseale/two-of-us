@@ -33,9 +33,9 @@ struct SleepLaneColumn: View {
     /// a `.opacity(_:)` fill would composite with itself in every overlap and
     /// stripe the bar with a darker line at each row boundary.
     private static let bandAlpha = 0.85
-    /// Band height the 💤 needs to sit inside its block: the 4pt inset plus
-    /// the glyph, with a point to spare.
-    private static let zzzHeadroom: CGFloat = 14
+    /// Band height the zzz needs to sit inside its block: the top inset plus
+    /// the glyph, with room to spare so nothing clips.
+    private static let zzzHeadroom: CGFloat = 18
 
     static func width(for laneCount: Int) -> CGFloat {
         CGFloat(laneCount) * laneWidth + CGFloat(max(0, laneCount - 1)) * laneSpacing
@@ -106,7 +106,7 @@ struct SleepLaneColumn: View {
                 .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(AppColor.row)
                 .frame(width: Self.laneWidth)
-                .offset(y: run.range.lowerBound * height + 4)
+                .offset(y: run.range.lowerBound * height + 6)
         }
     }
 }

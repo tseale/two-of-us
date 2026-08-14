@@ -450,7 +450,23 @@ struct HomeView: View {
     }
 
     private func tonightCard(_ occurrences: [ScheduleOccurrence], now: Date) -> some View {
-        Button {
+        let rows = occurrences.filter { $0.endDate == nil }
+        let spans = occurrences.filter { $0.endDate != nil && $0.status != .skipped }
+        let lanes = tonightLanes(spans: spans)
+        let laneSpans: [SleepLaneLayout.Span] = spans.compactMap { occ in
+            guard let end = occ.endDate, let parentID = occ.assignedToID else { return nil }
+            return SleepLaneLayout.Span(id: occ.id, parentID: parentID,
+                                        start: occ.date, end: end)
+        }
+        let railDates = rows.map(\.date)
+        let layout = SleepLaneLayout(
+            elementDates: railDates,
+            laneParentIDs: lanes.map(\.id),
+            spans: laneSpans)
+        let slices = { (index: Int) -> [SleepLaneLayout.Slice] in
+            index < layout.slices.count ? layout.slices[index] : []
+        }
+        return Button {
             router.requestTab(.schedule)
         } label: {
             VStack(alignment: .leading, spacing: 0) {
@@ -462,13 +478,12 @@ struct HomeView: View {
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(AppColor.text3)
                 }
-                .padding(.bottom, 10)
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(occurrences.enumerated()), id: \.element.id) { index, occ in
-                        tonightRow(occ, now: now)
-                        if index < occurrences.count - 1 {
-                            Divider().overlay(AppColor.separator.opacity(0.5))
-                        }
+                .padding(.bottom, 8)
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, occ in
+                        tonightRow(occ, now: now, lanes: lanes,
+                                   slices: slices(index),
+                                   isLast: index == rows.count - 1)
                     }
                 }
                 if let parts = tonightSummaryParts {
@@ -479,7 +494,7 @@ struct HomeView: View {
                     }
                     .font(.caption2)
                     .foregroundStyle(AppColor.text3)
-                    .padding(.top, 10)
+                    .padding(.top, 8)
                 }
             }
             .padding(.horizontal, 14)
@@ -487,48 +502,84 @@ struct HomeView: View {
             .surfaceCard(cornerRadius: 14)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Tonight's schedule, \(occurrences.count) slots")
+        .accessibilityLabel("Tonight's schedule, \(rows.count) slots")
         .accessibilityHint("Opens the nighttime schedule")
     }
 
-    private func tonightRow(_ occ: ScheduleOccurrence, now: Date) -> some View {
+    private func tonightLanes(spans: [ScheduleOccurrence]) -> [SleepLaneColumn.Lane] {
+        guard !spans.isEmpty else { return [] }
+        return participants
+            .filter(\.isActive)
+            .sorted { ($0.invitedAt, $0.id.uuidString) < ($1.invitedAt, $1.id.uuidString) }
+            .map { .init(id: $0.id, name: $0.displayName, colorHex: $0.colorHex) }
+    }
+
+    private func tonightRow(_ occ: ScheduleOccurrence, now: Date,
+                            lanes: [SleepLaneColumn.Lane],
+                            slices: [SleepLaneLayout.Slice],
+                            isLast: Bool) -> some View {
         let mine = occ.assignedToID == prefs.myParticipantID
         let done = { if case .fulfilled = occ.status { return true }; return false }()
-        return HStack(spacing: 8) {
-            HStack(spacing: 6) {
-                Text(occ.kind.emoji).font(.footnote)
-                Text(TimeFormatting.clock(occ.date))
-                    .font(.subheadline.weight(occ.date >= now && !done ? .semibold : .regular).monospacedDigit())
-                    .foregroundStyle(done ? AppColor.text3 : AppColor.text)
+        let accent = occ.kind == .sleep ? AppColor.accentSleep : AppColor.accentFeed
+        return HStack(spacing: 6) {
+            Text(TimeFormatting.clock(occ.date))
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(done ? AppColor.text3.opacity(0.6) : AppColor.text3)
+                .frame(width: 52, alignment: .trailing)
+
+            if !lanes.isEmpty {
+                SleepLaneColumn(lanes: lanes, slices: slices)
             }
-            .frame(width: 108, alignment: .leading)
+
+            ZStack {
+                if isLast {
+                    VStack(spacing: 0) {
+                        Rectangle()
+                            .fill(AppColor.separator.opacity(0.6))
+                            .frame(width: 1.5)
+                            .frame(maxHeight: .infinity)
+                        Color.clear.frame(maxHeight: .infinity)
+                    }
+                } else {
+                    Rectangle()
+                        .fill(AppColor.separator.opacity(0.6))
+                        .frame(width: 1.5)
+                        .frame(maxHeight: .infinity)
+                }
+                Circle()
+                    .fill(accent.opacity(done ? 0.35 : 1))
+                    .frame(width: 8, height: 8)
+                    .overlay(Circle().strokeBorder(AppColor.card, lineWidth: 1.5))
+            }
+            .frame(width: 12)
+            .frame(minHeight: 34)
 
             if done {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.footnote)
+                    .font(.caption2)
                     .foregroundStyle(AppColor.accentSleep)
             } else if occ.status == .overdue {
                 Text("overdue")
-                    .font(.caption2)
+                    .font(.system(size: 9))
                     .foregroundStyle(AppColor.urgencyAmber)
             }
 
-            Spacer(minLength: 8)
+            Spacer(minLength: 4)
 
             if occ.assignedToID != nil {
                 Text(mine ? "You" : occ.assignedToName)
-                    .font(.footnote)
+                    .font(.caption2)
                     .foregroundStyle(done ? AppColor.text3 : AppColor.text2)
                     .lineLimit(1)
                 Avatar(photoData: occ.assignedToID.flatMap { loggerPhoto[$0] },
-                       name: occ.assignedToName, colorHex: occ.assignedToColorHex, size: 18)
+                       name: occ.assignedToName, colorHex: occ.assignedToColorHex, size: 16)
             } else {
-                Text("Unassigned")
-                    .font(.footnote)
-                    .foregroundStyle(AppColor.text3)
+                Circle()
+                    .strokeBorder(AppColor.text3.opacity(0.6),
+                                  style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
+                    .frame(width: 16, height: 16)
             }
         }
-        .padding(.vertical, 9)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(tonightRowLabel(occ, mine: mine, done: done))
     }
