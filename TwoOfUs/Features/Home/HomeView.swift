@@ -433,18 +433,10 @@ struct HomeView: View {
         // schedule speaks for), not minute-of-day arithmetic — during the
         // run-up to the window, "time since night start" would otherwise
         // reach back into LAST night and drag its stale slots onto the card.
-        if !sleepSlots.isEmpty, isTracked(.sleep), let window = night.relevantWindow {
-            let lookback = max(0, now.timeIntervalSince(window.start))
-            let horizon = max(0, window.end.timeIntervalSince(now))
+        if !sleepSlots.isEmpty, isTracked(.sleep) {
             let engine = ScheduleEngine(slots: sleepSlots, overrides: planOverrides,
                                         feeds: feeds, sleeps: sleeps, now: now)
-            merged += engine.occurrences(lookback: lookback, horizon: horizon)
-                .filter { occ in
-                    // Spans overlap-test against tonight: a 10pm–5am sleep
-                    // window belongs on the card of an 11pm-start night.
-                    occ.status != .skipped
-                        && (occ.endDate ?? occ.date) >= window.start && occ.date <= window.end
-                }
+            merged += night.planOccurrences(from: engine).filter { $0.status != .skipped }
         }
         return merged.sorted { $0.date < $1.date }
     }
@@ -520,11 +512,14 @@ struct HomeView: View {
                             isLast: Bool) -> some View {
         let mine = occ.assignedToID == prefs.myParticipantID
         let done = { if case .fulfilled = occ.status { return true }; return false }()
+        // A bottle the night ran past reads as quiet as a done one — it stays
+        // on the roster so the night keeps its shape, but it's nobody's job.
+        let settled = done || occ.status == .missed
         let accent = occ.kind == .sleep ? AppColor.accentSleep : AppColor.accentFeed
         return HStack(spacing: 6) {
             Text(TimeFormatting.clock(occ.date))
                 .font(.caption2.monospacedDigit())
-                .foregroundStyle(done ? AppColor.text3.opacity(0.6) : AppColor.text3)
+                .foregroundStyle(settled ? AppColor.text3.opacity(0.6) : AppColor.text3)
                 .frame(width: 52, alignment: .trailing)
 
             if !lanes.isEmpty {
@@ -547,7 +542,7 @@ struct HomeView: View {
                         .frame(maxHeight: .infinity)
                 }
                 Circle()
-                    .fill(accent.opacity(done ? 0.35 : 1))
+                    .fill(accent.opacity(settled ? 0.35 : 1))
                     .frame(width: 8, height: 8)
                     .overlay(Circle().strokeBorder(AppColor.card, lineWidth: 1.5))
             }
@@ -562,6 +557,10 @@ struct HomeView: View {
                 Text("overdue")
                     .font(.system(size: 9))
                     .foregroundStyle(AppColor.urgencyAmber)
+            } else if occ.status == .missed {
+                Text("skipped")
+                    .font(.system(size: 9))
+                    .foregroundStyle(AppColor.text3)
             }
 
             Spacer(minLength: 4)
@@ -569,7 +568,7 @@ struct HomeView: View {
             if occ.assignedToID != nil {
                 Text(mine ? "You" : occ.assignedToName)
                     .font(.caption2)
-                    .foregroundStyle(done ? AppColor.text3 : AppColor.text2)
+                    .foregroundStyle(settled ? AppColor.text3 : AppColor.text2)
                     .lineLimit(1)
                 Avatar(photoData: occ.assignedToID.flatMap { loggerPhoto[$0] },
                        name: occ.assignedToName, colorHex: occ.assignedToColorHex, size: 16)
@@ -587,7 +586,10 @@ struct HomeView: View {
     private func tonightRowLabel(_ occ: ScheduleOccurrence, mine: Bool, done: Bool) -> String {
         let kind = occ.kind == .sleep ? "sleep" : "bottle"
         let who = occ.assignedToID == nil ? "unassigned" : (mine ? "yours" : occ.assignedToName)
-        let status = done ? ", done" : (occ.status == .overdue ? ", overdue" : "")
+        let status = if done { ", done" }
+            else if occ.status == .overdue { ", overdue" }
+            else if occ.status == .missed { ", skipped, fed later" }
+            else { "" }
         return "\(TimeFormatting.clock(occ.date)) \(kind), \(who)\(status)"
     }
 

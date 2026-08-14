@@ -52,6 +52,14 @@ import Foundation
 /// records the standing plan uses, keyed on the slot's deterministic
 /// synthetic id, and an override beats windows and rotation alike.
 ///
+/// **What the night still owes you.** A slot matches a logged bottle within
+/// `fulfillmentWindow` — half the night's own spacing, so "nearest slot wins"
+/// — and nothing logged before the anchor matches at all. Past slots the night
+/// has already run PAST read `.missed`, not `.overdue`: once a later bottle is
+/// in, the ones behind it are settled, whether the baby stretched or nobody
+/// logged them. Only the tail after the last logged bottle is still owed, and
+/// only it stays red.
+///
 /// Nothing per-night is stored; both phones derive the identical schedule.
 /// Sibling of `ScheduleEngine`/`StatsEngine`: no store access, no side
 /// effects — callers pass fetched arrays, tests pass fixtures with a pinned
@@ -127,9 +135,33 @@ struct NightSchedule {
     /// first bottle — an 8:15pm feed against a 9pm window starts the night.
     static let preWindowGraceMinutes = 60
     /// How far a bottle may slide off the rhythm to land while a parent is
-    /// already awake. Matches `ScheduleEngine.fulfillmentWindow`, so a bottle
-    /// logged at the un-slid time still ticks its slot off.
+    /// already awake. Always within `fulfillmentWindow`, so a bottle logged at
+    /// the un-slid rhythm time still ticks its slot off.
     static let maxAwakeShiftMinutes = 45
+
+    /// How far a logged bottle may sit from a slot and still read as "that
+    /// feed". The standing plan's flat 45 minutes is far too tight for a night
+    /// that runs on hours: against a 2½h rhythm a 3:45am bottle is 70 minutes
+    /// past the 2:35 slot and 80 minutes short of the next one — unmistakably
+    /// the 2:35 — yet the fixed window left that slot reading "Overdue" all
+    /// morning with the bottle attached to nothing.
+    ///
+    /// Two bounds, both floored at the standing plan's window so a tight night
+    /// never matches less generously than the plan does:
+    /// - **half the spacing**, so a bottle is never in reach of two slots it's
+    ///   equally far from — "nearest slot wins", exactly;
+    /// - **`ScheduleEngine.overdueGrace`**, the same 90 minutes a slot lingers
+    ///   as overdue. A fulfilled slot goes quiet — no alarm, no reminder — and
+    ///   a slot the night is still hours away from must not lose its ring
+    ///   because of a bottle that plainly isn't its own.
+    ///
+    /// Every spacing the UI offers (2h–6h) keeps this at or above
+    /// `maxAwakeShiftMinutes`, so a bottle logged at a slid slot's un-slid
+    /// rhythm time still ticks it off.
+    var fulfillmentWindow: TimeInterval {
+        max(ScheduleEngine.fulfillmentWindow,
+            min(ScheduleEngine.overdueGrace, TimeInterval(spacingMinutes * 60) / 2))
+    }
 
     // MARK: Public API
 
@@ -174,9 +206,15 @@ struct NightSchedule {
         let nightKey = ScheduleEngine.dayKey(for: window.start, calendar: calendar)
         let assignees = rotationAssignees(count: times.count)
         let liveOverrides = nightOverrides(nightKey: nightKey)
-        let fulfilled = fulfillment(times: times, skippedIndices: Set(
+        let fulfilled = fulfillment(times: times, anchor: anchor, skippedIndices: Set(
             liveOverrides.filter { $0.value.isSkipped }.map(\.key)
         ))
+        // The night only owes you the bottles it hasn't run past. Once a LATER
+        // bottle is logged, every unfulfilled slot behind it is settled — the
+        // baby went longer, or it went unlogged, and nobody is going back at
+        // 8am to mark the 12:05. Only the tail after the last logged bottle is
+        // still genuinely outstanding, so only it stays red.
+        let lastFulfilled = fulfilled.keys.max()
 
         return times.enumerated().map { index, date in
             let override = liveOverrides[index]
@@ -186,7 +224,7 @@ struct NightSchedule {
             } else if let eventID = fulfilled[index] {
                 status = .fulfilled(byEventID: eventID)
             } else if date < now {
-                status = .overdue
+                status = index < (lastFulfilled ?? -1) ? .missed : .overdue
             } else {
                 status = .upcoming
             }
@@ -214,6 +252,26 @@ struct NightSchedule {
                 shiftedFrom: date == rhythm[index] ? nil : rhythm[index]
             )
         }
+    }
+
+    /// The standing plan's occurrences that belong to THIS night — `engine`'s
+    /// output clipped to the window the feed schedule is speaking for.
+    ///
+    /// The standing plan repeats every day; a night schedule is exactly one
+    /// night. Ask the engine for its default rolling 24 hours and the two stop
+    /// describing the same thing: at 8:40am you get last night's bottles
+    /// beside tonight's sleep windows AND tomorrow morning's, and the rail's
+    /// wake cap lands on a "9:00 AM" a full day out. Clipping to the night's
+    /// own bounds is what keeps one screen one night.
+    ///
+    /// Overlap, not containment: a 10pm–5am window belongs to an 11pm-start
+    /// night, and one still running at dawn belongs to the night it started in.
+    func planOccurrences(from engine: ScheduleEngine) -> [ScheduleOccurrence] {
+        guard let window = relevantWindow else { return [] }
+        return engine
+            .occurrences(lookback: max(0, now.timeIntervalSince(window.start)),
+                         horizon: max(0, window.end.timeIntervalSince(now)))
+            .filter { ($0.endDate ?? $0.date) >= window.start && $0.date <= window.end }
     }
 
     // MARK: Window resolution
@@ -459,16 +517,26 @@ struct NightSchedule {
     }
 
     /// Greedy nearest-pair fulfillment against the live feed log — same rule as
-    /// `ScheduleEngine`: each logged bottle covers at most one slot, resolved in
-    /// a deterministic order so both phones agree. Skipped slots don't match.
-    private func fulfillment(times: [Date], skippedIndices: Set<Int>) -> [Int: UUID] {
-        let live = feeds.filter { $0.deletedAt == nil }
+    /// `ScheduleEngine`, at this night's own `fulfillmentWindow` so a bottle
+    /// that ran late still ticks off the slot it was late for: each logged
+    /// bottle covers at most one slot, resolved in a deterministic order so
+    /// both phones agree. Skipped slots don't match.
+    ///
+    /// Nothing logged before the anchor can match anything. The anchor IS the
+    /// night's first bottle by construction, so an earlier feed is either
+    /// daytime or one the anchor rules deliberately passed over — a stray 9:05
+    /// top-up on a night the parents moved to 10 must not then tick the 10
+    /// off. Without this the widened window would start reaching back into the
+    /// evening.
+    private func fulfillment(times: [Date], anchor: Date,
+                             skippedIndices: Set<Int>) -> [Int: UUID] {
+        let live = feeds.filter { $0.deletedAt == nil && $0.timestamp >= anchor }
         struct Pair { let distance: TimeInterval; let index: Int; let eventID: UUID }
         var pairs: [Pair] = []
         for (index, date) in times.enumerated() where !skippedIndices.contains(index) {
             for feed in live {
                 let distance = abs(feed.timestamp.timeIntervalSince(date))
-                if distance <= ScheduleEngine.fulfillmentWindow {
+                if distance <= fulfillmentWindow {
                     pairs.append(Pair(distance: distance, index: index, eventID: feed.id))
                 }
             }

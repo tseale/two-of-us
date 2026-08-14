@@ -509,6 +509,94 @@ final class NightScheduleTests: XCTestCase {
         XCTAssertEqual(occs[1].status, .overdue, "3:30am came and went with no bottle")
     }
 
+    /// The real night that surfaced this: 7:30pm–9:30am every 2½h, anchored on
+    /// a 9:35pm bottle. The 2:35 came at 3:45 — 70 minutes late, and still 80
+    /// minutes short of the 5:05. It is unmistakably the 2:35 bottle, but the
+    /// old flat 45-minute window left that slot reading "Overdue" all morning
+    /// with the bottle attached to nothing.
+    private func realNight(feeds: [FeedEvent], now: Date) -> NightSchedule {
+        schedule(feeds: feeds, now: now,
+                 startMinute: 19 * 60 + 30, endMinute: 9 * 60 + 30, spacing: 150)
+    }
+
+    func testLateBottleTicksOffTheSlotItWasLateFor() {
+        let nine35 = feed(at: date(2026, 8, 13, 21, 35))
+        let twelve16 = feed(at: date(2026, 8, 14, 0, 16))
+        let three45 = feed(at: date(2026, 8, 14, 3, 45))
+        let occs = realNight(feeds: [nine35, twelve16, three45],
+                             now: date(2026, 8, 14, 8, 39)).occurrences()
+
+        XCTAssertEqual(occs.map(\.date), [
+            date(2026, 8, 13, 21, 35), date(2026, 8, 14, 0, 5),
+            date(2026, 8, 14, 2, 35), date(2026, 8, 14, 5, 5),
+            date(2026, 8, 14, 7, 35),
+        ])
+        XCTAssertEqual(occs[2].status, .fulfilled(byEventID: three45.id),
+                       "70 minutes late against a 2½h rhythm is still that bottle")
+        XCTAssertEqual(occs[3].status, .overdue,
+                       "one bottle covers one slot — the 5:05 is genuinely unfed")
+        XCTAssertEqual(occs[4].status, .overdue,
+                       "nothing landed after them, so the tail is still owed")
+    }
+
+    func testBottlePastHalfTheSpacingBelongsToTheNextSlot() {
+        // Ten minutes later and it flips: 3:55 is 80 minutes past the 2:35 and
+        // 70 short of the 5:05, so it's the 5:05's. Half the spacing is the
+        // bound that makes that unambiguous — no bottle is ever in reach of
+        // two slots at once.
+        let nine35 = feed(at: date(2026, 8, 13, 21, 35))
+        let three55 = feed(at: date(2026, 8, 14, 3, 55))
+        let occs = realNight(feeds: [nine35, three55],
+                             now: date(2026, 8, 14, 8, 39)).occurrences()
+
+        XCTAssertEqual(occs[3].status, .fulfilled(byEventID: three55.id))
+    }
+
+    func testSlotsBehindALoggedBottleReadAsSkipped() {
+        // Same night, only the 9:35 and a 3:55 logged. The 12:05 and 2:35 came
+        // and went — the baby stretched, or nobody logged them — and a later
+        // bottle has since landed, so they are settled, not outstanding:
+        // nobody goes back at 8am to mark the 12:05. The 7:35 is the only one
+        // still owed, because nothing landed after it.
+        let nine35 = feed(at: date(2026, 8, 13, 21, 35))
+        let three55 = feed(at: date(2026, 8, 14, 3, 55))
+        let occs = realNight(feeds: [nine35, three55],
+                             now: date(2026, 8, 14, 8, 39)).occurrences()
+
+        XCTAssertEqual(occs.map(\.status), [
+            .fulfilled(byEventID: nine35.id), .missed, .missed,
+            .fulfilled(byEventID: three55.id), .overdue,
+        ])
+    }
+
+    func testSkippedByTheNightIsNotAnOverride() {
+        // `.missed` is derived, not authored: there's no PlanOverride behind
+        // it, so the actions sheet offers no "Undo tonight's change" and the
+        // Home card keeps the row (a `.skipped` one leaves).
+        let nine35 = feed(at: date(2026, 8, 13, 21, 35))
+        let three55 = feed(at: date(2026, 8, 14, 3, 55))
+        let occs = realNight(feeds: [nine35, three55],
+                             now: date(2026, 8, 14, 8, 39)).occurrences()
+
+        XCTAssertNil(occs[1].activeOverrideID)
+        XCTAssertNotEqual(occs[1].status, .skipped)
+    }
+
+    func testFeedBeforeTheAnchorNeverFulfills() {
+        // The correction case: a stray 9:05pm top-up, and the parents moved
+        // tonight's first feed to 10. The top-up anchored nothing, so it must
+        // not tick the 10 off either — 55 minutes is well inside the widened
+        // match radius, and only the anchor floor stops it.
+        let strayTopUp = feed(at: date(2026, 7, 21, 21, 5))
+        let occs = schedule(feeds: [strayTopUp],
+                            overrides: [manualAnchor(minute: 22 * 60)],
+                            now: date(2026, 7, 21, 22, 30), spacing: 360).occurrences()
+
+        XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 22, 0))
+        XCTAssertEqual(occs.first?.status, .overdue,
+                       "the moved first feed hasn't happened — a pre-anchor bottle can't cover it")
+    }
+
     // MARK: Identity
 
     func testOccurrenceIDsAreStableAndKeyedToTheNight() {

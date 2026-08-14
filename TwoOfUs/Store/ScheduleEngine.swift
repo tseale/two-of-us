@@ -9,8 +9,15 @@ struct ScheduleOccurrence: Identifiable, Equatable {
     enum Status: Equatable {
         case upcoming
         case fulfilled(byEventID: UUID)   // a logged event near the slot time covered it
-        case overdue                      // past, unfulfilled, not skipped
-        case skipped                      // per-night skip override
+        case overdue                      // past, unfulfilled, still owed
+        case skipped                      // per-night skip override — a parent waved it off
+        /// Past, unfulfilled, and the night has moved on: a LATER bottle has
+        /// already landed, so this one is never getting logged. Distinct from
+        /// `.skipped` because nobody chose it — there's no override to undo,
+        /// and it stays on the roster (a skipped slot leaves the Home card).
+        /// Only `NightSchedule` derives it; the standing plan lets an overdue
+        /// slot age out through `overdueGrace` instead.
+        case missed
     }
 
     /// Where the occurrence came from — a standing `PlanSlot` (editable via

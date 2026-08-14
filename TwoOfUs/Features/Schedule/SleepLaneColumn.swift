@@ -153,13 +153,24 @@ struct SleepLaneWakeCap: View {
     let date: Date
     let lanes: [SleepLaneColumn.Lane]
     let slices: [SleepLaneLayout.Slice]
+    /// Show the weekday under the clock when the wake isn't today — same rule
+    /// the bottle rows use, so a bare "9:00 AM" can't read as this morning
+    /// when the night runs into tomorrow.
+    var showsDay: Bool = false
 
     var body: some View {
         HStack(spacing: 10) {
-            Text(TimeFormatting.clock(date))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(AppColor.text3)
-                .frame(width: 64, alignment: .trailing)
+            VStack(alignment: .trailing, spacing: 0) {
+                Text(TimeFormatting.clock(date))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(AppColor.text3)
+                if showsDay {
+                    Text(date, format: .dateTime.weekday(.abbreviated))
+                        .font(.caption2)
+                        .foregroundStyle(AppColor.text3.opacity(0.7))
+                }
+            }
+            .frame(width: 64, alignment: .trailing)
 
             SleepLaneColumn(lanes: lanes, slices: slices)
 
