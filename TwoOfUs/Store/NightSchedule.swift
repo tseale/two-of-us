@@ -578,8 +578,12 @@ struct NightSchedule {
 
 extension NightSchedule {
     /// Builds tonight's engine from app models. Participants are filtered and
-    /// ordered here (active, join order) so every call site — the phones AND
-    /// the watch complication — derives the same rotation both phones agree on.
+    /// ordered here (active, co-parents only, join order) so every call site —
+    /// the phones AND the watch complication — derives the same rotation both
+    /// phones agree on. Guests (`.logger` — grandma, a nanny, a pet added for
+    /// photo-sharing) never take a night shift and never occupy a rotation
+    /// slot; including them here would also corrupt sleep-window routing
+    /// below, since a guest with no sleep window reads as permanently awake.
     init(settings: SharedSettings, participants: [Participant], feeds: [FeedEvent],
          overrides: [PlanOverride] = [], sleepSlots: [PlanSlot] = [],
          calendar: Calendar = .current, now: Date = .now) {
@@ -590,7 +594,7 @@ extension NightSchedule {
             rotation: settings.nightRotation,
             firstShiftID: settings.nightFirstShiftID,
             parents: participants
-                .filter(\.isActive)
+                .filter { $0.isActive && $0.role == .full }
                 .sorted { ($0.invitedAt, $0.id.uuidString) < ($1.invitedAt, $1.id.uuidString) }
                 .map { Parent(id: $0.id, name: $0.displayName, colorHex: $0.colorHex) },
             feeds: feeds,
