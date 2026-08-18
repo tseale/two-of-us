@@ -15,8 +15,10 @@ final class Participant {
     /// Non-nil while access is temporarily paused — distinct from `isActive`
     /// (revoked/removed). A paused participant stays on the CKShare and in the
     /// people list, but is excluded from the night rotation, feed/slot
-    /// assignment, and "logged by" pickers, and can't log or see updates from
-    /// their own device while it's set. Owner-only, reversible via `resume`.
+    /// assignment, and "logged by" pickers; their own device refuses to log
+    /// and hides the main UI behind a paused screen. Enforcement is in-app
+    /// (CloudKit access is untouched): widgets and the watch may still show
+    /// previously synced data. Owner-only, reversible via `resume`.
     var pausedAt: Date?
 
     /// Optional avatar (downscaled JPEG, synced as a CKAsset; stored inline for

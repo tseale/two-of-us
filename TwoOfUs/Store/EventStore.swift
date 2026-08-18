@@ -29,15 +29,21 @@ struct EventStore {
     /// attributes this device's logs to the co-parent on both phones, which is
     /// worse than refusing the write (the caller banners "couldn't tell who's
     /// logging"). A paused local user resolves to nil outright — pausing must
-    /// block this device's own logging immediately, not fall through to the
-    /// merge-survivor/last-resort paths below (those exist for a different
-    /// case: this row being deactivated, not paused).
+    /// block this device's own logging immediately. The pause check runs on
+    /// the row the resolution LANDS on (post-handover), never the stored row
+    /// alone — a merged-away duplicate keeping a stale `pausedAt` must not
+    /// lock its survivor out.
     var owner: Participant? {
+        guard let resolved = resolvedSelf, !resolved.isPaused else { return nil }
+        return resolved
+    }
+
+    /// The row this device's identity resolves to, pause not yet applied.
+    private var resolvedSelf: Participant? {
         if let myID = LocalPrefs.shared.myParticipantID {
             var d = FetchDescriptor<Participant>(predicate: #Predicate { $0.id == myID })
             d.fetchLimit = 1
             if let me = try? context.fetch(d).first {
-                if me.isPaused { return nil }
                 if me.isActive { return me }
                 if let cid = me.cloudUserID,
                    let survivor = ((try? context.fetch(FetchDescriptor<Participant>())) ?? [])
@@ -701,9 +707,10 @@ struct EventStore {
     /// Owner temporarily pauses someone's access — no CKShare change, so it's
     /// instantly reversible from either side. A paused participant drops out
     /// of the night rotation, feed/slot assignment, and "logged by" pickers,
-    /// and (via `owner` above) can't log or see updates from their own device
-    /// while paused. Standing sleep-window slots already assigned to them are
-    /// left as-is so `resumeParticipant` restores exactly what was there.
+    /// and (via `owner` above) can't log from their own device while paused;
+    /// their main app UI hides behind `PausedAccessView`. Standing
+    /// sleep-window slots already assigned to them are left as-is so
+    /// `resumeParticipant` restores exactly what was there.
     func pauseParticipant(_ participant: Participant) {
         guard participant.pausedAt == nil else { return }
         participant.pausedAt = .now

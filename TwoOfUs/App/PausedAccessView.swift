@@ -17,7 +17,7 @@ struct PausedAccessView: View {
                     Text("Your access is paused")
                         .font(AppFont.hero(24))
                         .foregroundStyle(AppColor.text)
-                    Text("A co-parent paused your access to this shared log. You'll get everything back the moment they resume it — no need to do anything here.")
+                    Text("A co-parent paused your access to this shared log, so logging is off for now. Everything comes back the moment they resume it — no need to do anything here.")
                         .font(.subheadline)
                         .foregroundStyle(AppColor.text2)
                 }

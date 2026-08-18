@@ -28,9 +28,22 @@ struct RootView: View {
     /// True once the owner has paused this device's own participant row —
     /// blocks the main tabs behind `PausedAccessView` instead of the join
     /// flows above, since a paused person already has a profile and a synced
-    /// baby; they're just temporarily locked out.
+    /// baby; they're just temporarily locked out. Mirrors `EventStore.owner`'s
+    /// merge handover: a merged-away stored row defers to its live survivor,
+    /// so a stale tombstone can neither lock this device out nor mask a real
+    /// pause on the survivor.
     private var isSelfPaused: Bool {
-        participants.first { $0.id == prefs.myParticipantID }?.isPaused ?? false
+        guard let me = participants.first(where: { $0.id == prefs.myParticipantID }) else {
+            return false
+        }
+        if me.isActive { return me.isPaused }
+        if let cid = me.cloudUserID,
+           let survivor = participants.first(where: {
+               $0.isActive && $0.cloudUserID == cid && $0.id != me.id
+           }) {
+            return survivor.isPaused
+        }
+        return me.isPaused
     }
 
     private enum Route: Equatable { case join, joinSyncing, onboarding, main }

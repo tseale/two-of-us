@@ -67,6 +67,21 @@ struct QuickLogger {
     /// resolves to nil outright, same as `EventStore.owner` — Siri must refuse
     /// to log for someone whose access is paused.
     private var owner: Participant? {
+        guard let resolved = resolvedSelf, !resolved.isPaused else { return nil }
+        return resolved
+    }
+
+    /// True when this device's identity resolves to a paused row. The surfaces
+    /// that bypass `owner` on purpose (undo, sleep-stop, alarm/reminder arming)
+    /// check this instead — a paused device must neither mutate the shared log
+    /// nor ring for slots it can't act on.
+    var selfIsPaused: Bool { resolvedSelf?.isPaused ?? false }
+
+    /// The row this device's identity resolves to, pause NOT yet applied —
+    /// the pause check must run on the row the handover lands on, never the
+    /// stored row alone (a merged-away duplicate keeping a stale `pausedAt`
+    /// must not lock the survivor out, and vice versa).
+    private var resolvedSelf: Participant? {
         let group = AppGroup.userDefaults
         let storedID = group?.bool(forKey: "demo.overrideActive") == true
             ? group?.string(forKey: "demo.bak.participantID")
@@ -75,7 +90,6 @@ struct QuickLogger {
             var d = FetchDescriptor<Participant>(predicate: #Predicate { $0.id == myID })
             d.fetchLimit = 1
             if let me = try? context.fetch(d).first {
-                if me.isPaused { return nil }
                 if me.isActive { return me }
                 if let cid = me.cloudUserID,
                    let survivor = ((try? context.fetch(FetchDescriptor<Participant>())) ?? [])
@@ -337,6 +351,13 @@ struct QuickLogger {
     /// - Returns: a human label of what was removed, or nil if there was nothing.
     @discardableResult
     func undoLastLog() -> String? {
+        // Undo is household-wide (it may delete the co-parent's event), so a
+        // paused device gets no say — this path skips `owner` and needs its
+        // own gate.
+        guard !selfIsPaused else {
+            Self.log.error("undoLastLog refused: this device's access is paused")
+            return nil
+        }
         let feed = lastFeed
         let diaper = lastDiaper
         // For "undo" the relevant sleep instant is whichever the user just touched:
@@ -373,14 +394,20 @@ struct QuickLogger {
     /// (`SleepActivityManager.reconcile`) since it can't reliably start from a
     /// widget-extension process.
     /// - Returns: true if a sleep was started, false if one was stopped, nil if
-    ///   a start was refused (no owner to attribute it to). Stopping needs no
-    ///   owner — it only completes an existing event.
+    ///   the toggle was refused (no owner to attribute a start to, or this
+    ///   device is paused). Stopping needs no owner — it only completes an
+    ///   existing event.
     @discardableResult
     func toggleSleep() -> Bool? {
         if let active = activeSleep {
-            // Stopping only completes an existing event — always allowed, even
-            // with sleep tracking off (a sleep started before the toggle flip
-            // must remain endable).
+            // Stopping only completes an existing event — allowed even with
+            // sleep tracking off (a sleep started before the toggle flip must
+            // remain endable) — but never from a paused device: ending the
+            // co-parent's running timer is still mutating the shared log.
+            guard !selfIsPaused else {
+                Self.log.error("toggleSleep refused: this device's access is paused")
+                return nil
+            }
             active.endedAt = .now
             commit(syncing: [active.id])
             return false
