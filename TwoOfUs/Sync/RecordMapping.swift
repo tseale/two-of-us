@@ -76,6 +76,7 @@ enum RecordMapping {
             r["cloudUserID"] = m.cloudUserID
             r["isActive"] = m.isActive ? 1 : 0
             r["invitedAt"] = m.invitedAt
+            r["pausedAt"] = m.pausedAt
             r["photoData"] = asset(from: m.photoData)
             return r
         }
@@ -492,6 +493,7 @@ enum RecordMapping {
         if let cid = r["cloudUserID"] as? String { m.cloudUserID = cid }
         m.isActive = (r["isActive"] as? Int ?? 1) != 0
         m.invitedAt = r["invitedAt"] as? Date ?? m.invitedAt
+        m.pausedAt = r["pausedAt"] as? Date
         if let resolved = inboundPhoto(r["photoData"]) { m.photoData = resolved }
     }
 

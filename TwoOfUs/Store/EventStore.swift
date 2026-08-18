@@ -28,12 +28,16 @@ struct EventStore {
     /// exactly one active participant: with two parents in the store, guessing
     /// attributes this device's logs to the co-parent on both phones, which is
     /// worse than refusing the write (the caller banners "couldn't tell who's
-    /// logging").
+    /// logging"). A paused local user resolves to nil outright — pausing must
+    /// block this device's own logging immediately, not fall through to the
+    /// merge-survivor/last-resort paths below (those exist for a different
+    /// case: this row being deactivated, not paused).
     var owner: Participant? {
         if let myID = LocalPrefs.shared.myParticipantID {
             var d = FetchDescriptor<Participant>(predicate: #Predicate { $0.id == myID })
             d.fetchLimit = 1
             if let me = try? context.fetch(d).first {
+                if me.isPaused { return nil }
                 if me.isActive { return me }
                 if let cid = me.cloudUserID,
                    let survivor = ((try? context.fetch(FetchDescriptor<Participant>())) ?? [])
@@ -690,6 +694,27 @@ struct EventStore {
     /// Owner sets a co-parent's app role (full vs logger) and syncs it.
     func setRole(_ participant: Participant, _ role: ParticipantRole) {
         participant.role = role
+        save()
+        sync(save: [participant.id])
+    }
+
+    /// Owner temporarily pauses someone's access — no CKShare change, so it's
+    /// instantly reversible from either side. A paused participant drops out
+    /// of the night rotation, feed/slot assignment, and "logged by" pickers,
+    /// and (via `owner` above) can't log or see updates from their own device
+    /// while paused. Standing sleep-window slots already assigned to them are
+    /// left as-is so `resumeParticipant` restores exactly what was there.
+    func pauseParticipant(_ participant: Participant) {
+        guard participant.pausedAt == nil else { return }
+        participant.pausedAt = .now
+        save()
+        sync(save: [participant.id])
+    }
+
+    /// Reverses `pauseParticipant`, restoring full access.
+    func resumeParticipant(_ participant: Participant) {
+        guard participant.pausedAt != nil else { return }
+        participant.pausedAt = nil
         save()
         sync(save: [participant.id])
     }

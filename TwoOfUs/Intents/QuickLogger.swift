@@ -63,7 +63,9 @@ struct QuickLogger {
     /// `EventStore.owner`: a merged-away row hands over to its survivor, and the
     /// last-resort fallback fires only when UNAMBIGUOUS (exactly one active
     /// participant) — guessing between two parents misattributes the log on both
-    /// phones, which is worse than the intent refusing.
+    /// phones, which is worse than the intent refusing. A paused local user
+    /// resolves to nil outright, same as `EventStore.owner` — Siri must refuse
+    /// to log for someone whose access is paused.
     private var owner: Participant? {
         let group = AppGroup.userDefaults
         let storedID = group?.bool(forKey: "demo.overrideActive") == true
@@ -73,6 +75,7 @@ struct QuickLogger {
             var d = FetchDescriptor<Participant>(predicate: #Predicate { $0.id == myID })
             d.fetchLimit = 1
             if let me = try? context.fetch(d).first {
+                if me.isPaused { return nil }
                 if me.isActive { return me }
                 if let cid = me.cloudUserID,
                    let survivor = ((try? context.fetch(FetchDescriptor<Participant>())) ?? [])

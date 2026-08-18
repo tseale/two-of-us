@@ -84,6 +84,7 @@ All timestamps are stored as **absolute `Date` (UTC under the hood)** and render
     var cloudUserID: String?         // CKShare participant identity, when known
     var isActive: Bool               // false once access is revoked
     var invitedAt: Date
+    var pausedAt: Date?              // non-nil while access is temporarily paused
 }
 
 @Model final class SharedSettings {
@@ -101,6 +102,9 @@ enum ParticipantRole: String, Codable {
 
 ### Why `loggedBy*` is denormalized
 Attribution is stored as a triple — `loggedByID` + a **copy** of the name and color at log time. If a caregiver is later revoked (`Participant.isActive = false`) or removed, their past events still render correctly with the right colored initial. The `Participant` record is the live source for *current* people; the denormalized copy is the historical truth on each event.
+
+### Pause vs. revoke
+`pausedAt` is a lighter, reversible sibling of `isActive`: pausing leaves the person on the `CKShare` and in the People list (so no re-invite is needed to undo it), but excludes them from the night rotation, feed/slot assignment, and "logged by" pickers, and blocks their own device from logging or reading updates (`EventStore.owner` / `QuickLogger`'s owner resolve to `nil` while paused). Revoking (`isActive = false`) is the permanent, CKShare-backed teardown; pausing is the "not tonight" toggle for a caregiver who's between shifts.
 
 ---
 
