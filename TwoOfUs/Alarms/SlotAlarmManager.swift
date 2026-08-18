@@ -44,7 +44,10 @@ enum SlotAlarmManager {
         guard LocalPrefs.shared.nightSlotAlarmEnabled,
               !LocalPrefs.shared.demoModeEnabled,
               let logger = QuickLogger.make(),
-              let myID = logger.myParticipantID else { return }
+              let myID = logger.myParticipantID,
+              // A paused device never rings — even for unclaimed slots, which
+              // it can't act on (its logging is refused while paused).
+              !logger.selfIsPaused else { return }
 
         // Standing sleep slots merged with tonight's dynamic feed schedule
         // (which exists once the night's first feed anchors it — so logging

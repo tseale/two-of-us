@@ -304,7 +304,7 @@ struct ScheduleView: View {
     private func laneStyles(spans: [ScheduleOccurrence]) -> [SleepLaneColumn.Lane] {
         guard !spans.isEmpty else { return [] }
         return participants
-            .filter(\.isActive)
+            .filter { $0.isActive && !$0.isPaused }
             .sorted { ($0.invitedAt, $0.id.uuidString) < ($1.invitedAt, $1.id.uuidString) }
             .map { .init(id: $0.id, name: $0.displayName, colorHex: $0.colorHex) }
     }

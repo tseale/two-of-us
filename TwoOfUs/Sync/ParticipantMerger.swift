@@ -72,6 +72,11 @@ enum ParticipantMerger {
         if survivor.cloudUserID == nil { survivor.cloudUserID = duplicate.cloudUserID }
         // Same person — merging must never demote them.
         if survivor.role != .full && duplicate.role == .full { survivor.role = .full }
+        // Same person — a pause on either row survives the merge on the LIVE
+        // row (otherwise the owner's Resume button disappears with the
+        // duplicate while the pause itself lives on in a tombstone).
+        if survivor.pausedAt == nil { survivor.pausedAt = duplicate.pausedAt }
+        duplicate.pausedAt = nil
 
         changed += reattachReferences(from: duplicate, to: survivor, in: context)
         duplicate.isActive = false
