@@ -19,6 +19,13 @@ struct SleepActivityAttributes: ActivityAttributes {
         /// it ("GT"). Nil for the generic daytime prediction.
         var nextFeedOwnerName: String? = nil
         var nextFeedOwnerColorHex: String? = nil
+        /// PredictionEngine's expected end of this sleep, computed app-side
+        /// like `nextFeedAt` (the engine doesn't compile into the widget
+        /// extension) and refreshed on every reconcile. A clock time, not a
+        /// countdown, so a snapshot that outlives its moment degrades
+        /// gracefully. Nil (AI off, thin history, moment passed) hides the
+        /// line. Defaulted, so records from older builds decode.
+        var predictedWakeAt: Date? = nil
         /// Set only in the final content update when the sleep ends: freezes
         /// the timer at the total duration and flips the card into its "slept
         /// X" summary form, which lingers briefly before dismissing (see

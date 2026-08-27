@@ -11,6 +11,13 @@ struct StatsView: View {
     private var sleeps: [SleepEvent]
     @Query(filter: #Predicate<DiaperEvent> { $0.deletedAt == nil })
     private var diapers: [DiaperEvent]
+    @Query private var settingsList: [SharedSettings]
+
+    /// The family-wide AI switch (Settings → Feeding & Tracking). Governs the
+    /// insights card the same way it governs the prediction hints.
+    private var aiEnabled: Bool {
+        SharedSettings.canonical(settingsList)?.aiPredictionsEnabled ?? true
+    }
 
     private var engine: StatsEngine {
         StatsEngine(feeds: feeds, sleeps: sleeps, diapers: diapers)
@@ -25,7 +32,7 @@ struct StatsView: View {
     /// data (e.g. Simulator, or a transient failure), hide the card rather than
     /// showing the misleading "log a few feeds" empty-state over a week of data.
     private var showInsights: Bool {
-        guard BabyIntelligence.isAvailable else { return false }
+        guard aiEnabled, BabyIntelligence.isAvailable else { return false }
         return summaryLoading || summary != nil || !hasAnyData
     }
 
@@ -154,7 +161,7 @@ struct StatsView: View {
     }
 
     private func loadSummary() async {
-        guard BabyIntelligence.isAvailable, !feeds.isEmpty else { return }
+        guard aiEnabled, BabyIntelligence.isAvailable, !feeds.isEmpty else { return }
         // Debounce: the `.task(id:)` above cancels and restarts this on every
         // event change, so a widget batch of N events would otherwise regenerate
         // the summary N times. Wait out the burst first — a superseded run cancels

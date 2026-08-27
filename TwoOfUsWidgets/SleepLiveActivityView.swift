@@ -55,18 +55,21 @@ struct SleepLockScreenView: View {
     let nextFeedAt: Date?
     let nextFeedOwnerName: String?
     let nextFeedOwnerColorHex: String?
+    let predictedWakeAt: Date?
 
     init(babyName: String, startedAt: Date,
          endedAt: Date? = nil,
          nextFeedAt: Date? = nil,
          nextFeedOwnerName: String? = nil,
-         nextFeedOwnerColorHex: String? = nil) {
+         nextFeedOwnerColorHex: String? = nil,
+         predictedWakeAt: Date? = nil) {
         self.babyName = babyName
         self.startedAt = startedAt
         self.endedAt = endedAt
         self.nextFeedAt = nextFeedAt
         self.nextFeedOwnerName = nextFeedOwnerName
         self.nextFeedOwnerColorHex = nextFeedOwnerColorHex
+        self.predictedWakeAt = predictedWakeAt
     }
 
     /// Takes plain values rather than the `ActivityViewContext` so the view can
@@ -78,10 +81,48 @@ struct SleepLockScreenView: View {
                   endedAt: context.state.endedAt,
                   nextFeedAt: context.state.nextFeedAt,
                   nextFeedOwnerName: context.state.nextFeedOwnerName,
-                  nextFeedOwnerColorHex: context.state.nextFeedOwnerColorHex)
+                  nextFeedOwnerColorHex: context.state.nextFeedOwnerColorHex,
+                  predictedWakeAt: context.state.predictedWakeAt)
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            mainRow
+            // The prediction footer: a clock time in the AI gradient, phrased
+            // hedged ("likely around") because overnight confidence is what it
+            // is — and a clock, not a countdown, so a snapshot that outlives
+            // its moment reads gracefully stale instead of frozen at 0:00.
+            // Hidden on the ended summary card (the sleep answered it).
+            if let predictedWakeAt, endedAt == nil {
+                HStack {
+                    Text("\(AIGlow.mark) likely awake around \(TimeFormatting.clock(predictedWakeAt))")
+                        .font(.caption2)
+                        .foregroundStyle(AIGlow.gradient)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .accessibilityLabel("Predicted: likely awake around \(TimeFormatting.clock(predictedWakeAt))")
+                    Spacer(minLength: 0)
+                }
+                .padding(.top, 8)
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(AppColor.nightlightCream.opacity(0.12))
+                        .frame(height: 1)
+                }
+                .padding(.top, 8)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            LinearGradient(
+                colors: [AppColor.indigoHi, AppColor.indigoNight],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            )
+        )
+    }
+
+    private var mainRow: some View {
         HStack(spacing: 12) {
             // Moon with a soft halo.
             ZStack {
@@ -129,14 +170,6 @@ struct SleepLockScreenView: View {
                 nextFeedColumn(date: nextFeedAt)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(
-            LinearGradient(
-                colors: [AppColor.indigoHi, AppColor.indigoNight],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-        )
     }
 
     /// The next-feed countdown. Constant-width (rule 1): the countdown string
@@ -276,7 +309,8 @@ private func islandNextFeedCaption(at date: Date, owner: String?) -> String {
     SleepActivityAttributes.ContentState(startedAt: .now.addingTimeInterval(-3 * 3600), // night: GT's slot
                                          nextFeedAt: .now.addingTimeInterval(107 * 60),
                                          nextFeedOwnerName: "GT",
-                                         nextFeedOwnerColorHex: "#E8A0BF")
+                                         nextFeedOwnerColorHex: "#E8A0BF",
+                                         predictedWakeAt: .now.addingTimeInterval(100 * 60))
     SleepActivityAttributes.ContentState(startedAt: .now.addingTimeInterval(-11 * 3600),// long night, feed due
                                          nextFeedAt: .now.addingTimeInterval(-5 * 60))
     SleepActivityAttributes.ContentState(startedAt: .now.addingTimeInterval(-135 * 60), // ended: linger summary

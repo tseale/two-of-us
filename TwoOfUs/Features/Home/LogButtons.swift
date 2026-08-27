@@ -20,6 +20,14 @@ struct TileDetail {
     let value: String      // "1h 20m"
 }
 
+/// A tile's bottom hint line. `isAI` marks a `PredictionEngine` forecast,
+/// which renders in the AI gradient with the ✦ mark; plain hints keep the
+/// quiet gray they've always had.
+struct TileHint {
+    let text: String
+    var isAI: Bool = false
+}
+
 /// The three primary log targets. Feed + Diaper (the two highest-frequency
 /// logs) side by side, Sleep full-width below. Each tile carries its own
 /// time-since value, so the tiles double as the status row — quiet until it
@@ -32,9 +40,9 @@ struct LogButtons: View {
     let feedStatus: TileStatus?
     let sleepStatus: TileStatus?
     let diaperStatus: TileStatus?
-    let feedHint: String
-    let sleepHint: String
-    let diaperHint: String
+    let feedHint: TileHint
+    let sleepHint: TileHint
+    let diaperHint: TileHint
     let sleepDetail: TileDetail?
     let sleepActive: Bool
     /// True when a feed alarm is armed on this device — shows a bell affordance
@@ -82,7 +90,7 @@ struct LogButtons: View {
     /// row share alignment and stacking exactly: emoji on top, then title /
     /// since-line / hint, leading-aligned. `detail` is the wide row's width
     /// bonus — a trailing stat the square tiles have no room for.
-    private func tile(title: String, hint: String, emoji: String, color: Color,
+    private func tile(title: String, hint: TileHint, emoji: String, color: Color,
                       status: TileStatus?, detail: TileDetail? = nil,
                       reminderArmed: Bool = false,
                       action: @escaping () -> Void) -> some View {
@@ -97,11 +105,15 @@ struct LogButtons: View {
                         if let status {
                             sinceLine(status)
                         }
-                        Text(hint)
-                            .font(.caption)
-                            .foregroundStyle(AppColor.text2)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
+                        if hint.isAI {
+                            AIHintText(text: hint.text, font: .caption)
+                        } else {
+                            Text(hint.text)
+                                .font(.caption)
+                                .foregroundStyle(AppColor.text2)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                        }
                     }
                 }
                 if let detail {
@@ -172,14 +184,15 @@ struct LogButtons: View {
             .accessibilityHidden(true)
     }
 
-    private func accessibilityText(title: String, hint: String, status: TileStatus?,
+    private func accessibilityText(title: String, hint: TileHint, status: TileStatus?,
                                    detail: TileDetail? = nil,
                                    reminderArmed: Bool = false) -> String {
+        let hintText = hint.isAI ? "predicted: \(hint.text)" : hint.text
         var text: String
         if let status {
-            text = "\(title), \(status.value) since last, \(status.urgency.accessibilityWord), \(hint)"
+            text = "\(title), \(status.value) since last, \(status.urgency.accessibilityWord), \(hintText)"
         } else {
-            text = "\(title), \(hint)"
+            text = "\(title), \(hintText)"
         }
         if let detail { text += ", \(detail.label) \(detail.value)" }
         if reminderArmed { text += ", reminder set" }

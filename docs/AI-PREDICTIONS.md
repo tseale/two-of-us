@@ -1,8 +1,18 @@
 # AI Predictions — Plan
 
-**Status: PLAN — nothing here is built yet.** This document scopes on-device
-AI/ML prediction features for Two of Us, phased so each stage ships value on its
-own. Written 2026-08-27.
+**Status: Phase 1 implemented** (statistical predictions for the v1 trio —
+next feed time, feed amount, sleep duration/wake — plus the AI Features
+toggle and `AIGlow` styling; see `PredictionEngine.swift`). Phases 2–4 remain
+planned. Decisions taken 2026-08-27: v1 ships the trio (diaper predictions
+held), Home + Live Activity surfaces first, subtle gradient styling,
+night-schedule annotations only, age baselines shown from day one, one synced
+family-wide toggle that also governs the Stats insights card.
+
+⚠️ Before the next TestFlight build: deploy the new `aiPredictionsEnabled`
+field on the Settings record type to CloudKit **Production** (Console only —
+cktool can't; see the schema-deploys memory).
+
+Original plan follows. Written 2026-08-27.
 
 ## Goal
 

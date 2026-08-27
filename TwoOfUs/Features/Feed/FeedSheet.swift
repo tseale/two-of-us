@@ -11,6 +11,8 @@ struct FeedSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var settingsList: [SharedSettings]
     @Query private var babies: [Baby]
+    @Query(filter: #Predicate<FeedEvent> { $0.deletedAt == nil }, sort: \FeedEvent.timestamp, order: .reverse)
+    private var feeds: [FeedEvent]
 
     /// Reports the logged event back to the host for the "Logged · Undo" toast.
     let onLogged: (String, @escaping () -> Void) -> Void
@@ -37,6 +39,22 @@ struct FeedSheet: View {
         date.addingTimeInterval(settingsList.first?.feedInterval(after: date) ?? TimeInterval(180 * 60))
     }
     private var canLog: Bool { amount > 0 }
+
+    /// What he's actually been taking at this hour (`PredictionEngine`), when
+    /// it meaningfully disagrees with the configured bottle. A suggestion
+    /// beside the default, never a silent override of it — the sheet still
+    /// opens on the bottle size.
+    private var suggestedOz: Double? {
+        guard let s = settingsList.first, s.aiPredictionsEnabled,
+              let baby = babies.first else { return nil }
+        let prediction = PredictionEngine.feedAmount(
+            feeds: feeds.map { ($0.timestamp, $0.amountOz) },
+            ageInDays: WakeWindow.ageInDays(dateOfBirth: baby.dateOfBirth),
+            at: date,
+            nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute)
+        guard prediction.confidence != .low, abs(prediction.oz - bottleOz) >= 0.5 else { return nil }
+        return prediction.oz
+    }
 
     var body: some View {
         NavigationStack {
@@ -74,6 +92,26 @@ struct FeedSheet: View {
                                 }
                             }
                         Text("oz").foregroundStyle(AppColor.text3)
+                    }
+                    if let suggested = suggestedOz {
+                        Button {
+                            amount = suggested
+                            usingCustom = false
+                            customText = ""
+                            Haptics.tap()
+                        } label: {
+                            HStack {
+                                AIHintText(text: "he's been taking ~\(OzFormat.string(suggested)) oz at this hour",
+                                           font: .footnote)
+                                Spacer()
+                                Text("Use")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(AppColor.accentFeed)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Predicted amount \(OzFormat.string(suggested)) ounces — use it")
                     }
                 }
 

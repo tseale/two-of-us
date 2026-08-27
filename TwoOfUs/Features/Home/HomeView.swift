@@ -63,6 +63,15 @@ struct HomeView: View {
         settingsList.first?.feedInterval(after: last) ?? TimeInterval(180 * 60)
     }
 
+    /// The family-wide AI switch (Settings → Feeding & Tracking → AI Features).
+    private var aiEnabled: Bool {
+        settingsList.first?.aiPredictionsEnabled ?? true
+    }
+
+    private var ageInDays: Int {
+        baby.map { WakeWindow.ageInDays(dateOfBirth: $0.dateOfBirth) } ?? 0
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -89,7 +98,8 @@ struct HomeView: View {
                                 SleepActiveCard(
                                     sleep: sleep, now: ctx.date,
                                     onWake: { endSleep(sleep) },
-                                    onEditStart: sleep.isFromSnoo ? nil : { editingSleepStart = true }
+                                    onEditStart: sleep.isFromSnoo ? nil : { editingSleepStart = true },
+                                    predictedWake: predictedWake(for: sleep, now: ctx.date)
                                 )
                                 .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
                             }
@@ -353,23 +363,55 @@ struct HomeView: View {
         return last.addingTimeInterval(targetFeed(after: last)) > now
     }
 
-    /// The Feed tile says what's next, not just what happened: the projected
-    /// next-bottle time, from the same target-interval math as the reminders.
-    private func feedHint(now: Date) -> String {
-        guard let last = feeds.first?.timestamp else { return "log a bottle" }
+    /// The Feed tile says what's next, not just what happened. With AI on and
+    /// enough of his own data, the projection comes from his observed cadence
+    /// (`PredictionEngine`) with the expected bottle size appended; otherwise
+    /// the same target-interval math as the reminders. The forecast never
+    /// moves the alarm — the bell is a contract, the hint is a forecast.
+    private func feedHint(now: Date) -> TileHint {
+        guard let last = feeds.first?.timestamp else { return TileHint(text: "log a bottle") }
+        if aiEnabled, let s = settingsList.first {
+            let prediction = PredictionEngine.nextFeed(
+                lastFeed: last, feeds: feeds.map(\.timestamp),
+                targetInterval: targetFeed(after: last),
+                nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute,
+                now: now)
+            if prediction.confidence != .low, prediction.date > now {
+                let clock = TimeFormatting.clock(prediction.date)
+                var text = prediction.confidence == .high
+                    ? "next bottle ~\(clock)" : "likely around \(clock)"
+                if let oz = predictedOz(at: prediction.date, now: now) {
+                    text += " · ~\(OzFormat.string(oz)) oz"
+                }
+                return TileHint(text: text, isAI: true)
+            }
+        }
         let next = last.addingTimeInterval(targetFeed(after: last))
-        return next < now
+        return TileHint(text: next < now
             ? "bottle was due ~\(TimeFormatting.clock(next))"
-            : "next bottle ~\(TimeFormatting.clock(next))"
+            : "next bottle ~\(TimeFormatting.clock(next))")
+    }
+
+    /// Expected bottle size for a feed at `reference` — nil until his own
+    /// data carries it (a `.low` result is just the age table, and the tile
+    /// shouldn't dress a baseline up as his pattern).
+    private func predictedOz(at reference: Date, now: Date) -> Double? {
+        guard aiEnabled, let s = settingsList.first else { return nil }
+        let prediction = PredictionEngine.feedAmount(
+            feeds: feeds.map { ($0.timestamp, $0.amountOz) },
+            ageInDays: ageInDays, at: reference,
+            nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute,
+            now: now)
+        return prediction.confidence == .low ? nil : prediction.oz
     }
 
     /// Diapers aren't on a predictable schedule the way feeds/naps are, so
     /// there's no "next" to project — the useful thing to surface instead is
     /// when the last change actually happened, complementing the tile's
     /// relative "38m ago" with a fixed clock time.
-    private var diaperHint: String {
-        guard let last = diapers.first?.timestamp else { return "log a change" }
-        return "changed at \(TimeFormatting.clock(last))"
+    private var diaperHint: TileHint {
+        guard let last = diapers.first?.timestamp else { return TileHint(text: "log a change") }
+        return TileHint(text: "changed at \(TimeFormatting.clock(last))")
     }
 
     /// The wide Sleep row has horizontal room the square tiles don't: a
@@ -383,9 +425,40 @@ struct HomeView: View {
     }
 
     /// Same idea for Sleep: the projected next nap, from the last wake time
-    /// plus the sleep target that already drives the tile's urgency dot.
-    private func sleepHint(now: Date) -> String {
-        WakeWindow.napHint(lastWake: lastSleepEnd, target: sleepTarget, now: now)
+    /// plus the sleep target that already drives the tile's urgency dot. With
+    /// AI on and enough history, the "awake" suffix gives way to the expected
+    /// nap length — the number a parent is actually planning around.
+    private func sleepHint(now: Date) -> TileHint {
+        let plain = WakeWindow.napHint(lastWake: lastSleepEnd, target: sleepTarget, now: now)
+        guard aiEnabled, let s = settingsList.first, let lastWake = lastSleepEnd else {
+            return TileHint(text: plain)
+        }
+        let next = lastWake.addingTimeInterval(sleepTarget)
+        guard next > now else { return TileHint(text: plain) }
+        let duration = PredictionEngine.sleepDuration(
+            startingAt: next, sleeps: sleeps.map { ($0.startedAt, $0.endedAt) },
+            ageInDays: ageInDays,
+            nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute,
+            now: now)
+        guard duration.confidence != .low, !duration.isNight else { return TileHint(text: plain) }
+        return TileHint(
+            text: "next nap ~\(TimeFormatting.clock(next)) · usually ~\(WakeWindow.shortLabel(duration.duration))",
+            isAI: true)
+    }
+
+    /// Predicted end of the running sleep, for the active card and its
+    /// VoiceOver readout. Nil below medium confidence or once the moment has
+    /// passed — a stale "wake ~2:55" under a 3:10 clock reads as broken.
+    private func predictedWake(for sleep: SleepEvent, now: Date) -> Date? {
+        guard aiEnabled, let s = settingsList.first else { return nil }
+        let duration = PredictionEngine.sleepDuration(
+            startingAt: sleep.startedAt, sleeps: sleeps.map { ($0.startedAt, $0.endedAt) },
+            ageInDays: ageInDays,
+            nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute,
+            now: now)
+        guard duration.confidence != .low else { return nil }
+        let wake = sleep.startedAt.addingTimeInterval(duration.duration)
+        return wake > now ? wake : nil
     }
 
     /// The wake window this baby is actually working with — his age, adjusted
@@ -477,6 +550,16 @@ struct HomeView: View {
                                    slices: slices(index),
                                    isLast: index == rows.count - 1)
                     }
+                }
+                // Annotation, never a plan change: the schedule stays the
+                // source of truth, the prediction is a footnote telling the
+                // parent on duty how big a bottle to make.
+                if let next = rows.first(where: { $0.kind == .feed && $0.status == .upcoming }),
+                   let oz = predictedOz(at: next.date, now: now) {
+                    AIHintText(
+                        text: "usually takes ~\(OzFormat.string(oz)) oz at \(TimeFormatting.clock(next.date))",
+                        font: .caption2)
+                        .padding(.top, 6)
                 }
                 if let parts = tonightSummaryParts {
                     HStack(spacing: 6) {
