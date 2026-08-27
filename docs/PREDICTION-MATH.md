@@ -1,5 +1,31 @@
 # Prediction Math — Current State & Recency-Weighting Analysis
 
+**Status: Option D implemented on this branch (2026-08-27).** What shipped,
+relative to the analysis below:
+- `PredictionEngine.blend` now takes recency-weighted `(value, weight)`
+  pairs: weights are `2^(−age/halfLife)` (`decayWeight`), the statistic is a
+  **weighted quantile**, and confidence gates run on the **Kish effective
+  sample size** (`effectiveCount`). Half-lives: feed gaps 3 d, bottle
+  amounts 2 d, sleep durations 4 d. Evidence gates: 4/12 effective samples
+  for feeds and amounts (was 5/15 raw), 3/8 for sleep (unchanged
+  numerically, now effective).
+- Feed timing reads the **40th percentile** (`feedGapQuantile`), not the
+  median — the deliberately-slightly-early forecast from §5 Q3. Amounts and
+  sleep stay at the median.
+- `HomeView.sleepTarget` is windowed to the trailing 7 days (§1.5's bug).
+- `NightScheduleGenerator.predictedNextFeed` (dead simple-mean code) is
+  deleted.
+- Not done: `WakeWindow` itself stays unweighted (phase 2 per §3's table),
+  and the on-real-data half-life sweep (§4 step 3) still needs a run of
+  `PredictionAccuracy` against Miller's live history on-device — the
+  constants are the analysis's priors, and the accuracy card on Stats is
+  the thing to watch after this ships.
+
+The analysis below describes the state *before* this branch; §1's formulas
+are the "current state" it replaced.
+
+---
+
 Written 2026-08-27, Miller ~4 weeks old. This is the answer to "should the
 predictions weigh recent data more heavily?" — an inventory of every formula
 the app uses today, an analysis of where equal weighting actually hurts, four

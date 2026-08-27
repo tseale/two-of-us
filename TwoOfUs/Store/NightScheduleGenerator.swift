@@ -12,10 +12,6 @@ enum NightScheduleGenerator {
     /// Backstop cap — a full 12h night at 1h spacing is 13 slots; anything
     /// beyond that isn't a newborn schedule, it's a bug.
     static let maxSlots = 16
-    /// How many of the most recent feeds feed the interval average — enough to
-    /// smooth a single early/late outlier without averaging in a growth-spurt
-    /// pace from days ago.
-    static let predictionHistoryCount = 6
 
     /// Wall-clock minutes (0..<1440) for each feed of the night, in night
     /// order (first feed onward, wrapping midnight). A first feed outside the
@@ -54,17 +50,5 @@ enum NightScheduleGenerator {
 
     private static func wrap(_ minute: Int) -> Int {
         ((minute % 1440) + 1440) % 1440
-    }
-
-    /// Predicts the next feed from recent history: the last feed's timestamp
-    /// plus the average gap between the most recent feeds. Needs at least two
-    /// timestamps to derive a gap — a single feed (or none) has nothing to
-    /// average against, and the caller should fall back to manual entry.
-    static func predictedNextFeed(recentFeedTimestamps: [Date]) -> Date? {
-        let sorted = recentFeedTimestamps.sorted(by: >).prefix(predictionHistoryCount)
-        guard sorted.count >= 2, let last = sorted.first else { return nil }
-        let gaps = zip(sorted, sorted.dropFirst()).map { $0.timeIntervalSince($1) }
-        let averageGap = gaps.reduce(0, +) / Double(gaps.count)
-        return last.addingTimeInterval(averageGap)
     }
 }

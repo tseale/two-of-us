@@ -491,12 +491,17 @@ struct HomeView: View {
 
     /// The wake window this baby is actually working with — his age, adjusted
     /// by his own recent history. Drives both the hint and the tile's urgency
-    /// dot, so the dot and the projection can never disagree.
+    /// dot, so the dot and the projection can never disagree. Trailing week
+    /// only, matching `QuickLogger.sleepTarget` and the widgets — unwindowed,
+    /// this tile would average his entire sleep history and drift from every
+    /// other surface as he ages.
     private var sleepTarget: TimeInterval {
-        WakeWindow.predicted(
+        let weekAgo = Date.now.addingTimeInterval(-7 * 24 * 3600)
+        return WakeWindow.predicted(
             ageInDays: baby.map { WakeWindow.ageInDays(dateOfBirth: $0.dateOfBirth) } ?? 0,
             observedGaps: WakeWindow.wakeGaps(
-                sleeps: sleeps.map { ($0.startedAt, $0.endedAt) },
+                sleeps: sleeps.filter { $0.startedAt >= weekAgo }
+                    .map { ($0.startedAt, $0.endedAt) },
                 nightStartMinute: settingsList.first?.nightStartMinute ?? 1200,
                 nightEndMinute: settingsList.first?.nightEndMinute ?? 480))
     }
