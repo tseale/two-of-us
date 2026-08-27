@@ -85,4 +85,22 @@ final class NightScheduleParticipantFilterTests: XCTestCase {
             XCTAssertNil(occ.assignedToID)
         }
     }
+
+    /// A paused co-parent (still `isActive`, on the CKShare) must drop out of
+    /// the rotation exactly like a revoked one — pausing takes effect on
+    /// tonight's schedule immediately, not just for future invites.
+    func testPausedCoParentIsExcludedAlongsideGuests() {
+        let taylor = Participant(displayName: "Taylor", colorHex: "#AABBCC", role: .full)
+        let paused = Participant(displayName: "Paused", colorHex: "#112233", role: .full,
+                                 pausedAt: date(2026, 8, 17, 12, 0))
+        let buddy = Participant(displayName: "Buddy", colorHex: "#DDCCBB", role: .logger)
+
+        let night = NightSchedule(settings: makeSettings(),
+                                  participants: [taylor, paused, buddy],
+                                  feeds: [], now: date(2026, 8, 17, 21, 0))
+
+        for occ in night.occurrences() {
+            XCTAssertNil(occ.assignedToID)
+        }
+    }
 }

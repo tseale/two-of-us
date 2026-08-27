@@ -172,7 +172,7 @@ struct PeopleSettingsView: View {
                                  set: { if !$0 { participantToMerge = nil } }),
             titleVisibility: .visible, presenting: participantToMerge
         ) { dup in
-            ForEach(participants.filter { $0.isActive && $0.id != dup.id }) { target in
+            ForEach(participants.filter { $0.isActive && !$0.isPaused && $0.id != dup.id }) { target in
                 Button(target.id == prefs.myParticipantID
                        ? "Merge into \(target.displayName.isEmpty ? "you" : target.displayName) (you)"
                        : "Merge into \(target.displayName.isEmpty ? "—" : target.displayName)") {
@@ -195,7 +195,11 @@ struct PeopleSettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
                 Avatar(photoData: p.photoData, name: p.displayName, colorHex: p.colorHex, size: 36)
+                    .saturation(p.isPaused ? 0 : 1)
+                    .opacity(p.isPaused ? 0.5 : 1)
                 Text(p.displayName.isEmpty ? "—" : p.displayName)
+                    .foregroundStyle(p.isPaused ? AppColor.text3 : AppColor.text)
+                if p.isPaused { pausedBadge }
                 Spacer()
                 rolePill(isMe: isMe, role: p.role)
             }
@@ -206,6 +210,16 @@ struct PeopleSettingsView: View {
                     Text(ParticipantRole.logger.displayName).tag(ParticipantRole.logger)
                 }
                 .pickerStyle(.segmented)
+                .disabled(p.isPaused)
+
+                Button {
+                    if p.isPaused { store.resumeParticipant(p) } else { store.pauseParticipant(p) }
+                } label: {
+                    Label(p.isPaused ? "Resume access" : "Pause access",
+                          systemImage: p.isPaused ? "play.circle" : "pause.circle")
+                        .font(.subheadline.weight(.medium))
+                }
+                .tint(p.isPaused ? AppColor.accentSleep : AppColor.text2)
             }
         }
         .swipeActions {
@@ -270,6 +284,17 @@ struct PeopleSettingsView: View {
         } catch {
             shareError = (error as NSError).localizedDescription
         }
+    }
+
+    /// Marks a row whose access is paused — sits beside the name, ahead of the
+    /// role pill, so it reads before "Co-parent"/"Guest" rather than after.
+    private var pausedBadge: some View {
+        Text("Paused")
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(AppColor.text3.opacity(0.16), in: Capsule())
+            .foregroundStyle(AppColor.text3)
     }
 
     private func rolePill(isMe: Bool, role: ParticipantRole) -> some View {

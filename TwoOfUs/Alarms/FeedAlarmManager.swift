@@ -54,6 +54,10 @@ enum FeedAlarmManager {
         // Feed tracking off (shared setting) means no feed alarm — there's
         // nothing to log when it rings.
         guard QuickLogger.make()?.isTrackingEnabled(.feed) ?? true else { return }
+        // A paused device never rings — it can't log the feed the alarm
+        // demands, and `assignedElsewhere` below can't stand it down when
+        // pausing left the whole night unassigned.
+        guard QuickLogger.make()?.selfIsPaused != true else { return }
 
         let fireDate = lastFeed.addingTimeInterval(interval)
         let remaining = fireDate.timeIntervalSinceNow

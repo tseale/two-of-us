@@ -15,6 +15,7 @@ import SwiftData
 /// commit flips the route underneath, then fades away to reveal Home settled.
 struct RootView: View {
     @Query private var babies: [Baby]
+    @Query private var participants: [Participant]
     @State private var prefs = LocalPrefs.shared
     @State private var celebration: CelebrationData?
     @State private var shareAcceptance = ShareAcceptance.shared
@@ -22,6 +23,27 @@ struct RootView: View {
 
     private var needsJoinProfile: Bool {
         prefs.syncRole == .participant && prefs.myParticipantID == nil
+    }
+
+    /// True once the owner has paused this device's own participant row —
+    /// blocks the main tabs behind `PausedAccessView` instead of the join
+    /// flows above, since a paused person already has a profile and a synced
+    /// baby; they're just temporarily locked out. Mirrors `EventStore.owner`'s
+    /// merge handover: a merged-away stored row defers to its live survivor,
+    /// so a stale tombstone can neither lock this device out nor mask a real
+    /// pause on the survivor.
+    private var isSelfPaused: Bool {
+        guard let me = participants.first(where: { $0.id == prefs.myParticipantID }) else {
+            return false
+        }
+        if me.isActive { return me.isPaused }
+        if let cid = me.cloudUserID,
+           let survivor = participants.first(where: {
+               $0.isActive && $0.cloudUserID == cid && $0.id != me.id
+           }) {
+            return survivor.isPaused
+        }
+        return me.isPaused
     }
 
     private enum Route: Equatable { case join, joinSyncing, onboarding, main }
@@ -51,6 +73,7 @@ struct RootView: View {
             routedContent
         }
         .animation(.easeInOut(duration: 0.35), value: route)
+        .animation(.easeInOut(duration: 0.35), value: isSelfPaused)
         .animation(.easeInOut(duration: 0.35), value: prefs.demoModeEnabled)
         .tint(AppColor.accentFeed)
         .preferredColorScheme(prefs.appearance.colorScheme)
@@ -119,8 +142,13 @@ struct RootView: View {
                 OnboardingView(onFinished: celebrate)
                     .transition(.opacity)
             case .main:
-                MainTabView()
-                    .transition(.opacity)
+                if isSelfPaused {
+                    PausedAccessView()
+                        .transition(.opacity)
+                } else {
+                    MainTabView()
+                        .transition(.opacity)
+                }
             }
         }
     }
