@@ -238,6 +238,10 @@ more than total history volume.
 
 ## UI / UX
 
+Visual mockups: `mockups/ai-predictions-mockup.html` (open in a browser) —
+seven phone-frame panels covering the tiles, active-sleep card, Live Activity,
+tonight-card annotation, confidence wording, settings toggle, and Stats cards.
+
 ### AI gradient styling
 
 Apple's Intelligence visual language: multicolor gradient shimmer for

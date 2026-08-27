@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Predictions Mockups</title>
+<style>
+  :root {
+    --page: #F2F2F7; --ink: #000; --lbl: #6C6C70; --note: #8E8E93;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --page: #101012; --ink: #FFF; --lbl: #98989F; --note: #8E8E93; }
+  }
+  :root[data-theme="dark"] { --page: #101012; --ink: #FFF; --lbl: #98989F; --note: #8E8E93; }
+
+  body { margin: 0; padding: 32px 24px 64px; background: var(--page); color: var(--ink);
+         font-family: -apple-system, 'Helvetica Neue', sans-serif; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 auto 6px; max-width: 1080px; }
+  .sub { font-size: 13px; color: var(--lbl); margin: 0 auto 28px; max-width: 1080px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 28px 24px; max-width: 1080px; margin: 0 auto; }
+  .lbl { font-size: 13px; color: var(--lbl); margin: 0 0 8px; font-weight: 500; }
+  .note { font-size: 12px; color: var(--note); margin: 8px 2px 0; line-height: 1.45; }
+  .phone { background: #000; border-radius: 24px; border: 6px solid #2C2C2E; padding: 16px 14px; }
+
+  /* ——— app tokens (phone interiors are committed dark) ——— */
+  .card { background: #1C1C1E; border-radius: 14px; padding: 14px; }
+  .cap { font-size: 10px; letter-spacing: 0.6px; color: #636366; font-weight: 600; }
+  .t1 { color: #FFF; } .t2 { color: #98989F; } .t3 { color: #636366; }
+
+  /* ——— the AI hint: gradient-clipped text, static by default ——— */
+  .ai {
+    background: linear-gradient(100deg, #5AA8FF, #8E8EFF 38%, #D984E0 70%, #F5A97F);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    font-weight: 500;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .ai { background-size: 200% 100%; }
+    .phone:hover .ai { animation: shimmer 2.6s ease-in-out 1; }
+    @keyframes shimmer { 0% {background-position: 0% 0;} 50% {background-position: 100% 0;} 100% {background-position: 0% 0;} }
+  }
+
+  .tile { background: #1C1C1E; border-radius: 14px; padding: 12px; flex: 1; min-width: 0; }
+  .tilehead { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .tilehead span { font-size: 11px; font-weight: 600; letter-spacing: 0.4px; }
+  .big { font-size: 22px; font-weight: 600; color: #FFF; font-variant-numeric: tabular-nums; }
+  .hint { font-size: 11.5px; margin-top: 5px; line-height: 1.35; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .avatar { width: 20px; height: 20px; border-radius: 50%; font-size: 10px; font-weight: 600;
+            display: inline-flex; align-items: center; justify-content: center; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .toggle { width: 46px; height: 28px; border-radius: 14px; background: #34C759; position: relative; flex-shrink: 0; }
+  .toggle::after { content: ""; position: absolute; top: 2px; right: 2px; width: 24px; height: 24px;
+                   border-radius: 50%; background: #FFF; }
+</style>
+</head>
+<body>
+<h1>Two of Us — AI predictions (design mockups, see docs/AI-PREDICTIONS.md)</h1>
+<p class="sub">Decided direction: subtle gradient on the hint text only · confidence as wording, not badges · night schedule gets annotations, never auto-shifts · one family-wide toggle. Hover a phone to preview the one-time shimmer (first-appearance only in app; off under Reduce Motion).</p>
+
+<div class="grid">
+
+  <!-- 1 · Home tiles, daytime -->
+  <div>
+    <p class="lbl">1 · Home tiles — high-confidence hints (day)</p>
+    <div class="phone">
+      <div style="display:flex; gap:10px;">
+        <div class="tile">
+          <div class="tilehead"><span style="color:#5AC8B8;">🍼 FEED</span></div>
+          <div class="big">2h 10m</div>
+          <div class="hint t3">since last · 3.5 oz</div>
+          <div class="hint"><span class="ai">✦ next ~2:30 PM · ~3.5 oz</span></div>
+        </div>
+        <div class="tile">
+          <div class="tilehead"><span style="color:#8E8EFF;">🌙 SLEEP</span></div>
+          <div class="big">1h 05m</div>
+          <div class="hint t3">awake · last nap 48m</div>
+          <div class="hint"><span class="ai">✦ nap ~2:15 PM · usually ~50m</span></div>
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:10px;">
+        <div class="tile" style="max-width:47%;">
+          <div class="tilehead"><span style="color:#F5B971;">🍃 DIAPER</span></div>
+          <div class="big">1h 20m</div>
+          <div class="hint"><span class="ai">✦ next change ~4:15 PM</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="note">The AI line is one added hint row per tile, gradient-tinted, always led by ✦. Urgency colors on the elapsed time are untouched — the two systems never share a line.</p>
+  </div>
+
+  <!-- 2 · Sleep in progress -->
+  <div>
+    <p class="lbl">2 · Sleep active card — predicted wake</p>
+    <div class="phone">
+      <div class="card" style="border: 1px solid #2C2C4D;">
+        <div class="row" style="justify-content:space-between;">
+          <div class="row" style="gap:8px;">
+            <span style="font-size:18px;">🌙</span>
+            <div>
+              <div style="font-size:15px; font-weight:600;" class="t1">Asleep</div>
+              <div style="font-size:12px;" class="t2">since 1:32 PM</div>
+            </div>
+          </div>
+          <div class="big" style="color:#8E8EFF;">0:38</div>
+        </div>
+        <div style="border-top:1px solid #2C2C2E; margin-top:12px; padding-top:10px;" class="row">
+          <span class="hint" style="font-size:12px;"><span class="ai">✦ predicted wake ~2:55 PM</span></span>
+          <span class="hint t3" style="font-size:12px; margin-left:auto;">±20m</span>
+        </div>
+      </div>
+      <p class="cap" style="margin:14px 2px 6px;">TAP THE HINT → BASIS POPOVER</p>
+      <div class="card" style="background:#2C2C2E; padding:10px 12px;">
+        <div style="font-size:12px; line-height:1.4;" class="t1">Median of his last 9 afternoon naps, blended with the 12-week range.</div>
+        <div style="font-size:11px; margin-top:3px;" class="t3">Computed on this iPhone · nothing leaves your device</div>
+      </div>
+    </div>
+    <p class="note">Range shown quietly when confidence is medium. The popover is the trust feature: every number can explain itself in one sentence.</p>
+  </div>
+
+  <!-- 3 · Lock screen Live Activity -->
+  <div>
+    <p class="lbl">3 · Sleep Live Activity — lock screen</p>
+    <div class="phone" style="background:linear-gradient(#15151F,#1C1C2E); padding-top:44px;">
+      <div style="text-align:center; margin-bottom:22px;">
+        <div style="font-size:36px; font-weight:300;" class="t1">3:12</div>
+        <div style="font-size:12px;" class="t2">Saturday, August 30</div>
+      </div>
+      <div class="card" style="background:rgba(28,28,30,0.85); backdrop-filter:blur(6px);">
+        <div class="row" style="justify-content:space-between;">
+          <div class="row" style="gap:8px;">
+            <span style="font-size:16px;">🌙</span>
+            <div>
+              <div style="font-size:13px; font-weight:600;" class="t1">Miller · asleep</div>
+              <div style="font-size:11px;" class="t2">4h 12m</div>
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:11px;" class="t3">next feed</div>
+            <div class="row" style="gap:5px; justify-content:flex-end;">
+              <span class="dot" style="background:#E081B0;"></span>
+              <span style="font-size:13px; font-weight:600;" class="t1">3:00 AM</span>
+            </div>
+          </div>
+        </div>
+        <div style="border-top:1px solid #38383A; margin-top:10px; padding-top:8px; font-size:11.5px;">
+          <span class="ai">✦ likely awake around 6:15 AM</span>
+        </div>
+      </div>
+    </div>
+    <p class="note">Predicted wake joins the existing next-feed column as one added footer line. Medium confidence overnight → hedged wording ("likely around"), a clock time rather than a countdown so a stale snapshot degrades gracefully.</p>
+  </div>
+
+  <!-- 4 · Tonight card annotation -->
+  <div>
+    <p class="lbl">4 · Tonight card — annotation, never auto-shift</p>
+    <div class="phone">
+      <div class="card">
+        <p class="cap" style="margin:0 0 10px;">TONIGHT</p>
+        <div class="row" style="padding:7px 0; opacity:0.45;">
+          <span class="avatar" style="background:#5AC8B8; color:#04342C;">T</span>
+          <span style="font-size:13px;" class="t1">9:00 PM · feed</span>
+          <span style="font-size:12px; margin-left:auto;" class="t2">done · 3 oz ✓</span>
+        </div>
+        <div class="row" style="padding:7px 0;">
+          <span class="avatar" style="background:#E081B0; color:#3D0A24;">T</span>
+          <span style="font-size:13px;" class="t1">12:00 AM · feed</span>
+          <span style="font-size:12px; margin-left:auto;" class="t3">up next</span>
+        </div>
+        <div style="padding:7px 0;">
+          <div class="row">
+            <span class="avatar" style="background:#5AC8B8; color:#04342C;">T</span>
+            <span style="font-size:13px;" class="t1">3:00 AM · feed</span>
+          </div>
+          <div style="font-size:11.5px; margin:3px 0 0 30px;">
+            <span class="ai">✦ usually stirs ~2:40 · takes ~4 oz</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note">The schedule stays the plan; the prediction is a footnote under the slot it informs. Whose phone rings, and when, never moves without a human edit.</p>
+  </div>
+
+  <!-- 5 · Confidence wording -->
+  <div>
+    <p class="lbl">5 · Confidence is wording, not badges</p>
+    <div class="phone">
+      <p class="cap" style="margin:0 0 6px;">HIGH — PLAIN STATEMENT</p>
+      <div class="card" style="padding:10px 12px; margin-bottom:12px;">
+        <span class="hint" style="font-size:12.5px;"><span class="ai">✦ next feed ~2:30 PM · ~3.5 oz</span></span>
+      </div>
+      <p class="cap" style="margin:0 0 6px;">MEDIUM — HEDGED</p>
+      <div class="card" style="padding:10px 12px; margin-bottom:12px;">
+        <span class="hint" style="font-size:12.5px;"><span class="ai">✦ likely around 2:30 PM</span></span>
+      </div>
+      <p class="cap" style="margin:0 0 6px;">LOW / COLD START — ATTRIBUTED TO AGE</p>
+      <div class="card" style="padding:10px 12px;">
+        <span class="hint" style="font-size:12.5px;"><span class="ai">✦ typical for 12 weeks: ~3h between feeds</span></span>
+      </div>
+      <p class="cap" style="margin:16px 0 6px;">FEED SHEET — SUGGESTED AMOUNT</p>
+      <div class="card" style="padding:12px;">
+        <div class="row" style="gap:8px;">
+          <span style="font-size:20px; font-weight:600;" class="t1">4.0 oz</span>
+          <span style="margin-left:auto; font-size:11.5px; padding:5px 10px; border:1px solid #38383A; border-radius:12px;">
+            <span class="ai">✦ he's been taking 3.5</span>
+          </span>
+        </div>
+      </div>
+    </div>
+    <p class="note">Same visual treatment at every level — only the sentence changes. The oz suggestion is a tappable chip beside the default amount, never a silent override of it.</p>
+  </div>
+
+  <!-- 6 · Settings -->
+  <div>
+    <p class="lbl">6 · Settings → Feeding &amp; Tracking — the toggle</p>
+    <div class="phone">
+      <p class="cap" style="margin:4px 2px 8px;">AI FEATURES</p>
+      <div class="card" style="padding:0;">
+        <div class="row" style="padding:12px 14px;">
+          <span style="font-size:16px;" class="ai">✦</span>
+          <div style="flex:1;">
+            <div style="font-size:14px;" class="t1">Predictions &amp; Insights</div>
+            <div style="font-size:11.5px;" class="t2">Next feed, amounts, wake times, weekly recap</div>
+          </div>
+          <div class="toggle"></div>
+        </div>
+      </div>
+      <p style="font-size:11.5px; line-height:1.45; margin:8px 4px 0;" class="t3">
+        Predictions are computed on your iPhone from your own logs. Nothing about Miller
+        leaves your device. Shared with your co-parent's settings. Not medical advice.
+      </p>
+    </div>
+    <p class="note">One switch, synced family-wide, also governing the existing Stats summary card. Off → every ✦ line disappears and hints fall back to today's behavior.</p>
+  </div>
+
+  <!-- 7 · Stats outlook (Phase 3) -->
+  <div>
+    <p class="lbl">7 · Stats — outlook card (Phase 3, Foundation Models)</p>
+    <div class="phone">
+      <div class="card" style="border:1px solid transparent; background:
+           linear-gradient(#1C1C1E,#1C1C1E) padding-box,
+           linear-gradient(100deg,#5AA8FF33,#8E8EFF44,#D984E033,#F5A97F33) border-box;">
+        <p class="cap" style="margin:0 0 8px;"><span class="ai" style="font-weight:600;">✦ TODAY'S OUTLOOK</span></p>
+        <p style="font-size:13px; line-height:1.5; margin:0;" class="t1">
+          Miller's been running hungrier in the evenings this week — expect a bigger
+          bottle around 7 PM. Naps have settled near 50 minutes, so the 2:15 nap
+          should have him up before your 3:30.
+        </p>
+        <p style="font-size:11px; margin:8px 0 0;" class="t3">Generated on-device from his last 7 days</p>
+      </div>
+      <p class="cap" style="margin:16px 2px 8px;">ACCURACY (PHASE 4)</p>
+      <div class="card" style="padding:12px;">
+        <div class="row"><span style="font-size:12.5px;" class="t2">Feed-time predictions this week</span>
+          <span style="font-size:12.5px; font-weight:600; margin-left:auto;" class="t1">median miss 14m</span></div>
+        <div class="row" style="margin-top:6px;"><span style="font-size:12.5px;" class="t2">Amount predictions</span>
+          <span style="font-size:12.5px; font-weight:600; margin-left:auto;" class="t1">within ½ oz 78%</span></div>
+      </div>
+    </div>
+    <p class="note">The one place the gradient touches a container — a faint border on the narrative card, since here the whole content is AI-generated. Accuracy card doubles as the Phase 2 promotion gate.</p>
+  </div>
+
+</div>
+</body>
+</html>
