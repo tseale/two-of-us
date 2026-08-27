@@ -390,9 +390,13 @@ struct HomeView: View {
                    modelDate > now {
                     date = modelDate
                 }
+                // No "bottle" — the tile is already titled Feed, and the ✦
+                // line must hold full size beside the oz suffix on a square
+                // tile (spelled out, it only fit by scaling down, which made
+                // the tiles' hint rows visibly inconsistent).
                 let clock = TimeFormatting.clock(date)
                 var text = prediction.confidence == .high
-                    ? "next bottle ~\(clock)" : "likely around \(clock)"
+                    ? "next ~\(clock)" : "likely ~\(clock)"
                 if let oz = predictedOz(at: date, now: now) {
                     text += " · ~\(OzFormat.string(oz)) oz"
                 }
@@ -463,8 +467,10 @@ struct HomeView: View {
             nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute,
             now: now)
         guard duration.confidence != .low, !duration.isNight else { return TileHint(text: plain) }
+        // Same trim as the Feed tile: the row is titled Sleep, so "nap" is
+        // dead weight the duration suffix needs back.
         return TileHint(
-            text: "next nap ~\(TimeFormatting.clock(next)) · usually ~\(WakeWindow.shortLabel(duration.duration))",
+            text: "next ~\(TimeFormatting.clock(next)) · usually ~\(WakeWindow.shortLabel(duration.duration))",
             isAI: true)
     }
 
