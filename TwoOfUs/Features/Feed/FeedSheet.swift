@@ -43,8 +43,11 @@ struct FeedSheet: View {
     /// What he's actually been taking at this hour (`PredictionEngine`), when
     /// it meaningfully disagrees with the configured bottle. A suggestion
     /// beside the default, never a silent override of it — the sheet still
-    /// opens on the bottle size.
-    private var suggestedOz: Double? {
+    /// opens on the bottle size. Below the sample minimum the age-table
+    /// number still shows, attributed to his age rather than dressed up as
+    /// his pattern — baselines are useful from day one, as long as they say
+    /// what they are.
+    private var suggestedOz: (oz: Double, isBaseline: Bool)? {
         guard let s = settingsList.first, s.aiPredictionsEnabled,
               let baby = babies.first else { return nil }
         let prediction = PredictionEngine.feedAmount(
@@ -52,8 +55,18 @@ struct FeedSheet: View {
             ageInDays: WakeWindow.ageInDays(dateOfBirth: baby.dateOfBirth),
             at: date,
             nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute)
-        guard prediction.confidence != .low, abs(prediction.oz - bottleOz) >= 0.5 else { return nil }
-        return prediction.oz
+        guard abs(prediction.oz - bottleOz) >= 0.5 else { return nil }
+        // Pre-birth there's no age to attribute a baseline to ("typical at
+        // due in 2 weeks" reads broken) — his-data suggestions only.
+        if prediction.confidence == .low, !baby.isBorn { return nil }
+        return (prediction.oz, prediction.confidence == .low)
+    }
+
+    private var suggestionLabel: String? {
+        guard let suggested = suggestedOz else { return nil }
+        return suggested.isBaseline
+            ? "typical at \(TimeFormatting.age(from: babies.first?.dateOfBirth ?? .now)): ~\(OzFormat.string(suggested.oz)) oz"
+            : "he's been taking ~\(OzFormat.string(suggested.oz)) oz at this hour"
     }
 
     var body: some View {
@@ -93,16 +106,15 @@ struct FeedSheet: View {
                             }
                         Text("oz").foregroundStyle(AppColor.text3)
                     }
-                    if let suggested = suggestedOz {
+                    if let suggested = suggestedOz, let label = suggestionLabel {
                         Button {
-                            amount = suggested
+                            amount = suggested.oz
                             usingCustom = false
                             customText = ""
                             Haptics.tap()
                         } label: {
                             HStack {
-                                AIHintText(text: "he's been taking ~\(OzFormat.string(suggested)) oz at this hour",
-                                           font: .footnote)
+                                AIHintText(text: label, font: .footnote)
                                 Spacer()
                                 Text("Use")
                                     .font(.footnote.weight(.semibold))
@@ -111,7 +123,7 @@ struct FeedSheet: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Predicted amount \(OzFormat.string(suggested)) ounces — use it")
+                        .accessibilityLabel("Predicted amount \(OzFormat.string(suggested.oz)) ounces — use it")
                     }
                 }
 
