@@ -377,10 +377,23 @@ struct HomeView: View {
                 nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute,
                 now: now)
             if prediction.confidence != .low, prediction.date > now {
-                let clock = TimeFormatting.clock(prediction.date)
+                // Champion/challenger: the trained model's date replaces the
+                // statistic's only while the accuracy gate says it's winning.
+                var date = prediction.date
+                if let baby,
+                   let modelDate = PredictionArbiter.shared.modelNextFeed(
+                       lastFeed: last, feeds: feeds.map(\.timestamp),
+                       dateOfBirth: baby.dateOfBirth,
+                       targetInterval: { s.feedInterval(after: $0) },
+                       nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute,
+                       now: now),
+                   modelDate > now {
+                    date = modelDate
+                }
+                let clock = TimeFormatting.clock(date)
                 var text = prediction.confidence == .high
                     ? "next bottle ~\(clock)" : "likely around \(clock)"
-                if let oz = predictedOz(at: prediction.date, now: now) {
+                if let oz = predictedOz(at: date, now: now) {
                     text += " · ~\(OzFormat.string(oz)) oz"
                 }
                 return TileHint(text: text, isAI: true)
@@ -402,7 +415,16 @@ struct HomeView: View {
             ageInDays: ageInDays, at: reference,
             nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute,
             now: now)
-        return prediction.confidence == .low ? nil : prediction.oz
+        guard prediction.confidence != .low else { return nil }
+        if let baby,
+           let modelOz = PredictionArbiter.shared.modelOz(
+               at: reference, feeds: feeds.map { ($0.timestamp, $0.amountOz) },
+               dateOfBirth: baby.dateOfBirth,
+               nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute,
+               now: now) {
+            return modelOz
+        }
+        return prediction.oz
     }
 
     /// Diapers aren't on a predictable schedule the way feeds/naps are, so

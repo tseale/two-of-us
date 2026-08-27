@@ -6,6 +6,23 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Added — AI predictions, phases 2–4
+- **Prediction accuracy card** (Stats): the trailing month of predictions
+  scored against what actually happened — median miss for feed timing, bottle
+  size, and sleep length. Computed by replaying history ("what would we have
+  predicted just before this event"), so it covers every logging path and
+  needed no new storage.
+- **Personal models**: tiny regression models trained on-device from Miller's
+  own history (time-of-day shape, age trend, previous gap) now run as
+  challengers behind every feed-time and bottle-size prediction. A model's
+  number is shown only while the accuracy scoring proves it beating the
+  statistical baseline by a real margin; otherwise the baseline stays. The
+  accuracy card says which is in use.
+- **Today's outlook** (Stats): 1–2 forward-looking sentences generated
+  on-device by Apple's Foundation Models FROM the computed predictions (the
+  model narrates the numbers, never invents them). Same hardware gating as
+  the existing insights card; both sit behind the AI Features toggle.
+
 ### Added — on-device AI predictions (Phase 1)
 - The app now predicts from Miller's own history: the Feed tile projects the
   next bottle from his observed cadence with the expected size ("✦ next bottle

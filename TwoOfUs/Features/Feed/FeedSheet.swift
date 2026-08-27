@@ -50,11 +50,18 @@ struct FeedSheet: View {
     private var suggestedOz: (oz: Double, isBaseline: Bool)? {
         guard let s = settingsList.first, s.aiPredictionsEnabled,
               let baby = babies.first else { return nil }
-        let prediction = PredictionEngine.feedAmount(
+        var prediction = PredictionEngine.feedAmount(
             feeds: feeds.map { ($0.timestamp, $0.amountOz) },
             ageInDays: WakeWindow.ageInDays(dateOfBirth: baby.dateOfBirth),
             at: date,
             nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute)
+        if prediction.confidence != .low,
+           let modelOz = PredictionArbiter.shared.modelOz(
+               at: date, feeds: feeds.map { ($0.timestamp, $0.amountOz) },
+               dateOfBirth: baby.dateOfBirth,
+               nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute) {
+            prediction = PredictionEngine.FeedAmount(oz: modelOz, confidence: prediction.confidence)
+        }
         guard abs(prediction.oz - bottleOz) >= 0.5 else { return nil }
         // Pre-birth there's no age to attribute a baseline to ("typical at
         // due in 2 weeks" reads broken) — his-data suggestions only.

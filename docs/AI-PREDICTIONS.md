@@ -1,16 +1,29 @@
 # AI Predictions — Plan
 
-**Status: Phase 1 implemented** (statistical predictions for the v1 trio —
-next feed time, feed amount, sleep duration/wake — plus the AI Features
-toggle and `AIGlow` styling; see `PredictionEngine.swift`). Phases 2–4 remain
-planned. Decisions taken 2026-08-27: v1 ships the trio (diaper predictions
-held), Home + Live Activity surfaces first, subtle gradient styling,
-night-schedule annotations only, age baselines shown from day one, one synced
-family-wide toggle that also governs the Stats insights card.
+**Status: all four phases implemented** (2026-08-27). Phase 1: statistical
+predictions for the v1 trio (`PredictionEngine`, `AgeBaselines`, `AIGlow`) +
+the AI Features toggle. Phase 4: walk-forward accuracy evaluation
+(`PredictionAccuracy`) + the Stats accuracy card. Phase 2: on-device-trained
+personal models (`RidgeRegression`, `PredictionModel`) behind the
+champion/challenger gate (`PredictionArbiter`). Phase 3: the Foundation
+Models "Today's outlook" card on Stats (`BabyIntelligence.outlook`).
+Decisions taken: v1 trio only (diaper predictions held), Home + Live Activity
+surfaces first, subtle gradient styling, night-schedule annotations only, age
+baselines from day one, one synced family-wide toggle. The
+`aiPredictionsEnabled` field is deployed to CloudKit Production.
 
-⚠️ Before the next TestFlight build: deploy the new `aiPredictionsEnabled`
-field on the Settings record type to CloudKit **Production** (Console only —
-cktool can't; see the schema-deploys memory).
+**Two implementation deviations from the plan below, both deliberate:**
+- Phase 4 is a *retrospective walk-forward evaluation*, not stored
+  prediction snapshots: the engine is pure and history is complete, so
+  "what would we have predicted before each event" is exactly reproducible —
+  covering widget/Siri/co-parent-synced events that log-time capture would
+  miss, backfilling instantly, and storing nothing.
+- Phase 2 uses a closed-form ridge regressor in pure Swift rather than the
+  Create ML framework: same feature set, deterministic, simulator/CI
+  testable, trains in microseconds, and no framework availability risk. If a
+  linear challenger ever proves too weak, boosted trees slot in behind the
+  same gate. The gate itself is exactly as planned: the model's number
+  surfaces only while `AccuracyReport.modelWins` holds on the trailing month.
 
 Original plan follows. Written 2026-08-27.
 

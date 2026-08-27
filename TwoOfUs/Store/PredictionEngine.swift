@@ -63,21 +63,15 @@ enum PredictionEngine {
     /// to the first of the next. Only gaps starting in the same day-part as
     /// `night` count — daytime cadence and overnight spacing are different
     /// rhythms, and mixing them drags both.
-    static func feedGaps(
-        feeds: [Date],
-        night: Bool,
-        nightStartMinute: Int,
-        nightEndMinute: Int,
-        now: Date = .now,
-        calendar: Calendar = .current
-    ) -> [TimeInterval] {
+    /// Distinct feedings: bottles closer than `feedClusterGap` collapse into
+    /// one, running from the first bottle to the last. Shared by the gap
+    /// statistics, the Phase 2 model features, and the walk-forward accuracy
+    /// evaluation, so all three agree on what "a feeding" is.
+    static func feedings(feeds: [Date], within window: TimeInterval,
+                         now: Date = .now) -> [(first: Date, last: Date)] {
         let recent = feeds
-            .filter { $0 > now.addingTimeInterval(-feedHistoryWindow) && $0 <= now }
+            .filter { $0 > now.addingTimeInterval(-window) && $0 <= now }
             .sorted()
-        guard recent.count >= 2 else { return [] }
-
-        // Collapse clusters: a feeding runs from its first bottle to the last
-        // bottle within `feedClusterGap` of its predecessor.
         var feedings: [(first: Date, last: Date)] = []
         for t in recent {
             if let current = feedings.last, t.timeIntervalSince(current.last) < feedClusterGap {
@@ -86,6 +80,19 @@ enum PredictionEngine {
                 feedings.append((first: t, last: t))
             }
         }
+        return feedings
+    }
+
+    static func feedGaps(
+        feeds: [Date],
+        night: Bool,
+        nightStartMinute: Int,
+        nightEndMinute: Int,
+        now: Date = .now,
+        calendar: Calendar = .current
+    ) -> [TimeInterval] {
+        let feedings = feedings(feeds: feeds, within: feedHistoryWindow, now: now)
+        guard feedings.count >= 2 else { return [] }
 
         var gaps: [TimeInterval] = []
         for (a, b) in zip(feedings, feedings.dropFirst()) {
