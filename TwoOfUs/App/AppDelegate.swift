@@ -93,13 +93,15 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         let activeSleepStartedAt = logger.activeSleep?.startedAt
         let lastSleepEndedAt = logger.lastEndedSleep?.endedAt
         let nextFeed = logger.nextFeedPrediction()
+        let predictedWake = logger.predictedWakeAt()
         MainActor.assumeIsolated {
             AppLog.liveActivity.debug("Foreground reconcile: activeSleep=\(activeSleepStartedAt.map(String.init(describing:)) ?? "none", privacy: .public)")
             SleepActivityManager.reconcile(
                 babyName: babyName,
                 activeSleepStartedAt: activeSleepStartedAt,
                 lastSleepEndedAt: lastSleepEndedAt,
-                nextFeed: nextFeed
+                nextFeed: nextFeed,
+                predictedWake: predictedWake
             )
         }
         // Re-arm the feed alarm off whatever's in the store now — this catches

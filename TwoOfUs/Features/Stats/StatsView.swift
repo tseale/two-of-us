@@ -11,6 +11,13 @@ struct StatsView: View {
     private var sleeps: [SleepEvent]
     @Query(filter: #Predicate<DiaperEvent> { $0.deletedAt == nil })
     private var diapers: [DiaperEvent]
+    @Query private var settingsList: [SharedSettings]
+
+    /// The family-wide AI switch (Settings → Feeding & Tracking). Governs the
+    /// insights card the same way it governs the prediction hints.
+    private var aiEnabled: Bool {
+        SharedSettings.canonical(settingsList)?.aiPredictionsEnabled ?? true
+    }
 
     private var engine: StatsEngine {
         StatsEngine(feeds: feeds, sleeps: sleeps, diapers: diapers)
@@ -25,12 +32,16 @@ struct StatsView: View {
     /// data (e.g. Simulator, or a transient failure), hide the card rather than
     /// showing the misleading "log a few feeds" empty-state over a week of data.
     private var showInsights: Bool {
-        guard BabyIntelligence.isAvailable else { return false }
+        guard aiEnabled, BabyIntelligence.isAvailable else { return false }
         return summaryLoading || summary != nil || !hasAnyData
     }
 
     @State private var summary: String?
     @State private var summaryLoading = false
+    @State private var outlook: String?
+    @State private var timeAccuracy: AccuracyReport?
+    @State private var amountAccuracy: AccuracyReport?
+    @State private var sleepAccuracy: AccuracyReport?
     @State private var showWrapped = false
     @State private var showCareSummary = false
 
@@ -42,6 +53,9 @@ struct StatsView: View {
                     if showInsights {
                         insightsCard
                     }
+                    if let outlook, aiEnabled {
+                        outlookCard(outlook)
+                    }
                     todayCard
                     recordHero
                     milestonesCard
@@ -49,6 +63,9 @@ struct StatsView: View {
                     nightShiftCard
                     contributionCard
                     cadenceCard
+                    if aiEnabled, timeAccuracy != nil || amountAccuracy != nil || sleepAccuracy != nil {
+                        accuracyCard
+                    }
                     if hasAnyData { careSummaryButton }
                 }
                 .padding(16)
@@ -154,16 +171,177 @@ struct StatsView: View {
     }
 
     private func loadSummary() async {
-        guard BabyIntelligence.isAvailable, !feeds.isEmpty else { return }
+        guard aiEnabled, !feeds.isEmpty else { return }
         // Debounce: the `.task(id:)` above cancels and restarts this on every
         // event change, so a widget batch of N events would otherwise regenerate
         // the summary N times. Wait out the burst first — a superseded run cancels
         // here before doing the expensive generation.
         try? await Task.sleep(for: .seconds(0.8))
         guard !Task.isCancelled else { return }
+        // The accuracy walk-forward is pure Swift and cheap (~10ms) — no
+        // Apple Intelligence hardware needed, unlike the generated cards.
+        loadAccuracy()
+        guard BabyIntelligence.isAvailable else { return }
         summaryLoading = true
-        defer { summaryLoading = false }
         summary = await BabyIntelligence.summary(digest: buildDigest(), babyName: babyName)
+        summaryLoading = false
+        guard !Task.isCancelled else { return }
+        // Sequential on purpose: one on-device generation at a time.
+        if let digest = buildOutlookDigest() {
+            outlook = await BabyIntelligence.outlook(digest: digest, babyName: babyName)
+        } else {
+            outlook = nil
+        }
+    }
+
+    /// Walk-forward accuracy over the trailing month (`PredictionAccuracy`).
+    private func loadAccuracy() {
+        guard let baby = babies.first,
+              let settings = SharedSettings.canonical(settingsList) else { return }
+        let feedTimes = feeds.map(\.timestamp)
+        let feedPairs = feeds.map { ($0.timestamp, $0.amountOz) }
+        timeAccuracy = PredictionAccuracy.feedTimeReport(
+            feeds: feedTimes, dateOfBirth: baby.dateOfBirth,
+            nightStartMinute: settings.nightStartMinute, nightEndMinute: settings.nightEndMinute,
+            targetInterval: { settings.feedInterval(after: $0) })
+        amountAccuracy = PredictionAccuracy.feedAmountReport(
+            feeds: feedPairs, dateOfBirth: baby.dateOfBirth,
+            nightStartMinute: settings.nightStartMinute, nightEndMinute: settings.nightEndMinute)
+        sleepAccuracy = PredictionAccuracy.sleepDurationReport(
+            sleeps: sleeps.map { ($0.startedAt, $0.endedAt) }, dateOfBirth: baby.dateOfBirth,
+            nightStartMinute: settings.nightStartMinute, nightEndMinute: settings.nightEndMinute)
+    }
+
+    /// Digest for the outlook generation: the engine's numbers, spelled out,
+    /// so the model narrates arithmetic it never performs. Nil (no card) when
+    /// no prediction clears the confidence floor.
+    private func buildOutlookDigest() -> String? {
+        guard let baby = babies.first,
+              let settings = SharedSettings.canonical(settingsList) else { return nil }
+        let now = Date.now
+        let ageInDays = WakeWindow.ageInDays(dateOfBirth: baby.dateOfBirth, now: now)
+        var lines: [String] = []
+
+        if let last = feeds.map(\.timestamp).max() {
+            let next = PredictionEngine.nextFeed(
+                lastFeed: last, feeds: feeds.map(\.timestamp),
+                targetInterval: settings.feedInterval(after: last),
+                nightStartMinute: settings.nightStartMinute, nightEndMinute: settings.nightEndMinute,
+                now: now)
+            if next.confidence != .low, next.date > now {
+                let amount = PredictionEngine.feedAmount(
+                    feeds: feeds.map { ($0.timestamp, $0.amountOz) },
+                    ageInDays: ageInDays, at: next.date,
+                    nightStartMinute: settings.nightStartMinute, nightEndMinute: settings.nightEndMinute,
+                    now: now)
+                var line = "Next bottle predicted around \(TimeFormatting.clock(next.date))"
+                if amount.confidence != .low { line += ", about \(OzFormat.string(amount.oz)) oz" }
+                lines.append(line + ".")
+            }
+        }
+
+        let napReference = Calendar.current.date(bySettingHour: 13, minute: 0, second: 0, of: now) ?? now
+        let nap = PredictionEngine.sleepDuration(
+            startingAt: napReference, sleeps: sleeps.map { ($0.startedAt, $0.endedAt) },
+            ageInDays: ageInDays,
+            nightStartMinute: settings.nightStartMinute, nightEndMinute: settings.nightEndMinute,
+            now: now)
+        if nap.confidence != .low, !nap.isNight {
+            lines.append("Naps have been running about \(WakeWindow.shortLabel(nap.duration)).")
+        }
+        let nightReference = Calendar.current.date(bySettingHour: 21, minute: 0, second: 0, of: now) ?? now
+        let night = PredictionEngine.sleepDuration(
+            startingAt: nightReference, sleeps: sleeps.map { ($0.startedAt, $0.endedAt) },
+            ageInDays: ageInDays,
+            nightStartMinute: settings.nightStartMinute, nightEndMinute: settings.nightEndMinute,
+            now: now)
+        if night.confidence != .low, night.isNight {
+            lines.append("Overnight stretches have been about \(WakeWindow.shortLabel(night.duration)).")
+        }
+
+        guard !lines.isEmpty else { return nil }
+        if let avg = engine.averageFeedInterval(fromDaysAgo: 3, toDaysAgo: 0) {
+            lines.append("Recent average gap between feeds: \(WakeWindow.shortLabel(avg)).")
+        }
+        return (["\(babyName) is \(TimeFormatting.age(from: baby.dateOfBirth)) old. Predictions:"] + lines)
+            .joined(separator: "\n")
+    }
+
+    // MARK: Outlook (Phase 3) + accuracy (Phase 4)
+
+    /// The one place the AI gradient touches a container — the whole card's
+    /// content is generated, so the faint border marks the boundary honestly.
+    private func outlookCard(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("\(AIGlow.mark) TODAY'S OUTLOOK")
+                .font(.caption2.weight(.semibold))
+                .kerning(0.8)
+                .foregroundStyle(AIGlow.gradient)
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(AppColor.text)
+            Text("Generated on-device from \(babyName)'s recent patterns")
+                .font(.caption2)
+                .foregroundStyle(AppColor.text3)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .surfaceCard(cornerRadius: 18)
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .strokeBorder(
+                    LinearGradient(colors: AIGlow.colors.map { $0.opacity(0.35) },
+                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                    lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+    }
+
+    private var accuracyCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("\(AIGlow.mark) PREDICTION ACCURACY")
+                .font(.caption2.weight(.semibold))
+                .kerning(0.8)
+                .foregroundStyle(AIGlow.gradient)
+            if let report = timeAccuracy {
+                accuracyRow(title: "Feed timing",
+                            value: "median miss \(WakeWindow.shortLabel(report.statisticalMedianError))")
+            }
+            if let report = amountAccuracy {
+                accuracyRow(title: "Bottle size",
+                            value: "median miss \(OzFormat.string((report.statisticalMedianError * 4).rounded() / 4)) oz")
+            }
+            if let report = sleepAccuracy {
+                accuracyRow(title: "Sleep length",
+                            value: "median miss \(WakeWindow.shortLabel(report.statisticalMedianError))")
+            }
+            Text("Last 30 days, scored against what actually happened. \(modelStatusLine)")
+                .font(.caption2)
+                .foregroundStyle(AppColor.text3)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .surfaceCard(cornerRadius: 18)
+    }
+
+    private func accuracyRow(title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(AppColor.text2)
+            Spacer()
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppColor.text)
+        }
+    }
+
+    /// Whether the Phase 2 personal model earned its spot anywhere.
+    private var modelStatusLine: String {
+        let wins = [timeAccuracy, amountAccuracy].compactMap { $0 }.contains { $0.modelWins }
+        return wins
+            ? "His personal model is beating the baseline and is in use."
+            : "Baseline statistics are in use; a personal model takes over only if it proves more accurate."
     }
 
     /// Compact, model-friendly digest of the last week's numbers.

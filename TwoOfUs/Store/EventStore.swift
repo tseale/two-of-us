@@ -66,12 +66,18 @@ struct EventStore {
         QuickLogger(context: context).nextFeedPrediction()
     }
 
+    /// Predicted-wake snapshot for the Live Activity footer, same assembly.
+    private var liveActivityPredictedWake: Date? {
+        QuickLogger(context: context).predictedWakeAt()
+    }
+
     /// Keeps a running sleep Live Activity's next-feed countdown honest after
     /// a write that moves the prediction (feed logged/edited/deleted while the
     /// baby sleeps — the dream-feed case). No-op when no sleep is running.
     private func refreshSleepActivityNextFeed() {
         guard !demo, let active = activeSleep else { return }
-        SleepActivityManager.refresh(startedAt: active.startedAt, nextFeed: liveActivityNextFeed)
+        SleepActivityManager.refresh(startedAt: active.startedAt, nextFeed: liveActivityNextFeed,
+                                     predictedWake: liveActivityPredictedWake)
     }
 
     // MARK: Logging
@@ -195,7 +201,8 @@ struct EventStore {
         sync(save: [event.id])
         if !demo {
             SleepActivityManager.start(babyName: baby?.name ?? "Baby", at: date,
-                                       nextFeed: liveActivityNextFeed)
+                                       nextFeed: liveActivityNextFeed,
+                                       predictedWake: liveActivityPredictedWake)
         }
         reloadWidgets()
         // A started sleep fulfills its schedule slot — sweep tonight's reminder.
@@ -259,7 +266,8 @@ struct EventStore {
         sync(save: [event.id])
         if !demo {
             SleepActivityManager.start(babyName: baby?.name ?? "Baby", at: event.startedAt,
-                                       nextFeed: liveActivityNextFeed)
+                                       nextFeed: liveActivityNextFeed,
+                                       predictedWake: liveActivityPredictedWake)
         }
         reloadWidgets()
         refreshLocalReminders()
@@ -327,7 +335,8 @@ struct EventStore {
         // start time corrected explicitly rather than picked up automatically.
         if !demo, replacement.isActive {
             SleepActivityManager.refresh(startedAt: replacement.startedAt,
-                                         nextFeed: liveActivityNextFeed)
+                                         nextFeed: liveActivityNextFeed,
+                                         predictedWake: liveActivityPredictedWake)
         } else if !demo, original.endedAt == nil, let endedAt = replacement.endedAt {
             // The ACTIVE sleep was edited into a completed one — the timer on
             // the lock screen must end now, not on the next foreground
@@ -564,7 +573,8 @@ struct EventStore {
     func updateSettings(targetFeedIntervalMinutes: Int? = nil, ozPresets: [Double]? = nil,
                         defaultFeedOz: Double? = nil,
                         feedLoggingEnabled: Bool? = nil, diaperLoggingEnabled: Bool? = nil,
-                        sleepLoggingEnabled: Bool? = nil) {
+                        sleepLoggingEnabled: Bool? = nil,
+                        aiPredictionsEnabled: Bool? = nil) {
         guard let settings else { return }
         if let targetFeedIntervalMinutes {
             settings.targetFeedIntervalMinutes = targetFeedIntervalMinutes
@@ -579,6 +589,12 @@ struct EventStore {
         // Settings picker) always wins over the presets-derived fallback.
         if let defaultFeedOz {
             settings.defaultFeedOz = defaultFeedOz
+        }
+        if let aiPredictionsEnabled {
+            settings.aiPredictionsEnabled = aiPredictionsEnabled
+            // A running sleep Live Activity may be showing (or now owed) the
+            // predicted-wake line — restate it under the new policy.
+            refreshSleepActivityNextFeed()
         }
         let before = EventKind.allCases.map(settings.isEnabled)
         if let feedLoggingEnabled { settings.feedLoggingEnabled = feedLoggingEnabled }

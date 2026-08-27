@@ -42,4 +42,32 @@ enum BabyIntelligence {
         }
     }
 
+    // MARK: - Today's outlook (Phase 3)
+
+    /// Turns the computed predictions into 1–2 forward-looking sentences —
+    /// narrative AROUND the numbers, never the source of them. The digest
+    /// carries every figure the model may use; the instructions forbid
+    /// inventing others, because an LLM asked to predict confabulates and the
+    /// prediction engine already did the arithmetic.
+    static func outlook(digest: String, babyName: String) async -> String? {
+        guard isAvailable else { return nil }
+        let session = LanguageModelSession(instructions: """
+            You are a warm, concise assistant inside a baby-tracking app used \
+            by two new parents. You are writing for the parents — address \
+            them, not the baby; refer to \(babyName) in the third person. \
+            Given today's computed predictions and recent stats, write 1–2 \
+            short forward-looking sentences about the hours ahead ("expect \
+            …", "the 2:15 nap should …"). Use ONLY the numbers provided — \
+            never invent or recalculate figures. Calm, plain tone. Never give \
+            medical advice. No greeting, no bullet lists, no headers.
+            """)
+        do {
+            let response = try await session.respond(to: digest)
+            return response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        } catch {
+            AppLog.ai.error("Outlook generation failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
 }

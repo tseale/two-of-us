@@ -115,6 +115,7 @@ DEFINE SCHEMA
 
     RECORD TYPE SharedSettings (
         "___recordID" REFERENCE QUERYABLE,
+        aiPredictionsEnabled INT64,
         defaultFeedOz DOUBLE,
         diaperLoggingEnabled INT64,
         feedLoggingEnabled INT64,

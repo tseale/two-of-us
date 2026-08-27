@@ -66,4 +66,26 @@ extension QuickLogger {
         }
         return predicted.map { SleepActivityManager.NextFeed(date: $0, ownerName: nil, ownerColorHex: nil) }
     }
+
+    /// Predicted end of the ACTIVE sleep, for the Live Activity's footer
+    /// line. App-side like `nextFeedPrediction` (the prediction engine
+    /// doesn't need to compile into the widget extension — the view only
+    /// renders what's stored in ContentState). Nil when AI features are off,
+    /// no sleep is running, his history can't carry a prediction yet, or the
+    /// predicted moment has already passed.
+    func predictedWakeAt(now: Date = .now) -> Date? {
+        guard let settings = sharedSettings, settings.aiPredictionsEnabled,
+              let active = activeSleep,
+              let baby = try? context.fetch(FetchDescriptor<Baby>()).first else { return nil }
+        let duration = PredictionEngine.sleepDuration(
+            startingAt: active.startedAt,
+            sleeps: recentSleeps(hours: 14 * 24).map { ($0.startedAt, $0.endedAt) },
+            ageInDays: WakeWindow.ageInDays(dateOfBirth: baby.dateOfBirth, now: now),
+            nightStartMinute: settings.nightStartMinute,
+            nightEndMinute: settings.nightEndMinute,
+            now: now)
+        guard duration.confidence != .low else { return nil }
+        let wake = active.startedAt.addingTimeInterval(duration.duration)
+        return wake > now ? wake : nil
+    }
 }

@@ -9,6 +9,9 @@ struct SleepActiveCard: View {
     let onWake: () -> Void
     /// Nil for SNOO sessions — their start time is authoritative from the device.
     var onEditStart: (() -> Void)? = nil
+    /// `PredictionEngine`'s expected end of this sleep. Nil (AI off, not
+    /// enough history, or already past) simply hides the line.
+    var predictedWake: Date? = nil
 
     @Environment(\.openURL) private var openURL
 
@@ -24,7 +27,11 @@ struct SleepActiveCard: View {
     }
 
     private var statusLabel: String {
-        "\(babyName) is sleeping, \(elapsed), since \(TimeFormatting.clock(sleep.startedAt))\(sleep.isFromSnoo ? ", from SNOO" : "")"
+        var label = "\(babyName) is sleeping, \(elapsed), since \(TimeFormatting.clock(sleep.startedAt))\(sleep.isFromSnoo ? ", from SNOO" : "")"
+        if let predictedWake {
+            label += ", predicted wake around \(TimeFormatting.clock(predictedWake))"
+        }
+        return label
     }
 
     @ViewBuilder
@@ -61,6 +68,14 @@ struct SleepActiveCard: View {
             }
             // Same tag as the timeline rows: this timer is the SNOO's.
             if sleep.isFromSnoo { SnooTag() }
+        }
+        if let predictedWake {
+            AIHintText(text: "predicted wake ~\(TimeFormatting.clock(predictedWake))",
+                       font: .caption)
+                .padding(.top, 2)
+                // The combined status element above already reads the
+                // prediction in `statusLabel`.
+                .accessibilityHidden(true)
         }
     }
 

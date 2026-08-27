@@ -49,6 +49,11 @@ final class SharedSettings {
     /// the refresh token from here — deliberately shared account access, the
     /// same trust boundary as the rest of the zone. Never the password (§5).
     var snooCredentials: String?
+    /// On-device predictions + the Stats insights card. Family-wide (one baby,
+    /// one policy — same reasoning as the tracker toggles). Defaulted (not
+    /// optional) so pre-upgrade stores and records that predate the field
+    /// read as "on".
+    var aiPredictionsEnabled: Bool = true
     var ckSystemFields: Data?                  // archived CKRecord system fields (see Baby.ckSystemFields)
 
     init(
@@ -64,7 +69,8 @@ final class SharedSettings {
         nightFirstFeedMinute: Int = 1260,
         nightFeedSpacingMinutes: Int = 180,
         nightRotation: NightRotation = .alternating,
-        nightFirstShiftID: UUID? = nil
+        nightFirstShiftID: UUID? = nil,
+        aiPredictionsEnabled: Bool = true
     ) {
         self.id = id
         self.targetFeedIntervalMinutes = targetFeedIntervalMinutes
@@ -79,6 +85,7 @@ final class SharedSettings {
         self.nightFeedSpacingMinutes = nightFeedSpacingMinutes
         self.nightRotationRaw = nightRotation.rawValue
         self.nightFirstShiftID = nightFirstShiftID
+        self.aiPredictionsEnabled = aiPredictionsEnabled
     }
 
     /// The interval that should drive "when's the next bottle" after a feed at

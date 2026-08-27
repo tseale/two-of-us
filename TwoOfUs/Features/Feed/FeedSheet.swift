@@ -11,6 +11,8 @@ struct FeedSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var settingsList: [SharedSettings]
     @Query private var babies: [Baby]
+    @Query(filter: #Predicate<FeedEvent> { $0.deletedAt == nil }, sort: \FeedEvent.timestamp, order: .reverse)
+    private var feeds: [FeedEvent]
 
     /// Reports the logged event back to the host for the "Logged · Undo" toast.
     let onLogged: (String, @escaping () -> Void) -> Void
@@ -37,6 +39,42 @@ struct FeedSheet: View {
         date.addingTimeInterval(settingsList.first?.feedInterval(after: date) ?? TimeInterval(180 * 60))
     }
     private var canLog: Bool { amount > 0 }
+
+    /// What he's actually been taking at this hour (`PredictionEngine`), when
+    /// it meaningfully disagrees with the configured bottle. A suggestion
+    /// beside the default, never a silent override of it — the sheet still
+    /// opens on the bottle size. Below the sample minimum the age-table
+    /// number still shows, attributed to his age rather than dressed up as
+    /// his pattern — baselines are useful from day one, as long as they say
+    /// what they are.
+    private var suggestedOz: (oz: Double, isBaseline: Bool)? {
+        guard let s = settingsList.first, s.aiPredictionsEnabled,
+              let baby = babies.first else { return nil }
+        var prediction = PredictionEngine.feedAmount(
+            feeds: feeds.map { ($0.timestamp, $0.amountOz) },
+            ageInDays: WakeWindow.ageInDays(dateOfBirth: baby.dateOfBirth),
+            at: date,
+            nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute)
+        if prediction.confidence != .low,
+           let modelOz = PredictionArbiter.shared.modelOz(
+               at: date, feeds: feeds.map { ($0.timestamp, $0.amountOz) },
+               dateOfBirth: baby.dateOfBirth,
+               nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute) {
+            prediction = PredictionEngine.FeedAmount(oz: modelOz, confidence: prediction.confidence)
+        }
+        guard abs(prediction.oz - bottleOz) >= 0.5 else { return nil }
+        // Pre-birth there's no age to attribute a baseline to ("typical at
+        // due in 2 weeks" reads broken) — his-data suggestions only.
+        if prediction.confidence == .low, !baby.isBorn { return nil }
+        return (prediction.oz, prediction.confidence == .low)
+    }
+
+    private var suggestionLabel: String? {
+        guard let suggested = suggestedOz else { return nil }
+        return suggested.isBaseline
+            ? "typical at \(TimeFormatting.age(from: babies.first?.dateOfBirth ?? .now)): ~\(OzFormat.string(suggested.oz)) oz"
+            : "he's been taking ~\(OzFormat.string(suggested.oz)) oz at this hour"
+    }
 
     var body: some View {
         NavigationStack {
@@ -74,6 +112,25 @@ struct FeedSheet: View {
                                 }
                             }
                         Text("oz").foregroundStyle(AppColor.text3)
+                    }
+                    if let suggested = suggestedOz, let label = suggestionLabel {
+                        Button {
+                            amount = suggested.oz
+                            usingCustom = false
+                            customText = ""
+                            Haptics.tap()
+                        } label: {
+                            HStack {
+                                AIHintText(text: label, font: .footnote)
+                                Spacer()
+                                Text("Use")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(AppColor.accentFeed)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Predicted amount \(OzFormat.string(suggested.oz)) ounces — use it")
                     }
                 }
 

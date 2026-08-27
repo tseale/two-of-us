@@ -6,6 +6,40 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Added — AI predictions, phases 2–4
+- **Prediction accuracy card** (Stats): the trailing month of predictions
+  scored against what actually happened — median miss for feed timing, bottle
+  size, and sleep length. Computed by replaying history ("what would we have
+  predicted just before this event"), so it covers every logging path and
+  needed no new storage.
+- **Personal models**: tiny regression models trained on-device from Miller's
+  own history (time-of-day shape, age trend, previous gap) now run as
+  challengers behind every feed-time and bottle-size prediction. A model's
+  number is shown only while the accuracy scoring proves it beating the
+  statistical baseline by a real margin; otherwise the baseline stays. The
+  accuracy card says which is in use.
+- **Today's outlook** (Stats): 1–2 forward-looking sentences generated
+  on-device by Apple's Foundation Models FROM the computed predictions (the
+  model narrates the numbers, never invents them). Same hardware gating as
+  the existing insights card; both sit behind the AI Features toggle.
+
+### Added — on-device AI predictions (Phase 1)
+- The app now predicts from Miller's own history: the Feed tile projects the
+  next bottle from his observed cadence with the expected size ("✦ next bottle
+  ~2:30 PM · ~3.5 oz"), the Sleep tile adds his usual nap length, the
+  active-sleep card and the sleep Live Activity show the predicted wake time,
+  the feed sheet suggests what he's been taking at that hour, and the Tonight
+  card notes the usual overnight amount. All statistics (age-banded medians,
+  `WakeWindow`-style blending — see `PredictionEngine`), computed on device,
+  never stored or synced. Predictions render in a gradient with a ✦ mark;
+  confidence shows as wording ("next" vs "likely around"), and thin history
+  falls back to the existing plain hints. Alarms and the night schedule are
+  deliberately untouched — the bell is a contract, the hint is a forecast.
+- New Settings → Feeding & Tracking → AI Features toggle (synced, family-wide;
+  default on) governing the prediction hints AND the Stats insights summary.
+  Adds `aiPredictionsEnabled` to the Settings record — **needs a CloudKit
+  Production schema deploy before the next TestFlight build.**
+
 ### Changed — night bottles slide into a get-up gap instead of waking someone
 - A bottle whose rhythm time would land while BOTH parents are planned-asleep
   now slides to the nearest minute one of them is already up — at most 45

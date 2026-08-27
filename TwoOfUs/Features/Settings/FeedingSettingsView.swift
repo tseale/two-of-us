@@ -8,9 +8,11 @@ struct FeedingSettingsView: View {
     @Environment(\.modelContext) private var context
     @Query private var settingsList: [SharedSettings]
     @Query private var participants: [Participant]
+    @Query private var babies: [Baby]
     @State private var prefs = LocalPrefs.shared
 
     private var settings: SharedSettings? { SharedSettings.canonical(settingsList) }
+    private var babyName: String { babies.first?.name ?? "your baby" }
     private var store: EventStore { EventStore(context: context) }
 
     private var canEditShared: Bool {
@@ -96,6 +98,20 @@ struct FeedingSettingsView: View {
                     Text("What to track")
                 } footer: {
                     Text("Turn a tracker off to hide its button and stop logging that event — handy when logging one of them isn't worth it for a while. Existing entries are preserved, both parents see the same trackers, and at least one always stays on.")
+                }
+
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { settings.aiPredictionsEnabled },
+                        set: { store.updateSettings(aiPredictionsEnabled: $0) }
+                    )) {
+                        SettingsIconLabel(title: "Predictions & Insights", systemImage: "sparkles",
+                                          tint: AppColor.accentSleep)
+                    }
+                } header: {
+                    Text("AI Features")
+                } footer: {
+                    Text("Predicts the next bottle, amounts, and wake times from your own logs, and writes the weekly insights summary. Everything is computed on your iPhone — nothing about \(babyName) leaves your device. Shared with your co-parent. Not medical advice.")
                 }
             }
         }

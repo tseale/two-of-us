@@ -129,6 +129,8 @@ targets:
       - path: TwoOfUs/DesignSystem/TimeFormatting.swift
       - path: TwoOfUs/DesignSystem/Urgency.swift
       - path: TwoOfUs/DesignSystem/DayRibbon.swift
+      # The Live Activity's predicted-wake footer renders in the AI gradient.
+      - path: TwoOfUs/DesignSystem/AIGlow.swift
       - path: TwoOfUs/LiveActivities/SleepActivityAttributes.swift
       # The sleep intents below are LiveActivityIntents (they run in the APP
       # process so they can start/stop the Live Activity); this file must

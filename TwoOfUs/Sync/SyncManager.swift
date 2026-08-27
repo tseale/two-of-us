@@ -1172,7 +1172,8 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         let logger = QuickLogger(context: context)
         SleepActivityManager.reconcile(babyName: babyName, activeSleepStartedAt: active?.startedAt,
                                        lastSleepEndedAt: logger.lastEndedSleep?.endedAt,
-                                       nextFeed: logger.nextFeedPrediction())
+                                       nextFeed: logger.nextFeedPrediction(),
+                                       predictedWake: logger.predictedWakeAt())
     }
 
     /// Re-arms this device's feed alarm + gentle reminders + daily summary off the

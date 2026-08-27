@@ -92,6 +92,7 @@ enum RecordMapping {
             r["nightFirstFeedMinute"] = m.nightFirstFeedMinute
             r["nightFeedSpacingMinutes"] = m.nightFeedSpacingMinutes
             r["nightRotationRaw"] = m.nightRotationRaw
+            r["aiPredictionsEnabled"] = m.aiPredictionsEnabled ? 1 : 0
             // Empty string is the explicit "no first shift chosen": CloudKit
             // never transmits an unset key, so a bare nil could not clear the
             // co-parent's copy.
@@ -512,6 +513,8 @@ enum RecordMapping {
         m.nightFirstFeedMinute = r["nightFirstFeedMinute"] as? Int ?? m.nightFirstFeedMinute
         m.nightFeedSpacingMinutes = r["nightFeedSpacingMinutes"] as? Int ?? m.nightFeedSpacingMinutes
         m.nightRotationRaw = r["nightRotationRaw"] as? String ?? m.nightRotationRaw
+        // Absent field (a record written pre-AI-features) keeps the local value.
+        m.aiPredictionsEnabled = (r["aiPredictionsEnabled"] as? Int).map { $0 != 0 } ?? m.aiPredictionsEnabled
         // Present-but-empty means "cleared"; absent (an older build's record)
         // keeps the local value.
         if let s = r["nightFirstShiftID"] as? String { m.nightFirstShiftID = UUID(uuidString: s) }
