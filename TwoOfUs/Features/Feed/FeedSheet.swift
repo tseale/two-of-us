@@ -115,9 +115,21 @@ struct FeedSheet: View {
                     }
                     if let suggested = suggestedOz, let label = suggestionLabel {
                         Button {
-                            amount = suggested.oz
-                            usingCustom = false
-                            customText = ""
+                            // Land the suggestion where the eye can confirm it:
+                            // on its chip when one matches, else in the Custom
+                            // field — never as an invisible amount behind an
+                            // unhighlighted row. Tolerance because the chips
+                            // are stride-derived from the configured bottle
+                            // and the suggestion is quarter-rounded.
+                            if let chip = presets.first(where: { abs($0 - suggested.oz) < 0.001 }) {
+                                amount = chip
+                                usingCustom = false
+                                customText = ""
+                            } else {
+                                amount = suggested.oz
+                                customText = OzFormat.string(suggested.oz)
+                                usingCustom = true
+                            }
                             Haptics.tap()
                         } label: {
                             HStack {
