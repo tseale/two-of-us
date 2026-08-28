@@ -32,7 +32,8 @@ final class PredictionEngineTests: XCTestCase {
         let gaps = PredictionEngine.feedGaps(feeds: feeds, night: false,
                                              nightStartMinute: nightStart, nightEndMinute: nightEnd,
                                              now: noon)
-        XCTAssertEqual(gaps, [3 * 3600])
+        XCTAssertEqual(gaps.map(\.gap), [3 * 3600])
+        XCTAssertEqual(gaps.map(\.end), [at(daysAgo: 1, hour: 12, minute: 20)])
     }
 
     func testFeedGapsSeparateDayFromNight() {
@@ -46,7 +47,7 @@ final class PredictionEngineTests: XCTestCase {
                                                   nightStartMinute: nightStart, nightEndMinute: nightEnd,
                                                   now: noon)
         XCTAssertTrue(dayGaps.isEmpty)
-        XCTAssertEqual(nightGaps, [3 * 3600])
+        XCTAssertEqual(nightGaps.map(\.gap), [3 * 3600])
     }
 
     func testFeedGapsDropImplausibleGaps() {
@@ -120,10 +121,11 @@ final class PredictionEngineTests: XCTestCase {
     }
 
     func testFeedAmountFollowsObservedBottlesAndRoundsToQuarterOz() {
-        // Fifteen 3.6 oz daytime bottles = full confidence; the age midpoint
-        // (4.0 at 90 days) gives way to his number, rounded to 0.25 steps.
+        // A full week of 3.6 oz daytime bottles = full confidence even after
+        // recency decay; the age midpoint (5.0 at 90 days) gives way to his
+        // number, rounded to 0.25 steps.
         var feeds: [(Date, Double)] = []
-        for day in 1...5 {
+        for day in 1...7 {
             for hour in [9, 12, 15] {
                 feeds.append((at(daysAgo: day, hour: hour), 3.6))
             }
@@ -149,9 +151,9 @@ final class PredictionEngineTests: XCTestCase {
             feeds: feeds, ageInDays: 90, at: at(hour: 3),
             nightStartMinute: nightStart, nightEndMinute: nightEnd, now: noon)
         XCTAssertNotEqual(prediction.confidence, .low)
-        // Ten night samples out of fifteen-for-full: blended most of the way
-        // from the 5 oz age midpoint toward his 2.5 — and clearly under the
-        // 4 oz daytime pattern.
+        // Ten night samples (decayed to ~8 effective): blended most of the
+        // way from the 5 oz age midpoint toward his 2.5 — and clearly under
+        // the 4 oz daytime pattern.
         XCTAssertLessThan(prediction.oz, 4)
         XCTAssertGreaterThanOrEqual(prediction.oz, 2.5)
     }
@@ -170,9 +172,11 @@ final class PredictionEngineTests: XCTestCase {
     }
 
     func testSleepDurationLearnsFromComparableNaps() {
-        // Eight ~50m naps: full confidence, and the projection lands on his
-        // median, inside the age band.
+        // Nine ~50m naps over five days: full confidence even after recency
+        // decay, and the projection lands on his median, inside the age band.
         var sleeps: [(Date, Date?)] = []
+        let today = at(hour: 9)
+        sleeps.append((today, today.addingTimeInterval(50 * 60)))
         for day in 1...4 {
             for hour in [9, 14] {
                 let start = at(daysAgo: day, hour: hour)
@@ -222,26 +226,105 @@ final class PredictionEngineTests: XCTestCase {
         XCTAssertEqual(prediction.confidence, .low)
     }
 
+    // MARK: Next feed — recency
+
+    func testNextFeedAdaptsToRecentCadenceShift() {
+        // Growth spurt: days 4–8 ran 3.5h daytime gaps, the last two days run
+        // 2.5h. Raw counts favor the stale rhythm (10 old gaps vs 8 recent),
+        // so an unweighted median — or even an unweighted 40th percentile —
+        // would still say 3.5h; recency decay must side with this week.
+        var feeds: [Date] = []
+        for day in 4...8 {                                   // 3.5h era
+            for (hour, minute) in [(8, 0), (11, 30), (15, 0)] {
+                feeds.append(at(daysAgo: day, hour: hour, minute: minute))
+            }
+        }
+        for day in 1...2 {                                   // 2.5h era
+            for (hour, minute) in [(8, 0), (10, 30), (13, 0), (15, 30), (18, 0)] {
+                feeds.append(at(daysAgo: day, hour: hour, minute: minute))
+            }
+        }
+        let last = at(hour: 9)
+        let prediction = PredictionEngine.nextFeed(
+            lastFeed: last, feeds: feeds + [last],
+            targetInterval: threeHours,
+            nightStartMinute: nightStart, nightEndMinute: nightEnd, now: noon)
+        XCTAssertEqual(prediction.confidence, .high)
+        XCTAssertEqual(prediction.date.timeIntervalSince(last), 2.5 * 3600, accuracy: 60)
+    }
+
+    // MARK: Weighted statistics
+
+    func testWeightedQuantileWithEqualWeightsMatchesOrderStatistics() {
+        let values = [Double](stride(from: 1.0, through: 10.0, by: 1.0))
+        let pairs = values.map { (value: $0, weight: 1.0) }
+        XCTAssertEqual(PredictionEngine.weightedQuantile(pairs, q: 0.5), 5)
+        // The feed-timing quantile reads deliberately early.
+        XCTAssertEqual(PredictionEngine.weightedQuantile(pairs, q: PredictionEngine.feedGapQuantile), 4)
+    }
+
+    func testWeightedQuantileFollowsWeight() {
+        // Same two values; whichever carries the mass wins the median.
+        XCTAssertEqual(PredictionEngine.weightedQuantile([(2, 1), (4, 3)], q: 0.5), 4)
+        XCTAssertEqual(PredictionEngine.weightedQuantile([(2, 3), (4, 1)], q: 0.5), 2)
+        XCTAssertNil(PredictionEngine.weightedQuantile([], q: 0.5))
+        XCTAssertNil(PredictionEngine.weightedQuantile([(5, 0)], q: 0.5))
+    }
+
+    func testEffectiveCountDiscountsStaleEvidence() {
+        // Equal weights: the raw count. Mostly-faded weights: far fewer.
+        XCTAssertEqual(PredictionEngine.effectiveCount([1, 1, 1, 1]), 4, accuracy: 0.001)
+        XCTAssertEqual(PredictionEngine.effectiveCount([0.5, 0.5]), 2, accuracy: 0.001)
+        XCTAssertLessThan(PredictionEngine.effectiveCount([1, 0.1, 0.1, 0.1]), 1.7)
+        XCTAssertEqual(PredictionEngine.effectiveCount([]), 0)
+    }
+
+    func testDecayWeightHalvesPerHalfLife() {
+        let day: TimeInterval = 24 * 3600
+        XCTAssertEqual(PredictionEngine.decayWeight(age: 0, halfLife: 3 * day), 1)
+        XCTAssertEqual(PredictionEngine.decayWeight(age: 3 * day, halfLife: 3 * day), 0.5, accuracy: 0.001)
+        XCTAssertEqual(PredictionEngine.decayWeight(age: 6 * day, halfLife: 3 * day), 0.25, accuracy: 0.001)
+        // A clock-skewed future event can't out-weigh the present.
+        XCTAssertEqual(PredictionEngine.decayWeight(age: -day, halfLife: 3 * day), 1)
+    }
+
     // MARK: Blend
 
     func testBlendConfidenceTiers() {
-        let low = PredictionEngine.blend(prior: 10, observed: [8, 8], minimum: 3, full: 8, clampTo: 0...20)
+        func flat(_ value: Double, _ count: Int) -> [(value: Double, weight: Double)] {
+            Array(repeating: (value: value, weight: 1.0), count: count)
+        }
+        let low = PredictionEngine.blend(prior: 10, observed: flat(8, 2),
+                                         minimum: 3, full: 8, clampTo: 0...20)
         XCTAssertEqual(low.confidence, .low)
         XCTAssertEqual(low.value, 10)
 
-        let medium = PredictionEngine.blend(prior: 10, observed: [8, 8, 8, 8], minimum: 3, full: 8, clampTo: 0...20)
+        let medium = PredictionEngine.blend(prior: 10, observed: flat(8, 4),
+                                            minimum: 3, full: 8, clampTo: 0...20)
         XCTAssertEqual(medium.confidence, .medium)
         XCTAssertEqual(medium.value, 9, accuracy: 0.01)   // half evidence → halfway
 
-        let high = PredictionEngine.blend(prior: 10, observed: Array(repeating: 8, count: 8),
+        let high = PredictionEngine.blend(prior: 10, observed: flat(8, 8),
                                           minimum: 3, full: 8, clampTo: 0...20)
         XCTAssertEqual(high.confidence, .high)
         XCTAssertEqual(high.value, 8, accuracy: 0.01)     // full evidence → the median
     }
 
+    func testBlendTreatsStaleEvidenceAsThin() {
+        // Four samples would clear a minimum of 3 at full weight — but three
+        // of them faded to 0.1, so the effective count falls below it and the
+        // prior stands alone.
+        let stale: [(value: Double, weight: Double)] = [(8, 1), (8, 0.1), (8, 0.1), (8, 0.1)]
+        let result = PredictionEngine.blend(prior: 10, observed: stale,
+                                            minimum: 3, full: 8, clampTo: 0...20)
+        XCTAssertEqual(result.confidence, .low)
+        XCTAssertEqual(result.value, 10)
+    }
+
     func testBlendClampHolds() {
-        let result = PredictionEngine.blend(prior: 10, observed: Array(repeating: 30, count: 8),
-                                            minimum: 3, full: 8, clampTo: 5...15)
+        let result = PredictionEngine.blend(
+            prior: 10, observed: Array(repeating: (value: 30.0, weight: 1.0), count: 8),
+            minimum: 3, full: 8, clampTo: 5...15)
         XCTAssertEqual(result.value, 15)
     }
 }
