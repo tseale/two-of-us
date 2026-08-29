@@ -1,17 +1,31 @@
 # Natural Language Queries — Research & Design
 
-**Status: proposal** — written 2026-08-28. Nothing here is built.
+**Status: proposal, rev 2** — written 2026-08-28; revised the same day after
+Taylor's direction: **target iOS 27**. Taylor runs the iOS 27 betas; Girl
+Taylor stays on iOS 26 until she upgrades, and it's fine if the new
+capabilities are his-phone-only until then. Explicit goal: **Miller's data
+should be answerable from the new Siri app.** Nothing here is built.
 
 The question this doc answers: should Two of Us get a natural language
 interface — "what time did he go to sleep last night?" answered from the app's
-own data — and if so, what shape should it take?
+own data — and what shape should it take?
 
-**TL;DR recommendation:** not a chat. Build a shared **AskEngine** (Foundation
-Models tool-calling over the query machinery the app already has), surface it
-three ways in this order: (1) an **Ask bar** on History with tappable suggestion
-chips, (2) a **dictation-friendly Siri intent** plus a few more fixed "asking"
-intents, (3) fold the same engine into the existing proactive-insights cards.
-Re-evaluate against iOS 27's App Schemas / semantic Spotlight index this fall.
+**TL;DR recommendation:** not an in-app chat — iOS 27's **Siri app IS the
+chat**, so feed it instead of competing with it. Conform the event and note
+models to `AppEntity` + `IndexedEntity` so the semantic index lets Siri answer
+lookup questions over Miller's data system-wide, and ship an `AskTwoOfUsIntent`
+so the questions the index can't do (aggregates, comparisons, predictions) also
+resolve inside Siri. Behind both: a shared **AskEngine** (deterministic parser
++ Foundation Models tool-calling over the query machinery the app already
+has) — it's the piece that computes answers no semantic index ever will
+("is he sleeping more this week?"), and it works on iOS 26 too, which is what
+Girl Taylor's phone gets until she upgrades. In-app **Ask bar** on History
+comes after the Siri surfaces, reusing the same engine.
+
+**Hard constraint discovered in rev 2:** the **deployment target must stay
+iOS 26**. Bumping it to 27 would stop Girl Taylor's phone from installing new
+TestFlight builds at all. Everything iOS 27 is `if #available(iOS 27, *)`-gated
+polish on top of a 26 baseline — which the codebase already knows how to do.
 
 ---
 
@@ -70,29 +84,44 @@ phrase. What IS possible:
 SiriKit (the old framework) is deprecated as of iOS 26; App Intents is the only
 path, which is where we already are.
 
-### 1c. iOS 27 (WWDC26, ships ~Sept 2026) — the reason not to over-build now
+### 1c. iOS 27 (public beta 3 as of Aug 2026, ships ~Sept) — now the target
 
-Two announcements directly overlap this feature:
+This is where "ask Siri about Miller" becomes a first-class OS feature:
 
-- **App Schemas**: conform entities/intents to predefined schemas and Siri
-  understands natural phrasing with no trigger phrases at all. Schemas are
-  predefined concepts (messages, contacts, documents…) — there is no
-  baby-tracking schema, so applicability is unclear until the final schema list
-  ships.
-- **`IndexedEntity` semantic Spotlight indexing**: indexed app content becomes
-  something Siri can *reason over and answer questions about* system-wide.
-  This is almost exactly the feature Taylor is asking for, provided by the OS —
-  but iOS 27-only, entity-lookup-shaped (good for "when did we start vitamin D
-  drops?", unproven for aggregations like "how much sleep this week?"), and we
-  have zero `AppEntity` conformances today (the explorer confirmed none exist).
-- Foundation Models also gains PCC and third-party model backends (Claude,
-  Gemini) behind the same API.
+- **The Siri app.** iOS 27 gives Siri a dedicated app with a chat interface
+  and conversation history, powered by Apple Intelligence. This settles the
+  chat question: **Apple is shipping the chat UI.** Our job is to make
+  Miller's data answerable inside it, not to build a rival chat in-app.
+- **`IndexedEntity` semantic indexing**: conforming an `AppEntity` puts it in
+  the system semantic index (conformance is close to free —
+  `extension FeedEntity: IndexedEntity {}` plus `@Property(indexingKey:)` on
+  the searchable fields; the system indexes automatically). Siri can then
+  match by meaning and *answer questions over the content* — "when and where
+  is my next meeting?"-style. For us that's Tier 1 lookups and, best of all,
+  notes recall ("when did we start vitamin D drops?").
+- **App Schemas**: entities conformed to a predefined schema
+  (`.messages.message` etc.) get Siri's pre-trained understanding with no
+  trigger phrases. **There is no baby-tracking schema**, and whether
+  non-schema entities get the full question-answering treatment (vs. plain
+  semantic retrieval) is genuinely unresolved in the current betas — even
+  detailed third-party writeups say so explicitly. Plan: index custom
+  entities, test on Taylor's beta phone, and map to a schema only if a
+  fitting one appears in the final SDK.
+- **What the semantic index will NOT do: math.** It reasons over indexed
+  items; nothing suggests it computes aggregates, comparisons, or runs our
+  prediction models. "How much sleep this week vs last?" and "when will he
+  wake up?" still need our engine — surfaced to Siri as App Intents, which
+  the Siri experience can invoke. The index answers "which/when was X";
+  AskEngine answers "how much/compared to what/what's next."
+- Foundation Models on 27 also gains PCC and third-party model backends
+  behind the same API — noted, but on-device remains the right choice here.
 
-Implication: build the query *engine* now (it's needed regardless — something
-must compute the answers), keep the *Siri plumbing* thin, and adopt
-schemas/indexing when iOS 27 is real. Don't hand-roll in August what the OS
-does in September — but also don't wait on unshipped promises for the parts we
-can ship today.
+**Toolchain reality check (this Mac, 2026-08-28):** Xcode 26.4 with the iOS
+26.4 SDK is the only install — `IndexedEntity`/iOS 27 code cannot compile
+until the **Xcode 27 beta** is installed. Also, Xcode Cloud workflows must
+either move to the beta Xcode or the 27-only code ships after the stable SDK
+lands in September. Phase 1 below is deliberately SDK-26-safe so work can
+start today.
 
 ### 1d. NaturalLanguage framework / Core ML (rule-based parsing)
 
@@ -118,8 +147,8 @@ dark room, you want one number.
 
 | Surface | Honest assessment |
 |---|---|
-| **In-app chat bubble** | ❌ **Recommend against.** Typing is the worst input mode for this app's core scenario — the whole design is "as few taps as possible." A chat thread also implies conversation history, follow-ups, and a persistent UI surface, all heavyweight for what are single-shot lookups. And the top 10 questions already have zero-tap answers: Home shows time-since-last-everything, the widget shows the feed countdown. A chat bubble would mostly be a slower way to reach data that's already on screen. |
-| **Siri (voice)** | ✅ **Best for the 3am case** — hands-free, no unlock, works from across the room. Already partially shipped. The gap is coverage (5 fixed questions) and the iOS 26 one-utterance limitation for arbitrary questions. Strategy: fixed intents for the head of the distribution (true one-utterance), dictated `AskTwoOfUsIntent` for the tail. |
+| **In-app chat bubble** | ❌ **Recommend against — doubly so on iOS 27.** Typing is the worst input mode for this app's core scenario — the whole design is "as few taps as possible" — and the top 10 questions already have zero-tap answers (Home, widgets). On iOS 27 the argument gets terminal: **the Siri app is a system-wide chat with history**; a private in-app clone of it would be strictly worse. Feed the system chat instead of building one. |
+| **Siri (voice + the iOS 27 Siri app)** | ✅ **Best for the 3am case and now the primary surface.** Hands-free system Siri for the head of the distribution; the Siri app's chat for typed/threaded questions with history. Indexed entities give lookup answers for free; `AskTwoOfUsIntent` + fixed intents carry the aggregate/predictive questions into the same surfaces. On iOS 26 (Girl Taylor until she upgrades) the existing five fixed intents plus any new ones still work — one-utterance phrase limitations and all. |
 | **Ask bar (smart search on History)** | ✅ **Best for the daytime/analytical case.** History today is six chart cards with no search at all — the analytical long tail ("is he sleeping more this week?") currently means reading charts and doing mental math. A single Ask field with **tappable suggestion chips** (so common questions are one tap, not typed) fits here. This is also the natural debug/trust surface: the answer card can show its supporting numbers. |
 | **Proactive insights** | ✅ **Already the app's direction** — Insights card, Today's outlook, weekly Wrapped, milestones. Best passive UX: the question you didn't have to ask. Extend, don't invent: the same engine's comparative answers ("20% longer than his weekly average") can upgrade existing cards. Never a replacement for on-demand questions, though. |
 | **Widget intelligence** | ➖ **Lowest incremental value.** Widgets already answer the top glance questions (time since last feed, countdown, sleep state). "Smart" rotating insight widgets are cute but compete with the countdown for very limited widget real estate. Skip for now. |
@@ -133,24 +162,27 @@ front-end to data that's one glance away.
 
 ---
 
-## 3. Recommended approach
+## 3. Recommended approach (rev 2 — iOS 27-first)
 
-One engine, three surfaces, in this order:
+One engine, Siri surfaces first, deployment target pinned at iOS 26:
 
-1. **AskEngine** (no UI) — shared query core in the app target, reusable from
-   intents. Deterministic parser for the head, Foundation Models tool-calling
-   for the tail. Ships with unit tests only.
-2. **Ask bar on History** — first visible surface, chips + free text, answer
-   card with supporting numbers and a deep link to the relevant chart.
-3. **Siri expansion** — 2–4 new fixed asking intents (last night's sleep,
-   totals for a period) + dictated `AskTwoOfUsIntent` backed by the same
-   engine. Requires deciding what to do about the 8/10 shortcut slots.
+1. **AskEngine** (no UI) — shared query core, reusable from intents.
+   Deterministic parser for the head, Foundation Models tool-calling for the
+   tail. SDK-26-safe; buildable today; ships with unit tests only.
+2. **iOS 27 Siri surface** — `AppEntity` for Feed/Sleep/Diaper/Note +
+   `IndexedEntity` conformance (semantic index → the Siri app answers lookups
+   and notes recall directly), plus `AskTwoOfUsIntent` backed by AskEngine so
+   aggregates/comparisons/predictions answer inside Siri too. All gated
+   `if #available(iOS 27, *)`; needs Xcode 27 beta on the Mac. Taylor's phone
+   only, until Girl Taylor upgrades — accepted.
+3. **Ask bar on History** — same engine in-app: chips + free text, answer
+   card with supporting numbers and a chart deep link. This is also the iOS
+   26 story (Girl Taylor) and the offline/AI-unavailable story.
 4. **Insights upgrade** — route existing Insights/Outlook cards through the
    engine's comparative queries where it makes them better.
-5. **iOS 27 checkpoint (Sept–Oct 2026)** — evaluate App Schemas + `IndexedEntity`
-   against the shipped feature; adopt for notes/event *lookup* if the final
-   API fits; consider PCC for nothing (on-device is a feature here, not a
-   limitation).
+5. **Fast-follow on the GM SDK (Sept–Oct)** — re-test what the semantic index
+   actually answers on release Siri, adopt an App Schema if a fitting one
+   ships, move Xcode Cloud off beta toolchain.
 
 ---
 
@@ -258,6 +290,18 @@ Key decisions:
   label/value facts used, so the Ask card can show "Slept 7:42 PM – 6:05 AM ·
   2 wakes" under the prose, and a wrong answer is diagnosable. Facts come from
   tool results, never parsed back out of model prose.
+- **The iOS 27 entity layer is parallel plumbing, not part of AskEngine.**
+  `Entities/` gets lightweight `AppEntity` structs mirroring the SwiftData
+  models (id, display representation, `@Property(indexingKey:)` on
+  timestamps/type/notes text), `IndexedEntity` conformance, and
+  `EntityQuery`s reading through `QuickLogger`. The semantic index answers
+  lookup questions on its own; anything computed still routes through
+  AskEngine via intents. **Index hygiene rules:** soft-deleted events
+  (`deletedAt != nil`) must be evicted from the index on delete/edit (the
+  append-only edit model means every edit is a delete + insert), and synced
+  events from the other parent must index on arrival, not just local writes —
+  the CKSyncEngine ingest path needs an indexing hook, same place the feed
+  alarm re-arms today.
 - **Time is injected** (`now: Date` parameter throughout, like
   `PredictionEngine`) — "last night" and "yesterday" are testable, and the
   night window comes from `SharedSettings`, not hardcoded hours.
@@ -272,34 +316,48 @@ and exercised manually on device, exactly like `BabyIntelligence` today.
 
 ---
 
-## 6. Phased implementation
+## 6. Phased implementation (rev 2)
 
-**Phase 1 — AskEngine + deterministic parser** (~the prediction-engine playbook)
-`Ask/AskEngine.swift`, `Ask/QueryParser.swift`, `Ask/AskAnswer.swift`, tool
-adapters, `TwoOfUsTests/AskEngineTests.swift`. Covers Tier 1 + the 5 biggest
-Tier 2 questions + Tier 3 routing. No UI. Mergeable without user-visible risk.
+**Phase 0 — toolchain.** Install the Xcode 27 beta alongside 26.4 (iOS 27 SDK
+is required to compile any of Phase 2; this Mac currently has only 26.4).
+Deployment target stays iOS 26 in project.yml — **never bump it while Girl
+Taylor's phone is on 26**, or her TestFlight updates stop installing.
 
-**Phase 2 — Ask bar on History.** Field + chips above the existing cards
-(`HistoryView` is a ScrollView of cards; the Ask card becomes the top card when
-active). Chips are the primary interaction; typing is the escape hatch. Answer
-card shows sentence + facts + "show me" deep link to the relevant chart card.
-FM tool-calling session lands here (first `Tool`/`@Generable` use in the app),
-gated on `BabyIntelligence.isAvailable`-style checks, hidden when unavailable
-(chips + parser still work).
+**Phase 1 — AskEngine + deterministic parser** (~the prediction-engine
+playbook). `Ask/AskEngine.swift`, `Ask/QueryParser.swift`,
+`Ask/AskAnswer.swift`, tool adapters, `TwoOfUsTests/AskEngineTests.swift`.
+Covers Tier 1 + the 5 biggest Tier 2 questions + Tier 3 routing. No UI, no new
+SDK needed — **can start today**, mergeable without user-visible risk.
 
-**Phase 3 — Siri.** `AskTwoOfUsIntent` (dictated question → AskEngine →
-`ProvidesDialog`) + 2–3 new fixed intents chosen from Tier 1 gaps ("last
-night's sleep" first — it's the motivating question). Resolve the shortcut-slot
-budget (see Questions).
+**Phase 2 — iOS 27 Siri surface** (the point of rev 2, `#available(iOS 27)`
+throughout):
+- `Entities/` — `AppEntity` structs for feed/sleep/diaper/note +
+  `IndexedEntity` conformance + `EntityQuery` via `QuickLogger`; index
+  hygiene hooks in EventStore (edit/delete) and the sync ingest path.
+- `AskTwoOfUsIntent` — free-text question → AskEngine → `ProvidesDialog` +
+  snippet, so aggregates and predictions answer inside system Siri and the
+  Siri app.
+- 1–2 new fixed asking intents from Tier 1 gaps ("last night's sleep" first —
+  it's the motivating question), which also serve iOS 26.
+- Acceptance test, on Taylor's beta phone: the motivating question asked in
+  the Siri app returns Miller's actual bedtime; "when did we start vitamin D
+  drops" hits the indexed note.
+
+**Phase 3 — Ask bar on History.** Field + chips above the existing cards
+(`HistoryView` is a ScrollView of cards; the Ask card becomes the top card
+when active). Chips primary, typing the escape hatch; answer card shows
+sentence + facts + a "show me" deep link. FM tool-calling session lands here
+if it didn't prove out in Phase 2 (first `Tool`/`@Generable` use in the app),
+gated on availability, hidden when unavailable — chips + parser still work.
+This is Girl Taylor's surface until she upgrades.
 
 **Phase 4 — Insights integration.** Swap hand-built digest lines in
-Insights/Outlook for engine-computed comparisons where they're better; add 1–2
-new proactive lines ("longest night stretch this week").
+Insights/Outlook for engine-computed comparisons where they're better; add
+1–2 proactive lines ("longest night stretch this week").
 
-**Phase 5 — iOS 27 checkpoint (fall 2026).** Prototype `IndexedEntity` on
-`NoteEvent` + the event types; test whether semantic Siri answers Tier 1
-questions without our intents; adopt schemas if a fitting one ships. Decide
-with real APIs, not announcements.
+**Phase 5 — GM fast-follow (Sept–Oct).** Re-test the semantic index on
+release Siri; adopt an App Schema if one fits; move Xcode Cloud back to a
+stable toolchain; revisit the shortcut-slot budget with real usage.
 
 Phases 1–2 are the commitment; 3–5 are each independently skippable.
 
@@ -307,28 +365,34 @@ Phases 1–2 are the commitment; 3–5 are each independently skippable.
 
 ## 7. Questions for Taylor
 
-1. **Do both phones run Apple Intelligence?** Foundation Models needs iPhone
-   15 Pro+ with Apple Intelligence enabled. If Girl Taylor's phone doesn't
-   qualify, the model-backed long tail is a one-parent feature and the
-   deterministic parser's coverage becomes the real product — worth knowing
-   before investing in Phase 2's FM layer.
+Rev 2 resolves two of the original five: ~~ship now or ride iOS 27~~ (answer:
+target 27, Taylor's on the betas) and half of the device question (Taylor's
+phone qualifies; Girl Taylor's stays on 26 for now, and that's accepted).
+Still open:
+
+1. **Girl Taylor's phone** — when she does upgrade to iOS 27, is the hardware
+   Apple Intelligence-capable (iPhone 15 Pro or newer)? If not, her phone
+   never gets the model-backed tail or the semantic Siri answers even on 27,
+   and the deterministic parser + fixed intents + Ask bar are permanently her
+   whole feature. Doesn't change the plan, does change how much the Ask bar
+   matters.
 2. **Does anyone actually use the existing Siri asking intents?** ("When did
-   Miller last eat…" etc. shipped months ago.) If voice querying hasn't stuck
-   in practice, Phase 3 drops to the bottom and the Ask bar is the feature.
-   If it's used nightly, Phase 3 might belong before Phase 2.
+   Miller last eat…" shipped months ago.) Signal for how much to invest in
+   the fixed-intent catalog vs. leaning entirely on the Siri app + index.
 3. **What's the real question list?** Section 4 is my guess. A week of noting
    "things we wished the app could tell us" beats my ranking — especially
-   whether notes recall (Tier 4) matters, since it's the one case needing
-   genuinely different machinery.
-4. **Shortcut budget:** to add Ask + "last night's sleep" we need 2+ of the 10
-   App Shortcut slots and 8 are taken. OK to demote two logging variants
-   (e.g. the wet/dirty/both diaper trio → one), or should new query intents
-   ship without App Shortcut phrases (still usable via Shortcuts app, worse
-   Siri discovery)?
-5. **Ship now or ride iOS 27?** Phases 1–2 are pure iOS 26 and useful
-   regardless. But if the appetite is mainly for the *Siri* experience, the
-   honest advice is: do Phase 1 now, hold Phase 3 until we've tested iOS 27's
-   semantic Siri in September — Apple may ship most of that UX for free.
+   whether notes recall matters, since it's the semantic index's best trick.
+4. **Shortcut budget:** adding Ask + "last night's sleep" as App Shortcuts
+   needs 2+ of the 10 slots and 8 are taken. Demote two logging variants
+   (e.g. the wet/dirty/both diaper trio → one), or ship the new query intents
+   without phrases (still usable via Shortcuts app and, on 27, discoverable
+   by Siri through the intent metadata anyway)?
+5. **Beta toolchain tolerance:** OK installing the Xcode 27 beta on the Mac
+   (Phase 2 can't compile without it)? And should 27-gated code merge to
+   `main`/TestFlight while built against a beta SDK, or live on a branch
+   until the GM in September? (TestFlight accepts beta-SDK builds during the
+   beta cycle, but `main` = auto-TestFlight here, so the answer decides when
+   Girl Taylor's phone receives builds containing the gated code.)
 
 ---
 
@@ -341,5 +405,7 @@ Phases 1–2 are the commitment; 3–5 are each independently skippable.
 - [WWDC26 319: Build with the new Apple Foundation Model on Private Cloud Compute](https://developer.apple.com/videos/play/wwdc2026/319/)
 - [WWDC26 Apple Intelligence guide](https://developer.apple.com/wwdc26/guides/apple-intelligence/)
 - Guided generation / tool calling walkthroughs: [AppCoda — Foundation Models](https://www.appcoda.com/foundation-models/), [AppCoda — Tool Calling](https://www.appcoda.com/tool-calling/)
+- iOS 27 Siri app / Siri AI: [MacRumors — Siri AI in iOS 27](https://www.macrumors.com/guide/ios-27-siri/), [MacRumors — Siri redesign with chat interface and dedicated app](https://www.macrumors.com/2026/05/12/ios-27-siri-redesign/), [9to5Mac — iOS 27 public beta 3](https://9to5mac.com/2026/08/11/ios-27-public-beta-3/)
+- Developer integration detail (incl. the open non-schema question): [Swiftjective-C — iOS 27, Your App, and Siri](https://www.swiftjectivec.com/siri-ai-for-ios027/)
 - In-repo prior art: `docs/AI-PREDICTIONS.md`, `docs/SIRI_AND_SHORTCUTS.md`,
   `AI/BabyIntelligence.swift`, `Intents/QueryIntents.swift`, `Store/StatsEngine.swift`
