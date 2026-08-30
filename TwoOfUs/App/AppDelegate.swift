@@ -47,6 +47,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         Task { @MainActor in
             let fetched = await SyncManager.shared?.handleRemoteNotification() ?? false
             WidgetCenter.shared.reloadAllTimelines()
+            if fetched { SpotlightHooks.eventsDidChange() }
             completionHandler(fetched ? .newData : .noData)
         }
     }
@@ -79,6 +80,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 await SyncManager.shared?.handleRemoteNotification()
                 WidgetCenter.shared.reloadAllTimelines()
                 SyncManager.shared?.reconcileLiveActivityFromStore()
+                // After the fetch lands: fold anything new (co-parent syncs,
+                // widget/Siri writes) into the iOS 27 semantic index.
+                SpotlightHooks.eventsDidChange()
             }
             SyncManager.shared?.drainExtensionQueue()
         }

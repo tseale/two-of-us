@@ -1022,6 +1022,9 @@ struct EventStore {
     private func save() -> Bool {
         do {
             try context.save()
+            // Keep the iOS 27 semantic index in step with every local write
+            // (edits and soft deletes included — the reindex evicts them).
+            if !demo { SpotlightHooks.eventsDidChange() }
             return true
         } catch {
             AppLog.store.error("EventStore save failed: \(error.localizedDescription, privacy: .public)")

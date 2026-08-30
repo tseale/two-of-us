@@ -54,6 +54,7 @@ final class LocalPrefs {
         static let myParticipantID = "sync.myParticipantID"
         static let syncRole = "sync.role"
         static let demoMode = "demo.enabled"
+        static let siriIndexing = "siri.indexing"
     }
 
     /// When on, the app runs against a throwaway in-memory store seeded with
@@ -61,6 +62,15 @@ final class LocalPrefs {
     /// store and the co-parent's data are untouched while demo mode is active.
     var demoModeEnabled: Bool {
         didSet { defaults.set(demoModeEnabled, forKey: Key.demoMode) }
+    }
+
+    /// Whether events/notes/summaries are indexed into the device's semantic
+    /// Spotlight index for Siri (iOS 27). Device-local on purpose — each
+    /// phone's Spotlight index is its own; this never affects the co-parent.
+    /// Default ON: the index is the point of the Siri feature, and it stays
+    /// on-device either way.
+    var siriIndexingEnabled: Bool {
+        didSet { defaults.set(siriIndexingEnabled, forKey: Key.siriIndexing) }
     }
 
     var appearance: Appearance {
@@ -150,5 +160,6 @@ final class LocalPrefs {
         myParticipantID = (AppGroup.userDefaults?.string(forKey: Key.myParticipantID)).flatMap(UUID.init)
         syncRole = SyncRole(rawValue: defaults.string(forKey: Key.syncRole) ?? "") ?? .solo
         demoModeEnabled = defaults.object(forKey: Key.demoMode) as? Bool ?? false
+        siriIndexingEnabled = defaults.object(forKey: Key.siriIndexing) as? Bool ?? true
     }
 }
