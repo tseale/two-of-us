@@ -1,10 +1,21 @@
 # Natural Language Queries — Research & Design
 
-**Status: proposal, rev 3** — written 2026-08-28. Rev 2: target iOS 27 (Taylor
-runs the betas; Girl Taylor stays on iOS 26 until she upgrades, and it's fine
-if the new capabilities are his-phone-only until then). Rev 3, per Taylor:
-**no in-app chatbot at all — maximize what's exposed to Siri and make the
-Siri experience best-in-class.** Nothing here is built.
+**Status: implemented (phases 0–3 + day summaries), 2026-08-28** — see the
+commits on this branch. Built: `Ask/` (QueryParser, AskEngine, @Generable
+model fallback, 34 tests), the intent catalog (`Intents/AskIntents.swift`,
+AskTwoOfUsIntent in the 10th App Shortcut slot), and the iOS 27 layer
+(`Entities/` — indexed Feed/Sleep/Diaper/Note entities + DaySummaryEntity,
+SpotlightIndexer with debounced wipe-and-rebuild, hooks in EventStore saves /
+foreground / remote push, per-phone "Ask Siri" toggle in Feeding & Tracking).
+All iOS 27 code is fenced `#if compiler(>=6.4)`: stable Xcode (and Xcode
+Cloud) compiles it away; the Xcode 27 beta compiles it in. Deployment target
+stays iOS 26. Not yet done: WeekSummaryEntity, on-screen awareness,
+Transferable, snippet views, App Schema adoption (GM checkpoint).
+
+Original proposal follows. Rev 2: target iOS 27 (Taylor runs the betas; Girl
+Taylor stays on iOS 26 until she upgrades — new capabilities are
+his-phone-only meanwhile). Rev 3, per Taylor: **no in-app chatbot at all —
+maximize what's exposed to Siri and make the Siri experience best-in-class.**
 
 The question this doc answers: how does "what time did he go to sleep last
 night?" get answered from the app's own data — now specifically, how much of
