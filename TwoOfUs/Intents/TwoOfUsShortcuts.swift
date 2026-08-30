@@ -3,7 +3,11 @@ import AppIntents
 /// Exposes the log + query intents to Siri ("Hey Siri, log a diaper"), Spotlight,
 /// and the Shortcuts app — no separate extension needed.
 ///
-/// Note: iOS allows up to 10 App Shortcuts per app; we register 8.
+/// Note: iOS allows up to 10 App Shortcuts per app; all 10 slots are used.
+/// GetStatIntent / CompareStatIntent / NextUpIntent deliberately have NO
+/// App Shortcut: their AppEnum parameters make them discoverable to Siri and
+/// the Shortcuts app through intent metadata alone, and free-text questions
+/// route through AskTwoOfUsIntent below.
 struct TwoOfUsShortcuts: AppShortcutsProvider {
     static var shortcutTileColor: ShortcutTileColor { .teal }
 
@@ -107,6 +111,21 @@ struct TwoOfUsShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Undo Last Log",
             systemImageName: "arrow.uturn.backward"
+        )
+        // Free-text question catch-all: "Hey Siri, ask Two of Us" → Siri
+        // prompts for the question → AskEngine answers. (A raw String can't
+        // be interpolated into a phrase, so the two-step prompt is the best
+        // a phrase can do on iOS 26; the iOS 27 Siri app invokes the intent
+        // directly with the question filled.)
+        AppShortcut(
+            intent: AskTwoOfUsIntent(),
+            phrases: [
+                "Ask \(.applicationName)",
+                "Ask \(.applicationName) a question",
+                "\(.applicationName) question"
+            ],
+            shortTitle: "Ask",
+            systemImageName: "questionmark.bubble"
         )
     }
 }
