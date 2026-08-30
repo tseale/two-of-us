@@ -41,6 +41,7 @@ enum SpotlightIndexer {
             return
         }
         guard let logger = QuickLogger.make() else { return }
+        AppLog.ai.log("Spotlight reindex starting")
         let hours = eventWindowDays * 24
 
         let feeds = logger.recentFeeds(hours: hours).map(FeedEntity.init)

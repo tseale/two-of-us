@@ -85,6 +85,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 SpotlightHooks.eventsDidChange()
             }
             SyncManager.shared?.drainExtensionQueue()
+            // Reindex directly on foreground too — not only after the sync
+            // fetch above, whose await can be long (or short-circuit) in
+            // environments without engines. Debounced, so at most one runs.
+            SpotlightHooks.eventsDidChange()
         }
         // Reconcile against the SAME store the UI reads (the shared container's
         // main context) — not a QuickLogger-built throwaway container whose
