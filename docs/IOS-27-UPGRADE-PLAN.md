@@ -86,12 +86,14 @@ worth taking, in order:
   `PrivateCloudComputeLanguageModel` (32K context + reasoning levels, free at
   our scale, watchOS 27 too). 32K comfortably fits weeks of raw event history,
   enabling real trend analysis ("night stretches lengthening ~20 min/week")
-  the 8K digest can't. **Privacy gate:** `BabyIntelligence`'s documented promise
-  is "nothing about your baby ever leaves the device." PCC has strong,
-  stateless-compute guarantees, but it is off-device. Decision needed between
-  us (the two users) before building; if adopted, it must be a separate,
-  clearly-labeled opt-in path, `docs/PRIVACY.md` and the App Store privacy
-  answers must be updated, and the on-device path stays the default.
+  the 8K digest can't. **Decided 2026-09-18: PCC is approved.** It still
+  changes `BabyIntelligence`'s documented "nothing about your baby ever leaves
+  the device" promise, so the build must: keep on-device as the default for the
+  daily summary, label the weekly card as using Apple's Private Cloud Compute,
+  update the doc comment, `docs/PRIVACY.md`, and the App Store privacy answers
+  (`docs/APP_PRIVACY_ANSWERS.md`). Testing note: iOS 27.0 fixed PCC not working
+  in the simulator (iOS 27 release notes, 177684296), so this is testable
+  without a device.
 - **Skip third-party providers.** The `LanguageModel` protocol makes Claude or
   Gemini drop-in, but they need API keys, billing, and a privacy story; Apple's
   free models cover our needs. Revisit only if a chat feature (§5) outgrows AFM.
@@ -157,33 +159,78 @@ exist, write them now against the iOS 27 reality rather than retrofitting:
 
 ## 6. Xcode Cloud and toolchain migration
 
-Ordered checklist; nothing else in this plan ships to TestFlight before steps
-1–4 are green.
+### Where Xcode Cloud actually stands (checked 2026-09-18)
 
-1. **Local toolchain first.** Install Xcode 27 (needs macOS Tahoe 26.6+ on the
-   Mac mini — verify; Apple silicon requirement is met). Build + `make test`
-   locally before touching CI.
-2. **Compile audit for the `@State` macro.** Known breaks when building with
-   Xcode 27: assigning in `init` to a `@State` that has a declaration-site
-   initial value no longer compiles; the synthesized all-private-members init
-   disappears; `@State` composed with other wrappers is unsupported. Grep every
-   view `init` that touches `_state`/`State(initialValue:)`. Also audit for the
-   27-SDK behavior gates: `TabView` **crashes** if selection points at a hidden
-   tab; `Text.textSelection(.enabled)` switches to system selection.
-3. **Simulator destinations.** `Makefile`'s `$(SIMULATOR)` destination and the
-   UI-test device need iOS 27 runtimes; screenshots in
-   `docs/DEVICE_TEST_MATRIX.md` flows re-run on 27.
-4. **Xcode Cloud workflow environment.** Both workflows ("Default" and "App
-   Store Release") are set to "latest released Xcode". **[unverified]** whether
-   Xcode Cloud has rolled out Xcode 27 runners yet — Apple's
-   [Xcode Cloud release notes](https://developer.apple.com/xcode-cloud/release-notes)
-   showed no Xcode 27 entry as of 2026-09-18. Action: open ASC → Xcode Cloud →
-   workflow → Environment and check the picker. If 27 is offered, **pin both
-   workflows to a specific Xcode 27.x** for the migration build rather than
-   riding "latest" through the 27.0→27.1 (iPhone Duo, late Sept) churn; go back
-   to "latest released" once stable. If 27 isn't offered yet, nothing breaks —
-   26.x runners keep building a 26.0-target app — but the April 2027 SDK
-   deadline means we must be on 27 runners well before then.
+- **Xcode 27 is not on Xcode Cloud yet.** Apple's
+  [Xcode Cloud release notes](https://developer.apple.com/xcode-cloud/release-notes)
+  have no Xcode 27 / macOS 27 entry; the newest toolchain entry is Xcode 26.2
+  (2025-12-19). Historically the GA Xcode lands on Xcode Cloud the same day
+  as release — Xcode 16 on 2024-09-16, Xcode 26 on 2025-09-15 — so 27 being
+  absent four days after its 2026-09-14 release is a real lag, not the norm.
+  There is precedent for the RC being late too
+  ([Xcode 26 RC thread](https://developer.apple.com/forums/thread/799883),
+  resolved by Apple within days). Expect 27 to appear any day.
+- **Both workflows ride "latest released Xcode."** Apple's workflow reference
+  says Xcode Cloud "may update available macOS and Xcode versions and
+  subsequently ask you to update your workflows." In practice, "latest
+  released" flips to 27 on Apple's schedule, not ours — so the first Xcode 27
+  archive of this app will happen on whatever `main` push follows that flip.
+  That makes the compile audit below a *prerequisite*, not a follow-up.
+- **Ground truth is the workflow picker** (ASC → Apps → Two of Us → Xcode Cloud
+  → Manage Workflows → Environment) or the API:
+  `GET https://api.appstoreconnect.apple.com/v1/ciXcodeVersions` with the
+  same key the TestFlight-feedback action uses (`ASC_KEY_ID`/`ASC_ISSUER_ID`/
+  `ASC_PRIVATE_KEY`, JWT built like `scripts/testflight_feedback_to_issues.py`).
+  Neither was reachable from this session (ASC needs an attended sign-in;
+  the key lives only in GitHub secrets) — a 2-minute manual check.
+- **Local Mac readiness:** the Mac mini is on macOS 27.0 (Xcode 27 needs
+  26.6+ ✓, Apple silicon ✓), has Xcode 26.4 installed (4.8 GB) and 63 GB free,
+  no `xcodes`/`mas` helper. Installing Xcode 27 side-by-side is ~15 GB with
+  the iOS 27 simulator runtime. `xcrun simctl` currently hangs on this
+  machine (CoreSimulator wedged) — restart the service or reboot before
+  running `make test` on 27.
+
+### Checklist
+
+Ordered; nothing else in this plan ships to TestFlight before steps 1–4 are
+green.
+
+1. **`@State` macro compile audit — done, fix in this PR.** Apple's rule
+   (iOS 27 release notes, 78212597): a `@State` with a declaration-site
+   initial value that `init` also assigns no longer compiles (and the init
+   value would be discarded). The codebase has 36 `_x = State(initialValue:)`
+   sites in seven files; 33 are on un-initialized declarations and are fine.
+   The three that matched the break were all in `OnboardingView.swift`
+   (`page = .tour`, `babyName = ""`, `ownerName = ""`) — the `page` one would
+   have failed the Release archive, the other two only Debug (`-autoFinish`
+   path). Fixed by dropping the declaration-site values and assigning once in
+   `init`; verified building on Xcode 26.4. Two things to confirm on the
+   first Xcode 27 build: (a) that `_x = State(initialValue:)` in `init` is
+   still accepted by the macro — Apple's own workaround uses plain
+   `self.x = …`, and if the underscore form breaks it's a mechanical
+   replacement across the 36 sites; (b) `TwoOfUsApp.demoContainer`
+   (`ModelContainer?` assigned conditionally in `init`) — an implicit-nil
+   optional may count as "has an initial value", in which case the assignment
+   is silently discarded. Degrades gracefully (`configure()` rebuilds the
+   demo store one frame later), but check demo mode's cold launch for a
+   flash of real data.
+2. **27-SDK behavior gates to test, not fix:** three `TabView(selection:)`
+   sites (`RootView`, `OnboardingView`, `JoinFlowView`) — the 27 SDK crashes
+   if selection points at a hidden tab; none hide tabs today, so this is a
+   smoke-test item. No `textSelection(.enabled)`, `-ld64`, or `-ld_classic`
+   usage in the project; no `ToolbarContentBuilder`/`CommandsBuilder`.
+3. **Local toolchain.** Install Xcode 27 alongside 26.4 (keep 26.4 until
+   Xcode Cloud has flipped, so local builds match CI). Build, then `make
+   test` with `SIMULATOR` pointed at an iOS 27 runtime; re-run the
+   `docs/DEVICE_TEST_MATRIX.md` screenshot flows on 27.
+4. **Xcode Cloud workflow environment.** Once the picker offers Xcode 27,
+   **pin both workflows to that specific 27.x** for the migration build
+   rather than riding "latest released" through the 27.0 → 27.1 (iPhone Duo,
+   late September) churn; return to "latest released" once a 27 build has
+   soaked on TestFlight. If the flip happens before we pin, step 1 is what
+   keeps the archive green. Optional hardening: a `workflow_dispatch` GitHub
+   Action that hits `ciXcodeVersions` with the existing ASC secrets and
+   prints what Xcode Cloud offers, so this check never needs an ASC login.
 5. **`ci_scripts/ci_post_clone.sh`** — no changes needed. XcodeGen via brew and
    the `CURRENT_PROJECT_VERSION` stamping are toolchain-independent. Only risk
    is an XcodeGen release lagging a project-format change; pin the brew formula
@@ -211,11 +258,11 @@ Ordered checklist; nothing else in this plan ships to TestFlight before steps
 
 | Order | Work | Estimate |
 |---|---|---|
-| 1 | Xcode 27 local + compile audit + sim runtimes (§6.1–3) | 0.5–1 day |
+| 1 | `@State` audit (done here) + Xcode 27 local install + sim runtimes (§6.1–3) | 0.5 day |
 | 2 | Xcode Cloud environment check/pin + first 27-SDK TestFlight build (§6.4–8) | 0.5 day + soak |
 | 3 | Live Activity small family + landscape DI (§2) | 0.5 day |
 | 4 | Foundation Models: token accounting + AFM 3 QA re-run (§3) | 0.5 day |
-| 5 | PCC privacy decision, then weekly-pattern card if approved (§3) | 1–2 days |
+| 5 | PCC weekly-pattern card + privacy doc updates (§3, approved) | 1–2 days |
 | 6 | App Intents: Indexed/Syncable/Ownership entities + snippet views + AppIntentsTesting (§4) | 2–3 days |
 | 7 | Write AI-PREDICTIONS.md + AI-CHAT-DESIGN.md; prototype chat only if Siri leaves a gap (§5) | 1 day docs; chat TBD |
 | 8 | Deployment target bump to 27.0 riding whichever feature needs it first (§6.7) | folded in |

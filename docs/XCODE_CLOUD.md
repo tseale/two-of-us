@@ -110,6 +110,18 @@ automatically — internal-group builds need no Beta App Review.
   version; build numbers take care of themselves.
 - Free tier is 25 compute-hours/month — plenty at ~15 min per build.
 
+## Xcode 27 (2026-09)
+
+Both workflows use "latest released Xcode", which Apple flips to a new major
+on their schedule (usually the day it ships; Xcode 27 was still absent from
+Xcode Cloud as of 2026-09-18). App Store uploads must use the iOS 27 SDK from
+**April 2027**. The first 27 archive will simply be whichever `main` push
+follows Apple's flip, so keep `main` compiling under Xcode 27 ahead of time —
+the `@State` macro rule (no declaration-site initial value on state that
+`init` assigns) is the known break. When the picker offers 27, pin both
+workflows to that 27.x for the migration build, soak it on TestFlight, then
+return to "latest released". Full plan: `docs/IOS-27-UPGRADE-PLAN.md`.
+
 ## Troubleshooting
 
 - **"No Xcode project found" at workflow creation** — the workflow editor wants

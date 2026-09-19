@@ -30,7 +30,9 @@ struct OnboardingView: View {
         var next: Page { Page(rawValue: rawValue + 1) ?? self }
     }
 
-    @State private var page: Page = .tour
+    // No declaration-site initial values on state that `init` assigns: the
+    // Xcode 27 `@State` macro discards (and rejects) the init assignment then.
+    @State private var page: Page
     /// Pages whose entrance has played. Grows only — back-swipes don't replay.
     @State private var revealed: Set<Page>
 
@@ -44,11 +46,11 @@ struct OnboardingView: View {
 
     // MARK: Setup state (committed once, at Finish)
 
-    @State private var babyName = ""
+    @State private var babyName: String
     @State private var dateOfBirth = Date()
     @State private var notBornYet = false
     @State private var babyPhotoData: Data?
-    @State private var ownerName = ""
+    @State private var ownerName: String
     @State private var ownerColorHex = ParticipantColors.palette[0]
     @State private var ownerPhotoData: Data?
 
@@ -65,6 +67,8 @@ struct OnboardingView: View {
         self.onFinished = onFinished
         var played = Self.hasPlayedIntro
         var initialPage: Page = .tour
+        var prefilledBabyName = ""
+        var prefilledOwnerName = ""
 
         #if DEBUG
         // Dev-only: launch with `-onboardingPage N` (Page rawValue: 1 baby,
@@ -82,12 +86,14 @@ struct OnboardingView: View {
             Self.hasPlayedIntro = true
             played = true
             initialPage = .invite
-            _babyName = State(initialValue: "Miller")
-            _ownerName = State(initialValue: "Taylor")
+            prefilledBabyName = "Miller"
+            prefilledOwnerName = "Taylor"
         }
         #endif
 
         _page = State(initialValue: initialPage)
+        _babyName = State(initialValue: prefilledBabyName)
+        _ownerName = State(initialValue: prefilledOwnerName)
         // On a cold launch the first page's entrance plays via `runIntro`;
         // on rebuilds it's visible immediately.
         _revealed = State(initialValue: played ? [initialPage] : [])
