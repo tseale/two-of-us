@@ -1,4 +1,5 @@
 import AlarmKit
+import AppIntents
 import SwiftUI
 import UserNotifications
 
@@ -51,9 +52,10 @@ enum FeedAlarmManager {
         await cancel()
         guard LocalPrefs.shared.feedReminderEnabled,
               let lastFeed, interval >= minimumInterval else { return }
+        let logger = QuickLogger.make()
         // Feed tracking off (shared setting) means no feed alarm — there's
         // nothing to log when it rings.
-        guard QuickLogger.make()?.isTrackingEnabled(.feed) ?? true else { return }
+        guard logger?.isTrackingEnabled(.feed) ?? true else { return }
 
         let fireDate = lastFeed.addingTimeInterval(interval)
         let remaining = fireDate.timeIntervalSinceNow
@@ -70,7 +72,7 @@ enum FeedAlarmManager {
         // keeps the alarm (the local check above already prevents doubling),
         // and `assignedElsewhere` biases to reminding whenever it can't prove
         // the slot belongs to someone else.
-        if let logger = QuickLogger.make(), let myID = logger.myParticipantID {
+        if let logger, let myID = logger.myParticipantID {
             let horizon = max(3600, remaining + 30 * 60)
             let occurrences = logger.scheduleOccurrences(horizon: horizon)
             if ScheduleEngine.assignedElsewhere(in: occurrences, near: fireDate,
@@ -86,11 +88,23 @@ enum FeedAlarmManager {
             presentation: AlarmPresentation(alert: alert),
             tintColor: AppColor.accentFeed
         )
-        let configuration: AlarmManager.AlarmConfiguration = .timer(
-            duration: remaining,
-            attributes: attributes,
-            sound: LocalPrefs.shared.alarmTone.alertSound
-        )
+        let configuration: AlarmManager.AlarmConfiguration<FeedAlarmMetadata>
+        // iOS 27 lets the alarm name the record it's counting from, so Siri
+        // treats "the feed alarm" and "Miller's last bottle" as one thing.
+        if #available(iOS 27, *), let feedID = logger?.lastFeed?.id {
+            configuration = .timer(
+                duration: remaining,
+                attributes: attributes,
+                appEntityIdentifier: EntityIdentifier(for: CareEventEntity.self, identifier: feedID),
+                sound: LocalPrefs.shared.alarmTone.alertSound
+            )
+        } else {
+            configuration = .timer(
+                duration: remaining,
+                attributes: attributes,
+                sound: LocalPrefs.shared.alarmTone.alertSound
+            )
+        }
         do {
             _ = try await AlarmManager.shared.schedule(id: alarmID, configuration: configuration)
         } catch {

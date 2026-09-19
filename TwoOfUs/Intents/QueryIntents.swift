@@ -10,18 +10,22 @@ struct LastFeedIntent: AppIntent {
     static var description = IntentDescription("Tells you how long ago your baby's last bottle was.")
     static var openAppWhenRun: Bool = false
 
+    /// Also hands the feed back as a `CareEventEntity`, so a Shortcut can
+    /// chain it ("get the last feed → show its amount") and Siri has the
+    /// record, not just the sentence.
     @MainActor
-    func perform() async throws -> some IntentResult & ProvidesDialog {
+    func perform() async throws -> some IntentResult & ProvidesDialog & ReturnsValue<CareEventEntity?> {
         guard let logger = QuickLogger.make() else {
-            return .result(dialog: "Couldn't reach Two of Us.")
+            return .result(value: nil, dialog: "Couldn't reach Two of Us.")
         }
         let name = logger.babyName ?? "Baby"
         guard let feed = logger.lastFeed else {
-            return .result(dialog: "No feeds logged for \(name) yet.")
+            return .result(value: nil, dialog: "No feeds logged for \(name) yet.")
         }
         let ago = TimeFormatting.since(feed.timestamp)
         let oz = OzFormat.string(feed.amountOz)
-        return .result(dialog: "\(name) last ate \(oz) oz \(ago) ago, at \(TimeFormatting.clock(feed.timestamp)).")
+        return .result(value: CareEventEntity(feed: feed, babyName: name),
+                       dialog: "\(name) last ate \(oz) oz \(ago) ago, at \(TimeFormatting.clock(feed.timestamp)).")
     }
 }
 
@@ -32,16 +36,17 @@ struct LastDiaperIntent: AppIntent {
     static var openAppWhenRun: Bool = false
 
     @MainActor
-    func perform() async throws -> some IntentResult & ProvidesDialog {
+    func perform() async throws -> some IntentResult & ProvidesDialog & ReturnsValue<CareEventEntity?> {
         guard let logger = QuickLogger.make() else {
-            return .result(dialog: "Couldn't reach Two of Us.")
+            return .result(value: nil, dialog: "Couldn't reach Two of Us.")
         }
         let name = logger.babyName ?? "Baby"
         guard let diaper = logger.lastDiaper else {
-            return .result(dialog: "No diapers logged for \(name) yet.")
+            return .result(value: nil, dialog: "No diapers logged for \(name) yet.")
         }
         let ago = TimeFormatting.since(diaper.timestamp)
-        return .result(dialog: "\(name)'s last diaper was a \(diaper.type.label.lowercased()) one, \(ago) ago.")
+        return .result(value: CareEventEntity(diaper: diaper, babyName: name),
+                       dialog: "\(name)'s last diaper was a \(diaper.type.label.lowercased()) one, \(ago) ago.")
     }
 }
 

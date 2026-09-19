@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 
 /// One event on the Home **timeline rail**: a left time gutter, a vertical rail
@@ -60,6 +61,9 @@ struct DayTimelineRow: View {
         .frame(minHeight: 46)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
+        // Onscreen awareness: Siri can be asked about "this" row and gets the
+        // `CareEventEntity` behind it rather than guessing from pixels.
+        .appEntityIdentifier(EntityIdentifier(for: CareEventEntity.self, identifier: entry.id))
     }
 
     private var accent: Color {

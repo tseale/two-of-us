@@ -25,6 +25,11 @@ answer **No → "Data Not Collected."**
   dependencies at all — only first-party Apple frameworks.
 - This matches `PrivacyInfo.xcprivacy`: `NSPrivacyCollectedDataTypes` is an
   **empty array** and `NSPrivacyTracking = false`.
+- The iOS 27 weekly-patterns card uses Apple's **Private Cloud Compute** via
+  the Foundation Models framework (Apple platform processing, not retained,
+  no developer access) — see `docs/APP_PRIVACY_ANSWERS.md` for why this
+  keeps the answer at "Data Not Collected" and what to re-verify at
+  submission.
 
 If ASC's flow forces you through the data-type screens before letting you land
 on "Data Not Collected," the answers below confirm every category is **Not

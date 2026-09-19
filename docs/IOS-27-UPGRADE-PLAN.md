@@ -23,7 +23,7 @@ one-version hop with no deprecated-API debt, not a migration.
 Design docs that exist and are affected: `docs/AI-PREDICTIONS.md` (all four
 phases implemented 2026-08-27) and `docs/PREDICTION-MATH.md` (recency-weighted
 blend, Option D, implemented 2026-08-27). `docs/AI-CHAT-DESIGN.md` does **not**
-exist in the repo or its history — §5 proposes writing it.
+exist in the repo or its history — and §5 decides it doesn't need to.
 
 One correction to a premise this audit started from: **Live Activities on
 Watch, Mac, and CarPlay is not new in iOS 27.** Smart Stack forwarding shipped
@@ -107,6 +107,18 @@ synced `aiPredictionsEnabled` toggle. iOS 27 changes worth taking, in order:
   `docs/APP_PRIVACY_ANSWERS.md`. Testing note: iOS 27.0 fixed PCC not working
   in the simulator (iOS 27 release notes, 177684296), so this is testable
   without a device.
+  **Blocker found on the first simulator run (2026-09-18): PCC needs Apple's
+  managed entitlement `com.apple.developer.private-cloud-compute`, requested
+  at <https://developer.apple.com/contact/request/private-cloud-compute/>
+  ("certain eligibility requirements"). Without it FoundationModels doesn't
+  throw — it traps** (`ModelManager received unentitled request` → fatal
+  error), which took the whole app down on Stats. The card is built and
+  ships dormant behind `TOUPrivateCloudComputeEnabled: NO` in `project.yml`;
+  every PCC path checks `BabyIntelligence.privateCloudComputeEnabled` first.
+  To turn it on: get the entitlement granted → add it to
+  `TwoOfUs.entitlements` and enable the capability on the App ID in the
+  portal (the `docs/XCODE_CLOUD.md` rule) → flip the flag to YES in the same
+  change. Until then the on-device cards and Ask are the AI surface.
 - **Skip third-party providers.** The `LanguageModel` protocol makes Claude or
   Gemini drop-in, but they need API keys, billing, and a privacy story; Apple's
   free models cover our needs. Revisit only if a chat feature (§5) outgrows AFM.
@@ -121,25 +133,37 @@ which we don't use).
 ## 4. Priority 2 — Siri and App Intents
 
 The new Siri resolves our existing intents conversationally without work on our
-side, but three iOS 27 APIs fit this app unusually well:
+side, but three iOS 27 APIs fit this app unusually well. **Done 2026-09-18
+(`ios27-features`):** `CareEventEntity` in `TwoOfUs/Intents/CareEventEntity.swift`
+covers the first three, `SpotlightIndexer` keeps the last 30 days indexed,
+`LastFeedIntent`/`LastDiaperIntent` return the entity, `CareEventQuery` is
+also an `EntityPropertyQuery` (Shortcuts "Find Care Events" with
+kind/time/amount/logger filters), and the timeline rows carry
+`.appEntityIdentifier` for Siri's onscreen awareness.
 
 - **`IndexedEntity` + `IndexedEntityQuery`** on Feed/Sleep/Diaper/Note events:
   makes them Spotlight-semantically searchable and lets Siri resolve "when did
   Miller last have a dirty diaper" against the real store instead of our
   hand-rolled query intents. Our `QueryIntents.swift` answers stay as the
-  dialog layer.
+  dialog layer. *(Done — one `CareEventEntity` with a `kind`, reindexed
+  after every local write and every applied sync batch, coalesced.)*
 - **`SyncableEntity`** — stable cross-device entity identity for CloudKit-synced
   records. Our events already have stable IDs synced via CKSyncEngine; adopting
   this tells the system two phones (and the watch) are seeing the same entity.
-  Low effort, future-proofs Siri/Shortcuts references to events.
+  Low effort, future-proofs Siri/Shortcuts references to events. *(Done — it
+  is a marker protocol in the shipped SDK, no requirements.)*
 - **`OwnershipProvidingEntity`** — declares shared ownership so Siri's
   confirmation language is right for two people editing the same data. Directly
-  matches our model.
+  matches our model. *(Done — `.shared`.)*
 - **AppIntentsTesting framework** — our intents currently have zero automated
   coverage (they're excluded from `TwoOfUsTests`). This exercises real
   Siri/Shortcuts pathways headlessly; add a small suite to `make test`.
+  *(Open — the shipped framework is definition/introspection-shaped
+  (`IntentDefinitions`, `AppEntityDefinition`, `AnyEntityQuery`); needs a
+  session with the WWDC26 295 sample before it's worth adopting.)*
 - **`ShowsSnippetView`** — port `ConfirmationSnippet` to snippet-view results so
-  Siri confirmations show the app-styled card.
+  Siri confirmations show the app-styled card. *(Already the case — the log
+  intents have returned `ShowsSnippetView` since iOS 26; nothing to do.)*
 
 Skip: App Schemas (`@AppEntity(schema:)`) — the system schema catalog (messages,
 photos, etc.) has no baby-tracking domain; our custom entities are the right
@@ -163,13 +187,15 @@ list loosens considerably under LLM Siri (natural phrasing, no more rigid
   contradicts?).
 - **`docs/PREDICTION-MATH.md`** — no iOS 27 impact. Its open item (the
   on-real-data half-life sweep) is unrelated to this plan.
-- **`docs/AI-CHAT-DESIGN.md` (new)** — decide whether an in-app chat is worth
-  building at all now that LLM Siri + our intents cover "ask about Miller"
-  hands-free. If yes: `LanguageModelSession` with Dynamic Profiles, tool
-  calling into the SwiftData store (a `FetchEventsTool`), `SpotlightSearchTool`
-  for local RAG over the §4 indexed entities, rolling-window transcript
-  management. Recommendation: prototype after §4 lands, because better Siri
-  may make chat redundant for a two-person user base.
+- **In-app chat — decided against (2026-09-18).** With `CareEventEntity` in
+  Spotlight, "Find Care Events" in Shortcuts, and the query intents returning
+  entities, the iOS 27 Siri answers "ask about Miller" — one-fact and
+  range questions alike — against the same log, hands-free, with no UI of
+  ours to maintain. A prototype was built and reverted the same night
+  (`git log` for `AskSession`/`CareEventsTool` if it's ever wanted back): it
+  duplicated Siri for a two-person user base and added a second prompt to
+  babysit. No `docs/AI-CHAT-DESIGN.md`. Revisit only if Siri demonstrably
+  can't answer a class of question the log could.
 
 ## 6. Xcode Cloud and toolchain migration
 
@@ -218,31 +244,36 @@ list loosens considerably under LLM Siri (natural phrasing, no more rigid
    `OnboardingView.swift` (`page = .tour`, `babyName = ""`, `ownerName = ""`)
    — the `page` one would have failed the Release archive, the other two only
    Debug (`-autoFinish` path). Fixed by dropping the declaration-site values
-   and assigning once in `init`; verified building on Xcode 26.4. Two things
-   to confirm on build #143: (a) that `_x = State(initialValue:)` in `init`
-   is still accepted by the macro — Apple's own workaround uses plain
-   `self.x = …`, and if the underscore form breaks it's a mechanical
-   replacement across the 35 sites; (b) `TwoOfUsApp.demoContainer`
-   (`ModelContainer?` assigned conditionally in `init`) — an implicit-nil
-   optional may count as "has an initial value", in which case the assignment
-   is silently discarded. Degrades gracefully (`configure()` rebuilds the
-   demo store one frame later), but check demo mode's cold launch for a
-   flash of real data.
+   and assigning once in `init`; verified building on Xcode 26.4, and
+   **build #143 (Xcode 27, 2026-09-18) archived green**, which settles the
+   first open question: `_x = State(initialValue:)` in `init` is accepted by
+   the macro, no mechanical rewrite needed. Still to eyeball on device:
+   `TwoOfUsApp.demoContainer` (`ModelContainer?` assigned conditionally in
+   `init`) — an implicit-nil optional may count as "has an initial value", in
+   which case the assignment is silently discarded. Degrades gracefully
+   (`configure()` rebuilds the demo store one frame later), but check demo
+   mode's cold launch for a flash of real data.
 2. **27-SDK behavior gates to test, not fix:** three `TabView(selection:)`
    sites (`RootView`, `OnboardingView`, `JoinFlowView`) — the 27 SDK crashes
    if selection points at a hidden tab; none hide tabs today, so this is a
    smoke-test item. No `textSelection(.enabled)`, `-ld64`, or `-ld_classic`
    usage in the project; no `ToolbarContentBuilder`/`CommandsBuilder`.
-3. **Merge this PR → build #143 is the migration build.** Watch it in ASC →
-   Xcode Cloud; on success, TestFlight soak on both phones and the watch:
-   sync, widgets, Live Activity, Siri phrases, notification content
-   extension, complications. If it fails on something other than step 1's
-   two open questions, pin Default to Xcode 26.6 (17F113) to unblock
-   TestFlight and fix forward.
-4. **Local toolchain.** Install Xcode 27 alongside 26.4 (keep 26.4 until #143
-   is green so local builds can reproduce CI either way). Build, then `make
-   test` with `SIMULATOR` pointed at an iOS 27 runtime; re-run the
-   `docs/DEVICE_TEST_MATRIX.md` screenshot flows on 27.
+3. **Build #143 — done.** PR #185 merged 2026-09-18 21:25 CDT and the Default
+   workflow archived it on Xcode 27 (27A266a) successfully. What's left is
+   the TestFlight soak on both phones and the watch: sync, widgets, Live
+   Activity, Siri phrases, notification content extension, complications.
+   Fallback if a later 27.x build breaks: pin Default to Xcode 26.6 (17F113)
+   from the picker and fix forward.
+4. **Local toolchain — Xcode 27.0 installed 2026-09-18** via the Mac App
+   Store update (replaces 26.4 in place; `mas upgrade` needs `sudo`, so the
+   click happens in the App Store app). Still owed: the iOS 27 and watchOS 27
+   simulator runtimes (`xcodebuild -downloadPlatform iOS` / `watchOS`), then
+   `make test` with `SIMULATOR` pointed at an iOS 27 device and the
+   `docs/DEVICE_TEST_MATRIX.md` screenshot flows. Blocker found on the way:
+   every `simctl` invocation on the mini hangs indefinitely (even `simctl
+   help`, even invoked directly and after killing CoreSimulatorService —
+   `xcrun` itself is fine), which means no simulator tests until the Mac is
+   rebooted. Builds against `generic/platform=iOS Simulator` still work.
 5. **`ci_scripts/ci_post_clone.sh`** — no changes needed. XcodeGen via brew and
    the `CURRENT_PROJECT_VERSION` stamping are toolchain-independent. Only risk
    is an XcodeGen release lagging a project-format change; pin the brew formula
@@ -275,7 +306,7 @@ list loosens considerably under LLM Siri (natural phrasing, no more rigid
 | 4 | Foundation Models: token accounting + AFM 3 QA re-run (§3) | 0.5 day |
 | 5 | PCC weekly-pattern card + all privacy copy/doc updates (§3, approved) | 1–2 days |
 | 6 | App Intents: Indexed/Syncable/Ownership entities + snippet views + AppIntentsTesting (§4) | 2–3 days |
-| 7 | Update AI-PREDICTIONS.md; write AI-CHAT-DESIGN.md; prototype chat only if Siri leaves a gap (§5) | 1 day docs; chat TBD |
+| 7 | Update AI-PREDICTIONS.md (done); no in-app chat — Siri covers it (§5) | done |
 | 8 | Deployment target bump to 27.0 riding whichever feature needs it first (§6.7) | folded in |
 
 Total: roughly **6–9 working days** spread over the fall, with the only hard

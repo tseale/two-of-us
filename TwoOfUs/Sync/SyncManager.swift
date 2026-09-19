@@ -925,6 +925,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             healUnnamedEventsIfNeeded(from: e.modifications.map(\.record))
             reconcileLiveActivityFromStore()
             WidgetCenter.shared.reloadAllTimelines()
+            SpotlightIndexer.scheduleReindex()
             notifyCoParentActivity(from: e.modifications.map(\.record))
             // The co-parent's log just landed on THIS phone — relay the wake to
             // this phone's paired watch so its complication re-fetches now

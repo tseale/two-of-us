@@ -16,6 +16,7 @@ This sets the label to **"Data Not Collected"** and skips all per-category scree
 - **No Two of Us server.** No third-party backend. The developer never receives the data.
 - **No analytics, ads, telemetry, or tracking SDKs.** Only first-party Apple frameworks.
 - Matches `PrivacyInfo.xcprivacy`: `NSPrivacyCollectedDataTypes` is an empty array, `NSPrivacyTracking = false`.
+- **Private Cloud Compute (iOS 27, added 2026-09-18):** the "This week's patterns" card sends two weeks of event data to Apple's PCC through the Foundation Models framework. This is Apple platform processing — no developer server, no developer access, no third-party partner, data not retained — so it does not change the "Data Not Collected" answer, the same way CloudKit storage doesn't. **Re-check Apple's privacy-label guidance for PCC at submission time**; if Apple asks developers to disclose it, the honest disclosure is "Health & Fitness → Other usage data, not linked, app functionality only" for the event history. `docs/PRIVACY.md` §AI features is the user-facing statement.
 
 ---
 
