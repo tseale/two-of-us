@@ -39,6 +39,7 @@ struct StatsView: View {
     @State private var summary: String?
     @State private var summaryLoading = false
     @State private var outlook: String?
+    @State private var patterns: BabyIntelligence.WeeklyPatterns?
     @State private var timeAccuracy: AccuracyReport?
     @State private var amountAccuracy: AccuracyReport?
     @State private var sleepAccuracy: AccuracyReport?
@@ -55,6 +56,9 @@ struct StatsView: View {
                     }
                     if let outlook, aiEnabled {
                         outlookCard(outlook)
+                    }
+                    if let patterns, aiEnabled {
+                        patternsCard(patterns)
                     }
                     todayCard
                     recordHero
@@ -192,6 +196,25 @@ struct StatsView: View {
         } else {
             outlook = nil
         }
+        guard !Task.isCancelled else { return }
+        // Last, and only on iOS 27: the cloud round-trip is the slow one, and
+        // the two on-device cards should already be on screen while it runs.
+        if #available(iOS 27, *), let history = buildHistoryDigest() {
+            patterns = await BabyIntelligence.weeklyPatterns(history: history, babyName: babyName)
+        } else {
+            patterns = nil
+        }
+    }
+
+    /// Every event of the last two weeks, for the cloud model — see
+    /// `HistoryDigest` for why this is raw where `buildDigest` is totals.
+    private func buildHistoryDigest() -> String? {
+        guard let baby = babies.first else { return nil }
+        return HistoryDigest.render(
+            babyName: babyName, dateOfBirth: baby.dateOfBirth,
+            feeds: feeds.map { .init(at: $0.timestamp, oz: $0.amountOz) },
+            sleeps: sleeps.map { .init(start: $0.startedAt, end: $0.endedAt) },
+            diapers: diapers.map { .init(at: $0.timestamp, type: $0.type) })
     }
 
     /// Walk-forward accuracy over the trailing month (`PredictionAccuracy`).
@@ -281,6 +304,46 @@ struct StatsView: View {
                 .font(.subheadline)
                 .foregroundStyle(AppColor.text)
             Text("Generated on-device from \(babyName)'s recent patterns")
+                .font(.caption2)
+                .foregroundStyle(AppColor.text3)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .surfaceCard(cornerRadius: 18)
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .strokeBorder(
+                    LinearGradient(colors: AIGlow.colors.map { $0.opacity(0.35) },
+                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                    lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The weekly card. Same gradient-border treatment as the outlook — all of
+    /// it is generated — but its caption names Private Cloud Compute, because
+    /// this is the one card whose input leaves the phone.
+    private func patternsCard(_ patterns: BabyIntelligence.WeeklyPatterns) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("\(AIGlow.mark) THIS WEEK'S PATTERNS")
+                .font(.caption2.weight(.semibold))
+                .kerning(0.8)
+                .foregroundStyle(AIGlow.gradient)
+            Text(patterns.headline)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppColor.text)
+            ForEach(patterns.observations, id: \.self) { observation in
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Circle()
+                        .fill(AIGlow.gradient)
+                        .frame(width: 5, height: 5)
+                        .padding(.top, 6)
+                    Text(observation)
+                        .font(.subheadline)
+                        .foregroundStyle(AppColor.text)
+                }
+            }
+            Text("Analyzed by Apple's Private Cloud Compute from the last two weeks — never stored, never shared with us")
                 .font(.caption2)
                 .foregroundStyle(AppColor.text3)
         }

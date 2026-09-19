@@ -193,12 +193,18 @@ numbers**: a "today's outlook" blurb generated *from* the computed predictions
 using `@Generable` guided generation for structure. Phase 3. All availability
 gating and graceful-nil patterns already exist in `BabyIntelligence`.
 
-**Private Cloud Compute — not applicable.**
-There is no third-party developer API that lets an app run its own workloads on
-PCC; the Foundation Models framework is the on-device developer surface. If
-Apple opens PCC-backed larger models to the framework later, `BabyIntelligence`
-is the seam where it would slot in. Nothing to build; noted so the privacy
-story stays "on-device, full stop."
+**Private Cloud Compute — adopted for the weekly card (iOS 27, 2026-09-18).**
+When this plan was written there was no developer API for PCC and this section
+said "if Apple opens PCC-backed larger models to the framework later,
+`BabyIntelligence` is the seam where it would slot in." iOS 27 did exactly
+that: `PrivateCloudComputeLanguageModel` plugs into the same
+`LanguageModelSession`, with a 32K-token context (vs 8K on-device) and no keys
+or billing at our scale. `BabyIntelligence.weeklyPatterns` uses it for the
+"This week's patterns" card on Stats — the one analysis that needs the raw
+two-week event history (`HistoryDigest`) rather than seven daily totals. The
+daily cards stay on-device. The privacy story is therefore no longer
+"on-device, full stop" — see the Privacy section below and `docs/PRIVACY.md`
+§AI features for the exact wording.
 
 ### Architecture
 
@@ -312,12 +318,19 @@ assumption (`· 1h50m awake`) for exactly this reason; keep that principle.
 
 ### Privacy
 
-- All computation on device; Foundation Models inference on device; no
-  third-party services; nothing new synced beyond the settings toggle.
-- Settings copy under the AI Features toggle: "Predictions are computed on your
-  device from your own logs. Nothing about Miller leaves your phone."
-- `docs/PRIVACY.md` + App Store privacy answers reviewed; no new data types
-  collected → no nutrition-label changes expected (verify before submission).
+- Predictions and the daily cards: all computation on device; nothing new
+  synced beyond the settings toggle; no third-party services.
+- The weekly patterns card (iOS 27) sends the two-week `HistoryDigest` (event
+  times, ounces, diaper types, first name, age — never photos, notes, or
+  participant names) to Apple's Private Cloud Compute via the Foundation
+  Models framework. Still no Two of Us server and no third party.
+- Settings copy under the AI Features toggle names both: on-device for
+  predictions and daily insights, Private Cloud Compute for the weekly card.
+  The card's own caption repeats it.
+- `docs/PRIVACY.md` §AI features and `docs/APP_PRIVACY_ANSWERS.md` updated.
+  The "Data Not Collected" answer holds — PCC is Apple platform processing
+  with no developer access, like iCloud — but re-verify against Apple's
+  current privacy-label guidance before the next App Store submission.
 - Keep `BabyIntelligence`'s "never medical advice" line: predictions are
   planning aids, phrased as observations about *his patterns*, never guidance
   about what he *should* eat/sleep.

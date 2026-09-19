@@ -111,7 +111,7 @@ struct FeedingSettingsView: View {
                 } header: {
                     Text("AI Features")
                 } footer: {
-                    Text("Predicts the next bottle, amounts, and wake times from your own logs, and writes the weekly insights summary. Everything is computed on your iPhone — nothing about \(babyName) leaves your device. Shared with your co-parent. Not medical advice.")
+                    Text("Predicts the next bottle, amounts, and wake times from your own logs and writes the daily insights — all computed on your iPhone. The weekly patterns card on Stats sends the last two weeks of logs to Apple's Private Cloud Compute, which processes them on Apple's servers without storing them; nothing about \(babyName) ever reaches us or anyone else. Shared with your co-parent. Not medical advice.")
                 }
             }
         }
