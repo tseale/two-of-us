@@ -121,25 +121,34 @@ which we don't use).
 ## 4. Priority 2 — Siri and App Intents
 
 The new Siri resolves our existing intents conversationally without work on our
-side, but three iOS 27 APIs fit this app unusually well:
+side, but three iOS 27 APIs fit this app unusually well. **Done 2026-09-18
+(`ios27-features`):** `CareEventEntity` in `TwoOfUs/Intents/CareEventEntity.swift`
+covers the first three, `SpotlightIndexer` keeps the last 30 days indexed,
+and `LastFeedIntent`/`LastDiaperIntent` return the entity.
 
 - **`IndexedEntity` + `IndexedEntityQuery`** on Feed/Sleep/Diaper/Note events:
   makes them Spotlight-semantically searchable and lets Siri resolve "when did
   Miller last have a dirty diaper" against the real store instead of our
   hand-rolled query intents. Our `QueryIntents.swift` answers stay as the
-  dialog layer.
+  dialog layer. *(Done — one `CareEventEntity` with a `kind`, reindexed
+  after every local write and every applied sync batch, coalesced.)*
 - **`SyncableEntity`** — stable cross-device entity identity for CloudKit-synced
   records. Our events already have stable IDs synced via CKSyncEngine; adopting
   this tells the system two phones (and the watch) are seeing the same entity.
-  Low effort, future-proofs Siri/Shortcuts references to events.
+  Low effort, future-proofs Siri/Shortcuts references to events. *(Done — it
+  is a marker protocol in the shipped SDK, no requirements.)*
 - **`OwnershipProvidingEntity`** — declares shared ownership so Siri's
   confirmation language is right for two people editing the same data. Directly
-  matches our model.
+  matches our model. *(Done — `.shared`.)*
 - **AppIntentsTesting framework** — our intents currently have zero automated
   coverage (they're excluded from `TwoOfUsTests`). This exercises real
   Siri/Shortcuts pathways headlessly; add a small suite to `make test`.
+  *(Open — the shipped framework is definition/introspection-shaped
+  (`IntentDefinitions`, `AppEntityDefinition`, `AnyEntityQuery`); needs a
+  session with the WWDC26 295 sample before it's worth adopting.)*
 - **`ShowsSnippetView`** — port `ConfirmationSnippet` to snippet-view results so
-  Siri confirmations show the app-styled card.
+  Siri confirmations show the app-styled card. *(Already the case — the log
+  intents have returned `ShowsSnippetView` since iOS 26; nothing to do.)*
 
 Skip: App Schemas (`@AppEntity(schema:)`) — the system schema catalog (messages,
 photos, etc.) has no baby-tracking domain; our custom entities are the right

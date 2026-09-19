@@ -5,6 +5,29 @@ the Shortcuts app, and (on iOS 18) Control Center / the Action button — no ext
 setup required. This doc is for the two of us using the app: what you can say, and
 a few automations worth building.
 
+## iOS 27: Siri knows the events themselves
+
+Since the iOS 27 build, every feed, sleep, diaper, and note from the last 30
+days is exposed to the system as a **Care Event** (`CareEventEntity`) and kept
+in Spotlight (`SpotlightIndexer` reindexes after every log and every synced
+batch from the other parent). What that gets you:
+
+- **Spotlight**: pull down on the Home Screen and type "dirty diaper" or
+  "3.5 oz" — recent events show up as results and open the app.
+- **Siri** can answer with the actual record, not only our canned sentences:
+  "When did Miller last eat" still speaks the answer, and now also hands
+  Siri the feed itself (amount, time, who logged it), so follow-ups work.
+  The events are marked as **shared** between the household, so Siri won't
+  treat one as private to whoever is asking.
+- **Shortcuts**: "When Did the Baby Last Eat?" and "…Last Diaper?" now
+  return a Care Event you can chain into later actions (its Amount, Time,
+  Logged By, Note fields are all available), and the Shortcuts app gains a
+  Care Event picker with search across the recent month.
+
+The phrase list below was written for the pre-27 Siri; the new Siri accepts
+much looser phrasing, and the "…in Two of Us" suffix is usually optional.
+Re-test and trim once both phones are on 27.
+
 ## Things you can say to Siri
 
 You don't have to open the app. Just say "Hey Siri, …":

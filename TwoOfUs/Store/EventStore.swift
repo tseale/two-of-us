@@ -1042,6 +1042,7 @@ struct EventStore {
     private func reloadWidgets() {
         guard !demo else { return }
         WidgetCenter.shared.reloadAllTimelines()
+        SpotlightIndexer.scheduleReindex()
     }
 
     /// Re-arms every reminder surface off current state after a write: the

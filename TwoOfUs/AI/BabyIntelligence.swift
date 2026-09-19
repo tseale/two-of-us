@@ -25,6 +25,7 @@ enum BabyIntelligence {
     /// Returns nil if the model is unavailable or generation fails.
     static func summary(digest: String, babyName: String) async -> String? {
         guard isAvailable else { return nil }
+        await logBudget("Summary", prompt: digest)
         let session = LanguageModelSession(instructions: """
             You are a warm, concise assistant inside a baby-tracking app used by \
             two new parents. You are writing for the parents and caregivers — \
@@ -56,6 +57,7 @@ enum BabyIntelligence {
     /// prediction engine already did the arithmetic.
     static func outlook(digest: String, babyName: String) async -> String? {
         guard isAvailable else { return nil }
+        await logBudget("Outlook", prompt: digest)
         let session = LanguageModelSession(instructions: """
             You are a warm, concise assistant inside a baby-tracking app used \
             by two new parents. You are writing for the parents — address \
@@ -73,6 +75,37 @@ enum BabyIntelligence {
             AppLog.ai.error("Outlook generation failed: \(error.localizedDescription, privacy: .public)")
             return nil
         }
+    }
+
+    // MARK: - Token budget
+
+    /// The on-device context is 8K tokens and the digests grow with history,
+    /// so log how much of it each prompt uses — a warning here is the early
+    /// signal before the model starts silently truncating. Needs the 26.4
+    /// token APIs; earlier systems just skip the check.
+    private static func logBudget(_ label: String, prompt: String) async {
+        guard #available(iOS 27, *) else { return }
+        let model = SystemLanguageModel.default
+        guard let tokens = try? await model.tokenCount(for: prompt) else { return }
+        let size = model.contextSize
+        if tokens * 10 > size * 6 {
+            AppLog.ai.warning("\(label, privacy: .public) prompt uses \(tokens)/\(size) tokens")
+        } else {
+            AppLog.ai.debug("\(label, privacy: .public) prompt uses \(tokens)/\(size) tokens")
+        }
+    }
+
+    /// Whether a history digest fits the cloud model's context with room for
+    /// the schema and the answer. Counted with the on-device tokenizer as an
+    /// estimate (the cloud model exposes its context size but not a counter),
+    /// with margin for the difference.
+    @available(iOS 27, *)
+    static func cloudFits(_ prompt: String) async -> Bool {
+        guard let tokens = try? await SystemLanguageModel.default.tokenCount(for: prompt),
+              let size = try? await PrivateCloudComputeLanguageModel().contextSize else { return true }
+        let fits = tokens * 10 < size * 7
+        AppLog.ai.debug("Weekly history ≈\(tokens) tokens of \(size); fits=\(fits)")
+        return fits
     }
 
     // MARK: - This week's patterns (Private Cloud Compute, iOS 27)

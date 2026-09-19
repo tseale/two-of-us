@@ -54,6 +54,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func applicationDidBecomeActive(_ application: UIApplication) {
         WidgetCenter.shared.reloadAllTimelines()
         MainActor.assumeIsolated {
+            SpotlightIndexer.scheduleReindex()
             // Self-healing: sweep ghost events (unattributed "?" rows and
             // duplicate rows sharing an id) before anything else reads the
             // store. Cheap when there's nothing to do; skipped during demo

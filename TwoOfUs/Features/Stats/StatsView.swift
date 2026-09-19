@@ -199,22 +199,36 @@ struct StatsView: View {
         guard !Task.isCancelled else { return }
         // Last, and only on iOS 27: the cloud round-trip is the slow one, and
         // the two on-device cards should already be on screen while it runs.
-        if #available(iOS 27, *), let history = buildHistoryDigest() {
-            patterns = await BabyIntelligence.weeklyPatterns(history: history, babyName: babyName)
+        if #available(iOS 27, *) {
+            patterns = await loadWeeklyPatterns()
         } else {
             patterns = nil
         }
     }
 
-    /// Every event of the last two weeks, for the cloud model — see
+    /// Two weeks if it fits the cloud context, else ten days, else one week
+    /// — a busy newborn's fortnight can outgrow the budget once notes and
+    /// SNOO sleeps pile up.
+    @available(iOS 27, *)
+    private func loadWeeklyPatterns() async -> BabyIntelligence.WeeklyPatterns? {
+        for days in [HistoryDigest.days, 10, HistoryDigest.minimumDaysWithData] {
+            guard let history = buildHistoryDigest(days: days) else { return nil }
+            guard await BabyIntelligence.cloudFits(history) else { continue }
+            return await BabyIntelligence.weeklyPatterns(history: history, babyName: babyName)
+        }
+        return nil
+    }
+
+    /// Every event of the last `days`, for the cloud model — see
     /// `HistoryDigest` for why this is raw where `buildDigest` is totals.
-    private func buildHistoryDigest() -> String? {
+    private func buildHistoryDigest(days: Int) -> String? {
         guard let baby = babies.first else { return nil }
         return HistoryDigest.render(
             babyName: babyName, dateOfBirth: baby.dateOfBirth,
             feeds: feeds.map { .init(at: $0.timestamp, oz: $0.amountOz) },
             sleeps: sleeps.map { .init(start: $0.startedAt, end: $0.endedAt) },
-            diapers: diapers.map { .init(at: $0.timestamp, type: $0.type) })
+            diapers: diapers.map { .init(at: $0.timestamp, type: $0.type) },
+            days: days)
     }
 
     /// Walk-forward accuracy over the trailing month (`PredictionAccuracy`).

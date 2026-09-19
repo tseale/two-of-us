@@ -23,6 +23,7 @@ enum HistoryDigest {
 
     static func render(babyName: String, dateOfBirth: Date,
                        feeds: [Feed], sleeps: [Sleep], diapers: [Diaper],
+                       days: Int = HistoryDigest.days,
                        now: Date = .now, calendar: Calendar = .current) -> String? {
         let today = calendar.startOfDay(for: now)
         let dayStarts = (0..<days).reversed().compactMap {
