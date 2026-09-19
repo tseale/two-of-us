@@ -107,6 +107,18 @@ synced `aiPredictionsEnabled` toggle. iOS 27 changes worth taking, in order:
   `docs/APP_PRIVACY_ANSWERS.md`. Testing note: iOS 27.0 fixed PCC not working
   in the simulator (iOS 27 release notes, 177684296), so this is testable
   without a device.
+  **Blocker found on the first simulator run (2026-09-18): PCC needs Apple's
+  managed entitlement `com.apple.developer.private-cloud-compute`, requested
+  at <https://developer.apple.com/contact/request/private-cloud-compute/>
+  ("certain eligibility requirements"). Without it FoundationModels doesn't
+  throw — it traps** (`ModelManager received unentitled request` → fatal
+  error), which took the whole app down on Stats. The card is built and
+  ships dormant behind `TOUPrivateCloudComputeEnabled: NO` in `project.yml`;
+  every PCC path checks `BabyIntelligence.privateCloudComputeEnabled` first.
+  To turn it on: get the entitlement granted → add it to
+  `TwoOfUs.entitlements` and enable the capability on the App ID in the
+  portal (the `docs/XCODE_CLOUD.md` rule) → flip the flag to YES in the same
+  change. Until then the on-device cards and Ask are the AI surface.
 - **Skip third-party providers.** The `LanguageModel` protocol makes Claude or
   Gemini drop-in, but they need API keys, billing, and a privacy story; Apple's
   free models cover our needs. Revisit only if a chat feature (§5) outgrows AFM.

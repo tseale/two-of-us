@@ -101,6 +101,7 @@ enum BabyIntelligence {
     /// with margin for the difference.
     @available(iOS 27, *)
     static func cloudFits(_ prompt: String) async -> Bool {
+        guard privateCloudComputeEnabled else { return false }
         guard let tokens = try? await SystemLanguageModel.default.tokenCount(for: prompt),
               let size = try? await PrivateCloudComputeLanguageModel().contextSize else { return true }
         let fits = tokens * 10 < size * 7
@@ -121,10 +122,19 @@ enum BabyIntelligence {
         var observations: [String]
     }
 
+    /// Whether this build carries Apple's managed PCC entitlement
+    /// (`com.apple.developer.private-cloud-compute`). FoundationModels does
+    /// not throw on an unentitled cloud request — it traps — so every PCC
+    /// path checks this Info.plist flag first, and the flag only goes to YES
+    /// alongside the granted entitlement (see project.yml).
+    static var privateCloudComputeEnabled: Bool {
+        Bundle.main.object(forInfoDictionaryKey: "TOUPrivateCloudComputeEnabled") as? Bool ?? false
+    }
+
     /// Whether Apple's Private Cloud Compute model can be used right now.
     @available(iOS 27, *)
     static var isCloudAvailable: Bool {
-        PrivateCloudComputeLanguageModel().isAvailable
+        privateCloudComputeEnabled && PrivateCloudComputeLanguageModel().isAvailable
     }
 
     /// Reads the two-week raw history (`HistoryDigest.render`) for trends the
@@ -133,6 +143,7 @@ enum BabyIntelligence {
     /// the prompt and the model's job is to notice, not to compute.
     @available(iOS 27, *)
     static func weeklyPatterns(history: String, babyName: String) async -> WeeklyPatterns? {
+        guard privateCloudComputeEnabled else { return nil }
         let model = PrivateCloudComputeLanguageModel()
         guard model.isAvailable else { return nil }
         let session = LanguageModelSession(

@@ -46,6 +46,13 @@ targets:
         # invite link into the app (the scene/app delegate accept handlers
         # never fire) and the co-parent can never join.
         CKSharingSupported: YES
+        # Private Cloud Compute (the weekly patterns card) needs Apple's
+        # managed entitlement com.apple.developer.private-cloud-compute —
+        # requested at developer.apple.com/contact/request/private-cloud-compute/
+        # — and FoundationModels TRAPS (fatal error, not a thrown error) on any
+        # PCC call without it. Flip to YES only in the same change that adds
+        # the granted entitlement to TwoOfUs.entitlements and the App ID.
+        TOUPrivateCloudComputeEnabled: NO
         # Custom URL scheme the Feed/Diaper home widgets tap into
         # (twoofus://log/feed · twoofus://log/diaper) to open their log sheet.
         CFBundleURLTypes:

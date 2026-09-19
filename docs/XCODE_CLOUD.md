@@ -123,6 +123,16 @@ from **April 2027**. Keep `main` compiling under Xcode 27 — the `@State`
 macro rule (no declaration-site initial value on state that `init` assigns)
 is the known break. Full plan: `docs/IOS-27-UPGRADE-PLAN.md`.
 
+**Private Cloud Compute entitlement (when granted):**
+`com.apple.developer.private-cloud-compute` is a *managed* entitlement —
+Apple grants it per team after a request form. Once granted, it must be
+enabled on the `com.taylorseale.twoofus` App ID in the portal **before** the
+next archive (same rule as the App Groups gotcha above — cloud signing won't
+add it for you), added to `TwoOfUs/TwoOfUs.entitlements` via `project.yml`,
+and `TOUPrivateCloudComputeEnabled` flipped to YES in the same change.
+Shipping the entitlement key without the grant fails signing; shipping the
+flag without the entitlement crashes the app on Stats.
+
 ## Troubleshooting
 
 - **"No Xcode project found" at workflow creation** — the workflow editor wants
