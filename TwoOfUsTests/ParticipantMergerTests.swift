@@ -163,4 +163,21 @@ final class ParticipantMergerTests: XCTestCase {
         XCTAssertTrue(ParticipantMerger.merge(p, into: p, in: context).isEmpty)
         XCTAssertTrue(p.isActive)
     }
+
+    func testPauseSurvivesTheMergeOnTheLiveRow() throws {
+        // Merging away a paused duplicate must move the pause to the survivor:
+        // left on the tombstone, the Resume button vanishes from the People
+        // list while the pause itself lives on.
+        let old = participant("Grandma", cloudUserID: "_gma",
+                              invitedAt: .now.addingTimeInterval(-86_400))
+        old.pausedAt = .now
+        let new = participant("Gran", cloudUserID: "_gma")
+        try context.save()
+
+        ParticipantMerger.mergeDuplicates(in: context)
+
+        XCTAssertFalse(old.isActive)
+        XCTAssertNil(old.pausedAt, "the tombstone must not keep a stale pause")
+        XCTAssertTrue(new.isPaused, "the pause follows the person onto the live row")
+    }
 }

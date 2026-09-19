@@ -14,7 +14,7 @@ struct NightScheduleSettingsSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query private var settingsList: [SharedSettings]
-    @Query(filter: #Predicate<Participant> { $0.isActive }, sort: \Participant.invitedAt)
+    @Query(filter: #Predicate<Participant> { $0.isActive && $0.pausedAt == nil }, sort: \Participant.invitedAt)
     private var participants: [Participant]
     @Query(filter: #Predicate<FeedEvent> { $0.deletedAt == nil }, sort: \FeedEvent.timestamp, order: .reverse)
     private var recentFeeds: [FeedEvent]

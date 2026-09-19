@@ -137,6 +137,29 @@ final class QuickLoggerTests: XCTestCase {
         XCTAssertNil(logger.activeSleep)
     }
 
+    // MARK: Paused access
+
+    func testPausedDeviceIsRefusedOnEveryWritePathIncludingUndoAndSleepStop() throws {
+        // Undo and sleep-stop deliberately skip `owner`, so they need their
+        // own pause gate — without it a paused person could still delete the
+        // co-parent's latest event or end their running sleep timer.
+        _ = insertFeed(3, at: Date(timeIntervalSinceNow: -600))
+        XCTAssertEqual(logger.toggleSleep(), true, "sleep starts while unpaused")
+
+        let me = try XCTUnwrap(container.mainContext.fetch(FetchDescriptor<Participant>()).first)
+        me.pausedAt = .now
+        try container.mainContext.save()
+
+        XCTAssertNil(logger.logFeed(amountOz: 3), "logging is refused while paused")
+        XCTAssertNil(logger.toggleSleep(), "the running sleep may not be stopped while paused")
+        XCTAssertNotNil(logger.activeSleep, "the co-parent's timer keeps running")
+        XCTAssertNil(logger.undoLastLog(), "undo is refused while paused")
+
+        me.pausedAt = nil
+        try container.mainContext.save()
+        XCTAssertEqual(logger.toggleSleep(), false, "resume restores the stop path")
+    }
+
     // MARK: One-tap feed amount
 
     func testDefaultFeedOzPrefersSharedSettings() {

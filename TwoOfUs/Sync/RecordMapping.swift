@@ -76,6 +76,10 @@ enum RecordMapping {
             r["cloudUserID"] = m.cloudUserID
             r["isActive"] = m.isActive ? 1 : 0
             r["invitedAt"] = m.invitedAt
+            // distantPast is the explicit "not paused": CloudKit never
+            // transmits an unset key, so a bare nil could not clear the other
+            // phone's copy on resume (same rule as nightFirstShiftID's "").
+            r["pausedAt"] = m.pausedAt ?? Date.distantPast
             r["photoData"] = asset(from: m.photoData)
             return r
         }
@@ -265,6 +269,14 @@ enum RecordMapping {
         if let sleep = model as? SleepEvent, sleep.endedAt == nil,
            let serverEnded = server["endedAt"] as? Date {
             sleep.endedAt = serverEnded
+        }
+        if let participant = model as? Participant, participant.pausedAt == nil,
+           let serverPaused = server["pausedAt"] as? Date, serverPaused > .distantPast {
+            // A pause is owner-authored administrative state, terminal like a
+            // soft-delete: the paused person's own racing save (a profile
+            // edit landing as the owner pauses them) must not resurrect their
+            // access by re-uploading a pre-pause row.
+            participant.pausedAt = serverPaused
         }
         if let settings = model as? SharedSettings,
            let serverCreds = server["snooCredentials"] as? String {
@@ -493,6 +505,9 @@ enum RecordMapping {
         if let cid = r["cloudUserID"] as? String { m.cloudUserID = cid }
         m.isActive = (r["isActive"] as? Int ?? 1) != 0
         m.invitedAt = r["invitedAt"] as? Date ?? m.invitedAt
+        // Present-but-distantPast is the explicit "resumed"; absent (an older
+        // build's record) keeps the local value.
+        if let d = r["pausedAt"] as? Date { m.pausedAt = d > .distantPast ? d : nil }
         if let resolved = inboundPhoto(r["photoData"]) { m.photoData = resolved }
     }
 

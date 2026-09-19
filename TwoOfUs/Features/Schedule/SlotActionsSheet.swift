@@ -13,7 +13,7 @@ import SwiftData
 struct SlotActionsSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @Query(filter: #Predicate<Participant> { $0.isActive }, sort: \Participant.invitedAt)
+    @Query(filter: #Predicate<Participant> { $0.isActive && $0.pausedAt == nil }, sort: \Participant.invitedAt)
     private var participants: [Participant]
 
     let occurrence: ScheduleOccurrence

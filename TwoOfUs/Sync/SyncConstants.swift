@@ -37,7 +37,8 @@ enum SyncConstants {
         /// exactly how `SharedSettings.snooCredentials` (added Aug 2026 with
         /// no new type alongside it) went missing on the co-parent's phone.
         /// Generation 2: snooCredentials + SleepEvent.sourceRaw.
-        static let schemaGeneration = 2
+        /// Generation 3: Participant.pausedAt.
+        static let schemaGeneration = 3
 
         static let all: Set<String> = [
             baby, feed, sleep, diaper, note, participant, settings, planSlot, planOverride,

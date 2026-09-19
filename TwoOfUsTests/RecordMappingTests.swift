@@ -270,6 +270,83 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertEqual(local.cloudUserID, "_abc123", "an absent field keeps the captured identity")
     }
 
+    func testPausedParticipantRoundTrip() throws {
+        let pausedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let original = Participant(displayName: "Grandma", colorHex: "#112233",
+                                   role: .logger, pausedAt: pausedAt)
+        context.insert(original)
+        try context.save()
+
+        let receiver = AppModelContainer.make(inMemory: true)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+
+        let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<Participant>()).first)
+        XCTAssertEqual(copy.pausedAt, pausedAt)
+        XCTAssertTrue(copy.isPaused)
+    }
+
+    func testResumeTravelsAsExplicitDistantPastNotAnAbsentField() throws {
+        // CloudKit never transmits an unset key, so a resume encoded as bare
+        // nil would leave the other phone paused forever. The outbound record
+        // must carry distantPast explicitly, and applying it must un-pause.
+        let original = Participant(displayName: "Grandma", colorHex: "#112233", role: .logger)
+        context.insert(original)
+        try context.save()
+
+        let record = try outbound(original.id)
+        XCTAssertEqual(record["pausedAt"] as? Date, .distantPast,
+                       "resume must write an explicit sentinel, never an absent key")
+
+        let receiver = AppModelContainer.make(inMemory: true)
+        // Same person id on the receiver, locally still paused.
+        let paused = Participant(id: original.id, displayName: "Grandma",
+                                 colorHex: "#112233", role: .logger, pausedAt: .now)
+        receiver.mainContext.insert(paused)
+        try receiver.mainContext.save()
+        try RecordMapping.apply(record, in: receiver.mainContext)
+
+        XCTAssertNil(paused.pausedAt, "an explicit distantPast must clear the pause")
+    }
+
+    func testApplyParticipantKeepsLocalPauseWhenFieldAbsent() throws {
+        // An older build's record predates pausedAt — applying it must not
+        // silently resume someone the owner paused.
+        let receiver = AppModelContainer.make(inMemory: true)
+        let local = Participant(displayName: "Grandma", colorHex: "#112233",
+                                role: .logger, pausedAt: .now)
+        receiver.mainContext.insert(local)
+        try receiver.mainContext.save()
+
+        let sparse = CKRecord(recordType: SyncConstants.RecordType.participant,
+                              recordID: recordID(local.id))
+        sparse["displayName"] = "Grandma"
+        sparse["colorHex"] = "#112233"
+        try RecordMapping.apply(sparse, in: receiver.mainContext)
+
+        XCTAssertNotNil(local.pausedAt, "an absent field keeps the local pause")
+    }
+
+    func testAbsorbConflictAdoptsAServerPauseOverALocalRacingSave() throws {
+        // The paused person's own device races a profile save against the
+        // owner's pause: local-wins must not resurrect their access.
+        let pausedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let serverCopy = Participant(displayName: "Grandma", colorHex: "#112233",
+                                     role: .logger, pausedAt: pausedAt)
+        context.insert(serverCopy)
+        try context.save()
+        let serverRecord = try outbound(serverCopy.id)
+
+        let receiver = AppModelContainer.make(inMemory: true)
+        let localCopy = Participant(id: serverCopy.id, displayName: "Grandma",
+                                    colorHex: "#FFEEDD", role: .logger)
+        receiver.mainContext.insert(localCopy)
+        try receiver.mainContext.save()
+
+        XCTAssertTrue(RecordMapping.absorbConflict(server: serverRecord, in: receiver.mainContext))
+        XCTAssertEqual(localCopy.pausedAt, pausedAt, "the owner's pause survives the race")
+        XCTAssertEqual(localCopy.colorHex, "#FFEEDD", "local content otherwise wins, as always")
+    }
+
     func testSettingsRoundTrip() throws {
         let firstShift = UUID()
         let original = SharedSettings(targetFeedIntervalMinutes: 150,

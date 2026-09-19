@@ -185,7 +185,7 @@ struct EditEventSheet: View {
     }
 
     private var activeParticipants: [Participant] {
-        participants.filter(\.isActive).sorted { $0.invitedAt < $1.invitedAt }
+        participants.filter { $0.isActive && !$0.isPaused }.sorted { $0.invitedAt < $1.invitedAt }
     }
 
     /// One tappable face, ringed in the participant's color when selected —

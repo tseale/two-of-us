@@ -74,6 +74,7 @@ DEFINE SCHEMA
         displayName STRING,
         invitedAt TIMESTAMP,
         isActive INT64,
+        pausedAt TIMESTAMP,
         photoData ASSET,
         roleRaw STRING,
         GRANT WRITE TO "_creator",

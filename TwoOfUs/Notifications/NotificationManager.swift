@@ -269,7 +269,12 @@ enum NotificationManager {
             .filter { $0.hasPrefix(NotificationID.Request.schedulePrefix) }
         center.removePendingNotificationRequests(withIdentifiers: stale)
 
-        guard let logger = QuickLogger.make(), let myID = logger.myParticipantID else { return }
+        // A paused device arms nothing — not even unclaimed slots. Pausing one
+        // of two co-parents un-assigns the whole rotation (solo roster), and
+        // without this gate the fail-open "unclaimed rings BOTH phones" would
+        // ring the one phone that can't act on it.
+        guard let logger = QuickLogger.make(), let myID = logger.myParticipantID,
+              !logger.selfIsPaused else { return }
         // Standing sleep slots + tonight's dynamic feed schedule, merged — so
         // the "you're up" reminders follow the schedule the anchor feed built.
         let planned = ScheduleReminderPlanner.plan(

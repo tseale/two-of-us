@@ -442,6 +442,36 @@ final class EventStoreTests: XCTestCase {
                        "attribution hands over to the surviving row for the same iCloud account")
     }
 
+    func testOwnerResolvesToNilAndLoggingIsRefusedWhilePaused() throws {
+        // Pausing must block this device's own logging immediately, distinct
+        // from the merge-tombstone/ambiguity paths above.
+        let ctx = container.mainContext
+        let taylor = try XCTUnwrap(ctx.fetch(FetchDescriptor<Participant>())
+            .first { $0.displayName == "Taylor" })
+        LocalPrefs.shared.myParticipantID = taylor.id
+
+        store.pauseParticipant(taylor)
+
+        XCTAssertNil(store.owner, "a paused local user must not resolve, even though it's still active")
+        XCTAssertNil(store.logFeed(amountOz: 3))
+        XCTAssertTrue(try ctx.fetch(FetchDescriptor<FeedEvent>()).isEmpty)
+    }
+
+    func testResumeParticipantRestoresLogging() throws {
+        let ctx = container.mainContext
+        let taylor = try XCTUnwrap(ctx.fetch(FetchDescriptor<Participant>())
+            .first { $0.displayName == "Taylor" })
+        LocalPrefs.shared.myParticipantID = taylor.id
+        store.pauseParticipant(taylor)
+        XCTAssertTrue(taylor.isPaused)
+
+        store.resumeParticipant(taylor)
+
+        XCTAssertFalse(taylor.isPaused)
+        XCTAssertNotNil(store.owner)
+        XCTAssertNotNil(store.logFeed(amountOz: 3))
+    }
+
     func testAutoPurgeCollapsesConcurrentOpenSleeps() throws {
         // Both phones can start a sleep before either sync lands (the
         // single-timer guard is local-only) — one baby can't sleep twice, so
