@@ -112,15 +112,16 @@ automatically — internal-group builds need no Beta App Review.
 
 ## Xcode 27 (2026-09)
 
-Both workflows use "latest released Xcode", which Apple flips to a new major
-on their schedule (usually the day it ships; Xcode 27 was still absent from
-Xcode Cloud as of 2026-09-18). App Store uploads must use the iOS 27 SDK from
-**April 2027**. The first 27 archive will simply be whichever `main` push
-follows Apple's flip, so keep `main` compiling under Xcode 27 ahead of time —
-the `@State` macro rule (no declaration-site initial value on state that
-`init` assigns) is the known break. When the picker offers 27, pin both
-workflows to that 27.x for the migration build, soak it on TestFlight, then
-return to "latest released". Full plan: `docs/IOS-27-UPGRADE-PLAN.md`.
+Both workflows use "Latest Release", which Apple flips to a new major on
+their schedule — and as of 2026-09-18 it already resolves to **Xcode 27
+(27A266a) on macOS 27 (26A428)** for both workflows, even though Apple's
+Xcode Cloud release notes hadn't announced it. (The workflow editor's
+Environment section is the ground truth, not the release notes.) The picker
+also lists Xcode 26.6 / 26.5 / 26.4.1 as pinnable fallbacks if a 27.x point
+release ever breaks the archive. App Store uploads must use the iOS 27 SDK
+from **April 2027**. Keep `main` compiling under Xcode 27 — the `@State`
+macro rule (no declaration-site initial value on state that `init` assigns)
+is the known break. Full plan: `docs/IOS-27-UPGRADE-PLAN.md`.
 
 ## Troubleshooting
 
