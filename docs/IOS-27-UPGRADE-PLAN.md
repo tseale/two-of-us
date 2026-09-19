@@ -175,13 +175,13 @@ list loosens considerably under LLM Siri (natural phrasing, no more rigid
   contradicts?).
 - **`docs/PREDICTION-MATH.md`** — no iOS 27 impact. Its open item (the
   on-real-data half-life sweep) is unrelated to this plan.
-- **`docs/AI-CHAT-DESIGN.md` (new)** — decide whether an in-app chat is worth
-  building at all now that LLM Siri + our intents cover "ask about Miller"
-  hands-free. If yes: `LanguageModelSession` with Dynamic Profiles, tool
-  calling into the SwiftData store (a `FetchEventsTool`), `SpotlightSearchTool`
-  for local RAG over the §4 indexed entities, rolling-window transcript
-  management. Recommendation: prototype after §4 lands, because better Siri
-  may make chat redundant for a two-person user base.
+- **`docs/AI-CHAT-DESIGN.md` — written and shipped as "Ask about Miller"
+  (2026-09-18, `ios27-features`).** Decision: Siri covers one-fact questions;
+  the chat exists for questions with a *range* in them ("how were the nights
+  this week"). Deliberately narrow: on-device only, one tool
+  (`CareEventsTool`, kind + days → event lines), no streaming, no writes.
+  `SpotlightSearchTool` and PCC escalation for long spans are listed there
+  as follow-ups, not v1.
 
 ## 6. Xcode Cloud and toolchain migration
 

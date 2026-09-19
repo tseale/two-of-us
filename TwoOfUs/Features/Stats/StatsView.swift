@@ -45,6 +45,7 @@ struct StatsView: View {
     @State private var sleepAccuracy: AccuracyReport?
     @State private var showWrapped = false
     @State private var showCareSummary = false
+    @State private var showAsk = false
 
     var body: some View {
         NavigationStack {
@@ -53,6 +54,9 @@ struct StatsView: View {
                     if hasAnyData { wrappedButton }
                     if showInsights {
                         insightsCard
+                    }
+                    if aiEnabled, hasAnyData, BabyIntelligence.isAvailable {
+                        askButton
                     }
                     if let outlook, aiEnabled {
                         outlookCard(outlook)
@@ -87,7 +91,38 @@ struct StatsView: View {
                 CareSummarySheet(babyName: babyName,
                                  dateOfBirth: babies.first?.dateOfBirth, engine: engine)
             }
+            .sheet(isPresented: $showAsk) {
+                AskSheet(babyName: babyName)
+            }
         }
+    }
+
+    // MARK: Ask (on-device chat over the log)
+
+    private var askButton: some View {
+        Button { showAsk = true } label: {
+            HStack(spacing: 12) {
+                Text(AIGlow.mark)
+                    .font(.title3)
+                    .foregroundStyle(AIGlow.gradient)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Ask about \(babyName)")
+                        .font(.headline)
+                        .foregroundStyle(AppColor.text)
+                    Text("\"How were the nights this week?\"")
+                        .font(.caption)
+                        .foregroundStyle(AppColor.text2)
+                }
+                Spacer()
+                Image(systemName: "bubble.left.and.text.bubble.right")
+                    .foregroundStyle(AppColor.accentSleep)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity)
+            .surfaceCard(cornerRadius: 18)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Ask about \(babyName) — questions answered on-device from the log")
     }
 
     // MARK: Wrapped (shareable weekly recap)
