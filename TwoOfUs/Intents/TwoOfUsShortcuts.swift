@@ -3,7 +3,7 @@ import AppIntents
 /// Exposes the log + query intents to Siri ("Hey Siri, log a diaper"), Spotlight,
 /// and the Shortcuts app — no separate extension needed.
 ///
-/// Note: iOS allows up to 10 App Shortcuts per app; we register 8.
+/// Note: iOS allows up to 10 App Shortcuts per app; we register 9.
 struct TwoOfUsShortcuts: AppShortcutsProvider {
     static var shortcutTileColor: ShortcutTileColor { .teal }
 
