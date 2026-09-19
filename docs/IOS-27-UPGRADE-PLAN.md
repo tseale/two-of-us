@@ -23,7 +23,7 @@ one-version hop with no deprecated-API debt, not a migration.
 Design docs that exist and are affected: `docs/AI-PREDICTIONS.md` (all four
 phases implemented 2026-08-27) and `docs/PREDICTION-MATH.md` (recency-weighted
 blend, Option D, implemented 2026-08-27). `docs/AI-CHAT-DESIGN.md` does **not**
-exist in the repo or its history — §5 proposes writing it.
+exist in the repo or its history — and §5 decides it doesn't need to.
 
 One correction to a premise this audit started from: **Live Activities on
 Watch, Mac, and CarPlay is not new in iOS 27.** Smart Stack forwarding shipped
@@ -187,13 +187,15 @@ list loosens considerably under LLM Siri (natural phrasing, no more rigid
   contradicts?).
 - **`docs/PREDICTION-MATH.md`** — no iOS 27 impact. Its open item (the
   on-real-data half-life sweep) is unrelated to this plan.
-- **`docs/AI-CHAT-DESIGN.md` (new)** — decide whether an in-app chat is worth
-  building at all now that LLM Siri + our intents cover "ask about Miller"
-  hands-free. If yes: `LanguageModelSession` with Dynamic Profiles, tool
-  calling into the SwiftData store (a `FetchEventsTool`), `SpotlightSearchTool`
-  for local RAG over the §4 indexed entities, rolling-window transcript
-  management. Recommendation: prototype after §4 lands, because better Siri
-  may make chat redundant for a two-person user base.
+- **In-app chat — decided against (2026-09-18).** With `CareEventEntity` in
+  Spotlight, "Find Care Events" in Shortcuts, and the query intents returning
+  entities, the iOS 27 Siri answers "ask about Miller" — one-fact and
+  range questions alike — against the same log, hands-free, with no UI of
+  ours to maintain. A prototype was built and reverted the same night
+  (`git log` for `AskSession`/`CareEventsTool` if it's ever wanted back): it
+  duplicated Siri for a two-person user base and added a second prompt to
+  babysit. No `docs/AI-CHAT-DESIGN.md`. Revisit only if Siri demonstrably
+  can't answer a class of question the log could.
 
 ## 6. Xcode Cloud and toolchain migration
 
@@ -304,7 +306,7 @@ list loosens considerably under LLM Siri (natural phrasing, no more rigid
 | 4 | Foundation Models: token accounting + AFM 3 QA re-run (§3) | 0.5 day |
 | 5 | PCC weekly-pattern card + all privacy copy/doc updates (§3, approved) | 1–2 days |
 | 6 | App Intents: Indexed/Syncable/Ownership entities + snippet views + AppIntentsTesting (§4) | 2–3 days |
-| 7 | Update AI-PREDICTIONS.md; write AI-CHAT-DESIGN.md; prototype chat only if Siri leaves a gap (§5) | 1 day docs; chat TBD |
+| 7 | Update AI-PREDICTIONS.md (done); no in-app chat — Siri covers it (§5) | done |
 | 8 | Deployment target bump to 27.0 riding whichever feature needs it first (§6.7) | folded in |
 
 Total: roughly **6–9 working days** spread over the fall, with the only hard
