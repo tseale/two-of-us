@@ -108,10 +108,21 @@ struct FeedingSettingsView: View {
                         SettingsIconLabel(title: "Predictions & Insights", systemImage: "sparkles",
                                           tint: AppColor.accentSleep)
                     }
+                    Toggle(isOn: Binding(
+                        get: { prefs.siriIndexingEnabled },
+                        set: {
+                            prefs.siriIndexingEnabled = $0
+                            // Flip → immediate rebuild (or wipe) of the index.
+                            SpotlightHooks.eventsDidChange()
+                        }
+                    )) {
+                        SettingsIconLabel(title: "Ask Siri About \(babyName)", systemImage: "mic.badge.plus",
+                                          tint: AppColor.accentFeed)
+                    }
                 } header: {
                     Text("AI Features")
                 } footer: {
-                    Text("Predicts the next bottle, amounts, and wake times from your own logs, and writes the weekly insights summary. Everything is computed on your iPhone — nothing about \(babyName) leaves your device. Shared with your co-parent. Not medical advice.")
+                    Text("Predicts the next bottle, amounts, and wake times from your own logs, and writes the weekly insights summary. Ask Siri lets Siri answer questions about \(babyName)'s feeds, sleep, diapers, and notes from this phone's index (iOS 27 and later). Everything is computed on your iPhone — nothing about \(babyName) leaves your device. Predictions are shared with your co-parent; the Siri setting is per-phone. Not medical advice.")
                 }
             }
         }

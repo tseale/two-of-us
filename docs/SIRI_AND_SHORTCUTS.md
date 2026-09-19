@@ -26,6 +26,27 @@ Each one speaks a confirmation back ("Logged 3 oz for Miller.").
 - **"When was Miller's last diaper in Two of Us"**
 - **"Is Miller asleep in Two of Us"** / **"How long has Miller been sleeping…"**
 - **"How is Miller doing today in Two of Us"** — today's feeds, ounces, and diapers.
+- **"Ask Two of Us"** — Siri asks what you want to know, then you say the
+  question in your own words: *"what time did he go to sleep last night?"*,
+  *"is he eating more than usual?"*, *"how many times did he wake up?"*,
+  *"when did we start vitamin D drops?"* (searches the notes). Common
+  phrasings are answered instantly; unusual ones use the on-device model
+  (Apple Intelligence) to figure out what you meant — either way the numbers
+  come straight from the log.
+
+The Shortcuts app also gets three building-block actions with pickable
+parameters — **Get a Baby Stat** (stat × period), **Compare a Baby Stat**
+(this week vs last…), and **What's Next** (feed / nap / wake-up) — for
+automations and custom phrases.
+
+### iOS 27: just ask Siri directly
+
+On iOS 27 the app puts Miller's recent feeds, sleeps, diapers, notes, and a
+daily summary per day into the phone's **on-device** semantic index, so the
+new Siri (and the Siri app's chat) can answer questions about him directly —
+no "in Two of Us" phrasing needed — and can run the actions above with the
+question filled in. Toggle: **Settings → Feeding & Tracking → Ask Siri About
+Miller** (per-phone; turning it off wipes the index).
 
 > Tip: in the Shortcuts app you can rename any of these to a shorter phrase you
 > like better (e.g. just "Miller ate") under the shortcut's settings.

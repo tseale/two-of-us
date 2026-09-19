@@ -217,6 +217,10 @@ struct MainTabView: View {
         // A slot-reminder tap (or Home's "up next" row) lands on its tab.
         .onChange(of: router.pendingTab) { _, _ in consumePendingTab() }
         .onAppear { consumePendingTab() }
+        // Seed the iOS 27 semantic index on cold start (debounced no-op when
+        // nothing changed). The AppDelegate foreground hook handles reruns;
+        // this covers the first launch of a session deterministically.
+        .task { SpotlightHooks.eventsDidChange() }
     }
 
     private func consumePendingTab() {
