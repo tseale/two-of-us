@@ -350,20 +350,7 @@ struct SleepLiveActivity: Widget {
                 Text("💤")
                     .padding(.leading, 4)
             } compactTrailing: {
-                // Deliberately NOT `showsHours` — the compact pill is far too
-                // narrow to spend three characters on a leading "0:" for the
-                // first hour. It's already width-bounded and scales, so the
-                // M:SS → H:MM:SS change costs nothing here.
-                Text(context.state.startedAt, style: .timer)
-                    .monospacedDigit()
-                    .foregroundStyle(AppColor.accentSleep)
-                    // A count-up `.timer` reserves width for an unbounded
-                    // duration, which stretches the compact island to full
-                    // width. Bound it to a sleep-sized H:MM:SS so the pill stays
-                    // a tight "💤 1:23:45"; longer stretches scale down to fit.
-                    .frame(maxWidth: 56, alignment: .trailing)
-                    .minimumScaleFactor(0.7)
-                    .padding(.trailing, 4)
+                CompactSleepTimer(startedAt: context.state.startedAt)
             } minimal: {
                 Image(systemName: "moon.zzz.fill")
                     .foregroundStyle(AppColor.accentSleep)
@@ -373,6 +360,49 @@ struct SleepLiveActivity: Widget {
         }
         .supplementalActivityFamilies([.small])
     }
+}
+
+/// The compact island's trailing timer. Deliberately NOT `showsHours` — the
+/// pill is far too narrow to spend three characters on a leading "0:" for the
+/// first hour; it's width-bounded and scales, so the M:SS → H:MM:SS change
+/// costs nothing. A count-up `.timer` reserves width for an unbounded
+/// duration, which would stretch the island to full width, so it's bounded to
+/// a sleep-sized H:MM:SS ("💤 1:23:45"); longer stretches scale down to fit.
+///
+/// iOS 27 shows the Dynamic Island in landscape, where the compact pill can't
+/// grow in width at all — `isDynamicIslandLimitedInWidth` — so the bound
+/// tightens further there and the text scales harder rather than clipping.
+private struct CompactSleepTimer: View {
+    let startedAt: Date
+
+    var body: some View {
+        if #available(iOS 27, *) {
+            LandscapeAwareCompactSleepTimer(startedAt: startedAt)
+        } else {
+            compactSleepTimerText(startedAt: startedAt, maxWidth: 56, minimumScale: 0.7)
+        }
+    }
+}
+
+@available(iOS 27, *)
+private struct LandscapeAwareCompactSleepTimer: View {
+    @Environment(\.isDynamicIslandLimitedInWidth) private var limitedInWidth
+    let startedAt: Date
+
+    var body: some View {
+        compactSleepTimerText(startedAt: startedAt,
+                              maxWidth: limitedInWidth ? 44 : 56,
+                              minimumScale: limitedInWidth ? 0.5 : 0.7)
+    }
+}
+
+private func compactSleepTimerText(startedAt: Date, maxWidth: CGFloat, minimumScale: CGFloat) -> some View {
+    Text(startedAt, style: .timer)
+        .monospacedDigit()
+        .foregroundStyle(AppColor.accentSleep)
+        .frame(maxWidth: maxWidth, alignment: .trailing)
+        .minimumScaleFactor(minimumScale)
+        .padding(.trailing, 4)
 }
 
 private func islandNextFeedCaption(at date: Date, owner: String?) -> String {

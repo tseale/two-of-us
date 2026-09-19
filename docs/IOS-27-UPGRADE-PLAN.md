@@ -218,31 +218,36 @@ list loosens considerably under LLM Siri (natural phrasing, no more rigid
    `OnboardingView.swift` (`page = .tour`, `babyName = ""`, `ownerName = ""`)
    — the `page` one would have failed the Release archive, the other two only
    Debug (`-autoFinish` path). Fixed by dropping the declaration-site values
-   and assigning once in `init`; verified building on Xcode 26.4. Two things
-   to confirm on build #143: (a) that `_x = State(initialValue:)` in `init`
-   is still accepted by the macro — Apple's own workaround uses plain
-   `self.x = …`, and if the underscore form breaks it's a mechanical
-   replacement across the 35 sites; (b) `TwoOfUsApp.demoContainer`
-   (`ModelContainer?` assigned conditionally in `init`) — an implicit-nil
-   optional may count as "has an initial value", in which case the assignment
-   is silently discarded. Degrades gracefully (`configure()` rebuilds the
-   demo store one frame later), but check demo mode's cold launch for a
-   flash of real data.
+   and assigning once in `init`; verified building on Xcode 26.4, and
+   **build #143 (Xcode 27, 2026-09-18) archived green**, which settles the
+   first open question: `_x = State(initialValue:)` in `init` is accepted by
+   the macro, no mechanical rewrite needed. Still to eyeball on device:
+   `TwoOfUsApp.demoContainer` (`ModelContainer?` assigned conditionally in
+   `init`) — an implicit-nil optional may count as "has an initial value", in
+   which case the assignment is silently discarded. Degrades gracefully
+   (`configure()` rebuilds the demo store one frame later), but check demo
+   mode's cold launch for a flash of real data.
 2. **27-SDK behavior gates to test, not fix:** three `TabView(selection:)`
    sites (`RootView`, `OnboardingView`, `JoinFlowView`) — the 27 SDK crashes
    if selection points at a hidden tab; none hide tabs today, so this is a
    smoke-test item. No `textSelection(.enabled)`, `-ld64`, or `-ld_classic`
    usage in the project; no `ToolbarContentBuilder`/`CommandsBuilder`.
-3. **Merge this PR → build #143 is the migration build.** Watch it in ASC →
-   Xcode Cloud; on success, TestFlight soak on both phones and the watch:
-   sync, widgets, Live Activity, Siri phrases, notification content
-   extension, complications. If it fails on something other than step 1's
-   two open questions, pin Default to Xcode 26.6 (17F113) to unblock
-   TestFlight and fix forward.
-4. **Local toolchain.** Install Xcode 27 alongside 26.4 (keep 26.4 until #143
-   is green so local builds can reproduce CI either way). Build, then `make
-   test` with `SIMULATOR` pointed at an iOS 27 runtime; re-run the
-   `docs/DEVICE_TEST_MATRIX.md` screenshot flows on 27.
+3. **Build #143 — done.** PR #185 merged 2026-09-18 21:25 CDT and the Default
+   workflow archived it on Xcode 27 (27A266a) successfully. What's left is
+   the TestFlight soak on both phones and the watch: sync, widgets, Live
+   Activity, Siri phrases, notification content extension, complications.
+   Fallback if a later 27.x build breaks: pin Default to Xcode 26.6 (17F113)
+   from the picker and fix forward.
+4. **Local toolchain — Xcode 27.0 installed 2026-09-18** via the Mac App
+   Store update (replaces 26.4 in place; `mas upgrade` needs `sudo`, so the
+   click happens in the App Store app). Still owed: the iOS 27 and watchOS 27
+   simulator runtimes (`xcodebuild -downloadPlatform iOS` / `watchOS`), then
+   `make test` with `SIMULATOR` pointed at an iOS 27 device and the
+   `docs/DEVICE_TEST_MATRIX.md` screenshot flows. Blocker found on the way:
+   every `simctl` invocation on the mini hangs indefinitely (even `simctl
+   help`, even invoked directly and after killing CoreSimulatorService —
+   `xcrun` itself is fine), which means no simulator tests until the Mac is
+   rebooted. Builds against `generic/platform=iOS Simulator` still work.
 5. **`ci_scripts/ci_post_clone.sh`** — no changes needed. XcodeGen via brew and
    the `CURRENT_PROJECT_VERSION` stamping are toolchain-independent. Only risk
    is an XcodeGen release lagging a project-format change; pin the brew formula

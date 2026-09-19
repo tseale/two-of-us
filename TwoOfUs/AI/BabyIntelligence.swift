@@ -91,8 +91,7 @@ enum BabyIntelligence {
     /// Whether Apple's Private Cloud Compute model can be used right now.
     @available(iOS 27, *)
     static var isCloudAvailable: Bool {
-        if case .available = PrivateCloudComputeLanguageModel.default.availability { return true }
-        return false
+        PrivateCloudComputeLanguageModel().isAvailable
     }
 
     /// Reads the two-week raw history (`HistoryDigest.render`) for trends the
@@ -101,10 +100,11 @@ enum BabyIntelligence {
     /// the prompt and the model's job is to notice, not to compute.
     @available(iOS 27, *)
     static func weeklyPatterns(history: String, babyName: String) async -> WeeklyPatterns? {
-        guard isCloudAvailable else { return nil }
+        let model = PrivateCloudComputeLanguageModel()
+        guard model.isAvailable else { return nil }
         let session = LanguageModelSession(
-            model: PrivateCloudComputeLanguageModel.default,
-            instructions: """
+            model: model,
+            instructions: Instructions("""
             You are a warm, concise assistant inside a baby-tracking app used \
             by two new parents. You are writing for the parents — address \
             them, not the baby; refer to \(babyName) in the third person. You \
@@ -116,7 +116,7 @@ enum BabyIntelligence {
             times and amounts from them rather than estimating. Today is \
             incomplete — never treat it as a low day. Calm, plain tone. \
             Never give medical advice or say what \(babyName) should do.
-            """)
+            """))
         do {
             let response = try await session.respond(to: history, generating: WeeklyPatterns.self)
             return response.content
