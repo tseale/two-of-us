@@ -213,14 +213,95 @@ struct SleepLockScreenView: View {
     }
 }
 
+// MARK: - Small family (Watch Smart Stack / CarPlay)
+
+/// The `.small` supplemental family: the Apple Watch Smart Stack and the
+/// CarPlay Dashboard. Without it those surfaces showed the lock-screen card
+/// shrunk until its three columns were illegible. Two lines of height, so it
+/// keeps the label, the timer, and one caption — the next feed when there is
+/// one, otherwise the start time — and drops the halo and countdown column.
+struct SleepSmallView: View {
+    let babyName: String
+    let startedAt: Date
+    let endedAt: Date?
+    let nextFeedAt: Date?
+    let nextFeedOwnerName: String?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "moon.stars.fill")
+                .font(.title3)
+                .foregroundStyle(AppColor.accentSleep)
+                .fixedSize()
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(endedAt == nil ? "\(babyName.uppercased()) IS SLEEPING"
+                                    : "\(babyName.uppercased()) SLEPT")
+                    .sectionLabelStyle(color: AppColor.accentSleep)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                Text(timerInterval: sleepRange(from: startedAt, until: endedAt),
+                     countsDown: false,
+                     showsHours: true)
+                    .font(AppFont.display(22, weight: .heavy))
+                    .foregroundStyle(AppColor.nightlightCream)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+
+                Text(caption)
+                    .font(.caption2)
+                    .foregroundStyle(AppColor.nightlightCream.opacity(0.6))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            LinearGradient(
+                colors: [AppColor.indigoHi, AppColor.indigoNight],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            )
+        )
+    }
+
+    private var caption: String {
+        if let endedAt { return "until \(TimeFormatting.clock(endedAt))" }
+        if let nextFeedAt { return islandNextFeedCaption(at: nextFeedAt, owner: nextFeedOwnerName) }
+        return "since \(TimeFormatting.clock(startedAt))"
+    }
+}
+
+/// Picks the layout for the family the system is rendering: `.small` for the
+/// Smart Stack and CarPlay, the full card everywhere else.
+private struct SleepActivityContent: View {
+    @Environment(\.activityFamily) private var family
+    let context: ActivityViewContext<SleepActivityAttributes>
+
+    var body: some View {
+        if family == .small {
+            SleepSmallView(babyName: context.attributes.babyName,
+                           startedAt: context.state.startedAt,
+                           endedAt: context.state.endedAt,
+                           nextFeedAt: context.state.nextFeedAt,
+                           nextFeedOwnerName: context.state.nextFeedOwnerName)
+        } else {
+            SleepLockScreenView(context: context)
+        }
+    }
+}
+
 // MARK: - Live Activity Widget
 
 /// Registered in the WidgetBundle — renders all Sleep Live Activity surfaces
-/// (lock screen + Dynamic Island compact/expanded/minimal).
+/// (lock screen + Dynamic Island compact/expanded/minimal + the small family
+/// for the Watch Smart Stack and CarPlay).
 struct SleepLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: SleepActivityAttributes.self) { context in
-            SleepLockScreenView(context: context)
+            SleepActivityContent(context: context)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -290,6 +371,7 @@ struct SleepLiveActivity: Widget {
             .widgetURL(URL(string: "twoofus://home"))
             .keylineTint(AppColor.accentSleep)
         }
+        .supplementalActivityFamilies([.small])
     }
 }
 
