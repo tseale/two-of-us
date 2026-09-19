@@ -22,7 +22,12 @@ batch from the other parent). What that gets you:
 - **Shortcuts**: "When Did the Baby Last Eat?" and "…Last Diaper?" now
   return a Care Event you can chain into later actions (its Amount, Time,
   Logged By, Note fields are all available), and the Shortcuts app gains a
-  Care Event picker with search across the recent month.
+  **Find Care Events** action — filter by Kind, Time, Amount, or Logged By
+  and sort by time — so automations like "if there's no feed in the last 4
+  hours, notify me" are buildable without a bespoke action from us.
+- **"What's this?"**: every row on the Home timeline is annotated with its
+  Care Event, so Siri's onscreen awareness can answer about the row you're
+  looking at.
 
 The phrase list below was written for the pre-27 Siri; the new Siri accepts
 much looser phrasing, and the "…in Two of Us" suffix is usually optional.

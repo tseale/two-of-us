@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 
 struct TimelineRow: View {
@@ -29,6 +30,7 @@ struct TimelineRow: View {
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(entry.title), \(TimeFormatting.clock(entry.sortDate))\(entry.isFromSnoo ? ", from SNOO" : "")\(isSleep ? "" : ", logged by \(entry.loggedByName)")")
+        .appEntityIdentifier(EntityIdentifier(for: CareEventEntity.self, identifier: entry.id))
     }
 
     private var isSleep: Bool {

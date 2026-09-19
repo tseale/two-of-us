@@ -124,7 +124,10 @@ The new Siri resolves our existing intents conversationally without work on our
 side, but three iOS 27 APIs fit this app unusually well. **Done 2026-09-18
 (`ios27-features`):** `CareEventEntity` in `TwoOfUs/Intents/CareEventEntity.swift`
 covers the first three, `SpotlightIndexer` keeps the last 30 days indexed,
-and `LastFeedIntent`/`LastDiaperIntent` return the entity.
+`LastFeedIntent`/`LastDiaperIntent` return the entity, `CareEventQuery` is
+also an `EntityPropertyQuery` (Shortcuts "Find Care Events" with
+kind/time/amount/logger filters), and the timeline rows carry
+`.appEntityIdentifier` for Siri's onscreen awareness.
 
 - **`IndexedEntity` + `IndexedEntityQuery`** on Feed/Sleep/Diaper/Note events:
   makes them Spotlight-semantically searchable and lets Siri resolve "when did

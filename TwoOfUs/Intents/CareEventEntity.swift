@@ -144,6 +144,65 @@ struct CareEventQuery: EntityQuery, EntityStringQuery {
     }
 }
 
+/// "Find Care Events" in the Shortcuts app: filter by kind, time, and bottle
+/// size, sort by time. This is what makes automations like "if there's been
+/// no feed since 4 hours ago, remind me" buildable without us shipping a
+/// bespoke intent for each one.
+extension CareEventQuery: EntityPropertyQuery {
+    static var properties = QueryProperties {
+        Property(\CareEventEntity.$kind) {
+            EqualToComparator { kind in { $0.kind == kind } }
+            NotEqualToComparator { kind in { $0.kind != kind } }
+        }
+        Property(\CareEventEntity.$time) {
+            LessThanComparator { date in { $0.time < date } }
+            GreaterThanComparator { date in { $0.time > date } }
+            IsBetweenComparator { from, to in { $0.time >= from && $0.time <= to } }
+        }
+        Property(\CareEventEntity.$amountOz) {
+            LessThanComparator { oz in { ($0.amountOz ?? 0) < oz } }
+            GreaterThanComparator { oz in { ($0.amountOz ?? 0) > oz } }
+        }
+        Property(\CareEventEntity.$loggedBy) {
+            EqualToComparator { name in { $0.loggedBy.caseInsensitiveCompare(name) == .orderedSame } }
+            ContainsComparator { text in { $0.loggedBy.localizedCaseInsensitiveContains(text) } }
+        }
+    }
+
+    static var sortingOptions = SortingOptions {
+        SortableBy(\CareEventEntity.$time)
+        SortableBy(\CareEventEntity.$amountOz)
+    }
+
+    static var findIntentDescription: IntentDescription? {
+        IntentDescription("Finds logged feeds, sleeps, diapers, and notes from the last 30 days.",
+                          categoryName: "Ask")
+    }
+
+    func entities(matching comparators: [(CareEventEntity) -> Bool],
+                  mode: ComparatorMode,
+                  sortedBy: [EntityQuerySort<CareEventEntity>],
+                  limit: Int?) async throws -> [CareEventEntity] {
+        var results = await CareEventCatalog.recent(limit: 1000).filter { entity in
+            switch mode {
+            case .and: return comparators.allSatisfy { $0(entity) }
+            case .or: return comparators.contains { $0(entity) }
+            }
+        }
+        for sort in sortedBy.reversed() {
+            let ascending = sort.order == .ascending
+            switch sort.by {
+            case \CareEventEntity.$amountOz:
+                results.sort { ascending ? ($0.amountOz ?? 0) < ($1.amountOz ?? 0) : ($0.amountOz ?? 0) > ($1.amountOz ?? 0) }
+            default:
+                results.sort { ascending ? $0.time < $1.time : $0.time > $1.time }
+            }
+        }
+        if let limit { results = Array(results.prefix(limit)) }
+        return results
+    }
+}
+
 @available(iOS 27, *)
 extension CareEventQuery: IndexedEntityQuery {
     func reindexEntities(for identifiers: [UUID], indexDescription: CSSearchableIndexDescription) async throws {
