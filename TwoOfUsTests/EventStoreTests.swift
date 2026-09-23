@@ -268,6 +268,79 @@ final class EventStoreTests: XCTestCase {
         XCTAssertTrue(started.isFromSnoo)
     }
 
+    // MARK: SNOO duplicate imports
+    //
+    // The import's session bookkeeping is per-device while auto-log is shared,
+    // so the same bassinet session can reach the store twice — from the
+    // co-parent's phone via CloudKit, or resurfacing under a different session
+    // ID. The store dedupes SNOO writes by span start (±60 s, the reconciler's
+    // session-match rule) and hands back the existing row.
+
+    func testLogCompletedSleepSkipsDuplicateSnooImport() throws {
+        let start = Date.now.addingTimeInterval(-3600)
+        let end = start.addingTimeInterval(300)
+        let first = try XCTUnwrap(store.logCompletedSleep(startedAt: start, endedAt: end,
+                                                          source: .snoo))
+        let second = try XCTUnwrap(store.logCompletedSleep(
+            startedAt: start.addingTimeInterval(30), endedAt: end, source: .snoo))
+
+        XCTAssertEqual(second.id, first.id, "the existing entry stands in for the duplicate")
+        let sleeps = try container.mainContext.fetch(FetchDescriptor<SleepEvent>())
+        XCTAssertEqual(sleeps.count, 1, "the duplicate SNOO session must not add a second row")
+    }
+
+    func testSnooDedupeIgnoresSessionsOutsideTheMinute() throws {
+        let start = Date.now.addingTimeInterval(-3600)
+        XCTAssertNotNil(store.logCompletedSleep(startedAt: start,
+                                                endedAt: start.addingTimeInterval(300),
+                                                source: .snoo))
+        let later = try XCTUnwrap(store.logCompletedSleep(
+            startedAt: start.addingTimeInterval(600),
+            endedAt: start.addingTimeInterval(1200), source: .snoo))
+
+        let sleeps = try container.mainContext.fetch(FetchDescriptor<SleepEvent>())
+        XCTAssertEqual(sleeps.count, 2, "a genuinely distinct SNOO session still saves")
+        XCTAssertEqual(later.startedAt, start.addingTimeInterval(600))
+    }
+
+    func testSnooDedupeIgnoresManualAndDeletedSleeps() throws {
+        let start = Date.now.addingTimeInterval(-3600)
+        let manual = try XCTUnwrap(store.logCompletedSleep(startedAt: start,
+                                                           endedAt: start.addingTimeInterval(300)))
+        let imported = try XCTUnwrap(store.logCompletedSleep(
+            startedAt: start, endedAt: start.addingTimeInterval(300), source: .snoo))
+        XCTAssertNotEqual(imported.id, manual.id,
+                          "a hand-logged sleep at the same time never blocks the import")
+
+        store.softDelete(imported)
+        let reimported = try XCTUnwrap(store.logCompletedSleep(
+            startedAt: start, endedAt: start.addingTimeInterval(300), source: .snoo))
+        XCTAssertNotEqual(reimported.id, imported.id,
+                          "a deleted import doesn't block logging the session again")
+    }
+
+    func testStartSleepReturnsExistingSnooEntryInsteadOfDuplicating() throws {
+        let start = Date.now.addingTimeInterval(-3600)
+        let logged = try XCTUnwrap(store.logCompletedSleep(startedAt: start,
+                                                           endedAt: start.addingTimeInterval(300),
+                                                           source: .snoo))
+        let started = try XCTUnwrap(store.startSleep(at: start.addingTimeInterval(10),
+                                                     source: .snoo))
+
+        XCTAssertEqual(started.id, logged.id,
+                       "an in-progress accept of an already-logged session reuses the entry")
+        XCTAssertNil(store.activeSleep, "no new timer starts for an already-completed session")
+    }
+
+    func testStartSleepDedupeLeavesManualStartsAlone() throws {
+        let start = Date.now.addingTimeInterval(-3600)
+        XCTAssertNotNil(store.logCompletedSleep(startedAt: start,
+                                                endedAt: start.addingTimeInterval(300),
+                                                source: .snoo))
+        let manual = try XCTUnwrap(store.startSleep(at: start.addingTimeInterval(10)))
+        XCTAssertNil(manual.endedAt, "a hand-started timer at the same instant still runs")
+    }
+
     func testStopSleepEndsTheActiveOne() throws {
         let sleep = try XCTUnwrap(store.startSleep())
         store.stopSleep(sleep)
