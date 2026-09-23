@@ -46,4 +46,12 @@ final class TimeFormattingTests: XCTestCase {
     func testBornWeeksOld() {
         XCTAssertEqual(TimeFormatting.age(from: daysFromNow(-21), now: now), "3 weeks old")
     }
+
+    func testBornMonthsOldIgnoresTimeOfDay() {
+        // Regression: a dob later in the day than "now" must not shave a
+        // month off the count — only calendar days should matter.
+        let dob = cal.date(from: DateComponents(year: 2026, month: 7, day: 23, hour: 15, minute: 0))!
+        let checkedAt = cal.date(from: DateComponents(year: 2026, month: 9, day: 23, hour: 10, minute: 0))!
+        XCTAssertEqual(TimeFormatting.age(from: dob, now: checkedAt), "2 months old")
+    }
 }

@@ -110,11 +110,13 @@ If not signed into iCloud: a full-screen explainer ("Sign into iCloud to sync wi
 ## Glanceable surfaces
 
 ### Sleep Live Activity (lock screen + Dynamic Island)
-Shown only while a sleep timer runs (feeds are instantaneous — no feed activity). A calm night scene: a haloed moon, an uppercase eyebrow, and a large rounded timer over the brand indigo gradient (the same one as the Stats record hero), so the in-app and lock-screen sleep surfaces share one visual language. Dynamic Island compact: `💤 23:47`; expanded adds a "Wake up" action. Uses ActivityKit's native timer text so it counts without app wake-ups (no continuous animation — ActivityKit doesn't support it).
+Shown only while a sleep timer runs (feeds are instantaneous — no feed activity). A calm night scene: a haloed moon, an uppercase eyebrow, and a large rounded timer over the brand indigo gradient (the same one as the Stats record hero), so the in-app and lock-screen sleep surfaces share one visual language. Dynamic Island compact: `💤 23:47`; the expanded view stays action-free by design (see docs/LIVE-ACTIVITY-IDEAS.md #7 — nothing to fat-finger at 3am). Uses ActivityKit's native timer text so it counts without app wake-ups (no continuous animation — ActivityKit doesn't support it).
 
 ### Widgets (home + lock screen)
-- **Lock-screen accessory / small**: "🍼 2h 40m since feed".
-- **Medium (home)**: last bottle / last sleep / last diaper times.
+Seven widgets ship (see TwoOfUsWidgets.swift): per-event small/accessory
+widgets ("🍼 2h 40m since feed"), the Today Ribbon, the Next Feed gauge, and
+medium/large quick-log widgets with interactive App-Intent buttons — plus
+three Control Center controls.
 Timeline reloads on a schedule and on relevant updates. Widgets read shared data via an App Group container so they don't launch the app. Live Activities can't be tested in the simulator — budget on-device time.
 
 ---

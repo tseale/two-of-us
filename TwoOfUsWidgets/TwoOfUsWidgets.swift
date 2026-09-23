@@ -14,11 +14,9 @@ struct TwoOfUsWidgetBundle: WidgetBundle {
         HomeScreenLargeWidget()
         SleepLiveActivity()
 
-        // Control Center / Lock Screen / Action Button (iOS 18+).
-        if #available(iOS 18.0, *) {
-            LogFeedControl()
-            LogDiaperControl()
-            ToggleSleepControl()
-        }
+        // Control Center / Lock Screen / Action Button.
+        LogFeedControl()
+        LogDiaperControl()
+        ToggleSleepControl()
     }
 }

@@ -788,20 +788,21 @@ struct HomeView: View {
     }
 
     /// Wake Up is easy to mis-tap and ending a timer is otherwise unrecoverable
-    /// (nothing can make a sleep active again), so it gets the same Undo toast
-    /// every other action has. A sub-minute sleep is discarded instead of logged
-    /// — the edit sheet already treats "under a minute" as invalid, so persisting
-    /// one would create a row that can't be re-saved.
+    /// (nothing can make a sleep active again), so it gets the Undo toast every
+    /// other action has, `emphasized` for extra dwell time and a bigger Undo
+    /// target. A sub-minute sleep is discarded instead of logged — the edit
+    /// sheet already treats "under a minute" as invalid, so persisting one
+    /// would create a row that can't be re-saved.
     private func endSleep(_ sleep: SleepEvent) {
         if Date.now.timeIntervalSince(sleep.startedAt) < 60 {
             store.cancelSleep(sleep)
-            showToast("Under a minute — not saved", accent: AppColor.accentSleep) {
+            showToast("Under a minute — not saved", accent: AppColor.accentSleep, emphasized: true) {
                 store.resumeSleep(sleep)
             }
         } else {
             let duration = TimeFormatting.duration(from: sleep.startedAt, to: .now)
             store.stopSleep(sleep)
-            showToast("Slept \(duration)", accent: AppColor.accentSleep) {
+            showToast("Slept \(duration)", accent: AppColor.accentSleep, emphasized: true) {
                 store.resumeSleep(sleep)
             }
         }
@@ -907,8 +908,8 @@ struct HomeView: View {
         showToast("Deleted", accent: AppColor.urgencyAmber) { store.restore(event) }
     }
 
-    private func showToast(_ message: String, accent: Color = AppColor.accentFeed, undo: @escaping () -> Void) {
-        toast = ToastData(message: message, accent: accent, undo: undo)
+    private func showToast(_ message: String, accent: Color = AppColor.accentFeed, emphasized: Bool = false, undo: @escaping () -> Void) {
+        toast = ToastData(message: message, accent: accent, undo: undo, emphasized: emphasized)
     }
 
     // MARK: Deferred setup & spotlights
