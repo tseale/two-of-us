@@ -10,6 +10,10 @@ struct ToastData: Identifiable, Equatable {
     var accent: Color = AppColor.accentFeed
     /// Nil hides the Undo button — for confirmations with nothing to reverse.
     let undo: (() -> Void)?
+    /// True for actions that are easy to trigger by accident and costly to
+    /// lose (e.g. waking a sleeping baby) — gives Undo more dwell time and a
+    /// bigger, harder-to-miss tap target instead of the usual plain-text link.
+    var emphasized: Bool = false
 
     static func == (lhs: ToastData, rhs: ToastData) -> Bool { lhs.id == rhs.id }
 }
@@ -27,13 +31,23 @@ private struct LoggedToastModifier: ViewModifier {
                         .foregroundStyle(AppColor.text)
                     Spacer()
                     if let undo = toast.undo {
-                        Button("Undo") {
+                        let undoButton = Button("Undo") {
                             undo()
                             Haptics.tap()
                             self.toast = nil
                         }
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(toast.accent)
+
+                        if toast.emphasized {
+                            undoButton
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(toast.accent, in: Capsule())
+                        } else {
+                            undoButton
+                                .foregroundStyle(toast.accent)
+                        }
                     }
                 }
                 .padding(.horizontal, 18)
@@ -48,7 +62,8 @@ private struct LoggedToastModifier: ViewModifier {
                     // never knows the log (or its Undo) happened. They also get
                     // longer to find the Undo button before it auto-dismisses.
                     UIAccessibility.post(notification: .announcement, argument: toast.message)
-                    let dwell: Double = UIAccessibility.isVoiceOverRunning ? 6 : 3
+                    let base: Double = UIAccessibility.isVoiceOverRunning ? 6 : 3
+                    let dwell = toast.emphasized ? base + 3 : base
                     try? await Task.sleep(for: .seconds(dwell))
                     withAnimation { self.toast = nil }
                 }
