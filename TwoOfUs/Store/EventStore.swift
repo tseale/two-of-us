@@ -184,10 +184,35 @@ struct EventStore {
         return event
     }
 
+    /// The same SNOO session already in the timeline: source `.snoo`, not
+    /// deleted, start within a minute (the reconciler's session-match rule).
+    /// The import's session bookkeeping is per-device while auto-log is a
+    /// household setting, so both parents' phones can log the same bassinet
+    /// session before CloudKit delivers either write to the other — and the
+    /// same session can resurface under a different session ID (last-session
+    /// payloads carry none). Span start is the one identity every path shares.
+    private func existingSnooSleep(near start: Date) -> SleepEvent? {
+        let lower = start.addingTimeInterval(-60)
+        let upper = start.addingTimeInterval(60)
+        let snooRaw = SleepSource.snoo.rawValue
+        let descriptor = FetchDescriptor<SleepEvent>(
+            predicate: #Predicate {
+                $0.deletedAt == nil && $0.sourceRaw == snooRaw
+                    && $0.startedAt >= lower && $0.startedAt <= upper
+            }
+        )
+        return try? context.fetch(descriptor).first
+    }
+
     /// Starts a sleep timer. Refuses if one is already active (single-timer guard).
     @discardableResult
     func startSleep(at date: Date = .now, source: SleepSource? = nil) -> SleepEvent? {
-        guard requireTracking(.sleep), activeSleep == nil, let owner = requireOwner() else { return nil }
+        guard requireTracking(.sleep) else { return nil }
+        if source == .snoo, let existing = existingSnooSleep(near: EventBounds.clampPast(date)) {
+            AppLog.store.info("Skipped duplicate SNOO sleep at \(existing.startedAt, privacy: .public) — already in the timeline")
+            return existing
+        }
+        guard activeSleep == nil, let owner = requireOwner() else { return nil }
         let date = EventBounds.clampPast(date)
         let event = SleepEvent(
             baby: baby, startedAt: date,
@@ -220,6 +245,10 @@ struct EventStore {
         guard requireTracking(.sleep), let owner = requireOwner() else { return nil }
         let start = EventBounds.clampPast(startedAt)
         let end = max(start, EventBounds.clampPast(endedAt))
+        if source == .snoo, let existing = existingSnooSleep(near: start) {
+            AppLog.store.info("Skipped duplicate SNOO sleep at \(existing.startedAt, privacy: .public) — already in the timeline")
+            return existing
+        }
         let event = SleepEvent(
             baby: baby, startedAt: start, endedAt: end,
             notes: EventBounds.cleanNote(notes),

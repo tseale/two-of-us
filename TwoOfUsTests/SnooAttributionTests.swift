@@ -57,10 +57,11 @@ final class SnooAttributionTests: XCTestCase {
         super.tearDown()
     }
 
-    private func completedSuggestion(id: String = "session-1") -> SnooSuggestion {
+    private func completedSuggestion(id: String = "session-1",
+                                     startedAt: Date = .now.addingTimeInterval(-3600)) -> SnooSuggestion {
         SnooSuggestion(id: id,
-                       startedAt: .now.addingTimeInterval(-3600),
-                       kind: .completed(endedAt: .now.addingTimeInterval(-600)))
+                       startedAt: startedAt,
+                       kind: .completed(endedAt: startedAt.addingTimeInterval(1800)))
     }
 
     func testAcceptedCompletedSessionAttributesToLocalParticipant() throws {
@@ -91,15 +92,33 @@ final class SnooAttributionTests: XCTestCase {
     }
 
     func testAttributionFollowsTheDeviceNotTheFirstAccepter() throws {
-        // Same household, two phones: each accept lands on its own device's user.
+        // Same household, two phones: each accept lands on its own device's
+        // user. Distinct spans — same-start sessions are one session and
+        // dedupe to a single entry.
         LocalPrefs.shared.myParticipantID = boyTaylor.id
         XCTAssertTrue(coordinator.accept(completedSuggestion(id: "his"), store: store))
 
         LocalPrefs.shared.myParticipantID = girlTaylor.id
-        XCTAssertTrue(coordinator.accept(completedSuggestion(id: "hers"), store: store))
+        XCTAssertTrue(coordinator.accept(
+            completedSuggestion(id: "hers", startedAt: .now.addingTimeInterval(-10800)),
+            store: store))
 
         let sleeps = try container.mainContext.fetch(FetchDescriptor<SleepEvent>())
         XCTAssertEqual(Set(sleeps.map(\.loggedByID)), [boyTaylor.id, girlTaylor.id])
+    }
+
+    func testAcceptOfSessionAlreadySyncedFromCoParentAddsNoSecondRow() throws {
+        LocalPrefs.shared.myParticipantID = boyTaylor.id
+        XCTAssertTrue(coordinator.accept(completedSuggestion(id: "device-a"), store: store))
+
+        // The other phone's accept of the same bassinet session, arriving
+        // under a different session ID once A's entry has synced over.
+        XCTAssertTrue(coordinator.accept(completedSuggestion(id: "device-b"), store: store))
+
+        let sleeps = try container.mainContext.fetch(FetchDescriptor<SleepEvent>())
+        XCTAssertEqual(sleeps.count, 1, "the same session must never appear twice")
+        XCTAssertTrue(syncState.importedSessionIDs.contains("device-b"),
+                      "the deduped accept still marks the session imported so it never resurfaces")
     }
 
     func testAcceptRefusedWhenLocalParticipantUnresolvable() {
