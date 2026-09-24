@@ -5,12 +5,26 @@ import SwiftData
 struct DiaperSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Query private var participants: [Participant]
 
     let onLogged: (String, @escaping () -> Void) -> Void
 
     @State private var date = Date()
     @State private var selected: DiaperType = .wet
     @State private var note = ""
+    @State private var loggedByID: UUID?
+
+    private var activeParticipants: [Participant] {
+        participants.filter(\.isActive).sorted { $0.invitedAt < $1.invitedAt }
+    }
+
+    /// The picked participant, only when it's someone other than the local
+    /// user — the owner default (nil) keeps the refusal-banner path intact
+    /// when identity can't be resolved.
+    private var assignedLogger: Participant? {
+        guard let loggedByID, loggedByID != EventStore(context: context).owner?.id else { return nil }
+        return activeParticipants.first { $0.id == loggedByID }
+    }
 
     var body: some View {
         NavigationStack {
@@ -25,9 +39,22 @@ struct DiaperSheet: View {
                 Section("Time") {
                     TimeControl(date: $date, tint: AppColor.accentDiaper)
                 }
+                // Assign at log time — hidden with a single participant.
+                // Same face row as the edit sheet and night-shift picker.
+                if activeParticipants.count > 1 {
+                    Section("Logged by") {
+                        LoggedByPicker(participants: activeParticipants, selectedID: $loggedByID)
+                    }
+                }
                 Section("Note") {
                     TextField("Add a note (optional)", text: $note, axis: .vertical)
                         .lineLimit(1...3)
+                }
+            }
+            .onAppear {
+                // Open on "me" — assigning to the co-parent is the exception.
+                if loggedByID == nil {
+                    loggedByID = EventStore(context: context).owner?.id
                 }
             }
             .navigationTitle("Log a diaper 💩")
@@ -77,12 +104,16 @@ struct DiaperSheet: View {
         let store = EventStore(context: context)
         // A refused log (no attributable owner) already surfaced a banner via
         // StoreErrorCenter — just close without a success toast.
-        guard let event = store.logDiaper(type, at: date, notes: note) else {
+        let assigned = assignedLogger
+        guard let event = store.logDiaper(type, at: date, notes: note,
+                                          loggedBy: assigned) else {
             dismiss()
             return
         }
         Haptics.success()
-        onLogged("Logged diaper · \(type.label)") {
+        let toast = assigned.map { "Logged diaper · \(type.label) · \($0.displayName)" }
+            ?? "Logged diaper · \(type.label)"
+        onLogged(toast) {
             store.softDelete(event)
         }
         dismiss()
