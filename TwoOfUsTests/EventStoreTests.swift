@@ -222,6 +222,26 @@ final class EventStoreTests: XCTestCase {
                        "reattribution rides the normal append-only edit")
     }
 
+    func testLogFeedAndDiaperCanBeAssignedToTheCoParent() throws {
+        // Assigning at log time skips the owner fallback entirely — the picked
+        // participant IS the attribution, so no myParticipantID is needed even
+        // with two active participants in the store.
+        let mom = Participant(displayName: "Mom", colorHex: "#FF8FA3")
+        container.mainContext.insert(mom)
+        try container.mainContext.save()
+
+        let feed = try XCTUnwrap(store.logFeed(amountOz: 3, loggedBy: mom))
+        XCTAssertEqual(feed.loggedByID, mom.id)
+        XCTAssertEqual(feed.loggedByName, "Mom")
+        XCTAssertEqual(feed.loggedByColorHex, "#FF8FA3")
+
+        let diaper = try XCTUnwrap(store.logDiaper(.wet, loggedBy: mom))
+        XCTAssertEqual(diaper.loggedByID, mom.id)
+
+        XCTAssertNil(store.logFeed(amountOz: 3),
+                     "nil loggedBy still refuses when the owner can't be resolved")
+    }
+
     func testEditSleepKeepsSnooSourceAndCanReattribute() throws {
         let original = try XCTUnwrap(store.logCompletedSleep(
             startedAt: .now.addingTimeInterval(-7200), endedAt: .now.addingTimeInterval(-3600),

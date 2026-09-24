@@ -17,7 +17,7 @@ struct EditEventSheet: View {
     @State private var sleepStart: Date
     @State private var sleepEnd: Date
     @State private var notes: String
-    @State private var loggedByID: UUID
+    @State private var loggedByID: UUID?
     @State private var showDeleteConfirm = false
 
     init(entry: TimelineEntry) {
@@ -110,15 +110,9 @@ struct EditEventSheet: View {
                 // logs what the other actually did (or fixes a ghost-attributed
                 // row). Hidden with a single participant — nothing to change —
                 // and for sleep, which carries no logger attribution in the UI.
-                // Same face-row look as the night-shift picker (SlotActionsSheet).
                 if activeParticipants.count > 1, !isSleep {
                     Section("Logged by") {
-                        HStack(spacing: 12) {
-                            ForEach(activeParticipants) { p in
-                                loggerButton(p)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
+                        LoggedByPicker(participants: activeParticipants, selectedID: $loggedByID)
                     }
                 }
 
@@ -188,40 +182,10 @@ struct EditEventSheet: View {
         participants.filter(\.isActive).sorted { $0.invitedAt < $1.invitedAt }
     }
 
-    /// One tappable face, ringed in the participant's color when selected —
-    /// visually identical to `SlotActionsSheet.personButton` so "pick a
-    /// parent" reads the same everywhere.
-    private func loggerButton(_ p: Participant) -> some View {
-        let selected = loggedByID == p.id
-        return Button {
-            loggedByID = p.id
-        } label: {
-            VStack(spacing: 6) {
-                Avatar(photoData: p.photoData, name: p.displayName, colorHex: p.colorHex, size: 56)
-                    .overlay {
-                        if selected {
-                            Circle().strokeBorder(Color(hex: p.colorHex), lineWidth: 3)
-                                .frame(width: 64, height: 64)
-                        }
-                    }
-                Text(p.displayName)
-                    .font(.caption.weight(selected ? .bold : .regular))
-                    .foregroundStyle(AppColor.text)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(selected
-            ? "Logged by \(p.displayName), selected"
-            : "Change logged by to \(p.displayName)")
-    }
-
     /// The picked participant, only when it's an actual change — unchanged (or
     /// unresolvable) attribution passes nil so the edit keeps the original's.
     private var newLogger: Participant? {
-        guard loggedByID != entry.loggedByID else { return nil }
+        guard let loggedByID, loggedByID != entry.loggedByID else { return nil }
         return activeParticipants.first { $0.id == loggedByID }
     }
 

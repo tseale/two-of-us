@@ -111,9 +111,12 @@ struct EventStore {
         return true
     }
 
+    /// `loggedBy` attributes the event to someone other than the local user
+    /// ("she fed him, I'm just logging it") — nil keeps the owner default.
     @discardableResult
-    func logFeed(amountOz: Double, at date: Date = .now, notes: String? = nil) -> FeedEvent? {
-        guard requireTracking(.feed), let owner = requireOwner() else { return nil }
+    func logFeed(amountOz: Double, at date: Date = .now, notes: String? = nil,
+                 loggedBy: Participant? = nil) -> FeedEvent? {
+        guard requireTracking(.feed), let logger = loggedBy ?? requireOwner() else { return nil }
         // A bottle of nothing is never a real feed — reject instead of clamping
         // a bad parse/tap into a "0 oz" timeline row.
         guard EventBounds.isLoggableOz(amountOz) else {
@@ -125,9 +128,9 @@ struct EventStore {
         let event = FeedEvent(
             baby: baby, amountOz: amountOz, timestamp: date,
             notes: EventBounds.cleanNote(notes),
-            loggedByID: owner.id,
-            loggedByName: owner.displayName,
-            loggedByColorHex: owner.colorHex
+            loggedByID: logger.id,
+            loggedByName: logger.displayName,
+            loggedByColorHex: logger.colorHex
         )
         context.insert(event)
         guard save() else { context.delete(event); return nil }
@@ -139,16 +142,19 @@ struct EventStore {
         return event
     }
 
+    /// `loggedBy` attributes the event to someone other than the local user —
+    /// nil keeps the owner default.
     @discardableResult
-    func logDiaper(_ type: DiaperType, at date: Date = .now, notes: String? = nil) -> DiaperEvent? {
-        guard requireTracking(.diaper), let owner = requireOwner() else { return nil }
+    func logDiaper(_ type: DiaperType, at date: Date = .now, notes: String? = nil,
+                   loggedBy: Participant? = nil) -> DiaperEvent? {
+        guard requireTracking(.diaper), let logger = loggedBy ?? requireOwner() else { return nil }
         let date = EventBounds.clampPast(date)
         let event = DiaperEvent(
             baby: baby, type: type, timestamp: date,
             notes: EventBounds.cleanNote(notes),
-            loggedByID: owner.id,
-            loggedByName: owner.displayName,
-            loggedByColorHex: owner.colorHex
+            loggedByID: logger.id,
+            loggedByName: logger.displayName,
+            loggedByColorHex: logger.colorHex
         )
         context.insert(event)
         guard save() else { context.delete(event); return nil }
