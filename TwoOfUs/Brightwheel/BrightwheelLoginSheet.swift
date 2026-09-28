@@ -6,18 +6,23 @@ import WebKit
 /// it and only harvest the resulting `_brightwheel_v2` cookie. The password
 /// never touches our code (docs/BRIGHTWHEEL-INTEGRATION.md §1).
 ///
-/// After every completed navigation the coordinator reads the cookie store;
-/// each new cookie value is verified against `/users/me` before it counts as
-/// signed in, because the page also sets cookies for anonymous visitors.
+/// The site is a SPA: after the sign-in form submits it swaps to the
+/// dashboard client-side, so `didFinish` alone never sees the signed-in
+/// state. The coordinator therefore harvests on every signal available —
+/// navigation finishes, cookie-store changes, and SPA URL changes — and the
+/// toolbar keeps a manual "Connect" as the fallback for anything all three
+/// still miss. Each candidate cookie is verified against `/users/me` before
+/// it counts, because the page sets cookies for anonymous visitors too.
 struct BrightwheelLoginSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var manager = BrightwheelManager.shared
     @State private var isVerifying = false
     @State private var errorMessage: String?
+    @State private var checkNow = BrightwheelWebView.CheckTrigger()
 
     var body: some View {
         NavigationStack {
-            BrightwheelWebView { cookie in
+            BrightwheelWebView(checkTrigger: checkNow) { cookie in
                 await verify(cookie: cookie)
             }
             .ignoresSafeArea(edges: .bottom)
@@ -31,6 +36,10 @@ struct BrightwheelLoginSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Connect") { checkNow.fire() }
+                        .disabled(isVerifying)
                 }
             }
         }
@@ -59,10 +68,9 @@ struct BrightwheelLoginSheet: View {
         isVerifying = true
         defer { isVerifying = false }
         do {
-            let session = try await manager.completeSignIn(cookie: cookie)
+            _ = try await manager.completeSignIn(cookie: cookie)
             Haptics.success()
             errorMessage = nil
-            _ = session
             dismiss()
             return true
         } catch BrightwheelAPIError.unauthorized {
@@ -78,9 +86,20 @@ struct BrightwheelLoginSheet: View {
     }
 }
 
-private struct BrightwheelWebView: UIViewRepresentable {
-    /// Called with each new `_brightwheel_v2` value seen after a page load;
-    /// returns true once one verifies, ending the watch.
+struct BrightwheelWebView: UIViewRepresentable {
+    /// Lets the sheet's "Connect" button reach into the coordinator for a
+    /// forced re-check without the representable being recreated.
+    @Observable @MainActor
+    final class CheckTrigger {
+        fileprivate weak var coordinator: Coordinator?
+        func fire() {
+            Task { await self.coordinator?.harvestCookie(force: true) }
+        }
+    }
+
+    let checkTrigger: CheckTrigger
+    /// Called with each `_brightwheel_v2` value worth trying; returns true
+    /// once one verifies, ending the watch.
     let onCookieCandidate: (String) async -> Bool
 
     func makeUIView(context: Context) -> WKWebView {
@@ -92,6 +111,7 @@ private struct BrightwheelWebView: UIViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         context.coordinator.attach(to: webView)
+        checkTrigger.coordinator = context.coordinator
         webView.load(URLRequest(url: BrightwheelAPIConfig.signInURL))
         return webView
     }
@@ -103,11 +123,14 @@ private struct BrightwheelWebView: UIViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKHTTPCookieStoreObserver {
         private let onCookieCandidate: (String) async -> Bool
         private var lastTriedCookie: String?
         private var finished = false
+        private var inFlight = false
+        private var retryQueued = false
         private weak var webView: WKWebView?
+        private var urlObservation: NSKeyValueObservation?
 
         init(onCookieCandidate: @escaping (String) async -> Bool) {
             self.onCookieCandidate = onCookieCandidate
@@ -115,22 +138,66 @@ private struct BrightwheelWebView: UIViewRepresentable {
 
         func attach(to webView: WKWebView) {
             self.webView = webView
+            webView.configuration.websiteDataStore.httpCookieStore.add(self)
+            // SPA route changes (sign-in → dashboard) update `url` without any
+            // navigation-delegate callback — this observation is what actually
+            // catches a successful login.
+            urlObservation = webView.observe(\.url) { _, _ in
+                Task { @MainActor [weak self] in
+                    guard let self, self.onSignedInPage else { return }
+                    // Force: the login may upgrade the session server-side
+                    // without changing the cookie's value.
+                    await self.harvestCookie(force: true)
+                }
+            }
         }
 
         nonisolated func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             Task { @MainActor in await self.harvestCookie() }
         }
 
-        private func harvestCookie() async {
+        nonisolated func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {
+            Task { @MainActor in await self.harvestCookie() }
+        }
+
+        /// True once the web view has left the sign-in page — the cue that a
+        /// same-valued cookie is worth re-verifying.
+        private var onSignedInPage: Bool {
+            guard let path = webView?.url?.path() else { return false }
+            return !path.contains("sign-in")
+        }
+
+        func harvestCookie(force: Bool = false) async {
             guard !finished, let webView else { return }
+            // A signal landing during an in-flight verification (say, the SPA
+            // finishing login while an anonymous cookie is mid-401) must not
+            // be dropped — it may be the one that succeeds. Queue one retry.
+            guard !inFlight else {
+                retryQueued = true
+                return
+            }
+            inFlight = true
+            defer { inFlight = false }
             let cookies = await webView.configuration.websiteDataStore
                 .httpCookieStore.allCookies()
             guard let cookie = cookies.first(where: {
                 $0.name == BrightwheelAPIConfig.cookieName
                     && $0.domain.contains("mybrightwheel.com")
-            }), cookie.value != lastTriedCookie else { return }
+            }) else { return }
+            // Off the sign-in page a same-valued cookie is still worth
+            // re-verifying: login can upgrade the session server-side without
+            // rotating the cookie.
+            guard force || onSignedInPage || cookie.value != lastTriedCookie
+            else { return }
             lastTriedCookie = cookie.value
             finished = await onCookieCandidate(cookie.value)
+            if retryQueued {
+                retryQueued = false
+                if !finished {
+                    inFlight = false
+                    await harvestCookie(force: force)
+                }
+            }
         }
     }
 }
