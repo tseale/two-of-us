@@ -39,7 +39,7 @@ struct DayTimelineRow: View {
                             .foregroundStyle(AppColor.text)
                             .lineLimit(2)
                         if entry.isFromSnoo { SnooTag() }
-                        if entry.isFromDaycare { DaycareTag() }
+                        if entry.isFromDaycare { DaycareTag(color: accent) }
                     }
                     if let note = entry.notes, !note.isEmpty {
                         Text(note)
@@ -166,14 +166,17 @@ struct DayTimelineRow: View {
 
 /// The little "Daycare" capsule on rows imported from Brightwheel — the
 /// daycare's entries read apart from what the parents logged themselves.
+/// Colored to match the event it's attached to, same as the timeline's dots.
 struct DaycareTag: View {
+    let color: Color
+
     var body: some View {
-        Text("\u{1F3EB} Daycare")
+        Text("Daycare")
             .font(.caption2.weight(.bold))
-            .foregroundStyle(AppColor.accentDiaper)
+            .foregroundStyle(color)
             .padding(.horizontal, 5)
             .padding(.vertical, 1.5)
-            .background(AppColor.accentDiaper.opacity(0.14), in: Capsule())
+            .background(color.opacity(0.14), in: Capsule())
             .accessibilityHidden(true)   // rows fold it into their label
     }
 }

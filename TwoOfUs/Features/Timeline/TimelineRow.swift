@@ -15,7 +15,7 @@ struct TimelineRow: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppColor.text)
                     if entry.isFromSnoo { SnooTag() }
-                    if entry.isFromDaycare { DaycareTag() }
+                    if entry.isFromDaycare { DaycareTag(color: accent) }
                 }
                 Text(TimeFormatting.clock(entry.sortDate))
                     .font(.caption)
@@ -37,5 +37,14 @@ struct TimelineRow: View {
     private var isSleep: Bool {
         if case .sleep = entry { return true }
         return false
+    }
+
+    private var accent: Color {
+        switch entry {
+        case .feed:   return AppColor.accentFeed
+        case .sleep:  return AppColor.accentSleep
+        case .diaper: return AppColor.accentDiaper
+        case .note:   return AppColor.accentNote
+        }
     }
 }
