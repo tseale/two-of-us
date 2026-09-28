@@ -25,15 +25,20 @@ enum DiaperType: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// Where a sleep record originated. Absent (nil `sourceRaw`) means logged by
-/// hand; `snoo` marks sessions imported from the SNOO integration so the
-/// timeline can tell bassinet time from manually logged naps.
-enum SleepSource: String, Codable {
+/// Where an event record originated. Absent (nil `sourceRaw`) means logged by
+/// hand; `snoo` marks sleeps imported from the SNOO integration, `brightwheel`
+/// marks events imported from the daycare's Brightwheel log — so the timeline
+/// can tell imported records apart from what a parent tapped in.
+/// (Renamed from `SleepSource` when Brightwheel made sources apply to every
+/// event type; raw values are unchanged, so synced records still decode.)
+enum EventSource: String, Codable {
     case snoo
+    case brightwheel
 
     var label: String {
         switch self {
         case .snoo: return "SNOO"
+        case .brightwheel: return "Daycare"
         }
     }
 }

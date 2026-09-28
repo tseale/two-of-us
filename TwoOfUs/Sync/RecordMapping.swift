@@ -29,6 +29,8 @@ enum RecordMapping {
             r["amountOz"] = m.amountOz
             r["timestamp"] = m.timestamp
             r["notes"] = m.notes
+            r["sourceRaw"] = m.sourceRaw
+            r["externalID"] = m.externalID
             setCommon(r, loggedByID: m.loggedByID, name: m.loggedByName, color: m.loggedByColorHex,
                       deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
             return r
@@ -39,6 +41,7 @@ enum RecordMapping {
             r["endedAt"] = m.endedAt
             r["notes"] = m.notes
             r["sourceRaw"] = m.sourceRaw
+            r["externalID"] = m.externalID
             setCommon(r, loggedByID: m.loggedByID, name: m.loggedByName, color: m.loggedByColorHex,
                       deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
             return r
@@ -48,6 +51,8 @@ enum RecordMapping {
             r["typeRaw"] = m.typeRaw
             r["timestamp"] = m.timestamp
             r["notes"] = m.notes
+            r["sourceRaw"] = m.sourceRaw
+            r["externalID"] = m.externalID
             setCommon(r, loggedByID: m.loggedByID, name: m.loggedByName, color: m.loggedByColorHex,
                       deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
             return r
@@ -56,6 +61,8 @@ enum RecordMapping {
             let r = baseRecord(type: SyncConstants.RecordType.note, recordID: recordID, archived: m.ckSystemFields)
             r["text"] = m.text
             r["timestamp"] = m.timestamp
+            r["sourceRaw"] = m.sourceRaw
+            r["externalID"] = m.externalID
             setCommon(r, loggedByID: m.loggedByID, name: m.loggedByName, color: m.loggedByColorHex,
                       deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
             return r
@@ -393,6 +400,8 @@ enum RecordMapping {
         m.amountOz = r["amountOz"] as? Double ?? m.amountOz
         m.timestamp = r["timestamp"] as? Date ?? m.timestamp
         m.notes = r["notes"] as? String
+        m.sourceRaw = r["sourceRaw"] as? String
+        m.externalID = r["externalID"] as? String
         applyCommon(r, into: m, in: context)
     }
 
@@ -413,6 +422,7 @@ enum RecordMapping {
         m.endedAt = r["endedAt"] as? Date
         m.notes = r["notes"] as? String
         m.sourceRaw = r["sourceRaw"] as? String
+        m.externalID = r["externalID"] as? String
         applyCommon(r, into: m, in: context)
     }
 
@@ -434,6 +444,8 @@ enum RecordMapping {
         m.typeRaw = r["typeRaw"] as? String ?? m.typeRaw
         m.timestamp = r["timestamp"] as? Date ?? m.timestamp
         m.notes = r["notes"] as? String
+        m.sourceRaw = r["sourceRaw"] as? String
+        m.externalID = r["externalID"] as? String
         applyCommon(r, into: m, in: context)
     }
 
@@ -453,6 +465,8 @@ enum RecordMapping {
         }
         m.text = r["text"] as? String ?? m.text
         m.timestamp = r["timestamp"] as? Date ?? m.timestamp
+        m.sourceRaw = r["sourceRaw"] as? String
+        m.externalID = r["externalID"] as? String
         applyCommon(r, into: m, in: context)
     }
 

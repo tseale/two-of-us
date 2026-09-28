@@ -84,6 +84,17 @@ enum TimelineEntry: Identifiable {
         return false
     }
 
+    /// True for events imported from the daycare's Brightwheel log — the
+    /// timeline tags them so daycare entries read apart from the parents' own.
+    var isFromDaycare: Bool {
+        switch self {
+        case .feed(let e): return e.isFromDaycare
+        case .sleep(let e): return e.isFromDaycare
+        case .diaper(let e): return e.isFromDaycare
+        case .note(let e): return e.isFromDaycare
+        }
+    }
+
     /// Optional free-text note the parent attached to this event. Nil for a
     /// standalone note — its text IS the title, not a caption under one.
     var notes: String? {

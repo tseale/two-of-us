@@ -73,7 +73,7 @@ final class SnooAttributionTests: XCTestCase {
         XCTAssertEqual(sleep.loggedByID, girlTaylor.id,
                        "the accepting device's user gets the credit, not whoever connected the SNOO")
         XCTAssertEqual(sleep.loggedByName, "Girl Taylor")
-        XCTAssertEqual(sleep.sourceRaw, SleepSource.snoo.rawValue)
+        XCTAssertEqual(sleep.sourceRaw, EventSource.snoo.rawValue)
         XCTAssertTrue(syncState.importedSessionIDs.contains("session-1"),
                       "a saved accept marks the session imported so it never resurfaces")
     }

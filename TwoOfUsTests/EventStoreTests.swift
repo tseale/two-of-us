@@ -272,7 +272,7 @@ final class EventStoreTests: XCTestCase {
         XCTAssertNil(store.startSleep(), "a second running sleep must be refused")
     }
 
-    func testSleepSourceStampsSnooImportsOnly() throws {
+    func testEventSourceStampsSnooImportsOnly() throws {
         let manual = try XCTUnwrap(store.logCompletedSleep(
             startedAt: .now.addingTimeInterval(-7200), endedAt: .now.addingTimeInterval(-3600)))
         XCTAssertNil(manual.source, "hand-logged sleep carries no source")

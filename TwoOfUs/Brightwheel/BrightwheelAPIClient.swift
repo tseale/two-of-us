@@ -90,20 +90,16 @@ struct BrightwheelAPIClient: Sendable {
         return try decode(Wrapper.self, from: data).students.map(\.student)
     }
 
-    /// One page of activities for a single day, pretty-printed for the debug
-    /// console in Settings. 100 entries comfortably covers a daycare day.
+    /// One page of activities for a single day, as typed DTOs — the sync
+    /// path. 100 entries comfortably covers a daycare day.
+    func activities(cookie: String, studentID: String, day: Date) async throws -> [BrightwheelActivity] {
+        let data = try await activitiesData(cookie: cookie, studentID: studentID, day: day)
+        return try decode(BrightwheelActivityPage.self, from: data).activities
+    }
+
+    /// The same fetch, pretty-printed for the debug console in Settings.
     func activitiesRawJSON(cookie: String, studentID: String, day: Date) async throws -> String {
-        let dayString = day.formatted(.iso8601.year().month().day())
-        let data = try await get(
-            config.activitiesPath(studentID: studentID), cookie: cookie,
-            query: [
-                URLQueryItem(name: "page", value: "0"),
-                URLQueryItem(name: "page_size", value: "100"),
-                URLQueryItem(name: "start_date", value: dayString),
-                URLQueryItem(name: "end_date", value: dayString),
-                URLQueryItem(name: "include_parent_actions", value: "false")
-            ]
-        )
+        let data = try await activitiesData(cookie: cookie, studentID: studentID, day: day)
         guard let object = try? JSONSerialization.jsonObject(with: data),
               let pretty = try? JSONSerialization.data(
                 withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
@@ -111,6 +107,23 @@ struct BrightwheelAPIClient: Sendable {
             return String(data: data, encoding: .utf8) ?? "<\(data.count) bytes, not UTF-8>"
         }
         return string
+    }
+
+    private func activitiesData(cookie: String, studentID: String, day: Date) async throws -> Data {
+        // end_date is EXCLUSIVE (verified by the brightwheel-home-assistant
+        // integration, whose same-day fetches came back empty until it used
+        // tomorrow) — start == end would silently return nothing for today.
+        let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: day) ?? day
+        return try await get(
+            config.activitiesPath(studentID: studentID), cookie: cookie,
+            query: [
+                URLQueryItem(name: "page", value: "0"),
+                URLQueryItem(name: "page_size", value: "100"),
+                URLQueryItem(name: "start_date", value: day.formatted(.iso8601.year().month().day())),
+                URLQueryItem(name: "end_date", value: nextDay.formatted(.iso8601.year().month().day())),
+                URLQueryItem(name: "include_parent_actions", value: "false")
+            ]
+        )
     }
 
     private func get(_ path: String, cookie: String,
