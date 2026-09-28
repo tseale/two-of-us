@@ -18,10 +18,15 @@ without notice.
 | Live web app bundle (`cdn.mybrightwheel.com/static/assets/bootstrap.*.chunk.js`, fetched 2026-09-28) | Current endpoint paths, full `action_type` taxonomy, query params, 2FA fields, API v1/v2 split | verified-in-bundle |
 | Live sign-in page (`schools.mybrightwheel.com/sign-in`) | Form fields, first-party bot-detection script (`/v5XrMIJ5/init.js`), New Relic, Stripe | observed |
 
-A live authenticated capture (signing in and watching XHR on the student feed)
-hasn't been done yet — the session this research ran in couldn't complete the
-1Password credential handoff. It's the one remaining verification step; see
-§Open questions.
+**Live verification (2026-09-28):** the WKWebView sign-in + cookie harvest
+shipped in the app (PR #193/#194) and worked against Taylor's real guardian
+account: `/users/me`, the guardian→students lookup (resolved Miller), and
+`/students/{id}/activities` all returned 200 with the cookie alone. The
+activities response confirmed the pagination wrapper exactly as modeled:
+`{"activities": [], "count": 0, "offset": 0, "page": 0, "page_size": 100}`
+(empty because Miller hasn't started daycare yet). Still unverified: real
+per-activity `details_blob` shapes — blocked on his first day — and cookie
+lifetime (clock started 2026-09-28).
 
 ## 1. Authentication
 
@@ -222,14 +227,16 @@ New module `TwoOfUs/Brightwheel/`:
   fine technically (it's just HTTPS), but keep it OFF by default and out of
   App Store marketing copy — same posture as SNOO.
 
-## 8. Open questions (next session, ~30 min with Taylor at the keyboard)
+## 8. Open questions
 
-1. Sign in on the web app with DevTools open; confirm the exact
-   `POST /api/v1/sessions` request/response shape and whether 2FA fires.
-2. Run `scripts/brightwheel_sync.py` with the harvested cookie: verify the
-   guardian endpoints, capture real `details_blob` shapes for `ac_food` /
-   `ac_nap` / `ac_potty` (the one piece of the schema we can't get from
-   static analysis), and pin down bottle-oz representation.
-3. Leave the cookie in place and re-run daily for a week: measure cookie
-   lifetime, and test the same cookie from a second IP/device to answer the
-   shared-credentials question.
+1. ~~Verify sign-in and the guardian endpoints~~ — **done 2026-09-28** via the
+   in-app WKWebView flow (see Live verification above). Sign-in analysis of
+   `POST /api/v1/sessions` is moot: the app never talks to that endpoint, the
+   web view does.
+2. Capture real `details_blob` shapes for `ac_food` / `ac_nap` / `ac_potty`
+   (bottle-oz representation especially) — blocked until Miller's first
+   daycare day; then tap "Fetch today's report" in Settings → Integrations →
+   Brightwheel and read the dump. Phase-2 DTOs get built from that.
+3. Cookie lifetime: signed in 2026-09-28; note the date if a fetch ever comes
+   back 401/403. Test the same cookie from the second phone before deciding
+   on the shared-CloudKit-blob design (§5).
