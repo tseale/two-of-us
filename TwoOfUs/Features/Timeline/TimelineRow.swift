@@ -15,6 +15,7 @@ struct TimelineRow: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppColor.text)
                     if entry.isFromSnoo { SnooTag() }
+                    if entry.isFromDaycare { DaycareTag() }
                 }
                 Text(TimeFormatting.clock(entry.sortDate))
                     .font(.caption)
@@ -23,13 +24,13 @@ struct TimelineRow: View {
             Spacer()
             // Sleep carries no logger attribution — it's the baby's doing,
             // not a caregiver task.
-            if !isSleep {
+            if !isSleep && !entry.isFromDaycare {
                 ParticipantBadge(name: entry.loggedByName, colorHex: entry.loggedByColorHex)
             }
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(entry.title), \(TimeFormatting.clock(entry.sortDate))\(entry.isFromSnoo ? ", from SNOO" : "")\(isSleep ? "" : ", logged by \(entry.loggedByName)")")
+        .accessibilityLabel("\(entry.title), \(TimeFormatting.clock(entry.sortDate))\(entry.isFromSnoo ? ", from SNOO" : "")\(entry.isFromDaycare ? ", at daycare" : "")\(isSleep || entry.isFromDaycare ? "" : ", logged by \(entry.loggedByName)")")
         .appEntityIdentifier(EntityIdentifier(for: CareEventEntity.self, identifier: entry.id))
     }
 

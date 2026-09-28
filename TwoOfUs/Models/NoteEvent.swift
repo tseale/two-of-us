@@ -15,6 +15,14 @@ final class NoteEvent {
     var loggedByColorHex: String = ""
     var deletedAt: Date?                // soft delete; nil == live
     var editOfID: UUID?                 // if this replaced an edited record, points to the original
+    /// Where this record came from (`EventSource` raw value); nil == logged by
+    /// hand. Optional String keeps the SwiftData migration lightweight and the
+    /// CloudKit field additive.
+    var sourceRaw: String?
+    /// The originating system's own id for an imported record (Brightwheel
+    /// activity object_id) — the cross-device dedupe key, so a re-import or a
+    /// second connected phone can't duplicate the event.
+    var externalID: String?
     var ckSystemFields: Data?           // archived CKRecord system fields (see Baby.ckSystemFields)
 
     init(
@@ -26,7 +34,9 @@ final class NoteEvent {
         loggedByName: String,
         loggedByColorHex: String,
         deletedAt: Date? = nil,
-        editOfID: UUID? = nil
+        editOfID: UUID? = nil,
+        sourceRaw: String? = nil,
+        externalID: String? = nil
     ) {
         self.id = id
         self.baby = baby
@@ -37,5 +47,10 @@ final class NoteEvent {
         self.loggedByColorHex = loggedByColorHex
         self.deletedAt = deletedAt
         self.editOfID = editOfID
+        self.sourceRaw = sourceRaw
+        self.externalID = externalID
     }
+
+    var source: EventSource? { sourceRaw.flatMap(EventSource.init(rawValue:)) }
+    var isFromDaycare: Bool { source == .brightwheel }
 }

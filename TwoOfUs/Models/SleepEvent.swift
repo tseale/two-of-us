@@ -15,10 +15,14 @@ final class SleepEvent {
     var loggedByColorHex: String = ""
     var deletedAt: Date?
     var editOfID: UUID?
-    /// Where this record came from (`SleepSource` raw value); nil == logged by
+    /// Where this record came from (`EventSource` raw value); nil == logged by
     /// hand. Optional String keeps the SwiftData migration lightweight and the
     /// CloudKit field additive.
     var sourceRaw: String?
+    /// The originating system's own id for an imported record (SNOO session
+    /// id, Brightwheel activity object_id) — the cross-device dedupe key, so
+    /// a re-import or a second connected phone can't duplicate the event.
+    var externalID: String?
     var ckSystemFields: Data?           // archived CKRecord system fields (see Baby.ckSystemFields)
 
     init(
@@ -32,7 +36,8 @@ final class SleepEvent {
         loggedByColorHex: String,
         deletedAt: Date? = nil,
         editOfID: UUID? = nil,
-        sourceRaw: String? = nil
+        sourceRaw: String? = nil,
+        externalID: String? = nil
     ) {
         self.id = id
         self.baby = baby
@@ -45,11 +50,13 @@ final class SleepEvent {
         self.deletedAt = deletedAt
         self.editOfID = editOfID
         self.sourceRaw = sourceRaw
+        self.externalID = externalID
     }
 
     /// Whether this sleep is currently in progress.
     var isActive: Bool { endedAt == nil && deletedAt == nil }
 
-    var source: SleepSource? { sourceRaw.flatMap(SleepSource.init(rawValue:)) }
+    var source: EventSource? { sourceRaw.flatMap(EventSource.init(rawValue:)) }
     var isFromSnoo: Bool { source == .snoo }
+    var isFromDaycare: Bool { source == .brightwheel }
 }

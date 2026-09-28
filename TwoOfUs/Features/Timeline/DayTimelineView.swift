@@ -39,6 +39,7 @@ struct DayTimelineRow: View {
                             .foregroundStyle(AppColor.text)
                             .lineLimit(2)
                         if entry.isFromSnoo { SnooTag() }
+                        if entry.isFromDaycare { DaycareTag() }
                     }
                     if let note = entry.notes, !note.isEmpty {
                         Text(note)
@@ -51,8 +52,10 @@ struct DayTimelineRow: View {
                 // Shows the parent's profile photo when they have one, else the
                 // colored initial — same monogram fallback as `ParticipantBadge`.
                 // Sleep is the baby's doing, not a caregiver task, so it
-                // carries no logger attribution.
-                if !isSleep {
+                // carries no logger attribution — and neither does a daycare
+                // import: staff logged it, not the parent whose device synced
+                // it, so an avatar here would misattribute it.
+                if !isSleep && !entry.isFromDaycare {
                     Avatar(photoData: loggedByPhoto, name: loggedByName,
                            colorHex: entry.loggedByColorHex, size: 24)
                 }
@@ -90,8 +93,9 @@ struct DayTimelineRow: View {
         } else {
             label = "\(entry.title), \(TimeFormatting.clock(entry.sortDate))"
         }
-        if !isSleep { label += ", logged by \(loggedByName)" }
+        if !isSleep && !entry.isFromDaycare { label += ", logged by \(loggedByName)" }
         if entry.isFromSnoo { label += ", from SNOO" }
+        if entry.isFromDaycare { label += ", at daycare" }
         if let note = entry.notes, !note.isEmpty { label += ", note: \(note)" }
         return label
     }
@@ -157,6 +161,20 @@ struct DayTimelineRow: View {
                 .frame(width: 11, height: 11)
                 .overlay(Circle().strokeBorder(AppColor.card, lineWidth: 2))
         }
+    }
+}
+
+/// The little "Daycare" capsule on rows imported from Brightwheel — the
+/// daycare's entries read apart from what the parents logged themselves.
+struct DaycareTag: View {
+    var body: some View {
+        Text("\u{1F3EB} Daycare")
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(AppColor.accentDiaper)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(AppColor.accentDiaper.opacity(0.14), in: Capsule())
+            .accessibilityHidden(true)   // rows fold it into their label
     }
 }
 

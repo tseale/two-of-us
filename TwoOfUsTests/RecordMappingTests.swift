@@ -93,7 +93,7 @@ final class RecordMappingTests: XCTestCase {
             baby: nil, startedAt: Date(timeIntervalSince1970: 1_700_000_000),
             endedAt: Date(timeIntervalSince1970: 1_700_007_200),
             loggedByID: UUID(), loggedByName: "T", loggedByColorHex: "#000000",
-            sourceRaw: SleepSource.snoo.rawValue
+            sourceRaw: EventSource.snoo.rawValue
         )
         context.insert(original)
         try context.save()
@@ -105,6 +105,54 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertEqual(copy.sourceRaw, "snoo",
                        "the SNOO tag must survive to the co-parent's phone")
         XCTAssertTrue(copy.isFromSnoo)
+    }
+
+    func testBrightwheelFeedRoundTripKeepsSourceAndExternalID() throws {
+        let original = FeedEvent(
+            baby: nil, amountOz: 4, timestamp: Date(timeIntervalSince1970: 1_700_000_000),
+            loggedByID: UUID(), loggedByName: "T", loggedByColorHex: "#000000",
+            sourceRaw: EventSource.brightwheel.rawValue,
+            externalID: "bw-activity-123"
+        )
+        context.insert(original)
+        try context.save()
+
+        let receiver = AppModelContainer.make(inMemory: true)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+
+        let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<FeedEvent>()).first)
+        XCTAssertEqual(copy.sourceRaw, "brightwheel",
+                       "the Daycare tag must survive to the co-parent's phone")
+        XCTAssertTrue(copy.isFromDaycare)
+        XCTAssertEqual(copy.externalID, "bw-activity-123",
+                       "the dedupe key must travel, or the co-parent's import duplicates the event")
+    }
+
+    func testBrightwheelDiaperAndNoteRoundTripKeepSourceAndExternalID() throws {
+        let diaper = DiaperEvent(
+            baby: nil, type: .wet, timestamp: .now,
+            loggedByID: UUID(), loggedByName: "T", loggedByColorHex: "#000000",
+            sourceRaw: EventSource.brightwheel.rawValue, externalID: "bw-d1"
+        )
+        let note = NoteEvent(
+            baby: nil, text: "Dropped off at daycare", timestamp: .now,
+            loggedByID: UUID(), loggedByName: "T", loggedByColorHex: "#000000",
+            sourceRaw: EventSource.brightwheel.rawValue, externalID: "bw-n1"
+        )
+        context.insert(diaper)
+        context.insert(note)
+        try context.save()
+
+        let receiver = AppModelContainer.make(inMemory: true)
+        try RecordMapping.apply(try outbound(diaper.id), in: receiver.mainContext)
+        try RecordMapping.apply(try outbound(note.id), in: receiver.mainContext)
+
+        let diaperCopy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<DiaperEvent>()).first)
+        XCTAssertEqual(diaperCopy.externalID, "bw-d1")
+        XCTAssertTrue(diaperCopy.isFromDaycare)
+        let noteCopy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<NoteEvent>()).first)
+        XCTAssertEqual(noteCopy.externalID, "bw-n1")
+        XCTAssertTrue(noteCopy.isFromDaycare)
     }
 
     func testDiaperRoundTrip() throws {

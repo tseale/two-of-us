@@ -115,7 +115,8 @@ struct EventStore {
     /// ("she fed him, I'm just logging it") — nil keeps the owner default.
     @discardableResult
     func logFeed(amountOz: Double, at date: Date = .now, notes: String? = nil,
-                 loggedBy: Participant? = nil) -> FeedEvent? {
+                 loggedBy: Participant? = nil,
+                 source: EventSource? = nil, externalID: String? = nil) -> FeedEvent? {
         guard requireTracking(.feed), let logger = loggedBy ?? requireOwner() else { return nil }
         // A bottle of nothing is never a real feed — reject instead of clamping
         // a bad parse/tap into a "0 oz" timeline row.
@@ -130,7 +131,9 @@ struct EventStore {
             notes: EventBounds.cleanNote(notes),
             loggedByID: logger.id,
             loggedByName: logger.displayName,
-            loggedByColorHex: logger.colorHex
+            loggedByColorHex: logger.colorHex,
+            sourceRaw: source?.rawValue,
+            externalID: externalID
         )
         context.insert(event)
         guard save() else { context.delete(event); return nil }
@@ -146,7 +149,8 @@ struct EventStore {
     /// nil keeps the owner default.
     @discardableResult
     func logDiaper(_ type: DiaperType, at date: Date = .now, notes: String? = nil,
-                   loggedBy: Participant? = nil) -> DiaperEvent? {
+                   loggedBy: Participant? = nil,
+                   source: EventSource? = nil, externalID: String? = nil) -> DiaperEvent? {
         guard requireTracking(.diaper), let logger = loggedBy ?? requireOwner() else { return nil }
         let date = EventBounds.clampPast(date)
         let event = DiaperEvent(
@@ -154,7 +158,9 @@ struct EventStore {
             notes: EventBounds.cleanNote(notes),
             loggedByID: logger.id,
             loggedByName: logger.displayName,
-            loggedByColorHex: logger.colorHex
+            loggedByColorHex: logger.colorHex,
+            sourceRaw: source?.rawValue,
+            externalID: externalID
         )
         context.insert(event)
         guard save() else { context.delete(event); return nil }
@@ -169,7 +175,8 @@ struct EventStore {
     /// toggle) and none of the feed/sleep/diaper side effects — notes touch no
     /// widget, reminder, or Siri surface.
     @discardableResult
-    func logNote(_ text: String, at date: Date = .now) -> NoteEvent? {
+    func logNote(_ text: String, at date: Date = .now,
+                 source: EventSource? = nil, externalID: String? = nil) -> NoteEvent? {
         guard let owner = requireOwner() else { return nil }
         // A blank note is never a real entry — reject instead of persisting an
         // empty timeline row.
@@ -182,7 +189,9 @@ struct EventStore {
             baby: baby, text: text, timestamp: date,
             loggedByID: owner.id,
             loggedByName: owner.displayName,
-            loggedByColorHex: owner.colorHex
+            loggedByColorHex: owner.colorHex,
+            sourceRaw: source?.rawValue,
+            externalID: externalID
         )
         context.insert(event)
         guard save() else { context.delete(event); return nil }
@@ -200,7 +209,7 @@ struct EventStore {
     private func existingSnooSleep(near start: Date) -> SleepEvent? {
         let lower = start.addingTimeInterval(-60)
         let upper = start.addingTimeInterval(60)
-        let snooRaw = SleepSource.snoo.rawValue
+        let snooRaw = EventSource.snoo.rawValue
         let descriptor = FetchDescriptor<SleepEvent>(
             predicate: #Predicate {
                 $0.deletedAt == nil && $0.sourceRaw == snooRaw
@@ -212,7 +221,7 @@ struct EventStore {
 
     /// Starts a sleep timer. Refuses if one is already active (single-timer guard).
     @discardableResult
-    func startSleep(at date: Date = .now, source: SleepSource? = nil) -> SleepEvent? {
+    func startSleep(at date: Date = .now, source: EventSource? = nil) -> SleepEvent? {
         guard requireTracking(.sleep) else { return nil }
         if source == .snoo, let existing = existingSnooSleep(near: EventBounds.clampPast(date)) {
             AppLog.store.info("Skipped duplicate SNOO sleep at \(existing.startedAt, privacy: .public) — already in the timeline")
@@ -247,7 +256,7 @@ struct EventStore {
     /// state, so `startSleep`'s single-timer guard doesn't apply.
     @discardableResult
     func logCompletedSleep(startedAt: Date, endedAt: Date, notes: String? = nil,
-                           source: SleepSource? = nil) -> SleepEvent? {
+                           source: EventSource? = nil, externalID: String? = nil) -> SleepEvent? {
         guard requireTracking(.sleep), let owner = requireOwner() else { return nil }
         let start = EventBounds.clampPast(startedAt)
         let end = max(start, EventBounds.clampPast(endedAt))
@@ -261,7 +270,8 @@ struct EventStore {
             loggedByID: owner.id,
             loggedByName: owner.displayName,
             loggedByColorHex: owner.colorHex,
-            sourceRaw: source?.rawValue
+            sourceRaw: source?.rawValue,
+            externalID: externalID
         )
         context.insert(event)
         guard save() else { context.delete(event); return nil }

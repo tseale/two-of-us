@@ -33,6 +33,7 @@ struct HomeView: View {
     @State private var setup = SetupProgress.shared
     @State private var router = DeepLinkRouter.shared
     @State private var snoo = SnooSyncCoordinator.shared
+    @State private var brightwheel = BrightwheelManager.shared
     @State private var didApplyDebugScreen = false
     /// Start of the current day. Advanced by a task at midnight so the "today"
     /// ribbon, counts, and 24h window refresh even if the app sits foregrounded
@@ -115,6 +116,19 @@ struct HomeView: View {
                                                           accent: AppColor.accentSleep, undo: nil)
                                     }
                                 }
+                            }
+                            // What the daycare logged today, in one line. Below
+                            // the suggestion cards (a pending decision outranks
+                            // a summary) and above the schedule rows.
+                            if let daycare = daycareToday {
+                                DaycareReportCard(
+                                    babyName: babies.first?.name ?? "Miller",
+                                    feedCount: daycare.feedCount,
+                                    feedOz: daycare.feedOz,
+                                    napCount: daycare.napCount,
+                                    napSeconds: daycare.napSeconds,
+                                    diaperCount: daycare.diaperCount
+                                )
                             }
                             // Inside the ticking TimelineView so the rows stay
                             // honest on a phone left open overnight: 11pm passing
@@ -243,9 +257,15 @@ struct HomeView: View {
             // `.task` covers the cold launch, where the scene can already be
             // `.active` before `onChange` attaches — without it the first open
             // after a SNOO session starts may never poll at all.
-            .task { snoo.syncOnForeground(context: context) }
+            .task {
+                snoo.syncOnForeground(context: context)
+                brightwheel.syncOnForeground(context: context)
+            }
             .onChange(of: scenePhase) { _, phase in
-                if phase == .active { snoo.syncOnForeground(context: context) }
+                if phase == .active {
+                    snoo.syncOnForeground(context: context)
+                    brightwheel.syncOnForeground(context: context)
+                }
             }
         }
     }
@@ -321,6 +341,32 @@ struct HomeView: View {
         // Reads dayStart so a midnight rollover (which bumps it) re-renders the
         // whole today section — refreshing the counts and 24h window too.
         RibbonMark.forDay(dayStart, feeds: feeds, sleeps: sleeps, diapers: diapers)
+    }
+
+    /// Today's Brightwheel-imported events, aggregated for the report card.
+    /// Nil (card hidden) until the daycare has logged something today — a
+    /// lone drop-off note counts, so the card appears at drop-off and grows
+    /// through the day.
+    private var daycareToday: (feedCount: Int, feedOz: Double, napCount: Int,
+                               napSeconds: TimeInterval, diaperCount: Int)? {
+        guard let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: dayStart)
+        else { return nil }
+        func isToday(_ date: Date) -> Bool { date >= dayStart && date < dayEnd }
+
+        let dayFeeds = feeds.filter { $0.isFromDaycare && isToday($0.timestamp) }
+        let dayNaps = sleeps.filter { $0.isFromDaycare && isToday($0.startedAt) && $0.endedAt != nil }
+        let dayDiapers = diapers.filter { $0.isFromDaycare && isToday($0.timestamp) }
+        let dayNotes = noteEvents.filter { $0.isFromDaycare && isToday($0.timestamp) }
+        guard !dayFeeds.isEmpty || !dayNaps.isEmpty || !dayDiapers.isEmpty || !dayNotes.isEmpty
+        else { return nil }
+
+        return (
+            feedCount: dayFeeds.count,
+            feedOz: dayFeeds.reduce(0) { $0 + $1.amountOz },
+            napCount: dayNaps.count,
+            napSeconds: dayNaps.reduce(0) { $0 + ($1.endedAt ?? $1.startedAt).timeIntervalSince($1.startedAt) },
+            diaperCount: dayDiapers.count
+        )
     }
 
     private var todaySummary: DaySummary? {
