@@ -34,7 +34,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
@@ -109,6 +109,8 @@ class BrightwheelClient:
     def activities(
         self, student_id: str, start: date, end: date
     ) -> Iterator[dict]:
+        """end_date is EXCLUSIVE (verified in brightwheel-home-assistant):
+        fetching one day means end = start + 1."""
         page = 0
         while True:
             data = self._get(
@@ -117,7 +119,7 @@ class BrightwheelClient:
                     "page": page,
                     "page_size": 100,
                     "start_date": start.isoformat(),
-                    "end_date": end.isoformat(),
+                    "end_date": (end + timedelta(days=1)).isoformat(),
                     "include_parent_actions": "false",
                 },
             )
@@ -141,20 +143,25 @@ def parse_details(activity: dict) -> dict:
         details["tags"] = tags
 
     action_type = activity.get("action_type")
-    if action_type == "ac_potty":
-        lowered = [str(t).lower() for t in tags]
+    if action_type in ("ac_potty", "ac_bathroom"):
+        words = [str(blob.get("potty_type") or "")] + [
+            str(x) for x in (blob.get("potty_extras") or [])
+        ] + [str(t) for t in tags]
+        lowered = [w.lower() for w in words]
+        details["potty_type"] = blob.get("potty_type")
         details["wet"] = any("wet" in t for t in lowered)
-        details["dirty"] = any(t in ("bm", "dirty", "soiled") or "bm" in t for t in lowered)
+        details["dirty"] = any("bm" in t or "dirty" in t or "soiled" in t for t in lowered)
     elif action_type == "ac_food":
-        for key in ("amount", "unit", "food_type", "meal"):
+        for key in ("amount", "amount_type", "food_type", "kind"):
             if blob.get(key) is not None:
                 details[key] = blob[key]
         if activity.get("menu_item_tags"):
-            details["menu_items"] = activity["menu_item_tags"]
+            details["menu_items"] = [
+                t.get("name") for t in activity["menu_item_tags"] if isinstance(t, dict)
+            ]
     elif action_type == "ac_nap":
-        for key in ("start_time", "end_time", "duration"):
-            if blob.get(key) is not None:
-                details[key] = blob[key]
+        # A nap is TWO activities: state "1" fell asleep, "0" woke up.
+        details["state"] = activity.get("state") or blob.get("state")
 
     media = activity.get("media") or {}
     if media.get("image_url"):

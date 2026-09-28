@@ -17,6 +17,9 @@ without notice.
 | [remotephone/brightwheel-crawler](https://github.com/remotephone/brightwheel-crawler) | Login flow selectors, bot-detection/CAPTCHA behavior, 2FA prompt | verified-in-source |
 | Live web app bundle (`cdn.mybrightwheel.com/static/assets/bootstrap.*.chunk.js`, fetched 2026-09-28) | Current endpoint paths, full `action_type` taxonomy, query params, 2FA fields, API v1/v2 split | verified-in-bundle |
 | Live sign-in page (`schools.mybrightwheel.com/sign-in`) | Form fields, first-party bot-detection script (`/v5XrMIJ5/init.js`), New Relic, Stripe | observed |
+| [pmartindev/brightwheel-home-assistant](https://github.com/pmartindev/brightwheel-home-assistant) (`coordinator.py`, `sensor.py`) | **Authoritative per-type shapes** (current API): bottle `food_type`/`amount`/`amount_type`, nap start/end `state` pairing, `potty_type`/`potty_extras`, **`end_date` exclusive** | verified-in-source |
+| [ChaseBro/brightwheel-takeout](https://github.com/ChaseBro/brightwheel-takeout) (tests + scraper) | Wire fixtures: `actor`/`target` shape, non-numeric `amount` values ("most"), `ac_bathroom`/`ac_medication` kinds, per-kind `action_type` query filter | verified-in-source |
+| [stephenyeargin/hubot-brightwheel](https://github.com/stephenyeargin/hubot-brightwheel) | Corroborates `potty_type`/`potty_extras` and nap `state` semantics across a five-year gap (stable core); `menu_item_tags[].name` objects | verified-in-source (legacy) |
 
 **Live verification (2026-09-28):** the WKWebView sign-in + cookie harvest
 shipped in the app (PR #193/#194) and worked against Taylor's real guardian
@@ -88,41 +91,65 @@ test env, not accessible to us.
 
 ## 3. Activity model
 
-Full JSON shape verified in the export library's models. The fields we care
-about:
+Full JSON shape assembled from the export library's models plus the three
+parser sources above (2026-09-28 pass). The fields we care about:
 
 ```jsonc
 {
   "object_id": "…",              // stable unique id — our dedupe key
   "action_type": "ac_food",      // taxonomy below
-  "event_date": "2026-09-28T11:30:00.000Z",  // when it happened
+  "event_date": "2026-09-28T11:30:00.000Z",  // when it happened (UTC ISO-8601)
   "created_at": "…",             // when staff logged it
   "note": "Took 4oz happily",    // free text, often null
-  "details_blob": { "tags": ["Wet"] },  // per-type details; loosely typed
-  "actor":  { "first_name": "…" },      // staff member who logged it
+  "state": "1",                  // NAPS ONLY: "1" fell asleep / "0" woke up —
+                                 // sometimes inside details_blob instead
+  "details_blob": { … },         // per-type payload, shapes below
+  "menu_item_tags": [ { "name": "Bottle" } ],
+  "actor":  { "object_id": "…", "first_name": "…" },  // staff member
+  "target": { "object_id": "stu-…" },                 // the student
   "room":   { "name": "Infant A" },
   "media":      { "image_url": "…", "thumbnail_url": "…" },  // photos
   "video_info": { "downloadable_url": "…", "streamable_url": "…" },
-  "menu_item_tags": [ … ],       // meals
   "staff_only": false
 }
 ```
 
-`action_type` taxonomy (complete, extracted from the live 2026-09-28 bundle):
+Per-type `details_blob` shapes (HA integration = current API, hubot agrees on
+the potty shape since 2019):
+
+- **Bottles** (`ac_food`): `{ "food_type": "bottle", "amount": 4.0,
+  "amount_type": "oz" }` — `amount` can arrive as a number or string, and for
+  solids can be a *word* ("most"), so parse defensively; `amount_type` can be
+  `ml`. Solid food carries `menu_item_tags` and no `food_type: "bottle"`.
+- **Naps** (`ac_nap`): **a nap is TWO activities** — fell-asleep
+  (`state: "1"`) and woke-up (`state: "0"`), each with its own `object_id`
+  and `event_date`, paired by chronological adjacency. There is no
+  start/end-in-one-record form (the bundle's `start_time`/`end_time` strings
+  are UI form fields, not API fields).
+- **Diapers** (`ac_potty`, also `ac_bathroom` for older kids):
+  `{ "potty_type": "wet" | "bm" | "dry", "potty_extras": ["diaper_cream", …] }`.
+
+`action_type` taxonomy (complete, extracted from the live 2026-09-28 bundle;
+takeout adds `ac_bathroom`/`ac_medication` as query-filter kinds):
 
 | Brightwheel | Two of Us | Notes |
 |---|---|---|
-| `ac_food` | `FeedEvent` | `details_blob` carries amount/meal info; bottles vs. solids distinguished by tags/menu items — exact keys need a live capture |
-| `ac_nap` | `SleepEvent` | start/end/duration in `details_blob`; "still sleeping" state exists in the UI |
-| `ac_potty` | `DiaperEvent` | tags like Wet/BM/Dry |
-| `ac_photo`, `ac_video` | photo attachment / skip in v1 | media URLs are signed CDN links |
+| `ac_food` | `FeedEvent` (bottles) / `NoteEvent` (solids) | bottle detection: `food_type`, note keywords, or absent menu items |
+| `ac_nap` | `SleepEvent` | start/end pair → one completed sleep, keyed on the woke-up id |
+| `ac_potty`, `ac_bathroom` | `DiaperEvent` | wet/bm from `potty_type` (+extras); dry checks import as notes |
+| `ac_photo`, `ac_video` | skip in v1 | media URLs are signed CDN links |
 | `ac_note`, `ac_observation`, `ac_kudo` | `NoteEvent` | |
-| `ac_checkin` | arrival/departure — display only | |
-| `ac_meds`, `ac_health_check`, `ac_health_screen`, `ac_incident` | `NoteEvent` (flagged) | worth surfacing, not worth new models |
+| `ac_checkin` | `NoteEvent` (drop-off / pick-up) | |
+| `ac_meds`, `ac_medication`, `ac_health_check`, `ac_health_screen`, `ac_incident` | `NoteEvent` | worth surfacing, not worth new models |
 | `ac_absence`, `ac_learning_activity`, `ac_activity`, `ac_internal_checkin` | skip | |
 
-Timestamps are UTC ISO-8601; the school's `time_zone` comes with the student
-record.
+Timestamps are UTC ISO-8601 (fractional seconds usually, not always); the
+school's `time_zone` comes with the student record.
+
+**Query gotcha (verified in the HA integration): `end_date` is EXCLUSIVE.**
+Fetching today means `start_date = today, end_date = tomorrow` — start ==
+end returns nothing. The activities endpoint also accepts an `action_type`
+filter for per-kind fetches.
 
 ## 4. Prototype
 
@@ -233,10 +260,12 @@ New module `TwoOfUs/Brightwheel/`:
    in-app WKWebView flow (see Live verification above). Sign-in analysis of
    `POST /api/v1/sessions` is moot: the app never talks to that endpoint, the
    web view does.
-2. Capture real `details_blob` shapes for `ac_food` / `ac_nap` / `ac_potty`
-   (bottle-oz representation especially) — blocked until Miller's first
-   daycare day; then tap "Fetch today's report" in Settings → Integrations →
-   Brightwheel and read the dump. Phase-2 DTOs get built from that.
+2. ~~details_blob shapes~~ — **resolved 2026-09-28** from the
+   brightwheel-home-assistant integration + takeout fixtures (see §3); the
+   Swift DTOs/mock now speak that wire format. Remaining residual: confirm
+   against Miller's own first-day dump ("Fetch today's report (raw)") that
+   his school's staff app emits the same shapes — corrections, if any, are
+   localized to `BrightwheelDTOs`/`BrightwheelImporter`.
 3. Cookie lifetime: signed in 2026-09-28; note the date if a fetch ever comes
    back 401/403. Test the same cookie from the second phone before deciding
    on the shared-CloudKit-blob design (§5).

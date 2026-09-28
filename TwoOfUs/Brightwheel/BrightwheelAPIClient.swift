@@ -110,14 +110,17 @@ struct BrightwheelAPIClient: Sendable {
     }
 
     private func activitiesData(cookie: String, studentID: String, day: Date) async throws -> Data {
-        let dayString = day.formatted(.iso8601.year().month().day())
+        // end_date is EXCLUSIVE (verified by the brightwheel-home-assistant
+        // integration, whose same-day fetches came back empty until it used
+        // tomorrow) — start == end would silently return nothing for today.
+        let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: day) ?? day
         return try await get(
             config.activitiesPath(studentID: studentID), cookie: cookie,
             query: [
                 URLQueryItem(name: "page", value: "0"),
                 URLQueryItem(name: "page_size", value: "100"),
-                URLQueryItem(name: "start_date", value: dayString),
-                URLQueryItem(name: "end_date", value: dayString),
+                URLQueryItem(name: "start_date", value: day.formatted(.iso8601.year().month().day())),
+                URLQueryItem(name: "end_date", value: nextDay.formatted(.iso8601.year().month().day())),
                 URLQueryItem(name: "include_parent_actions", value: "false")
             ]
         )
