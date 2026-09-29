@@ -136,12 +136,25 @@ takeout adds `ac_bathroom`/`ac_medication` as query-filter kinds):
 |---|---|---|
 | `ac_food` | `FeedEvent` (bottles) / `NoteEvent` (solids) | bottle detection: `food_type`, note keywords, or absent menu items |
 | `ac_nap` | `SleepEvent` | start/end pair → one completed sleep, keyed on the woke-up id |
-| `ac_potty`, `ac_bathroom` | `DiaperEvent` | wet/bm from `potty_type` (+extras); dry checks import as notes |
-| `ac_photo`, `ac_video` | skip in v1 | media URLs are signed CDN links |
-| `ac_note`, `ac_observation`, `ac_kudo` | `NoteEvent` | |
-| `ac_checkin` | `NoteEvent` (drop-off / pick-up) | |
-| `ac_meds`, `ac_medication`, `ac_health_check`, `ac_health_screen`, `ac_incident` | `NoteEvent` | worth surfacing, not worth new models |
-| `ac_absence`, `ac_learning_activity`, `ac_activity`, `ac_internal_checkin` | skip | |
+| `ac_potty` | `DiaperEvent` | wet/bm from `potty_type` (+extras); dry checks import as notes |
+| `ac_bathroom` | `PottyEvent` | toilet, not diaper (older-kid rooms); outcome from keywords |
+| `ac_photo`, `ac_video` | `MediaEvent` | signed CDN URL stored; **local byte caching is a later phase**, rows fall back to a placeholder when the link expires |
+| `ac_checkin` | `CheckEvent` | in/out from tags/note; "by Dad/Mom" parses into `byName`; feeds "hours at daycare" |
+| `ac_activity`, `ac_learning_activity` | `ActivityEvent` | type from keywords (tummy time, reading…); `duration` blob key is speculative |
+| `ac_meds`, `ac_medication` | `MedicationEvent` | `medication_name`/`dosage` blob keys are speculative — verify on first real day |
+| `ac_health_check`, `ac_health_screen` | `HealthCheckEvent` | temp/weight from `temperature` blob key (speculative) or note regex; else `StaffNoteEvent` |
+| `ac_observation` + development-domain tag | `MilestoneEvent` | "Rolled over!" + [Physical] |
+| `ac_note`, `ac_observation`, `ac_kudo`, `ac_incident` | `StaffNoteEvent` | quote-card style, staff author from `actor` |
+| `ac_mood`, `ac_milestone` | `MoodEvent` / `MilestoneEvent` | ⚠️ SPECULATIVE action types — not in the 2026-09-28 bundle taxonomy; handled defensively if they ever appear |
+| `ac_absence`, `ac_internal_checkin` | skip | |
+
+The nine daycare-era models (activity, media, check-in/out, medication,
+health check, mood, potty, milestone, staff note) landed as full SwiftData
+models with CloudKit sync (their own record types — detected via the
+`RecordType.all` growth, no `schemaGeneration` bump), timeline rows with
+per-type accents, report-card aggregates, and mock-day coverage. ⚠️ Before
+real installs sync daycare data, push the new record types to the CloudKit
+schema (cktool, same dance as PR #145's deploy).
 
 Timestamps are UTC ISO-8601 (fractional seconds usually, not always); the
 school's `time_zone` comes with the student record.

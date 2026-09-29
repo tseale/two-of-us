@@ -199,6 +199,214 @@ struct EventStore {
         return event
     }
 
+    // MARK: Daycare-era events (Brightwheel scaffolding)
+    //
+    // Note-shaped write paths: owner-attributed, no tracker gate (none of
+    // these has a toggle), and none of the feed/sleep/diaper side effects —
+    // they touch no widget, reminder, alarm, or Siri surface. Like every
+    // event they carry `source`/`externalID` so imports dedupe and the
+    // timeline can tag them Daycare.
+
+    @discardableResult
+    func logActivity(_ type: ActivityType, at date: Date = .now, durationMinutes: Int? = nil,
+                     notes: String? = nil,
+                     source: EventSource? = nil, externalID: String? = nil) -> ActivityEvent? {
+        guard let owner = requireOwner() else { return nil }
+        let event = ActivityEvent(
+            baby: baby, type: type, timestamp: EventBounds.clampPast(date),
+            durationMinutes: durationMinutes.map { max(0, $0) },
+            notes: EventBounds.cleanNote(notes),
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex,
+            sourceRaw: source?.rawValue,
+            externalID: externalID
+        )
+        context.insert(event)
+        guard save() else { context.delete(event); return nil }
+        sync(save: [event.id])
+        return event
+    }
+
+    @discardableResult
+    func logMedia(_ kind: MediaKind, at date: Date = .now, caption: String? = nil,
+                  remoteURL: String? = nil, mediaData: Data? = nil,
+                  source: EventSource? = nil, externalID: String? = nil) -> MediaEvent? {
+        guard let owner = requireOwner() else { return nil }
+        let event = MediaEvent(
+            baby: baby, kind: kind, timestamp: EventBounds.clampPast(date),
+            caption: EventBounds.cleanNote(caption),
+            remoteURL: remoteURL, mediaData: mediaData,
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex,
+            sourceRaw: source?.rawValue,
+            externalID: externalID
+        )
+        context.insert(event)
+        guard save() else { context.delete(event); return nil }
+        sync(save: [event.id])
+        return event
+    }
+
+    @discardableResult
+    func logCheck(_ type: CheckType, at date: Date = .now, byName: String? = nil,
+                  notes: String? = nil,
+                  source: EventSource? = nil, externalID: String? = nil) -> CheckEvent? {
+        guard let owner = requireOwner() else { return nil }
+        let event = CheckEvent(
+            baby: baby, type: type, timestamp: EventBounds.clampPast(date),
+            byName: byName, notes: EventBounds.cleanNote(notes),
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex,
+            sourceRaw: source?.rawValue,
+            externalID: externalID
+        )
+        context.insert(event)
+        guard save() else { context.delete(event); return nil }
+        sync(save: [event.id])
+        return event
+    }
+
+    @discardableResult
+    func logMedication(name: String, dosage: String? = nil, at date: Date = .now,
+                       administeredBy: String? = nil, notes: String? = nil,
+                       source: EventSource? = nil, externalID: String? = nil) -> MedicationEvent? {
+        guard let owner = requireOwner() else { return nil }
+        // A nameless medication row is uninterpretable — reject like a blank note.
+        guard let name = EventBounds.cleanNote(name) else {
+            AppLog.store.error("Write refused: medication name is empty")
+            return nil
+        }
+        let event = MedicationEvent(
+            baby: baby, name: name, dosage: dosage,
+            timestamp: EventBounds.clampPast(date),
+            administeredBy: administeredBy,
+            notes: EventBounds.cleanNote(notes),
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex,
+            sourceRaw: source?.rawValue,
+            externalID: externalID
+        )
+        context.insert(event)
+        guard save() else { context.delete(event); return nil }
+        sync(save: [event.id])
+        return event
+    }
+
+    @discardableResult
+    func logHealthCheck(_ type: HealthCheckType, value: Double, at date: Date = .now,
+                        notes: String? = nil,
+                        source: EventSource? = nil, externalID: String? = nil) -> HealthCheckEvent? {
+        guard let owner = requireOwner() else { return nil }
+        guard value > 0 else {
+            AppLog.store.error("Write refused: health check value \(value) is not loggable")
+            return nil
+        }
+        let event = HealthCheckEvent(
+            baby: baby, type: type, value: value,
+            timestamp: EventBounds.clampPast(date),
+            notes: EventBounds.cleanNote(notes),
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex,
+            sourceRaw: source?.rawValue,
+            externalID: externalID
+        )
+        context.insert(event)
+        guard save() else { context.delete(event); return nil }
+        sync(save: [event.id])
+        return event
+    }
+
+    @discardableResult
+    func logMood(_ level: MoodLevel, at date: Date = .now, notes: String? = nil,
+                 source: EventSource? = nil, externalID: String? = nil) -> MoodEvent? {
+        guard let owner = requireOwner() else { return nil }
+        let event = MoodEvent(
+            baby: baby, level: level, timestamp: EventBounds.clampPast(date),
+            notes: EventBounds.cleanNote(notes),
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex,
+            sourceRaw: source?.rawValue,
+            externalID: externalID
+        )
+        context.insert(event)
+        guard save() else { context.delete(event); return nil }
+        sync(save: [event.id])
+        return event
+    }
+
+    @discardableResult
+    func logPotty(_ outcome: PottyOutcome, at date: Date = .now, notes: String? = nil,
+                  source: EventSource? = nil, externalID: String? = nil) -> PottyEvent? {
+        guard let owner = requireOwner() else { return nil }
+        let event = PottyEvent(
+            baby: baby, outcome: outcome, timestamp: EventBounds.clampPast(date),
+            notes: EventBounds.cleanNote(notes),
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex,
+            sourceRaw: source?.rawValue,
+            externalID: externalID
+        )
+        context.insert(event)
+        guard save() else { context.delete(event); return nil }
+        sync(save: [event.id])
+        return event
+    }
+
+    @discardableResult
+    func logMilestone(_ text: String, category: MilestoneCategory, at date: Date = .now,
+                      notes: String? = nil, photoData: Data? = nil,
+                      source: EventSource? = nil, externalID: String? = nil) -> MilestoneEvent? {
+        guard let owner = requireOwner() else { return nil }
+        guard let text = EventBounds.cleanNote(text, maxLength: EventBounds.noteEventMaxLength) else {
+            AppLog.store.error("Write refused: milestone text is empty")
+            return nil
+        }
+        let event = MilestoneEvent(
+            baby: baby, text: text, category: category,
+            timestamp: EventBounds.clampPast(date),
+            notes: EventBounds.cleanNote(notes), photoData: photoData,
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex,
+            sourceRaw: source?.rawValue,
+            externalID: externalID
+        )
+        context.insert(event)
+        guard save() else { context.delete(event); return nil }
+        sync(save: [event.id])
+        return event
+    }
+
+    @discardableResult
+    func logStaffNote(_ text: String, authorName: String? = nil, at date: Date = .now,
+                      source: EventSource? = nil, externalID: String? = nil) -> StaffNoteEvent? {
+        guard let owner = requireOwner() else { return nil }
+        guard let text = EventBounds.cleanNote(text, maxLength: EventBounds.noteEventMaxLength) else {
+            AppLog.store.error("Write refused: staff note text is empty")
+            return nil
+        }
+        let event = StaffNoteEvent(
+            baby: baby, text: text, authorName: authorName,
+            timestamp: EventBounds.clampPast(date),
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex,
+            sourceRaw: source?.rawValue,
+            externalID: externalID
+        )
+        context.insert(event)
+        guard save() else { context.delete(event); return nil }
+        sync(save: [event.id])
+        return event
+    }
+
     /// The same SNOO session already in the timeline: source `.snoo`, not
     /// deleted, start within a minute (the reconciler's session-match rule).
     /// The import's session bookkeeping is per-device while auto-log is a
@@ -482,6 +690,15 @@ struct EventStore {
         purge(SleepEvent.self)
         purge(DiaperEvent.self)
         purge(NoteEvent.self)
+        purge(ActivityEvent.self)
+        purge(MediaEvent.self)
+        purge(CheckEvent.self)
+        purge(MedicationEvent.self)
+        purge(HealthCheckEvent.self)
+        purge(MoodEvent.self)
+        purge(PottyEvent.self)
+        purge(MilestoneEvent.self)
+        purge(StaffNoteEvent.self)
         if !demo { SleepActivityManager.end(at: nil) }   // tear down any running sleep Live Activity
         save()
         sync(save: ids)
@@ -508,6 +725,15 @@ struct EventStore {
         collect(SleepEvent.self)
         collect(DiaperEvent.self)
         collect(NoteEvent.self)
+        collect(ActivityEvent.self)
+        collect(MediaEvent.self)
+        collect(CheckEvent.self)
+        collect(MedicationEvent.self)
+        collect(HealthCheckEvent.self)
+        collect(MoodEvent.self)
+        collect(PottyEvent.self)
+        collect(MilestoneEvent.self)
+        collect(StaffNoteEvent.self)
         return ghosts
     }
 
@@ -567,6 +793,15 @@ struct EventStore {
         sweep(SleepEvent.self)
         sweep(DiaperEvent.self)
         sweep(NoteEvent.self)
+        sweep(ActivityEvent.self)
+        sweep(MediaEvent.self)
+        sweep(CheckEvent.self)
+        sweep(MedicationEvent.self)
+        sweep(HealthCheckEvent.self)
+        sweep(MoodEvent.self)
+        sweep(PottyEvent.self)
+        sweep(MilestoneEvent.self)
+        sweep(StaffNoteEvent.self)
 
         // One baby can't sleep twice at once: concurrent starts on both phones
         // (each guarded only by its local single-timer check) leave two open
@@ -731,6 +966,15 @@ struct EventStore {
         rewrite(SleepEvent.self)
         rewrite(DiaperEvent.self)
         rewrite(NoteEvent.self)
+        rewrite(ActivityEvent.self)
+        rewrite(MediaEvent.self)
+        rewrite(CheckEvent.self)
+        rewrite(MedicationEvent.self)
+        rewrite(HealthCheckEvent.self)
+        rewrite(MoodEvent.self)
+        rewrite(PottyEvent.self)
+        rewrite(MilestoneEvent.self)
+        rewrite(StaffNoteEvent.self)
         // Plan slots/overrides carry the same denormalized identity under a
         // different name (assignedTo*), so a rename/recolor relabels them too.
         for slot in (try? context.fetch(FetchDescriptor<PlanSlot>())) ?? []
@@ -1045,6 +1289,35 @@ struct EventStore {
             predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= since }
         ))) ?? []
         entries += notes.map(TimelineEntry.note)
+
+        // Daycare-era types interleave like any other event.
+        entries += ((try? context.fetch(FetchDescriptor<ActivityEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= since }
+        ))) ?? []).map(TimelineEntry.activity)
+        entries += ((try? context.fetch(FetchDescriptor<MediaEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= since }
+        ))) ?? []).map(TimelineEntry.media)
+        entries += ((try? context.fetch(FetchDescriptor<CheckEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= since }
+        ))) ?? []).map(TimelineEntry.check)
+        entries += ((try? context.fetch(FetchDescriptor<MedicationEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= since }
+        ))) ?? []).map(TimelineEntry.medication)
+        entries += ((try? context.fetch(FetchDescriptor<HealthCheckEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= since }
+        ))) ?? []).map(TimelineEntry.healthCheck)
+        entries += ((try? context.fetch(FetchDescriptor<MoodEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= since }
+        ))) ?? []).map(TimelineEntry.mood)
+        entries += ((try? context.fetch(FetchDescriptor<PottyEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= since }
+        ))) ?? []).map(TimelineEntry.potty)
+        entries += ((try? context.fetch(FetchDescriptor<MilestoneEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= since }
+        ))) ?? []).map(TimelineEntry.milestone)
+        entries += ((try? context.fetch(FetchDescriptor<StaffNoteEvent>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.timestamp >= since }
+        ))) ?? []).map(TimelineEntry.staffNote)
 
         // Render-level dedupe: duplicate rows sharing an id can exist between
         // sweeps (inbound upsert races, legacy data) — the timeline must never

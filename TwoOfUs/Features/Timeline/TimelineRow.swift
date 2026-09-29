@@ -41,10 +41,19 @@ struct TimelineRow: View {
 
     private var accent: Color {
         switch entry {
-        case .feed:   return AppColor.accentFeed
-        case .sleep:  return AppColor.accentSleep
-        case .diaper: return AppColor.accentDiaper
-        case .note:   return AppColor.accentNote
+        case .feed:        return AppColor.accentFeed
+        case .sleep:       return AppColor.accentSleep
+        case .diaper:      return AppColor.accentDiaper
+        case .note:        return AppColor.accentNote
+        case .activity:    return AppColor.accentActivity
+        case .media:       return AppColor.accentMedia
+        case .check:       return AppColor.accentCheck
+        case .medication:  return AppColor.accentMedication
+        case .healthCheck: return AppColor.accentHealth
+        case .mood:        return AppColor.accentMood
+        case .potty:       return AppColor.accentPotty
+        case .milestone:   return AppColor.accentMilestone
+        case .staffNote:   return AppColor.accentNote
         }
     }
 }

@@ -67,6 +67,114 @@ enum RecordMapping {
                       deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
             return r
         }
+        if let m = ActivityEvent.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.activity, recordID: recordID, archived: m.ckSystemFields)
+            r["typeRaw"] = m.typeRaw
+            r["timestamp"] = m.timestamp
+            r["durationMinutes"] = m.durationMinutes
+            r["notes"] = m.notes
+            r["sourceRaw"] = m.sourceRaw
+            r["externalID"] = m.externalID
+            setCommon(r, loggedByID: m.loggedByID, name: m.loggedByName, color: m.loggedByColorHex,
+                      deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
+            return r
+        }
+        if let m = MediaEvent.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.media, recordID: recordID, archived: m.ckSystemFields)
+            r["kindRaw"] = m.kindRaw
+            r["timestamp"] = m.timestamp
+            r["caption"] = m.caption
+            r["remoteURL"] = m.remoteURL
+            r["mediaData"] = asset(from: m.mediaData)
+            r["sourceRaw"] = m.sourceRaw
+            r["externalID"] = m.externalID
+            setCommon(r, loggedByID: m.loggedByID, name: m.loggedByName, color: m.loggedByColorHex,
+                      deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
+            return r
+        }
+        if let m = CheckEvent.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.check, recordID: recordID, archived: m.ckSystemFields)
+            r["typeRaw"] = m.typeRaw
+            r["timestamp"] = m.timestamp
+            r["byName"] = m.byName
+            r["notes"] = m.notes
+            r["sourceRaw"] = m.sourceRaw
+            r["externalID"] = m.externalID
+            setCommon(r, loggedByID: m.loggedByID, name: m.loggedByName, color: m.loggedByColorHex,
+                      deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
+            return r
+        }
+        if let m = MedicationEvent.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.medication, recordID: recordID, archived: m.ckSystemFields)
+            r["name"] = m.name
+            r["dosage"] = m.dosage
+            r["timestamp"] = m.timestamp
+            r["administeredBy"] = m.administeredBy
+            r["notes"] = m.notes
+            r["sourceRaw"] = m.sourceRaw
+            r["externalID"] = m.externalID
+            setCommon(r, loggedByID: m.loggedByID, name: m.loggedByName, color: m.loggedByColorHex,
+                      deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
+            return r
+        }
+        if let m = HealthCheckEvent.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.healthCheck, recordID: recordID, archived: m.ckSystemFields)
+            r["typeRaw"] = m.typeRaw
+            r["value"] = m.value
+            r["timestamp"] = m.timestamp
+            r["notes"] = m.notes
+            r["sourceRaw"] = m.sourceRaw
+            r["externalID"] = m.externalID
+            setCommon(r, loggedByID: m.loggedByID, name: m.loggedByName, color: m.loggedByColorHex,
+                      deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
+            return r
+        }
+        if let m = MoodEvent.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.mood, recordID: recordID, archived: m.ckSystemFields)
+            r["levelRaw"] = m.levelRaw
+            r["timestamp"] = m.timestamp
+            r["notes"] = m.notes
+            r["sourceRaw"] = m.sourceRaw
+            r["externalID"] = m.externalID
+            setCommon(r, loggedByID: m.loggedByID, name: m.loggedByName, color: m.loggedByColorHex,
+                      deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
+            return r
+        }
+        if let m = PottyEvent.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.potty, recordID: recordID, archived: m.ckSystemFields)
+            r["outcomeRaw"] = m.outcomeRaw
+            r["timestamp"] = m.timestamp
+            r["notes"] = m.notes
+            r["sourceRaw"] = m.sourceRaw
+            r["externalID"] = m.externalID
+            setCommon(r, loggedByID: m.loggedByID, name: m.loggedByName, color: m.loggedByColorHex,
+                      deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
+            return r
+        }
+        if let m = MilestoneEvent.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.milestone, recordID: recordID, archived: m.ckSystemFields)
+            r["text"] = m.text
+            r["categoryRaw"] = m.categoryRaw
+            r["timestamp"] = m.timestamp
+            r["notes"] = m.notes
+            r["photoData"] = asset(from: m.photoData)
+            r["sourceRaw"] = m.sourceRaw
+            r["externalID"] = m.externalID
+            setCommon(r, loggedByID: m.loggedByID, name: m.loggedByName, color: m.loggedByColorHex,
+                      deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
+            return r
+        }
+        if let m = StaffNoteEvent.fetchByID(uuid, in: context) {
+            let r = baseRecord(type: SyncConstants.RecordType.staffNote, recordID: recordID, archived: m.ckSystemFields)
+            r["text"] = m.text
+            r["authorName"] = m.authorName
+            r["timestamp"] = m.timestamp
+            r["sourceRaw"] = m.sourceRaw
+            r["externalID"] = m.externalID
+            setCommon(r, loggedByID: m.loggedByID, name: m.loggedByName, color: m.loggedByColorHex,
+                      deletedAt: m.deletedAt, editOfID: m.editOfID, babyID: m.baby?.id)
+            return r
+        }
         if let m = Baby.fetchByID(uuid, in: context) {
             let r = baseRecord(type: SyncConstants.RecordType.baby, recordID: recordID, archived: m.ckSystemFields)
             r["name"] = m.name
@@ -173,7 +281,34 @@ enum RecordMapping {
         if try context.fetchCount(slot) > 0 { return true }
         var override = FetchDescriptor<PlanOverride>(predicate: #Predicate { $0.id == uuid })
         override.fetchLimit = 1
-        return try context.fetchCount(override) > 0
+        if try context.fetchCount(override) > 0 { return true }
+        var activity = FetchDescriptor<ActivityEvent>(predicate: #Predicate { $0.id == uuid })
+        activity.fetchLimit = 1
+        if try context.fetchCount(activity) > 0 { return true }
+        var media = FetchDescriptor<MediaEvent>(predicate: #Predicate { $0.id == uuid })
+        media.fetchLimit = 1
+        if try context.fetchCount(media) > 0 { return true }
+        var check = FetchDescriptor<CheckEvent>(predicate: #Predicate { $0.id == uuid })
+        check.fetchLimit = 1
+        if try context.fetchCount(check) > 0 { return true }
+        var medication = FetchDescriptor<MedicationEvent>(predicate: #Predicate { $0.id == uuid })
+        medication.fetchLimit = 1
+        if try context.fetchCount(medication) > 0 { return true }
+        var health = FetchDescriptor<HealthCheckEvent>(predicate: #Predicate { $0.id == uuid })
+        health.fetchLimit = 1
+        if try context.fetchCount(health) > 0 { return true }
+        var mood = FetchDescriptor<MoodEvent>(predicate: #Predicate { $0.id == uuid })
+        mood.fetchLimit = 1
+        if try context.fetchCount(mood) > 0 { return true }
+        var potty = FetchDescriptor<PottyEvent>(predicate: #Predicate { $0.id == uuid })
+        potty.fetchLimit = 1
+        if try context.fetchCount(potty) > 0 { return true }
+        var milestone = FetchDescriptor<MilestoneEvent>(predicate: #Predicate { $0.id == uuid })
+        milestone.fetchLimit = 1
+        if try context.fetchCount(milestone) > 0 { return true }
+        var staffNote = FetchDescriptor<StaffNoteEvent>(predicate: #Predicate { $0.id == uuid })
+        staffNote.fetchLimit = 1
+        return try context.fetchCount(staffNote) > 0
     }
 
     private static func setCommon(_ r: CKRecord, loggedByID: UUID, name: String, color: String,
@@ -245,6 +380,9 @@ enum RecordMapping {
         clear(FeedEvent.self); clear(SleepEvent.self); clear(DiaperEvent.self); clear(NoteEvent.self)
         clear(Baby.self); clear(Participant.self); clear(SharedSettings.self)
         clear(PlanSlot.self); clear(PlanOverride.self)
+        clear(ActivityEvent.self); clear(MediaEvent.self); clear(CheckEvent.self)
+        clear(MedicationEvent.self); clear(HealthCheckEvent.self); clear(MoodEvent.self)
+        clear(PottyEvent.self); clear(MilestoneEvent.self); clear(StaffNoteEvent.self)
     }
 
     // MARK: Conflict resolution
@@ -322,6 +460,15 @@ enum RecordMapping {
         case SyncConstants.RecordType.settings: try applySettings(record, uuid: uuid, in: context)
         case SyncConstants.RecordType.planSlot: try applyPlanSlot(record, uuid: uuid, in: context)
         case SyncConstants.RecordType.planOverride: try applyPlanOverride(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.activity:    try applyActivity(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.media:       try applyMedia(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.check:       try applyCheck(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.medication:  try applyMedication(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.healthCheck: try applyHealthCheck(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.mood:        try applyMood(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.potty:       try applyPotty(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.milestone:   try applyMilestone(record, uuid: uuid, in: context)
+        case SyncConstants.RecordType.staffNote:   try applyStaffNote(record, uuid: uuid, in: context)
         default:
             // System records (e.g. the zone-wide cloudkit.share) are expected
             // here; an unknown MODEL type means this build predates it — the
@@ -348,6 +495,15 @@ enum RecordMapping {
         if let m = try SharedSettings.findByID(uuid, in: context) { context.delete(m); return }
         if let m = try PlanSlot.findByID(uuid, in: context) { context.delete(m); return }
         if let m = try PlanOverride.findByID(uuid, in: context) { context.delete(m); return }
+        if let m = try ActivityEvent.findByID(uuid, in: context) { context.delete(m); return }
+        if let m = try MediaEvent.findByID(uuid, in: context) { context.delete(m); return }
+        if let m = try CheckEvent.findByID(uuid, in: context) { context.delete(m); return }
+        if let m = try MedicationEvent.findByID(uuid, in: context) { context.delete(m); return }
+        if let m = try HealthCheckEvent.findByID(uuid, in: context) { context.delete(m); return }
+        if let m = try MoodEvent.findByID(uuid, in: context) { context.delete(m); return }
+        if let m = try PottyEvent.findByID(uuid, in: context) { context.delete(m); return }
+        if let m = try MilestoneEvent.findByID(uuid, in: context) { context.delete(m); return }
+        if let m = try StaffNoteEvent.findByID(uuid, in: context) { context.delete(m); return }
     }
 
     /// Attaches the baby to any events that synced in before the Baby record
@@ -362,6 +518,24 @@ enum RecordMapping {
         for e in (try? context.fetch(FetchDescriptor<DiaperEvent>(
             predicate: #Predicate { $0.baby == nil }))) ?? [] { e.baby = baby }
         for e in (try? context.fetch(FetchDescriptor<NoteEvent>(
+            predicate: #Predicate { $0.baby == nil }))) ?? [] { e.baby = baby }
+        for e in (try? context.fetch(FetchDescriptor<ActivityEvent>(
+            predicate: #Predicate { $0.baby == nil }))) ?? [] { e.baby = baby }
+        for e in (try? context.fetch(FetchDescriptor<MediaEvent>(
+            predicate: #Predicate { $0.baby == nil }))) ?? [] { e.baby = baby }
+        for e in (try? context.fetch(FetchDescriptor<CheckEvent>(
+            predicate: #Predicate { $0.baby == nil }))) ?? [] { e.baby = baby }
+        for e in (try? context.fetch(FetchDescriptor<MedicationEvent>(
+            predicate: #Predicate { $0.baby == nil }))) ?? [] { e.baby = baby }
+        for e in (try? context.fetch(FetchDescriptor<HealthCheckEvent>(
+            predicate: #Predicate { $0.baby == nil }))) ?? [] { e.baby = baby }
+        for e in (try? context.fetch(FetchDescriptor<MoodEvent>(
+            predicate: #Predicate { $0.baby == nil }))) ?? [] { e.baby = baby }
+        for e in (try? context.fetch(FetchDescriptor<PottyEvent>(
+            predicate: #Predicate { $0.baby == nil }))) ?? [] { e.baby = baby }
+        for e in (try? context.fetch(FetchDescriptor<MilestoneEvent>(
+            predicate: #Predicate { $0.baby == nil }))) ?? [] { e.baby = baby }
+        for e in (try? context.fetch(FetchDescriptor<StaffNoteEvent>(
             predicate: #Predicate { $0.baby == nil }))) ?? [] { e.baby = baby }
     }
 
@@ -568,6 +742,228 @@ enum RecordMapping {
         m.deletedAt = r["deletedAt"] as? Date
     }
 
+    // Daycare event types. Same placeholder-refusal rule as the core four:
+    // inserts require the record's own timestamp + logger identity (plus the
+    // type's primary payload where "empty" would render as junk).
+
+    private static func applyActivity(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let m: ActivityEvent
+        if let existing = try ActivityEvent.findByID(uuid, in: context) {
+            m = existing
+        } else {
+            guard let timestamp = r["timestamp"] as? Date,
+                  let typeRaw = r["typeRaw"] as? String,
+                  let type = ActivityType(rawValue: typeRaw),
+                  let logger = loggerIdentity(r) else {
+                skip(r, missing: "timestamp/typeRaw/loggedByID"); return
+            }
+            m = insert(ActivityEvent(baby: nil, type: type, timestamp: timestamp,
+                                     loggedByID: logger.id, loggedByName: logger.name,
+                                     loggedByColorHex: logger.color), id: uuid, in: context)
+        }
+        m.typeRaw = r["typeRaw"] as? String ?? m.typeRaw
+        m.timestamp = r["timestamp"] as? Date ?? m.timestamp
+        m.durationMinutes = r["durationMinutes"] as? Int
+        m.notes = r["notes"] as? String
+        m.sourceRaw = r["sourceRaw"] as? String
+        m.externalID = r["externalID"] as? String
+        applyCommon(r, into: m, in: context)
+    }
+
+    private static func applyMedia(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let m: MediaEvent
+        if let existing = try MediaEvent.findByID(uuid, in: context) {
+            m = existing
+        } else {
+            guard let timestamp = r["timestamp"] as? Date,
+                  let kindRaw = r["kindRaw"] as? String,
+                  let kind = MediaKind(rawValue: kindRaw),
+                  let logger = loggerIdentity(r) else {
+                skip(r, missing: "timestamp/kindRaw/loggedByID"); return
+            }
+            m = insert(MediaEvent(baby: nil, kind: kind, timestamp: timestamp,
+                                  loggedByID: logger.id, loggedByName: logger.name,
+                                  loggedByColorHex: logger.color), id: uuid, in: context)
+        }
+        m.kindRaw = r["kindRaw"] as? String ?? m.kindRaw
+        m.timestamp = r["timestamp"] as? Date ?? m.timestamp
+        m.caption = r["caption"] as? String
+        m.remoteURL = r["remoteURL"] as? String
+        // Same transient-asset guard as avatars: an unreadable CKAsset must
+        // not wipe locally cached bytes.
+        if let resolved = inboundPhoto(r["mediaData"]) { m.mediaData = resolved }
+        m.sourceRaw = r["sourceRaw"] as? String
+        m.externalID = r["externalID"] as? String
+        applyCommon(r, into: m, in: context)
+    }
+
+    private static func applyCheck(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let m: CheckEvent
+        if let existing = try CheckEvent.findByID(uuid, in: context) {
+            m = existing
+        } else {
+            guard let timestamp = r["timestamp"] as? Date,
+                  let typeRaw = r["typeRaw"] as? String,
+                  let type = CheckType(rawValue: typeRaw),
+                  let logger = loggerIdentity(r) else {
+                skip(r, missing: "timestamp/typeRaw/loggedByID"); return
+            }
+            m = insert(CheckEvent(baby: nil, type: type, timestamp: timestamp,
+                                  loggedByID: logger.id, loggedByName: logger.name,
+                                  loggedByColorHex: logger.color), id: uuid, in: context)
+        }
+        m.typeRaw = r["typeRaw"] as? String ?? m.typeRaw
+        m.timestamp = r["timestamp"] as? Date ?? m.timestamp
+        m.byName = r["byName"] as? String
+        m.notes = r["notes"] as? String
+        m.sourceRaw = r["sourceRaw"] as? String
+        m.externalID = r["externalID"] as? String
+        applyCommon(r, into: m, in: context)
+    }
+
+    private static func applyMedication(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let m: MedicationEvent
+        if let existing = try MedicationEvent.findByID(uuid, in: context) {
+            m = existing
+        } else {
+            guard let timestamp = r["timestamp"] as? Date,
+                  let name = r["name"] as? String, !name.isEmpty,
+                  let logger = loggerIdentity(r) else {
+                skip(r, missing: "timestamp/name/loggedByID"); return
+            }
+            m = insert(MedicationEvent(baby: nil, name: name, timestamp: timestamp,
+                                       loggedByID: logger.id, loggedByName: logger.name,
+                                       loggedByColorHex: logger.color), id: uuid, in: context)
+        }
+        m.name = r["name"] as? String ?? m.name
+        m.dosage = r["dosage"] as? String
+        m.timestamp = r["timestamp"] as? Date ?? m.timestamp
+        m.administeredBy = r["administeredBy"] as? String
+        m.notes = r["notes"] as? String
+        m.sourceRaw = r["sourceRaw"] as? String
+        m.externalID = r["externalID"] as? String
+        applyCommon(r, into: m, in: context)
+    }
+
+    private static func applyHealthCheck(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let m: HealthCheckEvent
+        if let existing = try HealthCheckEvent.findByID(uuid, in: context) {
+            m = existing
+        } else {
+            guard let timestamp = r["timestamp"] as? Date,
+                  let typeRaw = r["typeRaw"] as? String,
+                  let type = HealthCheckType(rawValue: typeRaw),
+                  let value = r["value"] as? Double,
+                  let logger = loggerIdentity(r) else {
+                skip(r, missing: "timestamp/typeRaw/value/loggedByID"); return
+            }
+            m = insert(HealthCheckEvent(baby: nil, type: type, value: value, timestamp: timestamp,
+                                        loggedByID: logger.id, loggedByName: logger.name,
+                                        loggedByColorHex: logger.color), id: uuid, in: context)
+        }
+        m.typeRaw = r["typeRaw"] as? String ?? m.typeRaw
+        m.value = r["value"] as? Double ?? m.value
+        m.timestamp = r["timestamp"] as? Date ?? m.timestamp
+        m.notes = r["notes"] as? String
+        m.sourceRaw = r["sourceRaw"] as? String
+        m.externalID = r["externalID"] as? String
+        applyCommon(r, into: m, in: context)
+    }
+
+    private static func applyMood(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let m: MoodEvent
+        if let existing = try MoodEvent.findByID(uuid, in: context) {
+            m = existing
+        } else {
+            guard let timestamp = r["timestamp"] as? Date,
+                  let levelRaw = r["levelRaw"] as? String,
+                  let level = MoodLevel(rawValue: levelRaw),
+                  let logger = loggerIdentity(r) else {
+                skip(r, missing: "timestamp/levelRaw/loggedByID"); return
+            }
+            m = insert(MoodEvent(baby: nil, level: level, timestamp: timestamp,
+                                 loggedByID: logger.id, loggedByName: logger.name,
+                                 loggedByColorHex: logger.color), id: uuid, in: context)
+        }
+        m.levelRaw = r["levelRaw"] as? String ?? m.levelRaw
+        m.timestamp = r["timestamp"] as? Date ?? m.timestamp
+        m.notes = r["notes"] as? String
+        m.sourceRaw = r["sourceRaw"] as? String
+        m.externalID = r["externalID"] as? String
+        applyCommon(r, into: m, in: context)
+    }
+
+    private static func applyPotty(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let m: PottyEvent
+        if let existing = try PottyEvent.findByID(uuid, in: context) {
+            m = existing
+        } else {
+            guard let timestamp = r["timestamp"] as? Date,
+                  let outcomeRaw = r["outcomeRaw"] as? String,
+                  let outcome = PottyOutcome(rawValue: outcomeRaw),
+                  let logger = loggerIdentity(r) else {
+                skip(r, missing: "timestamp/outcomeRaw/loggedByID"); return
+            }
+            m = insert(PottyEvent(baby: nil, outcome: outcome, timestamp: timestamp,
+                                  loggedByID: logger.id, loggedByName: logger.name,
+                                  loggedByColorHex: logger.color), id: uuid, in: context)
+        }
+        m.outcomeRaw = r["outcomeRaw"] as? String ?? m.outcomeRaw
+        m.timestamp = r["timestamp"] as? Date ?? m.timestamp
+        m.notes = r["notes"] as? String
+        m.sourceRaw = r["sourceRaw"] as? String
+        m.externalID = r["externalID"] as? String
+        applyCommon(r, into: m, in: context)
+    }
+
+    private static func applyMilestone(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let m: MilestoneEvent
+        if let existing = try MilestoneEvent.findByID(uuid, in: context) {
+            m = existing
+        } else {
+            guard let timestamp = r["timestamp"] as? Date,
+                  let text = r["text"] as? String, !text.isEmpty,
+                  let categoryRaw = r["categoryRaw"] as? String,
+                  let category = MilestoneCategory(rawValue: categoryRaw),
+                  let logger = loggerIdentity(r) else {
+                skip(r, missing: "timestamp/text/categoryRaw/loggedByID"); return
+            }
+            m = insert(MilestoneEvent(baby: nil, text: text, category: category, timestamp: timestamp,
+                                      loggedByID: logger.id, loggedByName: logger.name,
+                                      loggedByColorHex: logger.color), id: uuid, in: context)
+        }
+        m.text = r["text"] as? String ?? m.text
+        m.categoryRaw = r["categoryRaw"] as? String ?? m.categoryRaw
+        m.timestamp = r["timestamp"] as? Date ?? m.timestamp
+        m.notes = r["notes"] as? String
+        if let resolved = inboundPhoto(r["photoData"]) { m.photoData = resolved }
+        m.sourceRaw = r["sourceRaw"] as? String
+        m.externalID = r["externalID"] as? String
+        applyCommon(r, into: m, in: context)
+    }
+
+    private static func applyStaffNote(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
+        let m: StaffNoteEvent
+        if let existing = try StaffNoteEvent.findByID(uuid, in: context) {
+            m = existing
+        } else {
+            guard let timestamp = r["timestamp"] as? Date,
+                  let text = r["text"] as? String, !text.isEmpty,
+                  let logger = loggerIdentity(r) else {
+                skip(r, missing: "timestamp/text/loggedByID"); return
+            }
+            m = insert(StaffNoteEvent(baby: nil, text: text, timestamp: timestamp,
+                                      loggedByID: logger.id, loggedByName: logger.name,
+                                      loggedByColorHex: logger.color), id: uuid, in: context)
+        }
+        m.text = r["text"] as? String ?? m.text
+        m.authorName = r["authorName"] as? String
+        m.timestamp = r["timestamp"] as? Date ?? m.timestamp
+        m.sourceRaw = r["sourceRaw"] as? String
+        m.externalID = r["externalID"] as? String
+        applyCommon(r, into: m, in: context)
+    }
+
     /// Shared event fields: logger identity, soft-delete, edit pointer, baby link.
     private static func applyCommon(_ r: CKRecord, into m: AnyEventModel, in context: ModelContext) {
         if let s = r["loggedByID"] as? String, let id = UUID(uuidString: s) { m.loggedByID = id }
@@ -647,6 +1043,15 @@ enum RecordMapping {
         case SyncConstants.RecordType.settings:    SharedSettings.fetchByID(id, in: context)
         case SyncConstants.RecordType.planSlot:    PlanSlot.fetchByID(id, in: context)
         case SyncConstants.RecordType.planOverride: PlanOverride.fetchByID(id, in: context)
+        case SyncConstants.RecordType.activity:    ActivityEvent.fetchByID(id, in: context)
+        case SyncConstants.RecordType.media:       MediaEvent.fetchByID(id, in: context)
+        case SyncConstants.RecordType.check:       CheckEvent.fetchByID(id, in: context)
+        case SyncConstants.RecordType.medication:  MedicationEvent.fetchByID(id, in: context)
+        case SyncConstants.RecordType.healthCheck: HealthCheckEvent.fetchByID(id, in: context)
+        case SyncConstants.RecordType.mood:        MoodEvent.fetchByID(id, in: context)
+        case SyncConstants.RecordType.potty:       PottyEvent.fetchByID(id, in: context)
+        case SyncConstants.RecordType.milestone:   MilestoneEvent.fetchByID(id, in: context)
+        case SyncConstants.RecordType.staffNote:   StaffNoteEvent.fetchByID(id, in: context)
         default: nil
         }
     }
@@ -664,6 +1069,15 @@ enum RecordMapping {
         if let m = SharedSettings.fetchByID(id, in: context) { return m }
         if let m = PlanSlot.fetchByID(id, in: context) { return m }
         if let m = PlanOverride.fetchByID(id, in: context) { return m }
+        if let m = ActivityEvent.fetchByID(id, in: context) { return m }
+        if let m = MediaEvent.fetchByID(id, in: context) { return m }
+        if let m = CheckEvent.fetchByID(id, in: context) { return m }
+        if let m = MedicationEvent.fetchByID(id, in: context) { return m }
+        if let m = HealthCheckEvent.fetchByID(id, in: context) { return m }
+        if let m = MoodEvent.fetchByID(id, in: context) { return m }
+        if let m = PottyEvent.fetchByID(id, in: context) { return m }
+        if let m = MilestoneEvent.fetchByID(id, in: context) { return m }
+        if let m = StaffNoteEvent.fetchByID(id, in: context) { return m }
         return nil
     }
 
@@ -757,6 +1171,69 @@ extension PlanOverride: HasSyncID {
         return try context.fetch(d).first
     }
 }
+extension ActivityEvent: HasSyncID {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> ActivityEvent? {
+        var d = FetchDescriptor<ActivityEvent>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try context.fetch(d).first
+    }
+}
+extension MediaEvent: HasSyncID {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> MediaEvent? {
+        var d = FetchDescriptor<MediaEvent>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try context.fetch(d).first
+    }
+}
+extension CheckEvent: HasSyncID {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> CheckEvent? {
+        var d = FetchDescriptor<CheckEvent>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try context.fetch(d).first
+    }
+}
+extension MedicationEvent: HasSyncID {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> MedicationEvent? {
+        var d = FetchDescriptor<MedicationEvent>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try context.fetch(d).first
+    }
+}
+extension HealthCheckEvent: HasSyncID {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> HealthCheckEvent? {
+        var d = FetchDescriptor<HealthCheckEvent>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try context.fetch(d).first
+    }
+}
+extension MoodEvent: HasSyncID {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> MoodEvent? {
+        var d = FetchDescriptor<MoodEvent>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try context.fetch(d).first
+    }
+}
+extension PottyEvent: HasSyncID {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> PottyEvent? {
+        var d = FetchDescriptor<PottyEvent>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try context.fetch(d).first
+    }
+}
+extension MilestoneEvent: HasSyncID {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> MilestoneEvent? {
+        var d = FetchDescriptor<MilestoneEvent>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try context.fetch(d).first
+    }
+}
+extension StaffNoteEvent: HasSyncID {
+    static func findByID(_ id: UUID, in context: ModelContext) throws -> StaffNoteEvent? {
+        var d = FetchDescriptor<StaffNoteEvent>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try context.fetch(d).first
+    }
+}
 
 /// Common event surface so `applyCommon` can write to any event type.
 protocol AnyEventModel: AnyObject {
@@ -777,5 +1254,32 @@ extension DiaperEvent: AnyEventModel {
     var babyRef: Baby? { get { baby } set { baby = newValue } }
 }
 extension NoteEvent: AnyEventModel {
+    var babyRef: Baby? { get { baby } set { baby = newValue } }
+}
+extension ActivityEvent: AnyEventModel {
+    var babyRef: Baby? { get { baby } set { baby = newValue } }
+}
+extension MediaEvent: AnyEventModel {
+    var babyRef: Baby? { get { baby } set { baby = newValue } }
+}
+extension CheckEvent: AnyEventModel {
+    var babyRef: Baby? { get { baby } set { baby = newValue } }
+}
+extension MedicationEvent: AnyEventModel {
+    var babyRef: Baby? { get { baby } set { baby = newValue } }
+}
+extension HealthCheckEvent: AnyEventModel {
+    var babyRef: Baby? { get { baby } set { baby = newValue } }
+}
+extension MoodEvent: AnyEventModel {
+    var babyRef: Baby? { get { baby } set { baby = newValue } }
+}
+extension PottyEvent: AnyEventModel {
+    var babyRef: Baby? { get { baby } set { baby = newValue } }
+}
+extension MilestoneEvent: AnyEventModel {
+    var babyRef: Baby? { get { baby } set { baby = newValue } }
+}
+extension StaffNoteEvent: AnyEventModel {
     var babyRef: Baby? { get { baby } set { baby = newValue } }
 }

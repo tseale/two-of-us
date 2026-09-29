@@ -17,6 +17,26 @@ struct HomeView: View {
     private var diapers: [DiaperEvent]
     @Query(filter: #Predicate<NoteEvent> { $0.deletedAt == nil }, sort: \NoteEvent.timestamp, order: .reverse)
     private var noteEvents: [NoteEvent]
+    // Daycare-era event types (Brightwheel scaffolding) — interleaved on the
+    // timeline and aggregated into the daycare report card.
+    @Query(filter: #Predicate<ActivityEvent> { $0.deletedAt == nil }, sort: \ActivityEvent.timestamp, order: .reverse)
+    private var activityEvents: [ActivityEvent]
+    @Query(filter: #Predicate<MediaEvent> { $0.deletedAt == nil }, sort: \MediaEvent.timestamp, order: .reverse)
+    private var mediaEvents: [MediaEvent]
+    @Query(filter: #Predicate<CheckEvent> { $0.deletedAt == nil }, sort: \CheckEvent.timestamp, order: .reverse)
+    private var checkEvents: [CheckEvent]
+    @Query(filter: #Predicate<MedicationEvent> { $0.deletedAt == nil }, sort: \MedicationEvent.timestamp, order: .reverse)
+    private var medicationEvents: [MedicationEvent]
+    @Query(filter: #Predicate<HealthCheckEvent> { $0.deletedAt == nil }, sort: \HealthCheckEvent.timestamp, order: .reverse)
+    private var healthCheckEvents: [HealthCheckEvent]
+    @Query(filter: #Predicate<MoodEvent> { $0.deletedAt == nil }, sort: \MoodEvent.timestamp, order: .reverse)
+    private var moodEvents: [MoodEvent]
+    @Query(filter: #Predicate<PottyEvent> { $0.deletedAt == nil }, sort: \PottyEvent.timestamp, order: .reverse)
+    private var pottyEvents: [PottyEvent]
+    @Query(filter: #Predicate<MilestoneEvent> { $0.deletedAt == nil }, sort: \MilestoneEvent.timestamp, order: .reverse)
+    private var milestoneEvents: [MilestoneEvent]
+    @Query(filter: #Predicate<StaffNoteEvent> { $0.deletedAt == nil }, sort: \StaffNoteEvent.timestamp, order: .reverse)
+    private var staffNoteEvents: [StaffNoteEvent]
     @Query(filter: #Predicate<PlanSlot> { $0.deletedAt == nil })
     private var planSlots: [PlanSlot]
     @Query(filter: #Predicate<PlanOverride> { $0.deletedAt == nil })
@@ -24,6 +44,7 @@ struct HomeView: View {
 
     @State private var activeSheet: ActiveSheet?
     @State private var editing: TimelineEntry?
+    @State private var viewingMedia: MediaEvent?
     @State private var editingSleepStart = false
     @State private var toast: ToastData?
     @State private var showSettings = false
@@ -123,11 +144,7 @@ struct HomeView: View {
                             if let daycare = daycareToday {
                                 DaycareReportCard(
                                     babyName: babies.first?.name ?? "Miller",
-                                    feedCount: daycare.feedCount,
-                                    feedOz: daycare.feedOz,
-                                    napCount: daycare.napCount,
-                                    napSeconds: daycare.napSeconds,
-                                    diaperCount: daycare.diaperCount
+                                    day: daycare
                                 )
                             }
                             // Inside the ticking TimelineView so the rows stay
@@ -202,6 +219,9 @@ struct HomeView: View {
             }
             .sheet(item: $editing) { entry in
                 EditEventSheet(entry: entry)
+            }
+            .sheet(item: $viewingMedia) { event in
+                MediaViewerSheet(event: event)
             }
             .sheet(isPresented: $editingSleepStart) {
                 if let sleep = activeSleep {
@@ -347,8 +367,7 @@ struct HomeView: View {
     /// Nil (card hidden) until the daycare has logged something today — a
     /// lone drop-off note counts, so the card appears at drop-off and grows
     /// through the day.
-    private var daycareToday: (feedCount: Int, feedOz: Double, napCount: Int,
-                               napSeconds: TimeInterval, diaperCount: Int)? {
+    private var daycareToday: DaycareDaySummary? {
         guard let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: dayStart)
         else { return nil }
         func isToday(_ date: Date) -> Bool { date >= dayStart && date < dayEnd }
@@ -356,17 +375,29 @@ struct HomeView: View {
         let dayFeeds = feeds.filter { $0.isFromDaycare && isToday($0.timestamp) }
         let dayNaps = sleeps.filter { $0.isFromDaycare && isToday($0.startedAt) && $0.endedAt != nil }
         let dayDiapers = diapers.filter { $0.isFromDaycare && isToday($0.timestamp) }
-        let dayNotes = noteEvents.filter { $0.isFromDaycare && isToday($0.timestamp) }
-        guard !dayFeeds.isEmpty || !dayNaps.isEmpty || !dayDiapers.isEmpty || !dayNotes.isEmpty
-        else { return nil }
+        let dayChecks = checkEvents.filter { $0.isFromDaycare && isToday($0.timestamp) }
 
-        return (
-            feedCount: dayFeeds.count,
-            feedOz: dayFeeds.reduce(0) { $0 + $1.amountOz },
-            napCount: dayNaps.count,
-            napSeconds: dayNaps.reduce(0) { $0 + ($1.endedAt ?? $1.startedAt).timeIntervalSince($1.startedAt) },
-            diaperCount: dayDiapers.count
-        )
+        var day = DaycareDaySummary()
+        day.feedCount = dayFeeds.count
+        day.feedOz = dayFeeds.reduce(0) { $0 + $1.amountOz }
+        day.napCount = dayNaps.count
+        day.napSeconds = dayNaps.reduce(0) { $0 + ($1.endedAt ?? $1.startedAt).timeIntervalSince($1.startedAt) }
+        day.diaperCount = dayDiapers.count
+        day.activityCount = activityEvents.filter { $0.isFromDaycare && isToday($0.timestamp) }.count
+        day.photoCount = mediaEvents.filter { $0.isFromDaycare && isToday($0.timestamp) }.count
+        day.medicationCount = medicationEvents.filter { $0.isFromDaycare && isToday($0.timestamp) }.count
+        day.checkIn = dayChecks.filter { $0.type == .checkIn }.map(\.timestamp).min()
+        day.checkOut = dayChecks.filter { $0.type == .checkOut }.map(\.timestamp).max()
+        // A lone drop-off note, mood, or staff note still counts — the card
+        // appears at drop-off and grows through the day.
+        day.hasAnythingElse =
+            noteEvents.contains { $0.isFromDaycare && isToday($0.timestamp) }
+            || staffNoteEvents.contains { $0.isFromDaycare && isToday($0.timestamp) }
+            || healthCheckEvents.contains { $0.isFromDaycare && isToday($0.timestamp) }
+            || moodEvents.contains { $0.isFromDaycare && isToday($0.timestamp) }
+            || pottyEvents.contains { $0.isFromDaycare && isToday($0.timestamp) }
+            || milestoneEvents.contains { $0.isFromDaycare && isToday($0.timestamp) }
+        return day.isEmpty ? nil : day
     }
 
     private var todaySummary: DaySummary? {
@@ -877,7 +908,16 @@ struct HomeView: View {
                         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                         .contentShape(Rectangle())
                         .accessibilityIdentifier("timelineRow")
-                        .onTapGesture { editing = entry }
+                        // Media opens the full-size viewer; the editable four
+                        // open the edit sheet; the other daycare types are
+                        // read-only (swipe-to-delete still works).
+                        .onTapGesture {
+                            if case .media(let e) = entry {
+                                viewingMedia = e
+                            } else if entry.isEditable {
+                                editing = entry
+                            }
+                        }
                         // The row is tappable but nothing tells VoiceOver that —
                         // without the trait + hint it reads as inert text.
                         .accessibilityAddTraits(.isButton)
@@ -929,6 +969,15 @@ struct HomeView: View {
         entries += sleeps.filter { !$0.isActive && $0.startedAt >= since }.map(TimelineEntry.sleep)
         entries += diapers.filter { $0.timestamp >= since }.map(TimelineEntry.diaper)
         entries += noteEvents.filter { $0.timestamp >= since }.map(TimelineEntry.note)
+        entries += activityEvents.filter { $0.timestamp >= since }.map(TimelineEntry.activity)
+        entries += mediaEvents.filter { $0.timestamp >= since }.map(TimelineEntry.media)
+        entries += checkEvents.filter { $0.timestamp >= since }.map(TimelineEntry.check)
+        entries += medicationEvents.filter { $0.timestamp >= since }.map(TimelineEntry.medication)
+        entries += healthCheckEvents.filter { $0.timestamp >= since }.map(TimelineEntry.healthCheck)
+        entries += moodEvents.filter { $0.timestamp >= since }.map(TimelineEntry.mood)
+        entries += pottyEvents.filter { $0.timestamp >= since }.map(TimelineEntry.potty)
+        entries += milestoneEvents.filter { $0.timestamp >= since }.map(TimelineEntry.milestone)
+        entries += staffNoteEvents.filter { $0.timestamp >= since }.map(TimelineEntry.staffNote)
         // Never render one event twice: duplicate rows sharing an id can exist
         // between sweeps (inbound upsert races, legacy data).
         var seen = Set<UUID>()
@@ -946,6 +995,15 @@ struct HomeView: View {
         case .sleep(let e): event = e
         case .diaper(let e): event = e
         case .note(let e): event = e
+        case .activity(let e): event = e
+        case .media(let e): event = e
+        case .check(let e): event = e
+        case .medication(let e): event = e
+        case .healthCheck(let e): event = e
+        case .mood(let e): event = e
+        case .potty(let e): event = e
+        case .milestone(let e): event = e
+        case .staffNote(let e): event = e
         }
         store.softDelete(event)
         Haptics.warning()

@@ -13,3 +13,12 @@ extension DiaperEvent: SoftDeletable {}
 extension NoteEvent: SoftDeletable {}
 extension PlanSlot: SoftDeletable {}
 extension PlanOverride: SoftDeletable {}
+extension ActivityEvent: SoftDeletable {}
+extension MediaEvent: SoftDeletable {}
+extension CheckEvent: SoftDeletable {}
+extension MedicationEvent: SoftDeletable {}
+extension HealthCheckEvent: SoftDeletable {}
+extension MoodEvent: SoftDeletable {}
+extension PottyEvent: SoftDeletable {}
+extension MilestoneEvent: SoftDeletable {}
+extension StaffNoteEvent: SoftDeletable {}
