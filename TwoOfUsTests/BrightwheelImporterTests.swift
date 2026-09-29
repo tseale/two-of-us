@@ -47,7 +47,7 @@ final class BrightwheelImporterTests: XCTestCase {
         try JSONDecoder().decode(BrightwheelActivityPage.self, from: Data(json.utf8)).activities
     }
 
-    // MARK: Mock day import (11 wire activities -> 9 events; naps are pairs)
+    // MARK: Mock day import (20 wire activities -> 18 events; naps are pairs)
 
     func testMockDayImportsTheFullReport() throws {
         let summary = BrightwheelImporter(context: context).importActivities(mockDay)
@@ -55,7 +55,17 @@ final class BrightwheelImporterTests: XCTestCase {
         XCTAssertEqual(summary.feeds, 3)
         XCTAssertEqual(summary.sleeps, 2, "four nap half-activities pair into two sleeps")
         XCTAssertEqual(summary.diapers, 2)
-        XCTAssertEqual(summary.notes, 2, "drop-off and pick-up import as notes")
+        XCTAssertEqual(summary.notes, 0, "check-in/out are typed events now, not notes")
+        XCTAssertEqual(summary.checks, 2, "drop-off and pick-up")
+        XCTAssertEqual(summary.activities, 1)
+        XCTAssertEqual(summary.media, 2, "one photo, one video")
+        XCTAssertEqual(summary.medications, 1)
+        XCTAssertEqual(summary.healthChecks, 1)
+        XCTAssertEqual(summary.moods, 1)
+        XCTAssertEqual(summary.potties, 1)
+        XCTAssertEqual(summary.milestones, 1)
+        XCTAssertEqual(summary.staffNotes, 1, "the kudo")
+        XCTAssertEqual(summary.imported, 18)
         XCTAssertEqual(summary.skippedDuplicates, 0)
         XCTAssertEqual(summary.skippedUnmapped, 0)
 
@@ -76,6 +86,40 @@ final class BrightwheelImporterTests: XCTestCase {
 
         let diapers = try context.fetch(FetchDescriptor<DiaperEvent>())
         XCTAssertEqual(Set(diapers.map(\.type)), [.wet, .dirty])
+
+        // The daycare-era types land in their own models, fully typed.
+        let checks = try context.fetch(FetchDescriptor<CheckEvent>())
+        XCTAssertEqual(Set(checks.map(\.type)), [.checkIn, .checkOut])
+        XCTAssertEqual(Set(checks.compactMap(\.byName)), ["Dad", "Mom"],
+                       "who dropped off / picked up parses out of the note")
+
+        let activity = try XCTUnwrap(context.fetch(FetchDescriptor<ActivityEvent>()).first)
+        XCTAssertEqual(activity.type, .tummyTime)
+        XCTAssertEqual(activity.durationMinutes, 15)
+
+        let media = try context.fetch(FetchDescriptor<MediaEvent>())
+        XCTAssertEqual(Set(media.map(\.kind)), [.photo, .video])
+        XCTAssertTrue(media.allSatisfy { $0.remoteURL?.isEmpty == false })
+
+        let medication = try XCTUnwrap(context.fetch(FetchDescriptor<MedicationEvent>()).first)
+        XCTAssertEqual(medication.name, "Tylenol")
+        XCTAssertEqual(medication.dosage, "2.5 ml")
+        XCTAssertEqual(medication.administeredBy, "Amanda R")
+
+        let health = try XCTUnwrap(context.fetch(FetchDescriptor<HealthCheckEvent>()).first)
+        XCTAssertEqual(health.type, .temperature)
+        XCTAssertEqual(health.value, 98.6, accuracy: 0.01)
+
+        XCTAssertEqual(try XCTUnwrap(context.fetch(FetchDescriptor<MoodEvent>()).first).level, .happy)
+        XCTAssertEqual(try XCTUnwrap(context.fetch(FetchDescriptor<PottyEvent>()).first).outcome, .attempt)
+
+        let milestone = try XCTUnwrap(context.fetch(FetchDescriptor<MilestoneEvent>()).first)
+        XCTAssertEqual(milestone.category, .physical)
+        XCTAssertTrue(milestone.text.contains("Rolled"))
+
+        let staffNote = try XCTUnwrap(context.fetch(FetchDescriptor<StaffNoteEvent>()).first)
+        XCTAssertEqual(staffNote.authorName, "Amanda R")
+        XCTAssertTrue(staffNote.text.contains("smiley"))
     }
 
     func testReimportIsIdempotent() throws {
@@ -84,7 +128,7 @@ final class BrightwheelImporterTests: XCTestCase {
         let second = importer.importActivities(mockDay)
 
         XCTAssertEqual(second.imported, 0, "deterministic ids make re-import a no-op")
-        XCTAssertEqual(second.skippedDuplicates, 9)
+        XCTAssertEqual(second.skippedDuplicates, 18)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<FeedEvent>()), 3)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<SleepEvent>()), 2)
     }
@@ -114,7 +158,7 @@ final class BrightwheelImporterTests: XCTestCase {
 
         let removed = BrightwheelManager().removeSampleDay(context: context)
 
-        XCTAssertEqual(removed, 9)
+        XCTAssertEqual(removed, 18)
         let liveFeeds = try context.fetch(FetchDescriptor<FeedEvent>())
             .filter { $0.deletedAt == nil }
         XCTAssertEqual(liveFeeds.map(\.id), [kept.id])
@@ -271,6 +315,69 @@ final class BrightwheelImporterTests: XCTestCase {
             try JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertNotNil(object["activities"])
         XCTAssertEqual(object["page_size"] as? Int, 100)
-        XCTAssertEqual((object["activities"] as? [[String: Any]])?.count, 11)
+        XCTAssertEqual((object["activities"] as? [[String: Any]])?.count, 20)
+    }
+
+    // MARK: Daycare-era mapping edges
+
+    func testHealthCheckWithoutMeasurementFallsBackToStaffNote() throws {
+        let json = """
+        { "activities": [
+            { "object_id": "h-1", "action_type": "ac_health_check",
+              "event_date": "2026-09-27T08:00:00.000Z",
+              "note": "Looked a little congested at drop-off",
+              "actor": { "object_id": "st-1", "first_name": "Amanda", "last_name": "R" } }
+        ] }
+        """
+        let summary = BrightwheelImporter(context: context)
+            .importActivities(try decode(json))
+
+        XCTAssertEqual(summary.healthChecks, 0)
+        XCTAssertEqual(summary.staffNotes, 1, "no parseable measurement — still worth reading")
+    }
+
+    func testTemperatureParsesFromNoteWhenBlobIsSilent() throws {
+        let json = """
+        { "activities": [
+            { "object_id": "h-2", "action_type": "ac_health_check",
+              "event_date": "2026-09-27T08:00:00.000Z",
+              "note": "Temp 99.1 F, will keep an eye on it" }
+        ] }
+        """
+        let summary = BrightwheelImporter(context: context)
+            .importActivities(try decode(json))
+
+        XCTAssertEqual(summary.healthChecks, 1)
+        let health = try XCTUnwrap(context.fetch(FetchDescriptor<HealthCheckEvent>()).first)
+        XCTAssertEqual(health.value, 99.1, accuracy: 0.01)
+    }
+
+    func testObservationWithoutMilestoneTagStaysAStaffNote() throws {
+        let json = """
+        { "activities": [
+            { "object_id": "o-1", "action_type": "ac_observation",
+              "event_date": "2026-09-27T10:00:00.000Z",
+              "note": "Loved watching the older kids play" }
+        ] }
+        """
+        let summary = BrightwheelImporter(context: context)
+            .importActivities(try decode(json))
+
+        XCTAssertEqual(summary.milestones, 0)
+        XCTAssertEqual(summary.staffNotes, 1)
+    }
+
+    func testUnknownActionTypeIsSkippedNotDropped() throws {
+        let json = """
+        { "activities": [
+            { "object_id": "a-1", "action_type": "ac_absence",
+              "event_date": "2026-09-27T08:00:00.000Z", "note": "Out sick" }
+        ] }
+        """
+        let summary = BrightwheelImporter(context: context)
+            .importActivities(try decode(json))
+
+        XCTAssertEqual(summary.imported, 0)
+        XCTAssertEqual(summary.skippedUnmapped, 1)
     }
 }

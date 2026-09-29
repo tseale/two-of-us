@@ -49,6 +49,12 @@ struct DayTimelineRow: View {
                     }
                 }
                 Spacer(minLength: 8)
+                // Photos/videos carry an inline thumbnail where other rows put
+                // the avatar (daycare media has no avatar anyway) — tap the row
+                // for full size (HomeView presents the viewer).
+                if case .media(let e) = entry {
+                    MediaThumbnail(event: e, size: 44)
+                }
                 // Shows the parent's profile photo when they have one, else the
                 // colored initial — same monogram fallback as `ParticipantBadge`.
                 // Sleep is the baby's doing, not a caregiver task, so it
@@ -71,10 +77,19 @@ struct DayTimelineRow: View {
 
     private var accent: Color {
         switch entry {
-        case .feed:   return AppColor.accentFeed
-        case .sleep:  return AppColor.accentSleep
-        case .diaper: return AppColor.accentDiaper
-        case .note:   return AppColor.accentNote
+        case .feed:        return AppColor.accentFeed
+        case .sleep:       return AppColor.accentSleep
+        case .diaper:      return AppColor.accentDiaper
+        case .note:        return AppColor.accentNote
+        case .activity:    return AppColor.accentActivity
+        case .media:       return AppColor.accentMedia
+        case .check:       return AppColor.accentCheck
+        case .medication:  return AppColor.accentMedication
+        case .healthCheck: return AppColor.accentHealth
+        case .mood:        return AppColor.accentMood
+        case .potty:       return AppColor.accentPotty
+        case .milestone:   return AppColor.accentMilestone
+        case .staffNote:   return AppColor.accentNote
         }
     }
 

@@ -23,6 +23,15 @@ enum SyncConstants {
         static let settings = "SharedSettings"
         static let planSlot = "PlanSlot"
         static let planOverride = "PlanOverride"
+        static let activity = "ActivityEvent"
+        static let media = "MediaEvent"
+        static let check = "CheckEvent"
+        static let medication = "MedicationEvent"
+        static let healthCheck = "HealthCheckEvent"
+        static let mood = "MoodEvent"
+        static let potty = "PottyEvent"
+        static let milestone = "MilestoneEvent"
+        static let staffNote = "StaffNoteEvent"
 
         /// Every type this build can apply. A new record type MUST be added
         /// here as well as above — this set drives the "did an app update
@@ -39,10 +48,13 @@ enum SyncConstants {
         /// Generation 2: snooCredentials + SleepEvent.sourceRaw.
         /// Generation 3: sourceRaw + externalID on feed/diaper/note,
         /// externalID on sleep (Brightwheel daycare import).
+        /// (The nine daycare event types added 2026-09 are whole new record
+        /// types, so `all` growing detects them — no generation bump needed.)
         static let schemaGeneration = 3
 
         static let all: Set<String> = [
             baby, feed, sleep, diaper, note, participant, settings, planSlot, planOverride,
+            activity, media, check, medication, healthCheck, mood, potty, milestone, staffNote,
         ]
     }
 

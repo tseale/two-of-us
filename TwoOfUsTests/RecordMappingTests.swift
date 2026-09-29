@@ -201,6 +201,144 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertEqual(copy.baby?.id, baby.id)
     }
 
+    // MARK: Daycare-era round trips (Brightwheel scaffolding)
+
+    /// All nine new record types in one sender→receiver pass, each stamped
+    /// `.brightwheel` + externalID — the exact shape a daycare import syncs in.
+    func testDaycareEventRoundTripsKeepEveryField() throws {
+        let baby = Baby(name: "Miller", dateOfBirth: .now)
+        context.insert(baby)
+        let when = Date(timeIntervalSince1970: 1_700_000_000)
+        let logger = (id: UUID(), name: "Taylor", color: "#AABBCC")
+
+        let activity = ActivityEvent(baby: baby, type: .tummyTime, timestamp: when,
+                                     durationMinutes: 15, notes: "loved it",
+                                     loggedByID: logger.id, loggedByName: logger.name,
+                                     loggedByColorHex: logger.color,
+                                     sourceRaw: "brightwheel", externalID: "bw-activity")
+        let media = MediaEvent(baby: baby, kind: .video, timestamp: when,
+                               caption: "giggles", remoteURL: "https://cdn.example/v.m3u8",
+                               mediaData: Data([1, 2, 3]),
+                               loggedByID: logger.id, loggedByName: logger.name,
+                               loggedByColorHex: logger.color,
+                               sourceRaw: "brightwheel", externalID: "bw-media")
+        let check = CheckEvent(baby: baby, type: .checkOut, timestamp: when,
+                               byName: "Mom", notes: "Picked up by Mom",
+                               loggedByID: logger.id, loggedByName: logger.name,
+                               loggedByColorHex: logger.color,
+                               sourceRaw: "brightwheel", externalID: "bw-check")
+        let medication = MedicationEvent(baby: baby, name: "Tylenol", dosage: "2.5 ml",
+                                         timestamp: when, administeredBy: "Amanda R",
+                                         notes: "for teething",
+                                         loggedByID: logger.id, loggedByName: logger.name,
+                                         loggedByColorHex: logger.color,
+                                         sourceRaw: "brightwheel", externalID: "bw-meds")
+        let health = HealthCheckEvent(baby: baby, type: .temperature, value: 98.6,
+                                      timestamp: when,
+                                      loggedByID: logger.id, loggedByName: logger.name,
+                                      loggedByColorHex: logger.color,
+                                      sourceRaw: "brightwheel", externalID: "bw-health")
+        let mood = MoodEvent(baby: baby, level: .happy, timestamp: when,
+                             loggedByID: logger.id, loggedByName: logger.name,
+                             loggedByColorHex: logger.color,
+                             sourceRaw: "brightwheel", externalID: "bw-mood")
+        let potty = PottyEvent(baby: baby, outcome: .success, timestamp: when,
+                               loggedByID: logger.id, loggedByName: logger.name,
+                               loggedByColorHex: logger.color,
+                               sourceRaw: "brightwheel", externalID: "bw-potty")
+        let milestone = MilestoneEvent(baby: baby, text: "Rolled over!", category: .physical,
+                                       timestamp: when, photoData: Data([9, 9]),
+                                       loggedByID: logger.id, loggedByName: logger.name,
+                                       loggedByColorHex: logger.color,
+                                       sourceRaw: "brightwheel", externalID: "bw-milestone")
+        let staffNote = StaffNoteEvent(baby: baby, text: "So smiley today!",
+                                       authorName: "Ms. Sarah", timestamp: when,
+                                       loggedByID: logger.id, loggedByName: logger.name,
+                                       loggedByColorHex: logger.color,
+                                       sourceRaw: "brightwheel", externalID: "bw-staffnote")
+        for event in [activity, media, check, medication, health, mood, potty,
+                      milestone, staffNote] as [any PersistentModel] {
+            context.insert(event)
+        }
+        try context.save()
+
+        let receiver = AppModelContainer.make(inMemory: true)
+        try RecordMapping.apply(try outbound(baby.id), in: receiver.mainContext)
+        for id in [activity.id, media.id, check.id, medication.id, health.id,
+                   mood.id, potty.id, milestone.id, staffNote.id] {
+            try RecordMapping.apply(try outbound(id), in: receiver.mainContext)
+        }
+        let rc = receiver.mainContext
+
+        let a = try XCTUnwrap(rc.fetch(FetchDescriptor<ActivityEvent>()).first)
+        XCTAssertEqual(a.type, .tummyTime)
+        XCTAssertEqual(a.durationMinutes, 15)
+        XCTAssertEqual(a.notes, "loved it")
+        XCTAssertEqual(a.externalID, "bw-activity")
+        XCTAssertTrue(a.isFromDaycare)
+        XCTAssertEqual(a.baby?.id, baby.id)
+
+        let m = try XCTUnwrap(rc.fetch(FetchDescriptor<MediaEvent>()).first)
+        XCTAssertEqual(m.kind, .video)
+        XCTAssertEqual(m.caption, "giggles")
+        XCTAssertEqual(m.remoteURL, "https://cdn.example/v.m3u8")
+        XCTAssertEqual(m.mediaData, Data([1, 2, 3]), "media bytes travel as a CKAsset")
+
+        let c = try XCTUnwrap(rc.fetch(FetchDescriptor<CheckEvent>()).first)
+        XCTAssertEqual(c.type, .checkOut)
+        XCTAssertEqual(c.byName, "Mom")
+
+        let md = try XCTUnwrap(rc.fetch(FetchDescriptor<MedicationEvent>()).first)
+        XCTAssertEqual(md.name, "Tylenol")
+        XCTAssertEqual(md.dosage, "2.5 ml")
+        XCTAssertEqual(md.administeredBy, "Amanda R")
+        XCTAssertEqual(md.notes, "for teething")
+
+        let h = try XCTUnwrap(rc.fetch(FetchDescriptor<HealthCheckEvent>()).first)
+        XCTAssertEqual(h.type, .temperature)
+        XCTAssertEqual(h.value, 98.6, accuracy: 0.001)
+
+        XCTAssertEqual(try XCTUnwrap(rc.fetch(FetchDescriptor<MoodEvent>()).first).level, .happy)
+        XCTAssertEqual(try XCTUnwrap(rc.fetch(FetchDescriptor<PottyEvent>()).first).outcome, .success)
+
+        let ms = try XCTUnwrap(rc.fetch(FetchDescriptor<MilestoneEvent>()).first)
+        XCTAssertEqual(ms.text, "Rolled over!")
+        XCTAssertEqual(ms.category, .physical)
+        XCTAssertEqual(ms.photoData, Data([9, 9]), "milestone photo travels as a CKAsset")
+
+        let sn = try XCTUnwrap(rc.fetch(FetchDescriptor<StaffNoteEvent>()).first)
+        XCTAssertEqual(sn.text, "So smiley today!")
+        XCTAssertEqual(sn.authorName, "Ms. Sarah")
+        XCTAssertEqual(sn.timestamp, when)
+        XCTAssertEqual(sn.loggedByID, logger.id)
+    }
+
+    /// The ghost-event rule holds for the new types too: a record missing its
+    /// required payload/identity is skipped, never a placeholder row.
+    func testDaycareEventsMissingRequiredFieldsAreSkipped() throws {
+        let receiver = AppModelContainer.make(inMemory: true)
+        for type in [SyncConstants.RecordType.activity, SyncConstants.RecordType.media,
+                     SyncConstants.RecordType.check, SyncConstants.RecordType.medication,
+                     SyncConstants.RecordType.healthCheck, SyncConstants.RecordType.mood,
+                     SyncConstants.RecordType.potty, SyncConstants.RecordType.milestone,
+                     SyncConstants.RecordType.staffNote] {
+            let bare = CKRecord(recordType: type, recordID: recordID(UUID()))
+            bare["timestamp"] = Date()
+            // no payload, no logger identity
+            try RecordMapping.apply(bare, in: receiver.mainContext)
+        }
+        let rc = receiver.mainContext
+        XCTAssertTrue(try rc.fetch(FetchDescriptor<ActivityEvent>()).isEmpty)
+        XCTAssertTrue(try rc.fetch(FetchDescriptor<MediaEvent>()).isEmpty)
+        XCTAssertTrue(try rc.fetch(FetchDescriptor<CheckEvent>()).isEmpty)
+        XCTAssertTrue(try rc.fetch(FetchDescriptor<MedicationEvent>()).isEmpty)
+        XCTAssertTrue(try rc.fetch(FetchDescriptor<HealthCheckEvent>()).isEmpty)
+        XCTAssertTrue(try rc.fetch(FetchDescriptor<MoodEvent>()).isEmpty)
+        XCTAssertTrue(try rc.fetch(FetchDescriptor<PottyEvent>()).isEmpty)
+        XCTAssertTrue(try rc.fetch(FetchDescriptor<MilestoneEvent>()).isEmpty)
+        XCTAssertTrue(try rc.fetch(FetchDescriptor<StaffNoteEvent>()).isEmpty)
+    }
+
     /// A note record missing its required fields must be skipped, never
     /// materialized as a placeholder row (the ghost-event rule).
     func testNoteMissingRequiredFieldsIsSkipped() throws {

@@ -119,11 +119,21 @@ targets:
       - path: TwoOfUs/Models/SleepEvent.swift
       - path: TwoOfUs/Models/DiaperEvent.swift
       - path: TwoOfUs/Models/NoteEvent.swift
+      - path: TwoOfUs/Models/ActivityEvent.swift
+      - path: TwoOfUs/Models/MediaEvent.swift
+      - path: TwoOfUs/Models/CheckEvent.swift
+      - path: TwoOfUs/Models/MedicationEvent.swift
+      - path: TwoOfUs/Models/HealthCheckEvent.swift
+      - path: TwoOfUs/Models/MoodEvent.swift
+      - path: TwoOfUs/Models/PottyEvent.swift
+      - path: TwoOfUs/Models/MilestoneEvent.swift
+      - path: TwoOfUs/Models/StaffNoteEvent.swift
       - path: TwoOfUs/Models/Participant.swift
       - path: TwoOfUs/Models/SharedSettings.swift
       - path: TwoOfUs/Models/PlanSlot.swift
       - path: TwoOfUs/Models/PlanOverride.swift
       - path: TwoOfUs/Models/Enums.swift
+      - path: TwoOfUs/Models/DaycareEnums.swift
       - path: TwoOfUs/Store/Schema.swift
       # Pure, store-free — SharedSettings.feedInterval calls into it to decide
       # day vs. night spacing, so any target compiling SharedSettings.swift
@@ -188,11 +198,21 @@ targets:
       - path: TwoOfUs/Models/SleepEvent.swift
       - path: TwoOfUs/Models/DiaperEvent.swift
       - path: TwoOfUs/Models/NoteEvent.swift
+      - path: TwoOfUs/Models/ActivityEvent.swift
+      - path: TwoOfUs/Models/MediaEvent.swift
+      - path: TwoOfUs/Models/CheckEvent.swift
+      - path: TwoOfUs/Models/MedicationEvent.swift
+      - path: TwoOfUs/Models/HealthCheckEvent.swift
+      - path: TwoOfUs/Models/MoodEvent.swift
+      - path: TwoOfUs/Models/PottyEvent.swift
+      - path: TwoOfUs/Models/MilestoneEvent.swift
+      - path: TwoOfUs/Models/StaffNoteEvent.swift
       - path: TwoOfUs/Models/Participant.swift
       - path: TwoOfUs/Models/SharedSettings.swift
       - path: TwoOfUs/Models/PlanSlot.swift
       - path: TwoOfUs/Models/PlanOverride.swift
       - path: TwoOfUs/Models/Enums.swift
+      - path: TwoOfUs/Models/DaycareEnums.swift
       - path: TwoOfUs/Models/SoftDeletable.swift
       - path: TwoOfUs/Store/Schema.swift
       - path: TwoOfUs/Store/NightScheduleGenerator.swift
@@ -260,11 +280,21 @@ targets:
       - path: TwoOfUs/Models/SleepEvent.swift
       - path: TwoOfUs/Models/DiaperEvent.swift
       - path: TwoOfUs/Models/NoteEvent.swift
+      - path: TwoOfUs/Models/ActivityEvent.swift
+      - path: TwoOfUs/Models/MediaEvent.swift
+      - path: TwoOfUs/Models/CheckEvent.swift
+      - path: TwoOfUs/Models/MedicationEvent.swift
+      - path: TwoOfUs/Models/HealthCheckEvent.swift
+      - path: TwoOfUs/Models/MoodEvent.swift
+      - path: TwoOfUs/Models/PottyEvent.swift
+      - path: TwoOfUs/Models/MilestoneEvent.swift
+      - path: TwoOfUs/Models/StaffNoteEvent.swift
       - path: TwoOfUs/Models/Participant.swift
       - path: TwoOfUs/Models/SharedSettings.swift
       - path: TwoOfUs/Models/PlanSlot.swift
       - path: TwoOfUs/Models/PlanOverride.swift
       - path: TwoOfUs/Models/Enums.swift
+      - path: TwoOfUs/Models/DaycareEnums.swift
       - path: TwoOfUs/Store/Schema.swift
       # Pure, store-free — SharedSettings.feedInterval calls into it, so any
       # target compiling SharedSettings.swift needs it too.
@@ -321,11 +351,21 @@ targets:
       - path: TwoOfUs/Models/SleepEvent.swift
       - path: TwoOfUs/Models/DiaperEvent.swift
       - path: TwoOfUs/Models/NoteEvent.swift
+      - path: TwoOfUs/Models/ActivityEvent.swift
+      - path: TwoOfUs/Models/MediaEvent.swift
+      - path: TwoOfUs/Models/CheckEvent.swift
+      - path: TwoOfUs/Models/MedicationEvent.swift
+      - path: TwoOfUs/Models/HealthCheckEvent.swift
+      - path: TwoOfUs/Models/MoodEvent.swift
+      - path: TwoOfUs/Models/PottyEvent.swift
+      - path: TwoOfUs/Models/MilestoneEvent.swift
+      - path: TwoOfUs/Models/StaffNoteEvent.swift
       - path: TwoOfUs/Models/Participant.swift
       - path: TwoOfUs/Models/SharedSettings.swift
       - path: TwoOfUs/Models/PlanSlot.swift
       - path: TwoOfUs/Models/PlanOverride.swift
       - path: TwoOfUs/Models/Enums.swift
+      - path: TwoOfUs/Models/DaycareEnums.swift
       - path: TwoOfUs/Store/Schema.swift
       # Pure, store-free — SharedSettings.feedInterval calls into it to decide
       # day vs. night spacing, so any target compiling SharedSettings.swift

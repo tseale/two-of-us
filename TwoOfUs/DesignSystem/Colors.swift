@@ -73,6 +73,18 @@ enum AppColor {
     /// event accents so notes read as context between activity, not activity.
     static let accentNote   = Color(hex: "A8A0B8")
 
+    // Daycare-era event accents. Same family as the core three: soft,
+    // desaturated, calm — never clinical. Staff notes reuse `accentNote`
+    // (a note is a note, whoever wrote it).
+    static let accentActivity   = Color(hex: "7FB2FF")   // blue
+    static let accentMedia      = Color(hex: "9C9CA4")   // gray — photos speak for themselves
+    static let accentCheck      = Color(hex: "4EC9D9")   // teal-cyan, apart from feed's teal-green
+    static let accentMedication = Color(hex: "FF6B6B")   // red — the one row that demands attention
+    static let accentHealth     = Color(hex: "5AD17E")   // mint
+    static let accentMood       = Color(hex: "FF8FA3")   // soft pink
+    static let accentPotty      = Color(hex: "D99C55")   // warm tan, near (not equal to) diaper amber
+    static let accentMilestone  = Color(hex: "E3C158")   // gold — achievement badge
+
     static let urgencyGreen = Color(hex: "5AD17E")
     static let urgencyAmber = Color(hex: "F5B971")
     static let urgencyRed   = Color(hex: "FF6B6B")

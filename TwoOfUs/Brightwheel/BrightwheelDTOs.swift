@@ -44,6 +44,11 @@ struct BrightwheelActivity: Decodable, Sendable {
     let target: Person?
     let room: Room?
     let menuItemTags: [MenuItem]?
+    /// Photos (`ac_photo`): signed CDN links. Shape from the assembled wire
+    /// model (docs/BRIGHTWHEEL-INTEGRATION.md §3); null on everything else.
+    let media: Media?
+    /// Videos (`ac_video`): signed streaming/download links, same caveat.
+    let videoInfo: VideoInfo?
 
     enum CodingKeys: String, CodingKey {
         case objectID = "object_id"
@@ -55,6 +60,8 @@ struct BrightwheelActivity: Decodable, Sendable {
         case detailsBlob = "details_blob"
         case actor, target, room
         case menuItemTags = "menu_item_tags"
+        case media
+        case videoInfo = "video_info"
     }
 
     struct Person: Decodable, Sendable {
@@ -70,6 +77,24 @@ struct BrightwheelActivity: Decodable, Sendable {
 
     struct Room: Decodable, Sendable {
         let name: String?
+    }
+
+    struct Media: Decodable, Sendable {
+        let imageURL: String?
+        let thumbnailURL: String?
+        enum CodingKeys: String, CodingKey {
+            case imageURL = "image_url"
+            case thumbnailURL = "thumbnail_url"
+        }
+    }
+
+    struct VideoInfo: Decodable, Sendable {
+        let downloadableURL: String?
+        let streamableURL: String?
+        enum CodingKeys: String, CodingKey {
+            case downloadableURL = "downloadable_url"
+            case streamableURL = "streamable_url"
+        }
     }
 
     struct MenuItem: Decodable, Sendable {
@@ -89,6 +114,17 @@ struct BrightwheelActivity: Decodable, Sendable {
         let pottyExtras: [String]?
         let state: String?
         let tags: [String]?
+        // ⚠️ SPECULATIVE keys, beyond the verified 2026-09-28 shapes: the
+        // per-type blobs for medication / health check / activity duration /
+        // mood are blocked on Miller's first real day (the doc's open
+        // question). Decoded with try? like everything else, so a wrong guess
+        // costs nothing — the importer falls back to note parsing. Re-verify
+        // against the first live capture and update BRIGHTWHEEL-INTEGRATION.md.
+        let durationMinutes: Int?       // "duration" — activities
+        let medicationName: String?     // "medication_name"
+        let dosage: String?             // "dosage"
+        let temperature: Double?        // "temperature" — health checks
+        let mood: String?               // "mood"
 
         enum CodingKeys: String, CodingKey {
             case foodType = "food_type"
@@ -97,11 +133,16 @@ struct BrightwheelActivity: Decodable, Sendable {
             case pottyType = "potty_type"
             case pottyExtras = "potty_extras"
             case state, tags
+            case durationMinutes = "duration"
+            case medicationName = "medication_name"
+            case dosage, temperature, mood
         }
 
         init(foodType: String? = nil, amount: Double? = nil, amountType: String? = nil,
              pottyType: String? = nil, pottyExtras: [String]? = nil,
-             state: String? = nil, tags: [String]? = nil) {
+             state: String? = nil, tags: [String]? = nil,
+             durationMinutes: Int? = nil, medicationName: String? = nil,
+             dosage: String? = nil, temperature: Double? = nil, mood: String? = nil) {
             self.foodType = foodType
             self.amount = amount
             self.amountType = amountType
@@ -109,6 +150,11 @@ struct BrightwheelActivity: Decodable, Sendable {
             self.pottyExtras = pottyExtras
             self.state = state
             self.tags = tags
+            self.durationMinutes = durationMinutes
+            self.medicationName = medicationName
+            self.dosage = dosage
+            self.temperature = temperature
+            self.mood = mood
         }
 
         init(from decoder: Decoder) throws {
@@ -132,6 +178,25 @@ struct BrightwheelActivity: Decodable, Sendable {
                 state = nil
             }
             tags = try? c.decode([String].self, forKey: .tags)
+            if let n = try? c.decode(Int.self, forKey: .durationMinutes) {
+                durationMinutes = n
+            } else if let d = try? c.decode(Double.self, forKey: .durationMinutes) {
+                durationMinutes = Int(d)
+            } else if let s = try? c.decode(String.self, forKey: .durationMinutes) {
+                durationMinutes = Int(s)
+            } else {
+                durationMinutes = nil
+            }
+            medicationName = try? c.decode(String.self, forKey: .medicationName)
+            dosage = try? c.decode(String.self, forKey: .dosage)
+            if let d = try? c.decode(Double.self, forKey: .temperature) {
+                temperature = d
+            } else if let s = try? c.decode(String.self, forKey: .temperature) {
+                temperature = Double(s)
+            } else {
+                temperature = nil
+            }
+            mood = try? c.decode(String.self, forKey: .mood)
         }
     }
 
@@ -155,6 +220,8 @@ struct BrightwheelActivity: Decodable, Sendable {
         target = try? c.decode(Person.self, forKey: .target)
         room = try? c.decode(Room.self, forKey: .room)
         menuItemTags = try? c.decode([MenuItem].self, forKey: .menuItemTags)
+        media = try? c.decode(Media.self, forKey: .media)
+        videoInfo = try? c.decode(VideoInfo.self, forKey: .videoInfo)
     }
 
     /// Brightwheel timestamps are UTC ISO-8601 with fractional seconds; accept

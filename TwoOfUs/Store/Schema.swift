@@ -6,7 +6,12 @@ enum SchemaV1: VersionedSchema {
     static var versionIdentifier = Schema.Version(1, 0, 0)
     static var models: [any PersistentModel.Type] {
         [Baby.self, FeedEvent.self, SleepEvent.self, DiaperEvent.self, NoteEvent.self, Participant.self,
-         SharedSettings.self, PlanSlot.self, PlanOverride.self]
+         SharedSettings.self, PlanSlot.self, PlanOverride.self,
+         // Daycare-era event types (Brightwheel scaffolding) — additive, so
+         // lightweight migration covers them like photoData below.
+         ActivityEvent.self, MediaEvent.self, CheckEvent.self, MedicationEvent.self,
+         HealthCheckEvent.self, MoodEvent.self, PottyEvent.self, MilestoneEvent.self,
+         StaffNoteEvent.self]
     }
 }
 

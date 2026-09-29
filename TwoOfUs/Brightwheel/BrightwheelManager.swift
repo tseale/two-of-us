@@ -157,6 +157,24 @@ final class BrightwheelManager {
               #Predicate { $0.deletedAt == nil && $0.sourceRaw == source })
         sweep(NoteEvent.self, { $0.externalID },
               #Predicate { $0.deletedAt == nil && $0.sourceRaw == source })
+        sweep(ActivityEvent.self, { $0.externalID },
+              #Predicate { $0.deletedAt == nil && $0.sourceRaw == source })
+        sweep(MediaEvent.self, { $0.externalID },
+              #Predicate { $0.deletedAt == nil && $0.sourceRaw == source })
+        sweep(CheckEvent.self, { $0.externalID },
+              #Predicate { $0.deletedAt == nil && $0.sourceRaw == source })
+        sweep(MedicationEvent.self, { $0.externalID },
+              #Predicate { $0.deletedAt == nil && $0.sourceRaw == source })
+        sweep(HealthCheckEvent.self, { $0.externalID },
+              #Predicate { $0.deletedAt == nil && $0.sourceRaw == source })
+        sweep(MoodEvent.self, { $0.externalID },
+              #Predicate { $0.deletedAt == nil && $0.sourceRaw == source })
+        sweep(PottyEvent.self, { $0.externalID },
+              #Predicate { $0.deletedAt == nil && $0.sourceRaw == source })
+        sweep(MilestoneEvent.self, { $0.externalID },
+              #Predicate { $0.deletedAt == nil && $0.sourceRaw == source })
+        sweep(StaffNoteEvent.self, { $0.externalID },
+              #Predicate { $0.deletedAt == nil && $0.sourceRaw == source })
         return removed
     }
 

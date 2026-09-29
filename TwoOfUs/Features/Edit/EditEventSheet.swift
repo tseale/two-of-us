@@ -56,6 +56,16 @@ struct EditEventSheet: View {
             _sleepStart = State(initialValue: e.timestamp)
             _sleepEnd = State(initialValue: e.timestamp)
             _notes = State(initialValue: e.text)
+        default:
+            // Daycare-era types are read-only (`TimelineEntry.isEditable`) —
+            // the timeline never opens this sheet for them, but the switch
+            // must stay exhaustive as cases are added.
+            _date = State(initialValue: entry.sortDate)
+            _amount = State(initialValue: 0)
+            _diaperType = State(initialValue: .wet)
+            _sleepStart = State(initialValue: entry.sortDate)
+            _sleepEnd = State(initialValue: entry.sortDate)
+            _notes = State(initialValue: entry.notes ?? "")
         }
     }
 
@@ -104,6 +114,9 @@ struct EditEventSheet: View {
                             .lineLimit(3...8)
                     }
                     Section("Time") { TimeControl(date: $date, tint: AppColor.accentNote) }
+                default:
+                    // Unreachable (read-only kinds never open the sheet).
+                    Section { Text(entry.title).foregroundStyle(AppColor.text2) }
                 }
 
                 // Reassigning is common enough to live in the sheet: one parent
@@ -175,6 +188,7 @@ struct EditEventSheet: View {
         case .diaper: "Save change"
         case .sleep: "Save sleep"
         case .note: "Save note"
+        default: "Save"
         }
     }
 
@@ -200,6 +214,8 @@ struct EditEventSheet: View {
             store.editSleep(e, startedAt: sleepStart, endedAt: sleepEnd, notes: notes, loggedBy: newLogger)
         case .note(let e):
             store.editNote(e, text: notes, timestamp: date, loggedBy: newLogger)
+        default:
+            break   // unreachable — read-only kinds never open the sheet
         }
         Haptics.success()
         dismiss()
@@ -212,6 +228,15 @@ struct EditEventSheet: View {
         case .diaper(let e): store.softDelete(e)
         case .sleep(let e): store.softDelete(e)
         case .note(let e): store.softDelete(e)
+        case .activity(let e): store.softDelete(e)
+        case .media(let e): store.softDelete(e)
+        case .check(let e): store.softDelete(e)
+        case .medication(let e): store.softDelete(e)
+        case .healthCheck(let e): store.softDelete(e)
+        case .mood(let e): store.softDelete(e)
+        case .potty(let e): store.softDelete(e)
+        case .milestone(let e): store.softDelete(e)
+        case .staffNote(let e): store.softDelete(e)
         }
         Haptics.warning()
         dismiss()
