@@ -7,7 +7,30 @@
 //
 // "___recordID" QUERYABLE lets the Console query records by type (sync itself
 // never queries — CKSyncEngine uses zone deltas). No other indexes on purpose.
+//
+// Users and "cloudkit.share" are declared so an import never drops them:
+// Production won't JIT-create share fields, and makeShare sets title+thumbnail
+// (the missing-share-type failure of 2026-06-12).
 DEFINE SCHEMA
+
+    RECORD TYPE ActivityEvent (
+        "___recordID" REFERENCE QUERYABLE,
+        babyID STRING,
+        deletedAt TIMESTAMP,
+        durationMinutes INT64,
+        editOfID STRING,
+        externalID STRING,
+        loggedByColorHex STRING,
+        loggedByID STRING,
+        loggedByName STRING,
+        notes STRING,
+        sourceRaw STRING,
+        timestamp TIMESTAMP,
+        typeRaw STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
 
     RECORD TYPE Baby (
         "___recordID" REFERENCE QUERYABLE,
@@ -15,6 +38,25 @@ DEFINE SCHEMA
         dateOfBirth TIMESTAMP,
         name STRING,
         photoData ASSET,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE CheckEvent (
+        "___recordID" REFERENCE QUERYABLE,
+        babyID STRING,
+        byName STRING,
+        deletedAt TIMESTAMP,
+        editOfID STRING,
+        externalID STRING,
+        loggedByColorHex STRING,
+        loggedByID STRING,
+        loggedByName STRING,
+        notes STRING,
+        sourceRaw STRING,
+        timestamp TIMESTAMP,
+        typeRaw STRING,
         GRANT WRITE TO "_creator",
         GRANT CREATE TO "_icloud",
         GRANT READ TO "_world"
@@ -45,6 +87,103 @@ DEFINE SCHEMA
         deletedAt TIMESTAMP,
         editOfID STRING,
         externalID STRING,
+        loggedByColorHex STRING,
+        loggedByID STRING,
+        loggedByName STRING,
+        notes STRING,
+        sourceRaw STRING,
+        timestamp TIMESTAMP,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE HealthCheckEvent (
+        "___recordID" REFERENCE QUERYABLE,
+        babyID STRING,
+        deletedAt TIMESTAMP,
+        editOfID STRING,
+        externalID STRING,
+        loggedByColorHex STRING,
+        loggedByID STRING,
+        loggedByName STRING,
+        notes STRING,
+        sourceRaw STRING,
+        timestamp TIMESTAMP,
+        typeRaw STRING,
+        value DOUBLE,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE MediaEvent (
+        "___recordID" REFERENCE QUERYABLE,
+        babyID STRING,
+        caption STRING,
+        deletedAt TIMESTAMP,
+        editOfID STRING,
+        externalID STRING,
+        kindRaw STRING,
+        loggedByColorHex STRING,
+        loggedByID STRING,
+        loggedByName STRING,
+        mediaData ASSET,
+        remoteURL STRING,
+        sourceRaw STRING,
+        timestamp TIMESTAMP,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE MedicationEvent (
+        "___recordID" REFERENCE QUERYABLE,
+        administeredBy STRING,
+        babyID STRING,
+        deletedAt TIMESTAMP,
+        dosage STRING,
+        editOfID STRING,
+        externalID STRING,
+        loggedByColorHex STRING,
+        loggedByID STRING,
+        loggedByName STRING,
+        name STRING,
+        notes STRING,
+        sourceRaw STRING,
+        timestamp TIMESTAMP,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE MilestoneEvent (
+        "___recordID" REFERENCE QUERYABLE,
+        babyID STRING,
+        categoryRaw STRING,
+        deletedAt TIMESTAMP,
+        editOfID STRING,
+        externalID STRING,
+        loggedByColorHex STRING,
+        loggedByID STRING,
+        loggedByName STRING,
+        notes STRING,
+        photoData ASSET,
+        sourceRaw STRING,
+        text STRING,
+        timestamp TIMESTAMP,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE MoodEvent (
+        "___recordID" REFERENCE QUERYABLE,
+        babyID STRING,
+        deletedAt TIMESTAMP,
+        editOfID STRING,
+        externalID STRING,
+        levelRaw STRING,
         loggedByColorHex STRING,
         loggedByID STRING,
         loggedByName STRING,
@@ -119,6 +258,24 @@ DEFINE SCHEMA
         GRANT READ TO "_world"
     );
 
+    RECORD TYPE PottyEvent (
+        "___recordID" REFERENCE QUERYABLE,
+        babyID STRING,
+        deletedAt TIMESTAMP,
+        editOfID STRING,
+        externalID STRING,
+        loggedByColorHex STRING,
+        loggedByID STRING,
+        loggedByName STRING,
+        notes STRING,
+        outcomeRaw STRING,
+        sourceRaw STRING,
+        timestamp TIMESTAMP,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
     RECORD TYPE SharedSettings (
         "___recordID" REFERENCE QUERYABLE,
         aiPredictionsEnabled INT64,
@@ -153,6 +310,41 @@ DEFINE SCHEMA
         notes STRING,
         sourceRaw STRING,
         startedAt TIMESTAMP,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE StaffNoteEvent (
+        "___recordID" REFERENCE QUERYABLE,
+        authorName STRING,
+        babyID STRING,
+        deletedAt TIMESTAMP,
+        editOfID STRING,
+        externalID STRING,
+        loggedByColorHex STRING,
+        loggedByID STRING,
+        loggedByName STRING,
+        sourceRaw STRING,
+        text STRING,
+        timestamp TIMESTAMP,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE Users (
+        "___recordID" REFERENCE,
+        roles LIST<INT64>,
+        GRANT WRITE TO "_creator",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE "cloudkit.share" (
+        "___recordID" REFERENCE QUERYABLE,
+        "cloudkit.thumbnailImageData" BYTES,
+        "cloudkit.title" STRING,
+        "cloudkit.type" STRING,
         GRANT WRITE TO "_creator",
         GRANT CREATE TO "_icloud",
         GRANT READ TO "_world"
