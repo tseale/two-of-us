@@ -38,6 +38,12 @@ struct TwoOfUsApp: App {
             SeedData.seedIfNeeded(in: ctx, babyName: "Charlie")
             SeedData.seedSampleEvents(in: ctx)
         }
+        // Dev-only: `-seedDaycareSampleDay` imports the Brightwheel mock day
+        // without a connected session, so the daycare timeline/report-card
+        // rendering is reachable in UI tests and the simulator.
+        if ProcessInfo.processInfo.arguments.contains("-seedDaycareSampleDay") {
+            _ = BrightwheelManager.shared.loadSampleDay(context: realContainer.mainContext)
+        }
         // Dev-only: `-previewJoin` simulates a parent who just accepted a share,
         // so the co-parent join flow can be iterated on in the simulator (the real
         // path needs a second iCloud account accepting a CloudKit invite).
