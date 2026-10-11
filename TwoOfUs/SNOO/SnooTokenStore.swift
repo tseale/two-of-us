@@ -41,14 +41,23 @@ struct SnooSharedCredentials: Codable, Equatable, Sendable {
     /// it, so a FRESH sign-in racing a sign-out isn't silently destroyed.
     /// Optional: pre-field blobs decode as nil and count as old.
     var signedInAt: Date?
+    /// Display name of the parent whose sign-in produced this blob. Every
+    /// device that adopts the shared token ends up "connected" in its own
+    /// right, so this exists purely for the same attribution Brightwheel's
+    /// status-only connection shows ("Connected by Taylor") — not to gate
+    /// anything. Optional so blobs written before the field existed decode
+    /// unchanged (nil → no attribution line). No schema change: it's a new
+    /// key inside the existing `snooCredentials` JSON field.
+    var connectedByName: String?
 
     init(refreshToken: String, email: String, babyID: String?, autoLog: Bool? = nil,
-         signedInAt: Date? = nil) {
+         signedInAt: Date? = nil, connectedByName: String? = nil) {
         self.refreshToken = refreshToken
         self.email = email
         self.babyID = babyID
         self.autoLog = autoLog
         self.signedInAt = signedInAt
+        self.connectedByName = connectedByName
     }
 
     init?(json: String) {

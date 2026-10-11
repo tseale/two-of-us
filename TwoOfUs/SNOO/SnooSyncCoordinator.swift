@@ -96,11 +96,13 @@ final class SnooSyncCoordinator {
         // Re-signing in must not reset the household's auto-log choice. The
         // sign-in stamp lets conflict resolution tell this FRESH blob from a
         // stale one racing a household sign-out.
+        let eventStore = EventStore(context: context)
         let creds = SnooSharedCredentials(refreshToken: refresh, email: tokens.email,
                                           babyID: tokens.babyID,
                                           autoLog: sharedCredentialsBlob(context: context)?.autoLog,
-                                          signedInAt: .now)
-        EventStore(context: context).updateSnooCredentials(creds.jsonString)
+                                          signedInAt: .now,
+                                          connectedByName: eventStore.owner?.displayName)
+        eventStore.updateSnooCredentials(creds.jsonString)
     }
 
     /// The parsed household connection blob, when one is set.
@@ -329,9 +331,11 @@ final class SnooSyncCoordinator {
                 AppLog.snoo.error("Local SNOO session has no refresh token — cannot publish it to the household")
                 break
             }
+            let eventStore = EventStore(context: context)
             let creds = SnooSharedCredentials(refreshToken: refresh, email: local.email,
-                                              babyID: local.babyID, signedInAt: .now)
-            EventStore(context: context).updateSnooCredentials(creds.jsonString, interactive: false)
+                                              babyID: local.babyID, signedInAt: .now,
+                                              connectedByName: eventStore.owner?.displayName)
+            eventStore.updateSnooCredentials(creds.jsonString, interactive: false)
             AppLog.snoo.info("Published this device's SNOO connection to the household")
         case .disconnect:
             await disconnectLocally()

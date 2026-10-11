@@ -46,7 +46,7 @@ struct SnooSettingsSection: View {
                 } label: {
                     row(detail: email.isEmpty ? "Connected" : email,
                         detailColor: AppColor.text2,
-                        subtitle: lastSyncedLine,
+                        subtitle: combinedSubtitle,
                         syncing: coordinator.isSyncing)
                 }
             }
@@ -69,6 +69,26 @@ struct SnooSettingsSection: View {
 
     private var householdBlob: String? {
         SharedSettings.canonical(settingsList)?.snooCredentials
+    }
+
+    /// The household connection blob — just for the attribution line below;
+    /// `SnooDetailView` reads the same blob for `autoLog`.
+    private var sharedCreds: SnooSharedCredentials? {
+        householdBlob.flatMap(SnooSharedCredentials.init(json:))
+    }
+
+    /// "Connected by Taylor", same attribution Brightwheel's status-only
+    /// connection shows — this device is independently connected too (the
+    /// token is shared, not borrowed), so it's just a credit line, not a
+    /// claim that this phone needs the other one to keep working.
+    private var connectedByLine: String? {
+        guard let name = sharedCreds?.connectedByName, !name.isEmpty else { return nil }
+        return "Connected by \(name)"
+    }
+
+    private var combinedSubtitle: String? {
+        let joined = [connectedByLine, lastSyncedLine].compactMap { $0 }.joined(separator: " · ")
+        return joined.isEmpty ? nil : joined
     }
 
     private var lastSyncedLine: String? {
