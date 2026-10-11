@@ -101,7 +101,8 @@ final class SnooSyncCoordinator {
                                           babyID: tokens.babyID,
                                           autoLog: sharedCredentialsBlob(context: context)?.autoLog,
                                           signedInAt: .now,
-                                          connectedByName: eventStore.owner?.displayName)
+                                          connectedByName: eventStore.owner?.displayName,
+                                          connectedByID: eventStore.owner?.id)
         eventStore.updateSnooCredentials(creds.jsonString)
     }
 
@@ -334,7 +335,8 @@ final class SnooSyncCoordinator {
             let eventStore = EventStore(context: context)
             let creds = SnooSharedCredentials(refreshToken: refresh, email: local.email,
                                               babyID: local.babyID, signedInAt: .now,
-                                              connectedByName: eventStore.owner?.displayName)
+                                              connectedByName: eventStore.owner?.displayName,
+                                              connectedByID: eventStore.owner?.id)
             eventStore.updateSnooCredentials(creds.jsonString, interactive: false)
             AppLog.snoo.info("Published this device's SNOO connection to the household")
         case .disconnect:

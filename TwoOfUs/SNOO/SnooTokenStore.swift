@@ -43,21 +43,30 @@ struct SnooSharedCredentials: Codable, Equatable, Sendable {
     var signedInAt: Date?
     /// Display name of the parent whose sign-in produced this blob. Every
     /// device that adopts the shared token ends up "connected" in its own
-    /// right, so this exists purely for the same attribution Brightwheel's
-    /// status-only connection shows ("Connected by Taylor") — not to gate
-    /// anything. Optional so blobs written before the field existed decode
-    /// unchanged (nil → no attribution line). No schema change: it's a new
+    /// right, so this exists for the same attribution Brightwheel's
+    /// status-only connection shows ("Connected by Taylor"), and — paired
+    /// with `connectedByID` — to tell Settings whether THIS device is the
+    /// one that signed in (full account detail) or a co-parent's device that
+    /// merely adopted the shared token (status-only view). Optional so blobs
+    /// written before the field existed decode unchanged (nil → no
+    /// attribution line, full view by default). No schema change: it's a new
     /// key inside the existing `snooCredentials` JSON field.
     var connectedByName: String?
+    /// `Participant.id` of the parent whose sign-in produced this blob —
+    /// same role as `BrightwheelSharedStatus.connectedByID`. ID-based so a
+    /// renamed participant doesn't fall back to name-string matching.
+    /// Optional for the same pre-field-decode reason as `connectedByName`.
+    var connectedByID: UUID?
 
     init(refreshToken: String, email: String, babyID: String?, autoLog: Bool? = nil,
-         signedInAt: Date? = nil, connectedByName: String? = nil) {
+         signedInAt: Date? = nil, connectedByName: String? = nil, connectedByID: UUID? = nil) {
         self.refreshToken = refreshToken
         self.email = email
         self.babyID = babyID
         self.autoLog = autoLog
         self.signedInAt = signedInAt
         self.connectedByName = connectedByName
+        self.connectedByID = connectedByID
     }
 
     init?(json: String) {

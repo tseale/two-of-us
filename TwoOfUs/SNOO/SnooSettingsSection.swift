@@ -41,11 +41,22 @@ struct SnooSettingsSection: View {
                 .buttonStyle(.plain)
 
             case .connected(let email):
-                NavigationLink {
-                    SnooDetailView(email: email)
-                } label: {
-                    row(detail: email.isEmpty ? "Connected" : email,
-                        detailColor: AppColor.text2,
+                if isMyConnection {
+                    NavigationLink {
+                        SnooDetailView(email: email)
+                    } label: {
+                        row(detail: email.isEmpty ? "Connected" : email,
+                            detailColor: AppColor.text2,
+                            subtitle: combinedSubtitle,
+                            syncing: coordinator.isSyncing)
+                    }
+                } else {
+                    // Co-parent's phone adopted the shared token — it works
+                    // independently, but only the parent who actually signed
+                    // in sees the account email or can sign out (§ Settings).
+                    row(detail: "Connected ✅",
+                        detailColor: AppColor.urgencyGreen,
+                        detailBold: true,
                         subtitle: combinedSubtitle,
                         syncing: coordinator.isSyncing)
                 }
@@ -86,6 +97,17 @@ struct SnooSettingsSection: View {
         return "Connected by \(name)"
     }
 
+    /// Whether THIS device is the one whose sign-in produced the shared
+    /// token — gates the account email and management options (§ Settings
+    /// two-view split), vs. a co-parent's device that merely adopted it.
+    /// No recorded `connectedByID` (pre-field blob, or this device signed in
+    /// before attribution existed) defaults to the full view rather than
+    /// silently hiding a legitimate owner's own connection.
+    private var isMyConnection: Bool {
+        guard let id = sharedCreds?.connectedByID else { return true }
+        return id == EventStore(context: context).owner?.id
+    }
+
     private var combinedSubtitle: String? {
         let joined = [connectedByLine, lastSyncedLine].compactMap { $0 }.joined(separator: " · ")
         return joined.isEmpty ? nil : joined
@@ -104,7 +126,7 @@ struct SnooSettingsSection: View {
         return "Last synced \(last.formatted(.relative(presentation: .named)))"
     }
 
-    private func row(detail: String, detailColor: Color,
+    private func row(detail: String, detailColor: Color, detailBold: Bool = false,
                      subtitle: String? = nil, syncing: Bool = false) -> some View {
         HStack {
             SettingsIconLabel(title: "SNOO", systemImage: "bed.double.fill",
@@ -115,6 +137,7 @@ struct SnooSettingsSection: View {
                     if syncing { ProgressView().controlSize(.small) }
                     Text(detail)
                         .font(.subheadline)
+                        .fontWeight(detailBold ? .bold : .regular)
                         .foregroundStyle(detailColor)
                         .lineLimit(1)
                 }
