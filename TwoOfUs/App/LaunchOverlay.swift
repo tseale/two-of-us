@@ -11,9 +11,9 @@ import SwiftUI
 /// - `.coldLaunch` opens exactly where the static launch screen left off (the
 ///   same plain `LaunchBackground` color), then the `CradleMark` plays its
 ///   story in miniature: the two parents drift in and converge, the baby's
-///   light blooms where they overlap, the wordmark settles beneath — and the
-///   light breathes softly while the fetch runs. The whole scene then lifts
-///   slightly and dissolves into the app, Home already settled.
+///   light blooms where they overlap — and the light breathes softly while
+///   the fetch runs. No wordmark: the mark speaks for itself. The whole scene
+///   then lifts slightly and dissolves into the app, Home already settled.
 /// - `.resume` is the condensed cut for coming back after hours away (the app
 ///   process was alive the whole time, so there's no launch screen to pick up
 ///   from): the same gesture at roughly double speed over a shorter hold —
@@ -59,8 +59,6 @@ struct LaunchOverlay: View {
     @State private var babyScale: CGFloat = 1
     @State private var spotlightOpacity: Double = 0
     @State private var ambientOpacity: Double = 0
-    @State private var wordmarkOpacity: Double = 0
-    @State private var wordmarkOffset: CGFloat = 8
     @State private var sceneScale: CGFloat = 1
     @State private var sceneOpacity: Double
 
@@ -99,28 +97,21 @@ struct LaunchOverlay: View {
             AmbientBackground(stop: .nightStage)
                 .opacity(ambientOpacity)
 
-            VStack(spacing: 20) {
-                CradleMark(
-                    size: markSize,
-                    babyScale: babyScale,
-                    glowOpacity: glowOpacity,
-                    leftEntry: leftEntry,
-                    rightEntry: rightEntry,
-                    babyCoreOpacity: babyCoreOpacity
-                )
-                // The mark's spotlight is applied here rather than via
-                // `staged:` so it can bloom with the parents instead of
-                // sitting there before anything exists.
-                .background {
-                    MarkSpotlight(diameter: markSize * 1.8)
-                        .opacity(spotlightOpacity)
-                }
-
-                Text("Two of Us")
-                    .font(AppFont.hero(28))
-                    .foregroundStyle(AppColor.text)
-                    .opacity(wordmarkOpacity)
-                    .offset(y: wordmarkOffset)
+            // No wordmark — the mark alone carries the moment.
+            CradleMark(
+                size: markSize,
+                babyScale: babyScale,
+                glowOpacity: glowOpacity,
+                leftEntry: leftEntry,
+                rightEntry: rightEntry,
+                babyCoreOpacity: babyCoreOpacity
+            )
+            // The mark's spotlight is applied here rather than via
+            // `staged:` so it can bloom with the parents instead of
+            // sitting there before anything exists.
+            .background {
+                MarkSpotlight(diameter: markSize * 1.8)
+                    .opacity(spotlightOpacity)
             }
             .scaleEffect(sceneScale)
         }
@@ -195,10 +186,6 @@ struct LaunchOverlay: View {
                 glowOpacity = 1
                 babyCoreOpacity = 1
             }
-            withAnimation(.easeIn(duration: 0.45 * tempo).delay(0.15 * tempo)) {
-                wordmarkOpacity = 1
-                wordmarkOffset = 0
-            }
             return
         }
 
@@ -217,10 +204,6 @@ struct LaunchOverlay: View {
         // core popping just after — the same beat the celebration plays.
         withAnimation(.easeInOut(duration: 0.55 * tempo).delay(0.25 * tempo)) { glowOpacity = 1 }
         withAnimation(.easeOut(duration: 0.35 * tempo).delay(0.4 * tempo)) { babyCoreOpacity = 1 }
-        withAnimation(.easeOut(duration: 0.4 * tempo).delay(0.35 * tempo)) {
-            wordmarkOpacity = 1
-            wordmarkOffset = 0
-        }
         // A soft breath on the baby light while we wait — a heartbeat at rest,
         // not a spinner. Starts after the entrance has fully landed.
         withAnimation(
