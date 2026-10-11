@@ -49,6 +49,12 @@ final class SharedSettings {
     /// the refresh token from here — deliberately shared account access, the
     /// same trust boundary as the rest of the zone. Never the password (§5).
     var snooCredentials: String?
+    /// The household Brightwheel connection status (`BrightwheelSharedStatus`
+    /// JSON; nil = never set, "" = disconnected). Status ONLY — the session
+    /// cookie stays in the connecting phone's Keychain; this field exists so
+    /// the co-parent's phone shows "Connected by Taylor" instead of "Not
+    /// connected" while daycare events are already flowing to it.
+    var brightwheelStatus: String?
     /// On-device predictions + the Stats insights card. Family-wide (one baby,
     /// one policy — same reasoning as the tracker toggles). Defaulted (not
     /// optional) so pre-upgrade stores and records that predate the field

@@ -50,7 +50,9 @@ enum SyncConstants {
         /// externalID on sleep (Brightwheel daycare import).
         /// (The nine daycare event types added 2026-09 are whole new record
         /// types, so `all` growing detects them — no generation bump needed.)
-        static let schemaGeneration = 3
+        /// Generation 4: SharedSettings.brightwheelStatus (household
+        /// Brightwheel connection status).
+        static let schemaGeneration = 4
 
         static let all: Set<String> = [
             baby, feed, sleep, diaper, note, participant, settings, planSlot, planOverride,

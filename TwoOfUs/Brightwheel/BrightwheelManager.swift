@@ -5,9 +5,11 @@ import SwiftData
 /// Runtime home of the Brightwheel connection: loads the Keychain session at
 /// launch, completes sign-in when the login web view produces a working
 /// cookie, runs the daily import, and owns the sample-day preview. The
-/// connection stays device-local (no shared CloudKit blob yet — see
-/// docs/BRIGHTWHEEL-INTEGRATION.md §5); imported events sync like any other
-/// event, so one connected phone covers the household.
+/// cookie stays device-local (docs/BRIGHTWHEEL-INTEGRATION.md §5), but the
+/// connection STATUS travels in the shared zone
+/// (`SharedSettings.brightwheelStatus`), so the co-parent's phone shows
+/// "Connected by Taylor" instead of "Not connected"; imported events sync
+/// like any other event, so one connected phone covers the household.
 @Observable @MainActor
 final class BrightwheelManager {
     static let shared = BrightwheelManager()
@@ -47,7 +49,7 @@ final class BrightwheelManager {
     /// cookies before authentication too, so possession alone proves nothing)
     /// and resolves the student roster. Throws `.unauthorized` for a
     /// not-actually-signed-in cookie — the sheet keeps waiting.
-    func completeSignIn(cookie: String) async throws -> BrightwheelSession {
+    func completeSignIn(cookie: String, context: ModelContext) async throws -> BrightwheelSession {
         let user = try await client.me(cookie: cookie)
         let students = try await client.students(cookie: cookie, guardianID: user.objectID)
         guard let student = students.first else {
@@ -63,12 +65,43 @@ final class BrightwheelManager {
         )
         store.save(session)
         self.session = session
+        publishHouseholdStatus(context: context)
         return session
     }
 
-    func disconnect() {
+    /// Advertises this phone's connection on the shared settings record so
+    /// the co-parent's phone stops saying "Not connected" while daycare
+    /// events are already flowing to it. Status only — never the cookie.
+    func publishHouseholdStatus(context: ModelContext) {
+        guard let session else { return }
+        let eventStore = EventStore(context: context)
+        let me = eventStore.owner
+        let status = BrightwheelSharedStatus(
+            connectedByID: me?.id,
+            connectedByName: me?.displayName ?? "",
+            email: session.email,
+            studentName: session.studentName,
+            connectedAt: session.signedInAt
+        )
+        guard let json = status.jsonString else { return }
+        eventStore.updateBrightwheelStatus(json)
+    }
+
+    func disconnect(context: ModelContext) {
+        let mine = session
         store.clear()
         session = nil
+        // Clear the household status only when the advertised connection is
+        // THIS phone's: a cookie-less phone disconnecting must not sever a
+        // connection the other parent is running.
+        let eventStore = EventStore(context: context)
+        guard let blob = eventStore.settings?.brightwheelStatus, !blob.isEmpty,
+              let status = BrightwheelSharedStatus(json: blob) else { return }
+        let isMine = (status.connectedByID != nil && status.connectedByID == eventStore.owner?.id)
+            || (!status.email.isEmpty && status.email == mine?.email)
+        if isMine {
+            eventStore.updateBrightwheelStatus("")
+        }
     }
 
     // MARK: Import

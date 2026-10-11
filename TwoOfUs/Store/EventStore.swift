@@ -919,6 +919,26 @@ struct EventStore {
         return true
     }
 
+    /// Publishes (or clears, with "") the household Brightwheel connection
+    /// STATUS on the shared settings record (`BrightwheelSharedStatus` JSON).
+    /// Status only — the session cookie never leaves the connecting phone
+    /// (see `SharedSettings.brightwheelStatus`). Same no-settings-row contract
+    /// as `updateSnooCredentials`.
+    @discardableResult
+    func updateBrightwheelStatus(_ json: String?, interactive: Bool = true) -> Bool {
+        guard let settings else {
+            AppLog.store.error("Brightwheel status update dropped: no SharedSettings row on this device")
+            if interactive && !demo {
+                StoreErrorCenter.shared.report("That didn't save — this phone hasn't finished syncing the shared settings. Try again in a moment.")
+            }
+            return false
+        }
+        settings.brightwheelStatus = json
+        save()
+        sync(save: [settings.id])
+        return true
+    }
+
     /// Updates the local user's own name + color and **backfills** that identity
     /// onto every event they logged, so past timeline rows relabel too. Syncs the
     /// participant plus all rewritten events.

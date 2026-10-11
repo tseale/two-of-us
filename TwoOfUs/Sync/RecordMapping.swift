@@ -218,6 +218,10 @@ enum RecordMapping {
             if let snooCredentials = m.snooCredentials {
                 r["snooCredentials"] = snooCredentials
             }
+            // Same three-state contract as snooCredentials.
+            if let brightwheelStatus = m.brightwheelStatus {
+                r["brightwheelStatus"] = brightwheelStatus
+            }
             return r
         }
         if let m = PlanSlot.fetchByID(uuid, in: context) {
@@ -431,6 +435,22 @@ enum RecordMapping {
                 let signedInAt = SnooSharedCredentials(json: local)?.signedInAt ?? .distantPast
                 if signedInAt <= signedOutAt {
                     settings.snooCredentials = ""
+                }
+            }
+        }
+        if let settings = model as? SharedSettings,
+           let serverStatus = server["brightwheelStatus"] as? String {
+            // Same merge contract as snooCredentials above: a delivered field
+            // must not be dropped by local-wins when local never held it, and
+            // a household disconnect ("") is terminal except against a
+            // connection made after it.
+            if settings.brightwheelStatus == nil {
+                settings.brightwheelStatus = serverStatus
+            } else if serverStatus.isEmpty, let local = settings.brightwheelStatus, !local.isEmpty {
+                let disconnectedAt = server.modificationDate ?? .distantPast
+                let connectedAt = BrightwheelSharedStatus(json: local)?.connectedAt ?? .distantPast
+                if connectedAt <= disconnectedAt {
+                    settings.brightwheelStatus = ""
                 }
             }
         }
@@ -709,6 +729,7 @@ enum RecordMapping {
         // Keep "" as "" — it's the explicit sign-out, distinct from nil
         // (never set); absent (an older build's record) keeps the local value.
         if let s = r["snooCredentials"] as? String { m.snooCredentials = s }
+        if let s = r["brightwheelStatus"] as? String { m.brightwheelStatus = s }
     }
 
     private static func applyPlanSlot(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {
