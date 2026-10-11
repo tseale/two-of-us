@@ -15,6 +15,7 @@ import WebKit
 /// it counts, because the page sets cookies for anonymous visitors too.
 struct BrightwheelLoginSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
     @State private var manager = BrightwheelManager.shared
     @State private var isVerifying = false
     @State private var errorMessage: String?
@@ -68,7 +69,7 @@ struct BrightwheelLoginSheet: View {
         isVerifying = true
         defer { isVerifying = false }
         do {
-            _ = try await manager.completeSignIn(cookie: cookie)
+            _ = try await manager.completeSignIn(cookie: cookie, context: context)
             Haptics.success()
             errorMessage = nil
             dismiss()

@@ -231,6 +231,8 @@ targets:
       # Keychain-free pieces of the SNOO credential model — RecordMapping's
       # SharedSettings conflict absorption parses the shared blob.
       - path: TwoOfUs/SNOO/SnooTokenStore.swift
+      # Same for the Brightwheel status blob (`BrightwheelSharedStatus`).
+      - path: TwoOfUs/Brightwheel/BrightwheelSession.swift
       # The same write path the widgets/Siri use on the phone: self-contained,
       # attributes events via the App Group identity key, queues synced ids
       # per-key for the (watch) engine to drain.

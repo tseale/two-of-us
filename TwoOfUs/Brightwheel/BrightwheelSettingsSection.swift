@@ -8,6 +8,7 @@ import SwiftData
 struct BrightwheelSettingsSection: View {
     @State private var manager = BrightwheelManager.shared
     @Binding var showLogin: Bool
+    @Query private var settingsList: [SharedSettings]
 
     var body: some View {
         Section {
@@ -20,6 +21,17 @@ struct BrightwheelSettingsSection: View {
                         subtitle: lastSyncedLine,
                         syncing: manager.isSyncing)
                 }
+            } else if let household = householdStatus {
+                // The OTHER parent's phone runs the imports — this one just
+                // needs to know it's working, not demand a second sign-in.
+                Button { showLogin = true } label: {
+                    row(detail: household.connectedByName.isEmpty
+                            ? "Connected on another phone"
+                            : "Connected by \(household.connectedByName)",
+                        detailColor: AppColor.text2,
+                        subtitle: "No sign-in needed on this phone")
+                }
+                .buttonStyle(.plain)
             } else {
                 Button { showLogin = true } label: {
                     row(detail: "Not connected", detailColor: AppColor.text3)
@@ -34,7 +46,23 @@ struct BrightwheelSettingsSection: View {
         }
     }
 
+    /// The household connection advertised in the shared zone, when it isn't
+    /// this phone's own (that case renders from the live session above).
+    private var householdStatus: BrightwheelSharedStatus? {
+        SharedSettings.canonical(settingsList)?.brightwheelStatus
+            .flatMap { $0.isEmpty ? nil : BrightwheelSharedStatus(json: $0) }
+    }
+
     private var lastSyncedLine: String? {
+        // A status publish still queued (offline, schema-rejected park) means
+        // the other phone can't see the connection yet — say so instead of
+        // letting "connected" masquerade as "household connected". Same
+        // honesty rule as SNOO's.
+        if let settings = SharedSettings.canonical(settingsList),
+           settings.brightwheelStatus?.isEmpty == false,
+           SyncManager.shared?.hasPendingSave(settings.id) == true {
+            return "Connecting the other phone…"
+        }
         guard let last = manager.lastSyncAt else { return nil }
         return "Last synced \(last.formatted(.relative(presentation: .named)))"
     }
@@ -184,7 +212,7 @@ struct BrightwheelDetailView: View {
                     showDisconnectConfirm = true
                 }
             } footer: {
-                Text("Removes the connection from this phone. Nothing changes on Brightwheel's side, and already-imported events stay.")
+                Text("Disconnects the household — both phones will show Brightwheel as not connected. Nothing changes on Brightwheel's side, and already-imported events stay.")
             }
         }
         .navigationTitle("Brightwheel")
@@ -192,7 +220,7 @@ struct BrightwheelDetailView: View {
         .confirmationDialog("Disconnect Brightwheel?", isPresented: $showDisconnectConfirm,
                             titleVisibility: .visible) {
             Button("Disconnect", role: .destructive) {
-                manager.disconnect()
+                manager.disconnect(context: context)
                 dismiss()
             }
         }

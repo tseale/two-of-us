@@ -514,6 +514,71 @@ final class RecordMappingTests: XCTestCase {
                        "an explicit sign-out lands as empty (disconnect), distinct from never-set nil")
     }
 
+    /// The household Brightwheel connection STATUS travels on the settings
+    /// record with the same three-state contract as snooCredentials: present
+    /// syncs ("Connected by Taylor" on the other phone), empty clears, absent
+    /// (an older build's record) keeps the local copy.
+    func testBrightwheelStatusTravelsClearsAndSurvivesOldRecords() throws {
+        let receiver = AppModelContainer.make(inMemory: true)
+        let status = BrightwheelSharedStatus(
+            connectedByID: UUID(), connectedByName: "Taylor",
+            email: "t@e.com", studentName: "Miller", connectedAt: .now)
+        let original = SharedSettings()
+        original.brightwheelStatus = status.jsonString
+        context.insert(original)
+        try context.save()
+
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+        let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<SharedSettings>()).first)
+        XCTAssertEqual(copy.brightwheelStatus, original.brightwheelStatus,
+                       "one parent's connection must reach the co-parent's Settings")
+        XCTAssertEqual(copy.brightwheelStatus.flatMap(BrightwheelSharedStatus.init(json:))?.connectedByName,
+                       "Taylor", "the blob carries who connected")
+
+        let old = CKRecord(recordType: SyncConstants.RecordType.settings, recordID: recordID(original.id))
+        old["targetFeedIntervalMinutes"] = 120
+        try RecordMapping.apply(old, in: receiver.mainContext)
+        XCTAssertNotNil(copy.brightwheelStatus, "an older build's record keeps the connection status")
+
+        let cleared = CKRecord(recordType: SyncConstants.RecordType.settings, recordID: recordID(original.id))
+        cleared["brightwheelStatus"] = ""
+        try RecordMapping.apply(cleared, in: receiver.mainContext)
+        XCTAssertEqual(copy.brightwheelStatus, "",
+                       "an explicit disconnect lands as empty, distinct from never-set nil")
+    }
+
+    /// Same terminal-disconnect conflict rule as SNOO: a stale settings save
+    /// racing the other parent's disconnect adopts the "", but a connection
+    /// stamped NEWER than the disconnect survives it.
+    func testAbsorbConflictBrightwheelDisconnectSemantics() throws {
+        let stale = SharedSettings()
+        stale.brightwheelStatus = BrightwheelSharedStatus(
+            connectedByID: nil, connectedByName: "Taylor", email: "t@e.com",
+            studentName: "Miller", connectedAt: .distantPast).jsonString
+        context.insert(stale)
+        try context.save()
+        let disconnect = CKRecord(recordType: SyncConstants.RecordType.settings,
+                                  recordID: recordID(stale.id))
+        disconnect["brightwheelStatus"] = ""
+        RecordMapping.absorbConflict(server: disconnect, in: context)
+        XCTAssertEqual(stale.brightwheelStatus, "",
+                       "a household disconnect must survive a race with a stale settings save")
+
+        let freshBlob = BrightwheelSharedStatus(
+            connectedByID: nil, connectedByName: "Paige", email: "p@e.com",
+            studentName: "Miller", connectedAt: .now).jsonString
+        let fresh = SharedSettings()
+        fresh.brightwheelStatus = freshBlob
+        context.insert(fresh)
+        try context.save()
+        let oldDisconnect = CKRecord(recordType: SyncConstants.RecordType.settings,
+                                     recordID: recordID(fresh.id))
+        oldDisconnect["brightwheelStatus"] = ""
+        RecordMapping.absorbConflict(server: oldDisconnect, in: context)
+        XCTAssertEqual(fresh.brightwheelStatus, freshBlob,
+                       "a connection newer than the disconnect must not be destroyed by it")
+    }
+
     /// Locks the sign-out-is-terminal conflict rule: a device whose pending
     /// settings save races the other parent's SNOO sign-out must adopt the ""
     /// instead of re-uploading the stale token blob it still holds — the old
