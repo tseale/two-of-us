@@ -453,4 +453,24 @@ final class SnooDecodingTests: XCTestCase {
                        .none)
         XCTAssertEqual(SnooSharedCredentials(json: flipped)?.autoLog, true)
     }
+
+    func testConnectedByNameSurvivesTheRoundTrip() throws {
+        let creds = SnooSharedCredentials(refreshToken: "rt-1", email: "t@e.com", babyID: nil,
+                                          connectedByName: "Taylor")
+        let json = try XCTUnwrap(creds.jsonString)
+        XCTAssertEqual(SnooSharedCredentials(json: json)?.connectedByName, "Taylor")
+    }
+
+    func testConnectedByNameIsBackCompatAndDoesNotTriggerAdoption() throws {
+        // A blob written before the field existed decodes with no attribution
+        // line — the Settings row just shows the email, same as today.
+        let old = #"{"refreshToken":"rt-1","email":"t@e.com"}"#
+        XCTAssertNil(try XCTUnwrap(SnooSharedCredentials(json: old)).connectedByName)
+
+        // Adoption keys off the refresh token alone, so a device already in
+        // step with the household's token must not re-adopt just because the
+        // attribution name changed (e.g. a re-sign-in by the same parent).
+        XCTAssertEqual(SnooCredentialSync.action(sharedField: old, localRefreshToken: "rt-1"),
+                       .none)
+    }
 }
