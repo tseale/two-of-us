@@ -23,13 +23,13 @@ struct BrightwheelSettingsSection: View {
                 }
             } else if let household = householdStatus {
                 // The OTHER parent's phone runs the imports — this one just
-                // needs to know it's working, not demand a second sign-in.
+                // needs to know it's working, not demand a second sign-in or
+                // show account details that aren't this phone's to show.
                 Button { showLogin = true } label: {
-                    row(detail: household.connectedByName.isEmpty
-                            ? "Connected on another phone"
-                            : "Connected by \(household.connectedByName)",
-                        detailColor: AppColor.text2,
-                        subtitle: "No sign-in needed on this phone")
+                    row(detail: "Connected ✅",
+                        detailColor: AppColor.urgencyGreen,
+                        detailBold: true,
+                        subtitle: householdSubtitle(household))
                 }
                 .buttonStyle(.plain)
             } else {
@@ -53,21 +53,33 @@ struct BrightwheelSettingsSection: View {
             .flatMap { $0.isEmpty ? nil : BrightwheelSharedStatus(json: $0) }
     }
 
+    /// A status publish still queued (offline, schema-rejected park) means
+    /// the other phone can't see the connection yet — same honesty rule as
+    /// SNOO's.
+    private var statusStillPropagating: Bool {
+        guard let settings = SharedSettings.canonical(settingsList),
+              settings.brightwheelStatus?.isEmpty == false else { return false }
+        return SyncManager.shared?.hasPendingSave(settings.id) == true
+    }
+
     private var lastSyncedLine: String? {
-        // A status publish still queued (offline, schema-rejected park) means
-        // the other phone can't see the connection yet — say so instead of
-        // letting "connected" masquerade as "household connected". Same
-        // honesty rule as SNOO's.
-        if let settings = SharedSettings.canonical(settingsList),
-           settings.brightwheelStatus?.isEmpty == false,
-           SyncManager.shared?.hasPendingSave(settings.id) == true {
-            return "Connecting the other phone…"
-        }
+        if statusStillPropagating { return "Connecting the other phone…" }
         guard let last = manager.lastSyncAt else { return nil }
         return "Last synced \(last.formatted(.relative(presentation: .named)))"
     }
 
-    private func row(detail: String, detailColor: Color,
+    /// Subtext under the co-parent's "Connected ✅" — who connected, or that
+    /// the status hasn't reached this phone yet. This phone never ran the
+    /// import itself, so there's no local sync time to show (only the
+    /// connecting phone's `lastSyncedLine` has that).
+    private func householdSubtitle(_ household: BrightwheelSharedStatus) -> String {
+        if statusStillPropagating { return "Connecting the other phone…" }
+        return household.connectedByName.isEmpty
+            ? "Connected on another phone"
+            : "Connected by \(household.connectedByName)"
+    }
+
+    private func row(detail: String, detailColor: Color, detailBold: Bool = false,
                      subtitle: String? = nil, syncing: Bool = false) -> some View {
         HStack {
             SettingsIconLabel(title: "Brightwheel", systemImage: "building.2.fill",
@@ -78,6 +90,7 @@ struct BrightwheelSettingsSection: View {
                     if syncing { ProgressView().controlSize(.small) }
                     Text(detail)
                         .font(.subheadline)
+                        .fontWeight(detailBold ? .bold : .regular)
                         .foregroundStyle(detailColor)
                         .lineLimit(1)
                 }
