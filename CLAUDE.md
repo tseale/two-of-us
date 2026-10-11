@@ -3,7 +3,7 @@
 Native iOS baby tracking app for Taylor and his wife to track their newborn son Miller.  
 Distributed via TestFlight to 2 users (both parents).
 
-## Status: In active development — Phase 1 (core logging) implemented in SwiftUI + SwiftData. CloudKit sync, widgets, Live Activities, and Siri intents in progress.
+## Status: Daycare-ready (2026-10-11) — core logging, CloudKit sync, widgets, Live Activities, Siri intents, SNOO import, launch curtain, and the Brightwheel daycare pipeline (9 typed event models, mock + importer, badges) are all on `main`. Remaining before Miller's first daycare day (2026-10-12): deploy the 9 new record types + externalID/sourceRaw fields to CloudKit **Production** (see docs/cloudkit-schema.ckdb and docs/CLOUDKIT_SETUP.md), and a two-phone TestFlight sanity pass.
 
 ## Tech Stack
 - **SwiftUI** — declarative UI, iOS 17+
