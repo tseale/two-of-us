@@ -19,6 +19,10 @@ struct RootView: View {
     @State private var celebration: CelebrationData?
     @State private var shareAcceptance = ShareAcceptance.shared
     @State private var storeErrors = StoreErrorCenter.shared
+    /// Cold-launch curtain (see `LaunchOverlay`). Starts done when it already
+    /// played this process — the demo toggle rebuilds this whole view via
+    /// `.id`, and the launch moment must not replay on a mode switch.
+    @State private var launchDone = LaunchOverlay.hasPlayed
 
     private var needsJoinProfile: Bool {
         prefs.syncRole == .participant && prefs.myParticipantID == nil
@@ -50,6 +54,9 @@ struct RootView: View {
             }
             routedContent
         }
+        // While the launch curtain is up, the UI underneath must be as
+        // unreachable to VoiceOver as it is to touch.
+        .accessibilityHidden(!launchDone)
         .animation(.easeInOut(duration: 0.35), value: route)
         .animation(.easeInOut(duration: 0.35), value: prefs.demoModeEnabled)
         .tint(AppColor.accentFeed)
@@ -68,6 +75,17 @@ struct RootView: View {
                     // so the swap is never visible), fades away once it has played.
                     .transition(.asymmetric(insertion: .identity, removal: .opacity))
                     .zIndex(2)
+            }
+        }
+        // The cold-launch curtain sits above everything (including a pending
+        // celebration) and blocks all interaction while the first CloudKit
+        // fetch settles underneath. It fades itself out, THEN asks to be
+        // removed — so there is no frame where a half-faded splash lets a tap
+        // through to a list that's still shifting.
+        .overlay {
+            if !launchDone {
+                LaunchOverlay(firstRun: route == .onboarding) { launchDone = true }
+                    .zIndex(3)
             }
         }
         // A failed share accept otherwise strands the joining parent on owner
