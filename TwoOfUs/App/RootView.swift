@@ -19,10 +19,29 @@ struct RootView: View {
     @State private var celebration: CelebrationData?
     @State private var shareAcceptance = ShareAcceptance.shared
     @State private var storeErrors = StoreErrorCenter.shared
-    /// Cold-launch curtain (see `LaunchOverlay`). Starts done when it already
+    /// Launch curtain (see `LaunchOverlay`). Starts done when it already
     /// played this process — the demo toggle rebuilds this whole view via
     /// `.id`, and the launch moment must not replay on a mode switch.
     @State private var launchDone = LaunchOverlay.hasPlayed
+    @State private var launchStyle: LaunchOverlay.Style = .coldLaunch
+    /// When the scene last left for the background; a return after
+    /// `resumeCurtainThreshold` replays the curtain in its condensed cut,
+    /// because that's exactly when a pile of the co-parent's events lands and
+    /// shifts Home right as it's touched. Quick app switches never trigger it.
+    @State private var backgroundedAt: Date?
+    @Environment(\.scenePhase) private var scenePhase
+
+    /// Half an hour: long enough that bouncing out to Messages and back never
+    /// shows a curtain, short enough to catch the post-nap and overnight
+    /// reopens where the log has really moved on.
+    private static var resumeCurtainThreshold: TimeInterval {
+        #if DEBUG
+        // `-forceResumeCurtain` lets any backgrounding trigger the resume cut
+        // (simulator QA can't wait out the real threshold).
+        if ProcessInfo.processInfo.arguments.contains("-forceResumeCurtain") { return 0 }
+        #endif
+        return 30 * 60
+    }
 
     private var needsJoinProfile: Bool {
         prefs.syncRole == .participant && prefs.myParticipantID == nil
@@ -77,15 +96,39 @@ struct RootView: View {
                     .zIndex(2)
             }
         }
-        // The cold-launch curtain sits above everything (including a pending
-        // celebration) and blocks all interaction while the first CloudKit
-        // fetch settles underneath. It fades itself out, THEN asks to be
-        // removed — so there is no frame where a half-faded splash lets a tap
-        // through to a list that's still shifting.
+        // The launch curtain sits above everything (including a pending
+        // celebration) and blocks all interaction while a CloudKit fetch
+        // settles underneath. It fades itself out, THEN asks to be removed —
+        // so there is no frame where a half-faded splash lets a tap through
+        // to a list that's still shifting.
         .overlay {
             if !launchDone {
-                LaunchOverlay(firstRun: route == .onboarding) { launchDone = true }
-                    .zIndex(3)
+                LaunchOverlay(style: launchStyle, firstRun: route == .onboarding) {
+                    launchDone = true
+                }
+                .zIndex(3)
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .background:
+                backgroundedAt = Date()
+            case .active:
+                defer { backgroundedAt = nil }
+                // Replay only over the main UI (setup flows hold their own
+                // stages), never over a playing curtain or celebration, and
+                // never when a widget tap staged a sheet — that parent asked
+                // for a log, not a moment.
+                if launchDone, celebration == nil, route == .main,
+                   let away = backgroundedAt,
+                   Date().timeIntervalSince(away) >= Self.resumeCurtainThreshold,
+                   DeepLinkRouter.shared.pendingLog == nil,
+                   DeepLinkRouter.shared.pendingTab == nil {
+                    launchStyle = .resume
+                    launchDone = false
+                }
+            default:
+                break
             }
         }
         // A failed share accept otherwise strands the joining parent on owner

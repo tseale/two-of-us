@@ -1,29 +1,43 @@
 import SwiftUI
 
-/// The launch moment: an opaque overlay `RootView` mounts above everything on a
-/// cold start, so the first CloudKit fetch happens behind a held curtain instead
-/// of under a parent's thumb (overnight events landing mid-tap used to shift the
-/// Home list right as it was touched). While it's mounted nothing underneath is
-/// tappable; it fades away only once the launch fetch has settled — or the time
-/// cap says stop waiting.
+/// The launch moment: an opaque overlay `RootView` mounts above everything, so
+/// a CloudKit fetch happens behind a held curtain instead of under a parent's
+/// thumb (overnight events landing mid-tap used to shift the Home list right
+/// as it was touched). While it's mounted nothing underneath is tappable; it
+/// fades away only once the fetch has settled — or the time cap says stop
+/// waiting.
 ///
-/// It opens exactly where the static launch screen left off (the same plain
-/// `LaunchBackground` color), then the `CradleMark` plays its story in
-/// miniature: the two parents drift in and converge, the baby's light blooms
-/// where they overlap, the wordmark settles beneath — and the light breathes
-/// softly while the fetch runs. The whole scene then lifts slightly and
-/// dissolves into the app, Home already settled.
+/// Two styles of the same moment:
+/// - `.coldLaunch` opens exactly where the static launch screen left off (the
+///   same plain `LaunchBackground` color), then the `CradleMark` plays its
+///   story in miniature: the two parents drift in and converge, the baby's
+///   light blooms where they overlap, the wordmark settles beneath — and the
+///   light breathes softly while the fetch runs. The whole scene then lifts
+///   slightly and dissolves into the app, Home already settled.
+/// - `.resume` is the condensed cut for coming back after hours away (the app
+///   process was alive the whole time, so there's no launch screen to pick up
+///   from): the same gesture at roughly double speed over a shorter hold —
+///   familiar, not ceremonial.
 ///
 /// Timing: never shorter than `minHold` (a flash-and-gone splash reads like a
-/// glitch), never longer than `maxHold` (content beats completeness — late
-/// events can land in a settled list). A first-ever launch holds a touch longer
-/// before easing into onboarding; every other launch stays snappy.
+/// glitch), never longer than the cap (content beats completeness — late
+/// events can land in a settled list). A first-ever launch holds a touch
+/// longer before easing into onboarding; every other launch stays snappy.
+///
+/// A staged widget action (tapping "log a feed" from the home screen) always
+/// wins over the curtain: mounted into one it bows out instantly, and one
+/// arriving mid-play cuts straight to the dissolve — a parent holding a baby
+/// asked for a sheet, not a brand moment.
 struct LaunchOverlay: View {
+    enum Style { case coldLaunch, resume }
+
     /// Once per process: `RootView` is torn down and rebuilt (`.id`) when demo
     /// mode toggles the container, and the launch moment must not replay on
-    /// what looks to the user like a simple mode switch.
+    /// what looks to the user like a simple mode switch. (Resume replays are
+    /// driven explicitly by `RootView`, which re-mounts the overlay itself.)
     @MainActor static var hasPlayed = false
 
+    var style: Style = .coldLaunch
     /// This launch is headed into owner onboarding (empty store, first ever
     /// run) — hold a beat longer; there's no log to hurry back to.
     var firstRun = false
@@ -48,9 +62,30 @@ struct LaunchOverlay: View {
     @State private var wordmarkOpacity: Double = 0
     @State private var wordmarkOffset: CGFloat = 8
     @State private var sceneScale: CGFloat = 1
-    @State private var sceneOpacity: Double = 1
+    @State private var sceneOpacity: Double
+
+    @State private var router = DeepLinkRouter.shared
+    /// Set by whichever finisher runs first — the timed reveal or a deep-link
+    /// cut-short — so the dissolve can never play twice.
+    @State private var finishing = false
 
     private let markSize: CGFloat = 170
+
+    init(style: Style = .coldLaunch, firstRun: Bool = false,
+         onFinished: @escaping () -> Void = {}) {
+        self.style = style
+        self.firstRun = firstRun
+        self.onFinished = onFinished
+        // Cold launch opens opaque (the launch screen was already this color);
+        // a resume curtain appears over live UI, so it washes in instead of
+        // hard-cutting. It blocks touches from frame one either way — hit
+        // testing comes from `contentShape`, which opacity doesn't affect.
+        _sceneOpacity = State(initialValue: style == .resume ? 0 : 1)
+    }
+
+    /// The resume cut is the same choreography compressed: every entrance
+    /// duration and delay is scaled by this.
+    private var tempo: Double { style == .resume ? 0.55 : 1 }
 
     var body: some View {
         ZStack {
@@ -96,24 +131,49 @@ struct LaunchOverlay: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Two of Us is opening")
         .task { await run() }
+        // A widget tap staged mid-curtain: stop holding and dissolve now, so
+        // the log sheet isn't presented over a lingering splash.
+        .onChange(of: router.pendingLog != nil || router.pendingTab != nil) { _, staged in
+            if staged { Task { await finish() } }
+        }
     }
 
     @MainActor private func run() async {
+        // Mounted INTO a staged widget action (a feed-widget tap cold-launched
+        // the app): skip the moment entirely — the sheet is the content.
+        if router.pendingLog != nil || router.pendingTab != nil {
+            Self.hasPlayed = true
+            onFinished()
+            return
+        }
+
         enter()
 
         let clock = ContinuousClock()
         let start = clock.now
-        // Hold for the launch fetch, but never past the cap — and never
-        // release before the minimum, even if sync settles instantly.
-        await Self.launchFetchSettled(cap: .seconds(3.0))
-        // 0.9s lets the entrance fully land before the dissolve begins; the
-        // first-ever run lingers a touch longer on its way into onboarding.
-        let minHold: Duration = .seconds(firstRun ? 1.5 : 0.9)
+        // Hold for the fetch, but never past the cap — and never release
+        // before the minimum, even if sync settles instantly.
+        await Self.launchFetchSettled(cap: .seconds(style == .resume ? 2.5 : 3.0))
+        // 0.9s lets the cold entrance fully land before the dissolve begins;
+        // the first-ever run lingers a touch longer on its way into
+        // onboarding, and the resume cut gets the whole thought out by ~0.5s.
+        let minHold: Duration = switch style {
+        case .resume: .seconds(0.6)
+        case .coldLaunch: .seconds(firstRun ? 1.5 : 0.9)
+        }
         let elapsed = clock.now - start
         if elapsed < minHold {
             try? await Task.sleep(for: minHold - elapsed)
         }
 
+        await finish()
+    }
+
+    /// The single exit door: dissolve, mark played, hand back to the host.
+    /// Guarded so the timed reveal and a deep-link cut-short can't both run it.
+    @MainActor private func finish() async {
+        guard !finishing else { return }
+        finishing = true
         await reveal()
         Self.hasPlayed = true
         onFinished()
@@ -122,45 +182,49 @@ struct LaunchOverlay: View {
     /// The entrance: parents converge, the shared light blooms, the name
     /// settles, then the light breathes while we hold.
     @MainActor private func enter() {
+        if style == .resume {
+            withAnimation(.easeOut(duration: 0.2)) { sceneOpacity = 1 }
+        }
         if reduceMotion {
             // Calm fades only — nothing drifts, scales, or breathes.
             leftEntry = .identity
             rightEntry = .identity
-            withAnimation(.easeIn(duration: 0.45)) {
+            withAnimation(.easeIn(duration: 0.45 * tempo)) {
                 spotlightOpacity = 1
                 ambientOpacity = 1
                 glowOpacity = 1
                 babyCoreOpacity = 1
             }
-            withAnimation(.easeIn(duration: 0.45).delay(0.15)) {
+            withAnimation(.easeIn(duration: 0.45 * tempo).delay(0.15 * tempo)) {
                 wordmarkOpacity = 1
                 wordmarkOffset = 0
             }
             return
         }
 
-        // The whole entrance lands inside the minimum hold (~0.85s), so even
-        // the fastest launch plays the complete thought before dissolving.
-        withAnimation(.spring(response: 0.75, dampingFraction: 0.9)) {
+        // The whole entrance lands inside the minimum hold (~0.85s cold,
+        // ~0.5s resumed), so even the fastest launch plays the complete
+        // thought before dissolving.
+        withAnimation(.spring(response: 0.75 * tempo, dampingFraction: 0.9)) {
             leftEntry = .identity
             rightEntry = .identity
         }
-        withAnimation(.easeInOut(duration: 0.6).delay(0.1)) {
+        withAnimation(.easeInOut(duration: 0.6 * tempo).delay(0.1 * tempo)) {
             spotlightOpacity = 1
             ambientOpacity = 1
         }
         // The light blooms once the circles are visibly overlapping, its crisp
         // core popping just after — the same beat the celebration plays.
-        withAnimation(.easeInOut(duration: 0.55).delay(0.25)) { glowOpacity = 1 }
-        withAnimation(.easeOut(duration: 0.35).delay(0.4)) { babyCoreOpacity = 1 }
-        withAnimation(.easeOut(duration: 0.4).delay(0.35)) {
+        withAnimation(.easeInOut(duration: 0.55 * tempo).delay(0.25 * tempo)) { glowOpacity = 1 }
+        withAnimation(.easeOut(duration: 0.35 * tempo).delay(0.4 * tempo)) { babyCoreOpacity = 1 }
+        withAnimation(.easeOut(duration: 0.4 * tempo).delay(0.35 * tempo)) {
             wordmarkOpacity = 1
             wordmarkOffset = 0
         }
         // A soft breath on the baby light while we wait — a heartbeat at rest,
         // not a spinner. Starts after the entrance has fully landed.
         withAnimation(
-            .easeInOut(duration: 1.1).repeatForever(autoreverses: true).delay(1.0)
+            .easeInOut(duration: 1.1).repeatForever(autoreverses: true).delay(1.0 * tempo)
         ) {
             babyScale = 1.05
         }
@@ -214,5 +278,10 @@ struct LaunchOverlay: View {
 
 #Preview("First run · dark") {
     LaunchOverlay(firstRun: true)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Resume · dark") {
+    LaunchOverlay(style: .resume)
         .preferredColorScheme(.dark)
 }
