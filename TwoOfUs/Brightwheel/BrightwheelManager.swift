@@ -17,6 +17,13 @@ final class BrightwheelManager {
     private(set) var session: BrightwheelSession?
     private(set) var lastSyncAt: Date?
     private(set) var isSyncing = false
+    /// Start of a nap Brightwheel has begun but not ended — he's napping at
+    /// daycare right now. Ephemeral (refreshed every sync, never persisted or
+    /// synced): the completed SleepEvent lands only once staff log the wake,
+    /// and an open-ended event here would wake the whole active-sleep
+    /// machinery (Wake button, Live Activity, alarms) for a nap the parents
+    /// don't own.
+    private(set) var liveNapStartedAt: Date?
     private let store: BrightwheelSessionStore
     private let client: BrightwheelAPIClient
 
@@ -91,6 +98,7 @@ final class BrightwheelManager {
         let mine = session
         store.clear()
         session = nil
+        liveNapStartedAt = nil
         // Clear the household status only when the advertised connection is
         // THIS phone's: a cookie-less phone disconnecting must not sever a
         // connection the other parent is running.
@@ -127,6 +135,7 @@ final class BrightwheelManager {
             let activities = try await client.activities(
                 cookie: session.cookie, studentID: session.studentID, day: .now)
             let summary = BrightwheelImporter(context: context).importActivities(activities)
+            liveNapStartedAt = summary.openNapStartedAt
             markSynced()
             if summary.imported > 0 {
                 AppLog.store.info("Brightwheel: imported \(summary.imported) event(s)")
@@ -161,6 +170,9 @@ final class BrightwheelManager {
             activities = BrightwheelMockDay.activities(for: yesterday)
         }
         let summary = BrightwheelImporter(context: context).importActivities(activities)
+        // The sample day exercises the live-nap path too: loaded mid-nap, the
+        // unpaired start pulses on Home exactly as a real one would.
+        liveNapStartedAt = summary.openNapStartedAt
         markSynced()
         return summary
     }
