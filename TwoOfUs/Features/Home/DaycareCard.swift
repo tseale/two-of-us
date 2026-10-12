@@ -34,10 +34,11 @@ struct DaycareDaySummary: Equatable {
 /// feeds and diapers as dots at their true times, naps as spans, the
 /// daycare window tinted from drop-off and fading out at "now" — with the
 /// whole-day totals as three plain numbers beneath. Mid-nap the strip's
-/// leading edge glows and breathes while the sleep total ticks live. Two
-/// quiet rows underneath give the exact home/daycare numbers for the
-/// parent who wants them. Checkout dissolves it back into the plain TODAY
-/// card plus the quiet finished-day card below.
+/// leading edge glows and breathes while the sleep total ticks live. One
+/// quiet dotted line underneath recaps what daycare has logged since
+/// drop-off (the home side stays implicit in the strip and totals).
+/// Checkout dissolves it back into the plain TODAY card plus the quiet
+/// finished-day card below.
 struct DaycareDayHeroCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -79,12 +80,6 @@ struct DaycareDayHeroCard: View {
         liveNapStartedAt.map { max(0, now.timeIntervalSince($0)) } ?? 0
     }
 
-    // The home side of the split is the day minus the daycare slice.
-    private var homeOz: Double { max(0, feedOz - daycare.feedOz) }
-    private var homeFeeds: Int { max(0, feedCount - daycare.feedCount) }
-    private var homeWet: Int { max(0, wetCount - daycare.wetCount) }
-    private var homeDirty: Int { max(0, dirtyCount - daycare.dirtyCount) }
-    private var homeSleep: TimeInterval { max(0, sleepSeconds - daycare.napSeconds) }
     private var sleepTotal: TimeInterval { sleepSeconds + liveNapSeconds }
 
     var body: some View {
@@ -140,19 +135,9 @@ struct DaycareDayHeroCard: View {
                 }
             }
 
-            // The exact numbers, two quiet rows — scannable without reading.
-            VStack(alignment: .leading, spacing: 7) {
-                splitRow(systemImage: "house.fill", tint: AppColor.text2,
-                         title: "Home", lines: homeLines)
-                splitRow(systemImage: "building.2.fill", tint: checkInk,
-                         title: "Daycare", lines: daycareLines)
-                if daycare.medicationCount > 0 {
-                    splitRow(systemImage: "pills.fill", tint: AppColor.accentMedication,
-                             title: "Meds",
-                             text: "\(Plural.count(daycare.medicationCount, "medication")) — see timeline",
-                             textTint: AppColor.accentMedication)
-                }
-            }
+            // The daycare recap — what staff logged since drop-off (the
+            // totals + strip above already carry the home side).
+            bottomSection
             if let onSavePhotos, daycare.photoCount > 0 {
                 SavePhotosButton(count: daycare.photoCount, action: onSavePhotos)
             }
@@ -248,12 +233,6 @@ struct DaycareDayHeroCard: View {
                              : parts.joined(separator: " · ")
     }
 
-    /// `accentCheck` is too pale for text on the light card — a deeper sibling
-    /// in light mode, the accent itself in dark.
-    private var checkInk: Color {
-        colorScheme == .dark ? AppColor.accentCheck : Color(hex: "1A7E8F")
-    }
-
     /// Darker siblings of the pastel accents for the value text — and in
     /// dark mode the opposite: lighter ones, since the pastel fill is dim
     /// there and a dark ink would sink into it.
@@ -286,99 +265,89 @@ struct DaycareDayHeroCard: View {
         sleepTotal > 0 ? TimeFormatting.duration(minutes: Int(sleepTotal / 60)) : "—"
     }
 
-    // MARK: Home / daycare split
+    // MARK: Daycare recap
 
-    /// One emoji-tagged line in a split column — "🍼 10 oz (2)". `spoken` is
-    /// the VoiceOver spelling where the visual leans on emoji ("💧1 💩1" →
-    /// "1 wet, 1 dirty").
-    private struct SplitLine: Identifiable {
-        let emoji: String
-        let text: String
-        var tint: Color?
-        var spoken: String?
-        var id: String { emoji + text }
-    }
-
-    private var homeLines: [SplitLine] {
-        trackerLines(oz: homeOz, feeds: homeFeeds, wet: homeWet, dirty: homeDirty,
-                     sleep: homeSleep)
-    }
-
-    /// The daycare row also carries the day's softer entries — activities,
-    /// photos. A running nap counts live, matching the ring above.
-    /// (Medication gets its own red row; it shouldn't hide mid-list.)
-    private var daycareLines: [SplitLine] {
-        var lines = trackerLines(oz: daycare.feedOz, feeds: daycare.feedCount,
-                                 wet: daycare.wetCount, dirty: daycare.dirtyCount,
-                                 sleep: daycare.napSeconds + liveNapSeconds)
-        if daycare.activityCount > 0 {
-            lines.append(SplitLine(
-                emoji: "🎨",
-                text: "\(daycare.activityCount) " + (daycare.activityCount == 1 ? "activity" : "activities")))
+    /// One quiet daycare line, no emoji: tiny dots in each metric's strip
+    /// color carry the meaning the emoji used to, and the home side stays
+    /// implicit — the strip and totals above already tell it. Activities
+    /// live on the timeline; medication keeps its own red row below, where
+    /// it can never blend in.
+    private var bottomSection: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 9) {
+                iconDisc("building.2.fill", tint: AppColor.text2)
+                Text("Daycare")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppColor.text)
+                    .frame(width: 52, alignment: .leading)
+                HStack(spacing: 10) {
+                    if daycare.feedCount > 0 {
+                        dotItem(AppColor.accentFeed,
+                                "\(OzFormat.string(daycare.feedOz)) oz (\(daycare.feedCount))")
+                    }
+                    if daycare.diaperCount > 0 {
+                        dotItem(AppColor.accentDiaper, daycareDiaperWords)
+                    }
+                    if daycare.napSeconds + liveNapSeconds > 0 {
+                        dotItem(AppColor.accentSleep,
+                                TimeFormatting.duration(minutes: Int((daycare.napSeconds + liveNapSeconds) / 60)))
+                    }
+                    // Photos only — activities live on the timeline; the
+                    // recap keeps its one-line promise.
+                    if daycare.photoCount > 0 {
+                        dotItem(AppColor.text3, Plural.count(daycare.photoCount, "photo"))
+                    }
+                }
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                Spacer(minLength: 0)
+            }
+            medsRow
         }
-        if daycare.photoCount > 0 {
-            lines.append(SplitLine(emoji: "📸", text: Plural.count(daycare.photoCount, "photo")))
-        }
-        return lines
     }
 
-    private func trackerLines(oz: Double, feeds: Int, wet: Int, dirty: Int,
-                              sleep: TimeInterval) -> [SplitLine] {
-        var lines: [SplitLine] = []
-        if showFeed, feeds > 0 {
-            let text = oz > 0 ? "\(OzFormat.string(oz)) oz (\(feeds))" : "\(feeds)"
-            lines.append(SplitLine(emoji: "🍼", text: text,
-                                   spoken: "\(OzFormat.string(oz)) ounces across \(Plural.count(feeds, "feed"))"))
+    @ViewBuilder private var medsRow: some View {
+        if daycare.medicationCount > 0 {
+            splitRow(systemImage: "pills.fill", tint: AppColor.accentMedication,
+                     title: "Meds",
+                     text: "\(Plural.count(daycare.medicationCount, "medication")) — see timeline",
+                     textTint: AppColor.accentMedication)
         }
-        if showDiaper, wet + dirty > 0 {
-            // Wet vs dirty, the split parents and pediatricians actually
-            // count — "💧1 💩1". A .both diaper tallies on each side.
-            var spoken: [String] = []
-            if wet > 0 { spoken.append("\(wet) wet") }
-            if dirty > 0 { spoken.append("\(dirty) dirty") }
-            lines.append(SplitLine(emoji: wet > 0 ? "💧" : "💩",
-                                   text: diaperText(wet: wet, dirty: dirty),
-                                   spoken: spoken.joined(separator: ", ") + " diapers"))
-        }
-        if showSleep, sleep > 0 {
-            lines.append(SplitLine(emoji: "💤",
-                                   text: TimeFormatting.duration(minutes: Int(sleep / 60)),
-                                   spoken: "\(TimeFormatting.duration(minutes: Int(sleep / 60))) sleep"))
-        }
-        return lines
     }
 
-    /// "1 💩1" after a 💧 lead emoji, or just the counts when one side is
-    /// zero — the emoji column renders the first glyph, this the remainder.
-    private func diaperText(wet: Int, dirty: Int) -> String {
-        if wet > 0 && dirty > 0 { return "\(wet)  💩\(dirty)" }
-        return wet > 0 ? "\(wet)" : "\(dirty)"
+    private func dotItem(_ color: Color, _ text: String) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 5, height: 5)
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(AppColor.text2)
+                .monospacedDigit()
+        }
     }
 
-    private func splitRow(systemImage: String, tint: Color, title: String,
-                          lines: [SplitLine]) -> some View {
-        // Each item is glued with non-breaking spaces so a long row wraps
-        // between items, never inside "1 activity".
-        splitRow(systemImage: systemImage, tint: tint, title: title,
-                 text: lines.isEmpty ? "nothing yet"
-                     : lines.map { "\($0.emoji)\u{00A0}\($0.text.replacingOccurrences(of: " ", with: "\u{00A0}"))" }
-                            .joined(separator: " · "),
-                 textTint: lines.isEmpty ? AppColor.text3 : AppColor.text2)
+    private var daycareDiaperWords: String {
+        var parts: [String] = []
+        if daycare.wetCount > 0 { parts.append("\(daycare.wetCount) wet") }
+        if daycare.dirtyCount > 0 { parts.append("\(daycare.dirtyCount) dirty") }
+        return parts.isEmpty ? Plural.count(daycare.diaperCount, "change")
+                             : parts.joined(separator: " · ")
     }
 
-    /// One split row: a small tinted icon disc, a fixed-width title so the
-    /// rows' numbers align, and the values on one quiet line.
+    private func iconDisc(_ systemImage: String, tint: Color) -> some View {
+        ZStack {
+            Circle().fill(tint.opacity(0.13)).frame(width: 26, height: 26)
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(tint)
+        }
+    }
+
+    /// One labeled row: a small tinted icon disc, a fixed-width title so
+    /// the recap rows align, and the values on one quiet line.
     private func splitRow(systemImage: String, tint: Color, title: String,
                           text: String, textTint: Color) -> some View {
         HStack(spacing: 9) {
-            ZStack {
-                Circle()
-                    .fill(tint.opacity(0.13))
-                    .frame(width: 26, height: 26)
-                Image(systemName: systemImage)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(tint)
-            }
+            iconDisc(systemImage, tint: tint)
             Text(title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AppColor.text)
@@ -394,16 +363,41 @@ struct DaycareDayHeroCard: View {
     }
 
     private var accessibilitySummary: String {
-        func speak(_ lines: [SplitLine]) -> String {
-            lines.isEmpty ? "nothing yet"
-                : lines.map { $0.spoken ?? $0.text }.joined(separator: ", ")
-        }
         var parts = ["\(babyName) is at daycare since \(TimeFormatting.clock(since))"]
         if napping, let start = liveNapStartedAt {
             parts.append("napping right now, \(TimeFormatting.duration(from: start, to: now)) so far")
         }
-        parts.append("at home: \(speak(homeLines))")
-        parts.append("at daycare: \(speak(daycareLines))")
+        var today: [String] = []
+        if showFeed, feedCount > 0 {
+            today.append("\(OzFormat.string(feedOz)) ounces across \(Plural.count(feedCount, "feed"))")
+        }
+        if showDiaper, diaperCount > 0 {
+            today.append(diaperCaption.replacingOccurrences(of: " · ", with: ", ") + " diapers")
+        }
+        if showSleep, sleepTotal > 0 {
+            today.append("\(sleepValue) of sleep")
+        }
+        if !today.isEmpty {
+            parts.append("today: " + today.joined(separator: ", "))
+        }
+        var recap: [String] = []
+        if daycare.feedCount > 0 {
+            recap.append("\(OzFormat.string(daycare.feedOz)) ounces across \(Plural.count(daycare.feedCount, "feed"))")
+        }
+        if daycare.diaperCount > 0 {
+            recap.append(daycareDiaperWords.replacingOccurrences(of: " · ", with: ", ") + " diapers")
+        }
+        let nap = daycare.napSeconds + liveNapSeconds
+        if nap > 0 {
+            recap.append("\(TimeFormatting.duration(minutes: Int(nap / 60))) of naps")
+        }
+        if daycare.photoCount > 0 {
+            recap.append(Plural.count(daycare.photoCount, "photo"))
+        }
+        parts.append("at daycare: " + (recap.isEmpty ? "nothing yet" : recap.joined(separator: ", ")))
+        if daycare.medicationCount > 0 {
+            parts.append("\(Plural.count(daycare.medicationCount, "medication")) given, see the timeline")
+        }
         return parts.joined(separator: ", ")
     }
 }
