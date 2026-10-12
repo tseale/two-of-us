@@ -30,7 +30,7 @@ struct DaycareDaySummary: Equatable {
 
 /// The storybook page of the day, and Home's one TODAY card in every
 /// setting. A day-flow strip tells the day's actual shape — feeds and
-/// diapers as dots at their true times, naps as spans — with the whole-day
+/// diapers as emoji at their true times, naps as spans — with the whole-day
 /// totals as three plain numbers beneath. On a home day that's the whole
 /// card. Daycare arrives as layers on the same base: a neutral zone on
 /// the strip from drop-off, the "daycare since" capsule, and one quiet
@@ -40,7 +40,6 @@ struct DaycareDaySummary: Equatable {
 /// a running Brightwheel nap also ticks into the sleep total live.
 struct TodayHeroCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
 
     let babyName: String
     /// Today's events — home and daycare together — for the day-flow strip.
@@ -201,22 +200,35 @@ struct TodayHeroCard: View {
 
     // MARK: Totals
 
+    /// Each stat's instant-read glyph — a parent reads 🍼 before "feed".
+    private func emoji(for stat: Stat) -> String {
+        switch stat {
+        case .feed: "🍼"
+        case .diaper: "💧"
+        case .sleep: "💤"
+        }
+    }
+
     private func totalColumn(_ stat: Stat, active: Bool, value: String,
                              unit: String?, caption: String,
                              liveSleep: Bool = false) -> some View {
         VStack(spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(emoji(for: stat))
+                    .font(.system(size: 13))
+                    .opacity(active ? 1 : 0.45)
+                    .padding(.trailing, 1)
                 Text(value)
                     // Ink in the stat's own pastel family, not stark black.
                     .font(.system(.title3, design: .rounded).weight(.bold))
-                    .foregroundStyle(active ? ink(for: stat) : AppColor.text3)
+                    .foregroundStyle(active ? accent(for: stat) : AppColor.text3)
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.55)
                 if let unit {
                     Text(unit)
                         .font(.system(.caption, design: .rounded).weight(.semibold))
-                        .foregroundStyle(active ? ink(for: stat).opacity(0.7) : AppColor.text3)
+                        .foregroundStyle(active ? accent(for: stat).opacity(0.7) : AppColor.text3)
                 }
             }
             .scaleEffect(popped.contains(stat) ? 1.12 : 1)
@@ -234,7 +246,7 @@ struct TodayHeroCard: View {
                         .monospacedDigit()
                 }
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(ink(for: .sleep))
+                .foregroundStyle(accent(for: .sleep))
                 .opacity(reduceMotion ? 1 : (breathing ? 1 : 0.55))
                 .animation(reduceMotion ? nil
                            : .easeInOut(duration: 2.6).repeatForever(autoreverses: true),
@@ -263,17 +275,13 @@ struct TodayHeroCard: View {
                              : parts.joined(separator: " · ")
     }
 
-    /// Darker siblings of the pastel accents for the value text — and in
-    /// dark mode the opposite: lighter ones, since the pastel fill is dim
-    /// there and a dark ink would sink into it.
-    private func ink(for stat: Stat) -> Color {
-        switch (stat, colorScheme == .dark) {
-        case (.feed, false):   Color(hex: "1E6B5E")
-        case (.feed, true):    Color(hex: "9FE8DA")
-        case (.diaper, false): Color(hex: "7A5220")
-        case (.diaper, true):  Color(hex: "F4D1A0")
-        case (.sleep, false):  Color(hex: "45459E")
-        case (.sleep, true):   Color(hex: "C2C2FF")
+    /// The same accents the rest of the app uses for these event types —
+    /// the strip, the timeline, History — so the totals stay in family.
+    private func accent(for stat: Stat) -> Color {
+        switch stat {
+        case .feed:   AppColor.accentFeed
+        case .diaper: AppColor.accentDiaper
+        case .sleep:  AppColor.accentSleep
         }
     }
 
@@ -297,11 +305,11 @@ struct TodayHeroCard: View {
 
     // MARK: Daycare recap
 
-    /// One quiet daycare line, no emoji: tiny dots in each metric's strip
-    /// color carry the meaning the emoji used to, and the home side stays
-    /// implicit — the strip and totals above already tell it. Activities
-    /// live on the timeline; medication keeps its own red row below, where
-    /// it can never blend in.
+    /// One quiet daycare line: each metric led by its emoji, the same
+    /// glyphs as the totals above, so the row scans without reading.
+    /// The home side stays implicit — the strip and totals above already
+    /// tell it. Activities live on the timeline; medication keeps its own
+    /// red row below, where it can never blend in.
     private var bottomSection: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 9) {
@@ -312,26 +320,26 @@ struct TodayHeroCard: View {
                     .frame(width: 52, alignment: .leading)
                 HStack(spacing: 10) {
                     if daycare.feedCount > 0 {
-                        dotItem(AppColor.accentFeed,
-                                "\(OzFormat.string(daycare.feedOz)) oz (\(daycare.feedCount))")
+                        emojiItem("🍼",
+                                  "\(OzFormat.string(daycare.feedOz)) oz (\(daycare.feedCount))")
                     }
                     if daycare.diaperCount > 0 {
                         // Both kinds compact to a total — "1 wet · 1 dirty"
                         // overflows the one line; the whole-day split is
                         // already in the diaper total's caption above.
-                        dotItem(AppColor.accentDiaper,
-                                daycare.wetCount > 0 && daycare.dirtyCount > 0
-                                    ? Plural.count(daycare.diaperCount, "diaper")
-                                    : daycareDiaperWords)
+                        emojiItem("💧",
+                                  daycare.wetCount > 0 && daycare.dirtyCount > 0
+                                      ? "\(daycare.diaperCount)"
+                                      : daycareDiaperWords)
                     }
                     if daycare.napSeconds + liveNapSeconds > 0 {
-                        dotItem(AppColor.accentSleep,
-                                TimeFormatting.duration(minutes: Int((daycare.napSeconds + liveNapSeconds) / 60)))
+                        emojiItem("💤",
+                                  TimeFormatting.duration(minutes: Int((daycare.napSeconds + liveNapSeconds) / 60)))
                     }
                     // Photos only — activities live on the timeline; the
                     // recap keeps its one-line promise.
                     if daycare.photoCount > 0 {
-                        dotItem(AppColor.text3, Plural.count(daycare.photoCount, "photo"))
+                        emojiItem("📸", "\(daycare.photoCount)")
                     }
                 }
                 .lineLimit(1)
@@ -351,9 +359,10 @@ struct TodayHeroCard: View {
         }
     }
 
-    private func dotItem(_ color: Color, _ text: String) -> some View {
-        HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 5, height: 5)
+    private func emojiItem(_ emoji: String, _ text: String) -> some View {
+        HStack(spacing: 3) {
+            Text(emoji)
+                .font(.system(size: 10))
             Text(text)
                 .font(.caption)
                 .foregroundStyle(AppColor.text2)
@@ -445,11 +454,11 @@ struct TodayHeroCard: View {
     }
 }
 
-/// The day as a horizontal time strip: a soft track spanning the waking
-/// day, the daycare window as a neutral wash (open-ended and fading while
+/// The day as a horizontal time strip: a soft track spanning the whole
+/// day, midnight to midnight, the daycare window as a neutral wash (open-ended and fading while
 /// he's there, a closed span after pickup, absent on a home day), naps as
-/// slim lavender lozenges in the band, feeds as teal dots above it,
-/// diapers as amber dots below, sparse hour labels underneath. Any
+/// slim lavender lozenges in the band, feeds as 🍼 above it, diapers as
+/// 💧/💩 below, sparse hour labels underneath. Any
 /// running sleep puts a breathing glow dot at the now edge.
 private struct DayFlowStrip: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -537,18 +546,24 @@ private struct DayFlowStrip: View {
                         nap(from: hour(start), to: hour(now), live: true)
                     }
 
-                    // Feeds above, diapers below
-                    func dot(_ h: Double, _ color: Color, above: Bool) {
-                        let y = above ? bandY - 7 : bandY + bandH + 7
-                        ctx.fill(Path(ellipseIn: CGRect(x: x(h) - 3.2, y: y - 3.2,
-                                                        width: 6.4, height: 6.4)),
-                                 with: .color(color))
+                    // Feeds above, diapers below — each event as its emoji, so the
+                    // strip reads at a glance (🍼 lands before "feed" does).
+                    func emojiMark(_ h: Double, _ emoji: String, above: Bool) {
+                        let y = above ? bandY - 8 : bandY + bandH + 8
+                        let glyph = ctx.resolve(Text(emoji).font(.system(size: 9)))
+                        // Clamp inside the strip so an event at the window's
+                        // edge doesn't draw a half-clipped glyph.
+                        ctx.draw(glyph, at: CGPoint(x: min(max(x(h), 5), size.width - 5), y: y),
+                                 anchor: .center)
                     }
                     for mark in marks where mark.kind == .feed {
-                        dot(hour(mark.start), AppColor.accentFeed, above: true)
+                        emojiMark(hour(mark.start), "🍼", above: true)
                     }
                     for mark in marks where mark.kind == .diaper {
-                        dot(hour(mark.start), AppColor.accentDiaper, above: false)
+                        // A .both diaper shows 💩 — the saltier half of the news.
+                        emojiMark(hour(mark.start),
+                                  mark.diaperType == .wet ? "💧" : "💩",
+                                  above: false)
                     }
 
                     // The "now" edge, marked even outside a sleep
@@ -559,16 +574,15 @@ private struct DayFlowStrip: View {
                             with: .color(AppColor.text2), lineWidth: 1.5)
                     }
 
-                    // Sparse hour labels
-                    var h = ceil(window.start)
-                    while h.truncatingRemainder(dividingBy: 3) != 0 { h += 1 }
+                    // Sparse hour labels — the day's quarter marks.
+                    var h = window.start
                     while h <= window.end {
                         let t = ctx.resolve(Text(hourLabel(Int(h)))
                             .font(.system(size: 8, weight: .medium))
                             .foregroundStyle(AppColor.text3))
                         ctx.draw(t, at: CGPoint(x: min(max(x(h), 7), size.width - 9),
                                                 y: size.height - 4), anchor: .center)
-                        h += 3
+                        h += 6
                     }
                 }
 
@@ -594,18 +608,10 @@ private struct DayFlowStrip: View {
             }
     }
 
-    /// The waking-day window: starts at 6 AM or the day's first meaningful
-    /// moment (an overnight sleep counts by its END — when he woke — so the
-    /// strip never stretches back to midnight), ends at 6 PM or just past now.
+    /// The whole calendar day, midnight to midnight — a fixed scale, so an
+    /// hour is always the same width and the day fills in left to right.
     private func hourWindow(dayStart: Date) -> (start: Double, end: Double) {
-        func hour(_ d: Date) -> Double { d.timeIntervalSince(dayStart) / 3600 }
-        let moments = marks.map { mark in
-            mark.kind == .sleep && hour(mark.start) <= 0.01
-                ? hour(mark.end ?? now) : hour(mark.start)
-        }
-        let start = min(6, floor(moments.min() ?? 6))
-        let end = max(18, min(24, hour(now) + 0.75))
-        return (max(0, start), end)
+        (0, 24)
     }
 
     private func hourLabel(_ h: Int) -> String {
