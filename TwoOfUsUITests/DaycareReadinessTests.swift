@@ -24,13 +24,18 @@ final class DaycareReadinessTests: XCTestCase {
 
         app.launch()
 
-        // 1 — Home loads; the daycare report card aggregates the mock day.
-        let feedTile = app.buttons["logTile.feed"]
-        XCTAssertTrue(feedTile.waitForExistence(timeout: 30), "Home did not present the Feed tile")
-        let reportCard = app.staticTexts.containing(
+        // 1 — Home loads. The seeded day is time-of-day dependent: from
+        // mid-morning, today's mock check-in (no check-out yet) puts Home in
+        // daycare mode — the daycare card is the anchor and the big log
+        // tiles are deliberately absent. Run EARLY morning, the seeder falls
+        // back to yesterday's full day instead, today has no daycare
+        // presence, and Home shows the plain tiles with no card — also
+        // correct. Accept whichever state the clock earns.
+        let daycareCard = app.staticTexts.containing(
             NSPredicate(format: "label CONTAINS[c] %@", "at daycare")).firstMatch
-        XCTAssertTrue(reportCard.waitForExistence(timeout: 10),
-                      "Home shows no daycare report card after the mock day import")
+        let feedTile = app.buttons["logTile.feed"]
+        XCTAssertTrue(daycareCard.waitForExistence(timeout: 30) || feedTile.waitForExistence(timeout: 10),
+                      "Home presented neither the daycare card nor the log tiles")
         snapshot("01-Home-DaycareReportCard")
 
         // 2 — Timeline rows carry the daycare tag (accessibility label ends

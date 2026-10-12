@@ -50,6 +50,11 @@ struct BrightwheelImporter {
         var staffNotes = 0
         var skippedDuplicates = 0
         var skippedUnmapped = 0
+        /// A fell-asleep with no woke-up yet: the nap is still running at
+        /// daycare right now. Nothing is persisted for it (the pair imports
+        /// whole once staff log the wake) — this surfaces it so Home can show
+        /// a live "napping" indicator.
+        var openNapStartedAt: Date?
 
         var imported: Int {
             feeds + sleeps + diapers + notes + activities + media + checks
@@ -96,8 +101,12 @@ struct BrightwheelImporter {
             }
         }
         // A fell-asleep with no woke-up yet: the nap is still running at
-        // daycare. Skip it — the pair imports whole once staff log the wake.
-        if openNapStart != nil { summary.skippedUnmapped += 1 }
+        // daycare. Nothing imports (the pair lands whole once staff log the
+        // wake) but the start is surfaced for the live-nap indicator.
+        if let openNapStart {
+            summary.skippedUnmapped += 1
+            summary.openNapStartedAt = openNapStart.when
+        }
         return summary
     }
 

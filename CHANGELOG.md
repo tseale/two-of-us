@@ -6,6 +6,22 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Changed — one daycare card, now a window into his day
+- The daycare report paragraph and the "at daycare" strip merged into one
+  card: "Miller is at daycare · since 7:51 AM · 3h 12m" over three stat
+  circles that carry the whole summary — total oz in the feed circle, change
+  count in the diaper circle, total sleep in the sleep circle. Activities and
+  photos get one gentle line; medication keeps its red one.
+- **Live nap**: Brightwheel sends naps as separate fell-asleep/woke-up
+  activities, so an unpaired start means he's napping *right now* — the sleep
+  circle pulses with a counting timer and settles into the day's total once
+  the wake lands. Surfaced ephemerally from the importer; nothing is
+  persisted until the pair completes.
+- A circle pops briefly when its number grows (a new bottle just landed from
+  the daycare feed), the card wears a soft two-accent gradient wash, and the
+  same card renders the finished day quietly after pickup. All motion
+  respects Reduce Motion.
+
 ### Changed — Home adapts to where Miller actually is
 - **Tonight's Schedule leaves when it's done**: once every overnight slot is
   fulfilled, missed, or skipped, the card hides instead of showing a
