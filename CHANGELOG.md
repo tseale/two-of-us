@@ -14,8 +14,10 @@ All notable changes to Two of Us are recorded here. The format loosely follows
   Brightwheel-imported or hand-logged) the big Feed/Diaper/Sleep tiles
   collapse into a compact "at daycare" strip — the three log actions stay
   reachable — and the Daycare Report card moves to the top of the screen as
-  the hero. Check-out (or midnight, if daycare forgets the tap) brings the
-  tiles back.
+  the hero. Fallbacks keep a missed tap from wedging the mode: with no
+  check-in recorded, the first daycare-logged event of the day stands in
+  ("daycare's been logging since 9:02 AM"); with no check-out, the day is
+  assumed over at 5:30 PM; and midnight clears everything.
 
 ### Changed — Today's outlook rebuilt: computed, not generated
 - **Today's outlook** (Stats) is now assembled directly from the prediction

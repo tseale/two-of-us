@@ -8,8 +8,9 @@ import SwiftUI
 /// without letting them command half the screen.
 struct DaycareLogStrip: View {
     let babyName: String
-    /// Today's first check-in, for the "checked in 7:30 AM" subline.
-    let checkIn: Date?
+    /// "checked in 7:30 AM" / "daycare's been logging since 9:02 AM" — the
+    /// caller says what the mode rests on (HomeView.daycareSubtitle).
+    let subtitle: String
     var showFeed = true
     var showSleep = true
     var showDiaper = true
@@ -24,8 +25,7 @@ struct DaycareLogStrip: View {
                 Text("\(babyName) is at daycare")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppColor.text)
-                Text(checkIn.map { "checked in \(TimeFormatting.clock($0))" }
-                     ?? "they're doing the logging for now")
+                Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(AppColor.text3)
             }
@@ -44,9 +44,7 @@ struct DaycareLogStrip: View {
         .padding(.vertical, 10)
         .surfaceCard(cornerRadius: 14)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(checkIn.map {
-            "\(babyName) is at daycare, checked in \(TimeFormatting.clock($0))"
-        } ?? "\(babyName) is at daycare")
+        .accessibilityLabel("\(babyName) is at daycare, \(subtitle)")
     }
 
     /// 44pt circular target — small next to the tiles, still comfortably
