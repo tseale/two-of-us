@@ -102,15 +102,6 @@ struct HomeView: View {
                         // Small top inset keeps the profile/settings row off the
                         // status bar now the nav bar is hidden.
                         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 2, trailing: 16))
-                    TodayRibbonCard(
-                        marks: todayMarks,
-                        feedCount: todaySummary?.feedCount ?? 0,
-                        sleepSeconds: todaySummary?.sleepSeconds ?? 0,
-                        diaperCount: todaySummary?.diaperCount ?? 0,
-                        showFeed: isTracked(.feed),
-                        showSleep: isTracked(.sleep),
-                        showDiaper: isTracked(.diaper)
-                    )
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         // 12pt matches the tile grid spacing, so the active sleep
                         // card reads as the Sleep row transformed in place.
@@ -118,20 +109,39 @@ struct HomeView: View {
                         VStack(spacing: 12) {
                             // Daycare hours invert the screen's job: between
                             // check-in and check-out the parents aren't the
-                            // ones logging — they're watching. The daycare
-                            // card takes the hero slot (live form: stat
-                            // circles, elapsed timer, pulsing nap) and the
-                            // log tiles sit the day out; check-out brings
-                            // them back.
+                            // ones logging — they're watching. The TODAY card
+                            // and the daycare card were the same three numbers
+                            // in two formats, so while he's there ONE hero
+                            // card replaces both — ribbon, whole-day beads,
+                            // live nap pulse, home/daycare split — and the
+                            // log tiles sit the day out. Checkout brings the
+                            // plain TODAY card and tiles back.
                             if let attendance {
-                                DaycareCard(
+                                DaycareDayHeroCard(
                                     babyName: baby?.name ?? "Baby",
-                                    day: daycareToday ?? DaycareDaySummary(),
-                                    liveSince: attendance.since,
+                                    marks: todayMarks,
+                                    feedCount: todaySummary?.feedCount ?? 0,
+                                    feedOz: todaySummary?.feedOz ?? 0,
+                                    diaperCount: todaySummary?.diaperCount ?? 0,
+                                    sleepSeconds: todaySummary?.sleepSeconds ?? 0,
+                                    daycare: daycareToday ?? DaycareDaySummary(),
+                                    since: attendance.since,
                                     liveNapStartedAt: liveNapToday,
-                                    now: ctx.date
+                                    now: ctx.date,
+                                    showFeed: isTracked(.feed),
+                                    showSleep: isTracked(.sleep),
+                                    showDiaper: isTracked(.diaper)
                                 )
                             } else {
+                                TodayRibbonCard(
+                                    marks: todayMarks,
+                                    feedCount: todaySummary?.feedCount ?? 0,
+                                    sleepSeconds: todaySummary?.sleepSeconds ?? 0,
+                                    diaperCount: todaySummary?.diaperCount ?? 0,
+                                    showFeed: isTracked(.feed),
+                                    showSleep: isTracked(.sleep),
+                                    showDiaper: isTracked(.diaper)
+                                )
                                 logButtons(now: ctx.date)
                             }
                             if let sleep = activeSleep {
@@ -164,10 +174,7 @@ struct HomeView: View {
                             if attendance == nil, let daycare = daycareToday {
                                 DaycareCard(
                                     babyName: baby?.name ?? "Baby",
-                                    day: daycare,
-                                    liveSince: nil,
-                                    liveNapStartedAt: nil,
-                                    now: ctx.date
+                                    day: daycare
                                 )
                             }
                             // Inside the ticking TimelineView so the rows stay
