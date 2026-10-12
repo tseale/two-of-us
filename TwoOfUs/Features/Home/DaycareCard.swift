@@ -30,18 +30,21 @@ struct DaycareDaySummary: Equatable {
 
 /// The storybook page of Miller's day, shown while he's at daycare in place
 /// of BOTH the TODAY card and the daycare card — they were the same three
-/// numbers in two formats. Three composition rings carry the whole-day
-/// totals, each ring split into a deeper home arc and a lighter daycare arc
-/// so the where-he-was story is geometry, not a table. Mid-nap the sleep
-/// ring breathes under a lavender glow and its total ticks live. Two quiet
-/// rows underneath give the exact home/daycare numbers for the parent who
-/// wants them. Checkout dissolves it back into the plain TODAY card plus
-/// the quiet finished-day card below.
+/// numbers in two formats. A day-flow strip tells the day's actual shape —
+/// feeds and diapers as dots at their true times, naps as spans, the
+/// daycare window tinted from drop-off and fading out at "now" — with the
+/// whole-day totals as three plain numbers beneath. Mid-nap the strip's
+/// leading edge glows and breathes while the sleep total ticks live. Two
+/// quiet rows underneath give the exact home/daycare numbers for the
+/// parent who wants them. Checkout dissolves it back into the plain TODAY
+/// card plus the quiet finished-day card below.
 struct DaycareDayHeroCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
 
     let babyName: String
+    /// Today's events — home and daycare together — for the day-flow strip.
+    let marks: [RibbonMark]
     /// Whole-day totals (home + daycare), same numbers the TODAY card showed.
     let feedCount: Int
     let feedOz: Double
@@ -79,7 +82,6 @@ struct DaycareDayHeroCard: View {
     // The home side of the split is the day minus the daycare slice.
     private var homeOz: Double { max(0, feedOz - daycare.feedOz) }
     private var homeFeeds: Int { max(0, feedCount - daycare.feedCount) }
-    private var homeDiapers: Int { max(0, diaperCount - daycare.diaperCount) }
     private var homeWet: Int { max(0, wetCount - daycare.wetCount) }
     private var homeDirty: Int { max(0, dirtyCount - daycare.dirtyCount) }
     private var homeSleep: TimeInterval { max(0, sleepSeconds - daycare.napSeconds) }
@@ -105,36 +107,34 @@ struct DaycareDayHeroCard: View {
                 .background(AppColor.accentCheck.opacity(0.13), in: Capsule())
             }
 
-            // The day's totals as three composition rings — the deeper arc is
-            // the home share, the lighter arc the daycare share.
-            HStack(alignment: .top, spacing: 0) {
-                if showFeed {
-                    statColumn(.feed, color: AppColor.accentFeed,
-                               homeFraction: homeShare(home: homeOz, total: feedOz,
-                                                       fallbackHome: Double(homeFeeds),
-                                                       fallbackTotal: Double(feedCount)),
-                               active: feedCount > 0,
-                               value: feedCount > 0 ? OzFormat.string(feedOz) : "—",
-                               unit: feedCount > 0 ? "oz" : nil,
-                               caption: feedCount > 0 ? Plural.count(feedCount, "feed") : "no feeds yet")
-                }
-                if showDiaper {
-                    statColumn(.diaper, color: AppColor.accentDiaper,
-                               homeFraction: homeShare(home: Double(homeDiapers),
-                                                       total: Double(diaperCount)),
-                               active: diaperCount > 0,
-                               value: diaperCount > 0 ? "\(diaperCount)" : "—",
-                               unit: nil,
-                               caption: diaperCaption)
-                }
-                if showSleep {
-                    statColumn(.sleep, color: AppColor.accentSleep,
-                               homeFraction: homeShare(home: homeSleep, total: sleepTotal),
-                               active: napping || sleepSeconds > 0,
-                               value: sleepValue,
-                               unit: nil,
-                               caption: "sleep",
-                               liveNap: napping)
+            // The day's actual shape, then its totals as three plain numbers.
+            VStack(spacing: 14) {
+                DayFlowStrip(marks: marks, since: since,
+                             liveNapStartedAt: liveNapStartedAt, now: now)
+                    .frame(height: 62)
+                HStack(alignment: .top, spacing: 10) {
+                    if showFeed {
+                        totalColumn(.feed,
+                                    active: feedCount > 0,
+                                    value: feedCount > 0 ? OzFormat.string(feedOz) : "—",
+                                    unit: feedCount > 0 ? "oz" : nil,
+                                    caption: feedCount > 0 ? Plural.count(feedCount, "feed") : "no feeds yet")
+                    }
+                    if showDiaper {
+                        totalColumn(.diaper,
+                                    active: diaperCount > 0,
+                                    value: diaperCount > 0 ? "\(diaperCount)" : "—",
+                                    unit: nil,
+                                    caption: diaperCaption)
+                    }
+                    if showSleep {
+                        totalColumn(.sleep,
+                                    active: napping || sleepSeconds > 0,
+                                    value: sleepValue,
+                                    unit: nil,
+                                    caption: "sleep",
+                                    liveNap: napping)
+                    }
                 }
             }
 
@@ -184,62 +184,32 @@ struct DaycareDayHeroCard: View {
         .accessibilityIdentifier("daycareCard")
     }
 
-    // MARK: Rings
+    // MARK: Totals
 
-    private static let ringSize: CGFloat = 86
-    private static let ringLine: CGFloat = 9
-
-    private func statColumn(_ stat: Stat, color: Color, homeFraction: Double,
-                            active: Bool, value: String, unit: String?,
-                            caption: String, liveNap: Bool = false) -> some View {
-        VStack(spacing: 8) {
-            ZStack {
-                // The nap's breath: a soft lavender glow swelling and settling
-                // behind the sleep ring, slow as sleeping lungs.
-                if liveNap && !reduceMotion {
-                    Circle()
-                        .fill(color.opacity(0.30))
-                        .frame(width: Self.ringSize, height: Self.ringSize)
-                        .blur(radius: 14)
-                        .scaleEffect(breathing ? 1.22 : 0.88)
-                        .animation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true),
-                                   value: breathing)
-                        .onAppear { breathing = true }
-                        .onDisappear { breathing = false }
+    private func totalColumn(_ stat: Stat, active: Bool, value: String,
+                             unit: String?, caption: String,
+                             liveNap: Bool = false) -> some View {
+        VStack(spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(value)
+                    // Ink in the stat's own pastel family, not stark black.
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .foregroundStyle(active ? ink(for: stat) : AppColor.text3)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.55)
+                if let unit {
+                    Text(unit)
+                        .font(.system(.caption, design: .rounded).weight(.semibold))
+                        .foregroundStyle(active ? ink(for: stat).opacity(0.7) : AppColor.text3)
                 }
-                if liveNap {
-                    Circle()
-                        .fill(color.opacity(0.10))
-                        .frame(width: Self.ringSize - Self.ringLine,
-                               height: Self.ringSize - Self.ringLine)
-                }
-                CompositionRing(color: color, homeFraction: homeFraction,
-                                active: active, lineWidth: Self.ringLine,
-                                appearDelay: appearDelay(for: stat))
-                    .frame(width: Self.ringSize, height: Self.ringSize)
-                VStack(spacing: unit == nil ? 0 : -1) {
-                    Text(value)
-                        // Ink in the ring's own family, not stark black — the
-                        // number should feel dyed into the pastel.
-                        .font(.system(.headline, design: .rounded).weight(.bold))
-                        .foregroundStyle(active ? ink(for: stat) : AppColor.text3)
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.55)
-                        .padding(.horizontal, 12)
-                    if let unit {
-                        Text(unit)
-                            .font(.system(.caption2, design: .rounded).weight(.semibold))
-                            .foregroundStyle(active ? ink(for: stat).opacity(0.7) : AppColor.text3)
-                    }
-                }
-                .frame(width: Self.ringSize, height: Self.ringSize)
             }
-            .scaleEffect(popped.contains(stat) ? 1.1 : 1)
+            .scaleEffect(popped.contains(stat) ? 1.12 : 1)
             .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.55),
                        value: popped)
 
             if liveNap, let start = liveNapStartedAt {
+                // The nap's pulse, breathing with the strip's glow dot.
                 HStack(spacing: 3) {
                     Image(systemName: "moon.zzz.fill")
                         .font(.system(size: 8, weight: .semibold))
@@ -252,6 +222,8 @@ struct DaycareDayHeroCard: View {
                 .animation(reduceMotion ? nil
                            : .easeInOut(duration: 2.6).repeatForever(autoreverses: true),
                            value: breathing)
+                .onAppear { if !reduceMotion { breathing = true } }
+                .onDisappear { breathing = false }
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             } else {
@@ -263,28 +235,6 @@ struct DaycareDayHeroCard: View {
             }
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private func appearDelay(for stat: Stat) -> Double {
-        switch stat {
-        case .feed: 0
-        case .diaper: 0.12
-        case .sleep: 0.24
-        }
-    }
-
-    /// The home share of a metric's ring, clamped so a real-but-small side
-    /// stays a visible sliver. When the primary measure is empty (feeds
-    /// logged with no amounts), the count fallback keeps the split honest.
-    private func homeShare(home: Double, total: Double,
-                           fallbackHome: Double = 0, fallbackTotal: Double = 0) -> Double {
-        var h = home, t = total
-        if t <= 0 { h = fallbackHome; t = fallbackTotal }
-        guard t > 0 else { return 1 }
-        let f = h / t
-        if f <= 0 { return 0 }
-        if f >= 1 { return 1 }
-        return min(max(f, 0.08), 0.92)
     }
 
     private var diaperCaption: String {
@@ -456,64 +406,160 @@ struct DaycareDayHeroCard: View {
     }
 }
 
-/// One metric's ring: a faint full track, then a deeper arc for the home
-/// share and a lighter arc of the same hue for the daycare share, clockwise
-/// from 12 o'clock with a soft gap where they meet. One lone side owns the
-/// whole circle, seamless.
-private struct CompositionRing: View {
+/// The day as a horizontal time strip: a soft track spanning the waking
+/// day, the daycare window tinted teal from drop-off and fading toward
+/// "now" (the day is still being written), naps as slim lavender lozenges
+/// in the band, feeds as teal dots above it, diapers as amber dots below,
+/// sparse hour labels underneath. A running Brightwheel nap runs its
+/// lozenge into a glow dot at the now edge, breathing while he sleeps.
+private struct DayFlowStrip: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    let color: Color
-    let homeFraction: Double   // 0…1 of the metric that happened at home
-    let active: Bool
-    var lineWidth: CGFloat = 9
-    /// Stagger for the draw-in, so the three rings bloom left to right.
-    var appearDelay: Double = 0
+    let marks: [RibbonMark]
+    /// When the daycare day began — the tinted zone's left edge.
+    let since: Date
+    /// Start of a Brightwheel nap still running.
+    let liveNapStartedAt: Date?
+    let now: Date
 
-    /// 0→1 on first appearance: both arcs sweep in together from 12 o'clock,
-    /// the little morning ritual of opening the app at your desk.
-    @State private var drawn: Double = 0
+    @State private var glowBreathing = false
 
-    /// Trim backed off each seam; with round caps this nets a hairline gap.
-    private let gap = 0.025
+    private let calendar = Calendar.current
 
     var body: some View {
-        ZStack {
-            Circle()
-                .stroke(color.opacity(0.12), lineWidth: lineWidth)
-            if active {
-                let f = min(max(homeFraction, 0), 1)
-                if f >= 0.999 {
-                    ring(from: 0, to: drawn, opacity: 1)
-                } else if f <= 0.001 {
-                    ring(from: 0, to: drawn, opacity: 0.38)
-                } else {
-                    ring(from: gap, to: min(f - gap, drawn), opacity: 1)
-                    if drawn > f + gap {
-                        ring(from: f + gap, to: min(1 - gap, drawn), opacity: 0.38)
-                    }
-                }
-            }
+        GeometryReader { geo in
+            content(size: geo.size)
         }
-        // New events re-balance the arcs with a settle; the draw-in itself is
-        // driven by `drawn`'s own withAnimation so the stagger survives.
-        .animation(reduceMotion ? nil : .spring(response: 0.6, dampingFraction: 0.8),
-                   value: homeFraction)
-        .onAppear {
-            if reduceMotion {
-                drawn = 1
-            } else {
-                withAnimation(.easeOut(duration: 0.9).delay(appearDelay)) { drawn = 1 }
-            }
-        }
+        .accessibilityHidden(true)
     }
 
-    private func ring(from: Double, to: Double, opacity: Double) -> some View {
-        Circle()
-            .trim(from: from, to: max(from, to))
-            .stroke(color.opacity(opacity),
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-            .rotationEffect(.degrees(-90))
+    private func content(size: CGSize) -> some View {
+        let dayStart = calendar.startOfDay(for: now)
+        let window = hourWindow(dayStart: dayStart)
+        func hour(_ d: Date) -> Double { d.timeIntervalSince(dayStart) / 3600 }
+        func x(_ h: Double) -> CGFloat {
+            CGFloat((min(max(h, window.start), window.end) - window.start)
+                    / (window.end - window.start)) * size.width
+        }
+        let bandY = size.height * 0.32
+        let bandH = size.height * 0.30
+        let nowX = x(hour(now))
+
+        return ZStack(alignment: .topLeading) {
+                Canvas { ctx, _ in
+                    // Track
+                    let band = CGRect(x: 0, y: bandY, width: size.width, height: bandH)
+                    ctx.fill(Path(roundedRect: band, cornerRadius: bandH / 2),
+                             with: .color(AppColor.card2.opacity(0.8)))
+
+                    // Daycare zone, drop-off → now, soft right edge
+                    let zone = CGRect(x: x(hour(since)), y: bandY,
+                                      width: max(bandH, nowX - x(hour(since))), height: bandH)
+                    ctx.fill(Path(roundedRect: zone, cornerRadius: bandH / 2),
+                             with: .linearGradient(
+                                Gradient(colors: [AppColor.accentCheck.opacity(0.28),
+                                                  AppColor.accentCheck.opacity(0.10)]),
+                                startPoint: CGPoint(x: zone.minX, y: 0),
+                                endPoint: CGPoint(x: zone.maxX, y: 0)))
+                    let glyph = ctx.resolve(Text(Image(systemName: "building.2.fill"))
+                        .font(.system(size: 7, weight: .semibold))
+                        .foregroundStyle(AppColor.accentCheck))
+                    ctx.draw(glyph, at: CGPoint(x: zone.minX + 8, y: zone.midY), anchor: .center)
+
+                    // Naps (overnight tail clips to the window's left edge)
+                    func nap(from: Double, to: Double, live: Bool) {
+                        let h: CGFloat = max(9, bandH - 7)
+                        let x0 = x(from), x1 = x(to)
+                        let r = CGRect(x: x0, y: bandY + (bandH - h) / 2,
+                                       width: max(h, x1 - x0), height: h)
+                        ctx.fill(Path(roundedRect: r, cornerRadius: h / 2),
+                                 with: .color(AppColor.accentSleep.opacity(live ? 0.9 : 0.55)))
+                    }
+                    for mark in marks where mark.kind == .sleep {
+                        nap(from: hour(mark.start), to: hour(mark.end ?? now), live: false)
+                    }
+                    if let start = liveNapStartedAt {
+                        nap(from: hour(start), to: hour(now), live: true)
+                    }
+
+                    // Feeds above, diapers below
+                    func dot(_ h: Double, _ color: Color, above: Bool) {
+                        let y = above ? bandY - 7 : bandY + bandH + 7
+                        ctx.fill(Path(ellipseIn: CGRect(x: x(h) - 3.2, y: y - 3.2,
+                                                        width: 6.4, height: 6.4)),
+                                 with: .color(color))
+                    }
+                    for mark in marks where mark.kind == .feed {
+                        dot(hour(mark.start), AppColor.accentFeed, above: true)
+                    }
+                    for mark in marks where mark.kind == .diaper {
+                        dot(hour(mark.start), AppColor.accentDiaper, above: false)
+                    }
+
+                    // The "now" edge, marked even outside a nap
+                    if liveNapStartedAt == nil {
+                        ctx.stroke(
+                            Path(ellipseIn: CGRect(x: nowX - 3, y: bandY + bandH / 2 - 3,
+                                                   width: 6, height: 6)),
+                            with: .color(AppColor.text2), lineWidth: 1.5)
+                    }
+
+                    // Sparse hour labels
+                    var h = ceil(window.start)
+                    while h.truncatingRemainder(dividingBy: 3) != 0 { h += 1 }
+                    while h <= window.end {
+                        let t = ctx.resolve(Text(hourLabel(Int(h)))
+                            .font(.system(size: 8, weight: .medium))
+                            .foregroundStyle(AppColor.text3))
+                        ctx.draw(t, at: CGPoint(x: min(max(x(h), 7), size.width - 9),
+                                                y: size.height - 4), anchor: .center)
+                        h += 3
+                    }
+                }
+
+                // The living part: a breathing glow where the nap meets now.
+                if liveNapStartedAt != nil {
+                    ZStack {
+                        Circle()
+                            .fill(AppColor.accentSleep.opacity(0.45))
+                            .frame(width: 18, height: 18)
+                            .blur(radius: 5)
+                            .scaleEffect(glowBreathing ? 1.5 : 0.8)
+                            .animation(reduceMotion ? nil
+                                       : .easeInOut(duration: 2.6).repeatForever(autoreverses: true),
+                                       value: glowBreathing)
+                        Circle()
+                            .fill(.white.opacity(0.9))
+                            .frame(width: 6, height: 6)
+                    }
+                    .position(x: nowX, y: bandY + bandH / 2)
+                    .onAppear { if !reduceMotion { glowBreathing = true } }
+                    .onDisappear { glowBreathing = false }
+                }
+            }
+    }
+
+    /// The waking-day window: starts at 6 AM or the day's first meaningful
+    /// moment (an overnight sleep counts by its END — when he woke — so the
+    /// strip never stretches back to midnight), ends at 6 PM or just past now.
+    private func hourWindow(dayStart: Date) -> (start: Double, end: Double) {
+        func hour(_ d: Date) -> Double { d.timeIntervalSince(dayStart) / 3600 }
+        let moments = marks.map { mark in
+            mark.kind == .sleep && hour(mark.start) <= 0.01
+                ? hour(mark.end ?? now) : hour(mark.start)
+        }
+        let start = min(6, floor(moments.min() ?? 6))
+        let end = max(18, min(24, hour(now) + 0.75))
+        return (max(0, start), end)
+    }
+
+    private func hourLabel(_ h: Int) -> String {
+        switch h {
+        case 0, 24: "12a"
+        case 12: "12p"
+        case ..<12: "\(h)a"
+        default: "\(h - 12)p"
+        }
     }
 }
 
@@ -637,6 +683,21 @@ struct DaycareCard: View {
 #Preview("Hero, napping") {
     DaycareDayHeroCard(
         babyName: "Miller",
+        marks: {
+            let cal = Calendar.current
+            func at(_ h: Int, _ m: Int) -> Date {
+                cal.date(bySettingHour: h, minute: m, second: 0, of: .now) ?? .now
+            }
+            return [
+                RibbonMark(kind: .sleep, start: cal.startOfDay(for: .now), end: at(6, 30)),
+                RibbonMark(kind: .feed, start: at(6, 45)),
+                RibbonMark(kind: .diaper, start: at(7, 0), diaperType: .wet),
+                RibbonMark(kind: .feed, start: at(9, 0)),
+                RibbonMark(kind: .sleep, start: at(9, 45), end: at(10, 30)),
+                RibbonMark(kind: .diaper, start: at(10, 45), diaperType: .dirty),
+                RibbonMark(kind: .feed, start: at(12, 0)),
+            ]
+        }(),
         feedCount: 3, feedOz: 7, diaperCount: 3, wetCount: 2, dirtyCount: 1,
         sleepSeconds: 4 * 3600 + 50 * 60,
         daycare: {

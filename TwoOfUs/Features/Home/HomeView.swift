@@ -119,13 +119,15 @@ struct HomeView: View {
                             // ones logging — they're watching. The TODAY card
                             // and the daycare card were the same three numbers
                             // in two formats, so while he's there ONE hero
-                            // card replaces both — composition rings with a
-                            // breathing live-nap glow, home/daycare split —
-                            // and the log tiles sit the day out. Checkout
-                            // brings the plain TODAY card and tiles back.
+                            // card replaces both — a day-flow strip with a
+                            // breathing live-nap glow, totals, home/daycare
+                            // split — and the log tiles sit the day out.
+                            // Checkout brings the plain TODAY card and tiles
+                            // back.
                             if let attendance {
                                 DaycareDayHeroCard(
                                     babyName: baby?.name ?? "Baby",
+                                    marks: todayMarks,
                                     feedCount: todaySummary?.feedCount ?? 0,
                                     feedOz: todaySummary?.feedOz ?? 0,
                                     diaperCount: todaySummary?.diaperCount ?? 0,
