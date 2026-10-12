@@ -69,9 +69,23 @@ struct DayTimelineRow: View {
                 Spacer(minLength: 8)
                 // Photos/videos carry an inline thumbnail where other rows put
                 // the avatar (daycare media has no avatar anyway) — tap the row
-                // for full size (HomeView presents the viewer).
+                // for full size (HomeView presents the viewer). A photo burst
+                // shows its first few side by side with a +N chip.
                 if case .media(let e) = entry {
                     MediaThumbnail(event: e, size: 44)
+                } else if case .mediaGroup(let events) = entry {
+                    HStack(spacing: 4) {
+                        ForEach(events.prefix(3), id: \.id) { event in
+                            MediaThumbnail(event: event, size: 40)
+                        }
+                        if events.count > 3 {
+                            Text("+\(events.count - 3)")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(AppColor.text2)
+                                .frame(width: 24, height: 40)
+                                .background(AppColor.card2, in: RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
                 }
                 // Shows the parent's profile photo when they have one, else the
                 // colored initial — same monogram fallback as `ParticipantBadge`.
@@ -103,7 +117,7 @@ struct DayTimelineRow: View {
         case .diaper:      return AppColor.accentDiaper
         case .note:        return AppColor.accentNote
         case .activity:    return AppColor.accentActivity
-        case .media:       return AppColor.accentMedia
+        case .media, .mediaGroup: return AppColor.accentMedia
         case .check:       return AppColor.accentCheck
         case .medication:  return AppColor.accentMedication
         case .healthCheck: return AppColor.accentHealth

@@ -46,7 +46,7 @@ struct TimelineRow: View {
         case .diaper:      return AppColor.accentDiaper
         case .note:        return AppColor.accentNote
         case .activity:    return AppColor.accentActivity
-        case .media:       return AppColor.accentMedia
+        case .media, .mediaGroup: return AppColor.accentMedia
         case .check:       return AppColor.accentCheck
         case .medication:  return AppColor.accentMedication
         case .healthCheck: return AppColor.accentHealth

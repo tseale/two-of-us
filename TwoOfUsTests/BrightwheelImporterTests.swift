@@ -106,6 +106,57 @@ final class BrightwheelImporterTests: XCTestCase {
         XCTAssertEqual(summary.openNapStartedAt, start.when)
     }
 
+    func testTwoPhotosAtTheSameTimestampBothImport() throws {
+        // The 9:23 AM bug: distinct photo posts sharing one timestamp are two
+        // photos, not a re-issue — the time-window fallback must not eat the
+        // second when each carries its own object id.
+        let photos = try [
+            activity(id: "photo-a", action: "ac_photo", minutesAgo: 30, withPhoto: true),
+            activity(id: "photo-b", action: "ac_photo", minutesAgo: 30, withPhoto: true),
+        ]
+        let summary = BrightwheelImporter(context: container.mainContext)
+            .importActivities(photos)
+        XCTAssertEqual(summary.media, 2)
+        XCTAssertEqual(summary.skippedDuplicates, 0)
+
+        // And the same two re-fetched still dedupe on their ids.
+        let second = BrightwheelImporter(context: container.mainContext)
+            .importActivities(photos)
+        XCTAssertEqual(second.media, 0)
+        XCTAssertEqual(second.skippedDuplicates, 2)
+    }
+
+    // MARK: Photo-burst grouping (the timeline's "Photos (2)" row)
+
+    private func photoEvent(minutesAgo: Int, daycare: Bool = true) -> MediaEvent {
+        MediaEvent(baby: nil, kind: .photo,
+                   timestamp: Date(timeIntervalSinceNow: -Double(minutesAgo) * 60),
+                   loggedByID: UUID(), loggedByName: "", loggedByColorHex: "",
+                   sourceRaw: daycare ? EventSource.brightwheel.rawValue : nil)
+    }
+
+    func testSameMomentPhotosGroupIntoOneRow() {
+        let a = photoEvent(minutesAgo: 30)
+        let b = photoEvent(minutesAgo: 30)
+        let other = photoEvent(minutesAgo: 90)
+        let grouped = HomeView.groupingPhotoBursts(
+            [.media(a), .media(b), .media(other)])
+        XCTAssertEqual(grouped.count, 2)
+        guard case .mediaGroup(let burst) = grouped[0] else {
+            return XCTFail("expected the 9:23 pair to group")
+        }
+        XCTAssertEqual(burst.count, 2)
+        XCTAssertEqual(grouped[0].detail, "Photos (2)")
+        if case .mediaGroup = grouped[1] { XCTFail("a lone photo keeps its plain row") }
+    }
+
+    func testBurstsDoNotSwallowNeighborsOrMixOrigins() {
+        let daycare = photoEvent(minutesAgo: 30)
+        let home = photoEvent(minutesAgo: 30, daycare: false)
+        let grouped = HomeView.groupingPhotoBursts([.media(daycare), .media(home)])
+        XCTAssertEqual(grouped.count, 2, "a parent's photo never folds into a daycare burst")
+    }
+
     // MARK: PhotoSaver byte sourcing (no Photos-framework access needed)
 
     func testPhotoSaverPrefersCachedBytes() async {

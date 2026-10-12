@@ -8,6 +8,10 @@ enum TimelineEntry: Identifiable {
     case note(NoteEvent)
     case activity(ActivityEvent)
     case media(MediaEvent)
+    /// A burst of photos sharing one moment (daycare posts arrive like
+    /// this) — one row with a thumbnail strip instead of a stack of
+    /// identical "Photo" rows. Built by the timeline assembler; never empty.
+    case mediaGroup([MediaEvent])
     case check(CheckEvent)
     case medication(MedicationEvent)
     case healthCheck(HealthCheckEvent)
@@ -24,6 +28,7 @@ enum TimelineEntry: Identifiable {
         case .note(let e): return e.id
         case .activity(let e): return e.id
         case .media(let e): return e.id
+        case .mediaGroup(let events): return events.first?.id ?? UUID()
         case .check(let e): return e.id
         case .medication(let e): return e.id
         case .healthCheck(let e): return e.id
@@ -43,6 +48,7 @@ enum TimelineEntry: Identifiable {
         case .note(let e): return e.timestamp
         case .activity(let e): return e.timestamp
         case .media(let e): return e.timestamp
+        case .mediaGroup(let events): return events.first?.timestamp ?? .now
         case .check(let e): return e.timestamp
         case .medication(let e): return e.timestamp
         case .healthCheck(let e): return e.timestamp
@@ -73,6 +79,7 @@ enum TimelineEntry: Identifiable {
         case .diaper(let e): return e.type == .wet ? "💧" : "💩"
         case .activity(let e): return e.type.emoji
         case .media(let e): return e.kind.emoji
+        case .mediaGroup: return "📸"
         case .check(let e): return e.type.emoji
         case .medication: return "💊"
         case .healthCheck(let e): return e.type.emoji
@@ -94,6 +101,7 @@ enum TimelineEntry: Identifiable {
         case .note(let e): return e.loggedByID
         case .activity(let e): return e.loggedByID
         case .media(let e): return e.loggedByID
+        case .mediaGroup(let events): return events.first?.loggedByID ?? UUID()
         case .check(let e): return e.loggedByID
         case .medication(let e): return e.loggedByID
         case .healthCheck(let e): return e.loggedByID
@@ -112,6 +120,7 @@ enum TimelineEntry: Identifiable {
         case .note(let e): return e.loggedByName
         case .activity(let e): return e.loggedByName
         case .media(let e): return e.loggedByName
+        case .mediaGroup(let events): return events.first?.loggedByName ?? ""
         case .check(let e): return e.loggedByName
         case .medication(let e): return e.loggedByName
         case .healthCheck(let e): return e.loggedByName
@@ -130,6 +139,7 @@ enum TimelineEntry: Identifiable {
         case .note(let e): return e.loggedByColorHex
         case .activity(let e): return e.loggedByColorHex
         case .media(let e): return e.loggedByColorHex
+        case .mediaGroup(let events): return events.first?.loggedByColorHex ?? ""
         case .check(let e): return e.loggedByColorHex
         case .medication(let e): return e.loggedByColorHex
         case .healthCheck(let e): return e.loggedByColorHex
@@ -165,6 +175,7 @@ enum TimelineEntry: Identifiable {
         case .note(let e): return e.isFromDaycare
         case .activity(let e): return e.isFromDaycare
         case .media(let e): return e.isFromDaycare
+        case .mediaGroup(let events): return events.first?.isFromDaycare ?? false
         case .check(let e): return e.isFromDaycare
         case .medication(let e): return e.isFromDaycare
         case .healthCheck(let e): return e.isFromDaycare
@@ -196,6 +207,8 @@ enum TimelineEntry: Identifiable {
         case .note: return nil
         case .activity(let e): return e.notes
         case .media(let e): return e.caption
+        case .mediaGroup(let events):
+            return events.compactMap(\.caption).first { !$0.isEmpty }
         case .check(let e): return e.notes
         case .medication(let e): return e.notes
         case .healthCheck(let e): return e.notes
@@ -230,6 +243,8 @@ enum TimelineEntry: Identifiable {
             return s
         case .media(let e):
             return e.kind.label
+        case .mediaGroup(let events):
+            return "Photos (\(events.count))"
         case .check(let e):
             var s = e.type.label
             if let name = e.byName, !name.isEmpty { s += " by \(name)" }

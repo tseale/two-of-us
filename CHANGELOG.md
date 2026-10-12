@@ -6,6 +6,16 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Fixed — simultaneous Brightwheel photos no longer dedupe each other
+- Two photos posted at the same minute (the 9:23 AM pair) imported as one:
+  the importer's ±90s same-type fallback treated the second as a re-issue.
+  Media now dedupes on Brightwheel's own object id alone — the time window
+  only backstops an id-less activity, which hasn't been seen in the wild.
+- Photo bursts render as one timeline row — "Photos (2)" with thumbnails
+  side by side (+N past three) — instead of identical stacked rows.
+  Tapping opens a swipeable pager with per-photo Save; swipe-delete removes
+  the burst as one gesture with one Undo.
+
 ### Added — save daycare photos to the camera roll
 - The photo viewer has a **Save** button (add-only Photos access, requested
   on first save; `NSPhotoLibraryAddUsageDescription` added) — works for

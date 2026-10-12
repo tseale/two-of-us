@@ -58,47 +58,47 @@ struct MediaThumbnail: View {
 /// Full-size viewer, presented when a media row is tapped. Shows the image
 /// (cached bytes first, then the remote URL), the staff caption, and the time.
 struct MediaViewerSheet: View {
-    let event: MediaEvent
+    /// The photos on view — one for a plain media row, the burst for a
+    /// grouped row, swiped through as pages.
+    let events: [MediaEvent]
     @Environment(\.dismiss) private var dismiss
 
     private enum SaveState: Equatable { case idle, saving, saved, failed(String) }
-    @State private var saveState: SaveState = .idle
+    @State private var saveStates: [UUID: SaveState] = [:]
+    @State private var selection = 0
+
+    init(events: [MediaEvent]) { self.events = events }
+    init(event: MediaEvent) { self.events = [event] }
+
+    private var current: MediaEvent? {
+        events.indices.contains(selection) ? events[selection] : events.first
+    }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 16) {
-                Spacer(minLength: 0)
-                fullImage
-                    .frame(maxWidth: .infinity)
-                if let caption = event.caption, !caption.isEmpty {
-                    Text(caption)
-                        .font(.subheadline)
-                        .foregroundStyle(AppColor.text)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
+            Group {
+                if events.count > 1 {
+                    TabView(selection: $selection) {
+                        ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
+                            page(for: event).tag(index)
+                        }
+                    }
+                    .tabViewStyle(.page)
+                    .indexViewStyle(.page(backgroundDisplayMode: .always))
+                } else if let event = events.first {
+                    page(for: event)
                 }
-                Text(TimeFormatting.clock(event.timestamp))
-                    .font(.caption)
-                    .foregroundStyle(AppColor.text3)
-                if case .failed(let message) = saveState {
-                    Text(message)
-                        .font(.footnote)
-                        .foregroundStyle(AppColor.urgencyAmber)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
-                }
-                Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(AppColor.bg)
-            .navigationTitle(event.kind.label)
+            .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // Photos save to the camera roll; videos stream from the CDN
                 // and have no local bytes to save (yet — byte caching is a
                 // named later phase).
-                if event.kind == .photo {
-                    ToolbarItem(placement: .topBarLeading) { saveButton }
+                if let current, current.kind == .photo {
+                    ToolbarItem(placement: .topBarLeading) { saveButton(for: current) }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
@@ -107,12 +107,43 @@ struct MediaViewerSheet: View {
         }
     }
 
+    private var navigationTitle: String {
+        guard events.count > 1 else { return events.first?.kind.label ?? "Photo" }
+        return "Photo \(min(selection + 1, events.count)) of \(events.count)"
+    }
+
+    private func page(for event: MediaEvent) -> some View {
+        VStack(spacing: 16) {
+            Spacer(minLength: 0)
+            fullImage(for: event)
+                .frame(maxWidth: .infinity)
+            if let caption = event.caption, !caption.isEmpty {
+                Text(caption)
+                    .font(.subheadline)
+                    .foregroundStyle(AppColor.text)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+            }
+            Text(TimeFormatting.clock(event.timestamp))
+                .font(.caption)
+                .foregroundStyle(AppColor.text3)
+            if case .failed(let message) = saveStates[event.id] ?? .idle {
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(AppColor.urgencyAmber)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
     @ViewBuilder
-    private var saveButton: some View {
-        switch saveState {
+    private func saveButton(for event: MediaEvent) -> some View {
+        switch saveStates[event.id] ?? .idle {
         case .idle, .failed:
             Button {
-                Task { await save() }
+                Task { await save(event) }
             } label: {
                 Label("Save", systemImage: "square.and.arrow.down")
             }
@@ -127,19 +158,19 @@ struct MediaViewerSheet: View {
         }
     }
 
-    private func save() async {
-        saveState = .saving
+    private func save(_ event: MediaEvent) async {
+        saveStates[event.id] = .saving
         do {
             try await PhotoSaver.save(event)
-            saveState = .saved
+            saveStates[event.id] = .saved
             Haptics.tap()
         } catch {
-            saveState = .failed(error.localizedDescription)
+            saveStates[event.id] = .failed(error.localizedDescription)
         }
     }
 
     @ViewBuilder
-    private var fullImage: some View {
+    private func fullImage(for event: MediaEvent) -> some View {
         if let data = event.mediaData, let image = UIImage(data: data) {
             Image(uiImage: image)
                 .resizable()
@@ -150,19 +181,19 @@ struct MediaViewerSheet: View {
                 case .success(let image):
                     image.resizable().scaledToFit()
                 case .failure:
-                    unavailable
+                    unavailable(for: event)
                 default:
                     ProgressView()
                         .frame(maxWidth: .infinity, minHeight: 240)
                 }
             }
         } else {
-            unavailable
+            unavailable(for: event)
         }
     }
 
     /// Signed CDN links expire — say so instead of spinning forever.
-    private var unavailable: some View {
+    private func unavailable(for event: MediaEvent) -> some View {
         VStack(spacing: 8) {
             Image(systemName: event.kind == .video ? "video.slash" : "photo")
                 .font(.largeTitle)
