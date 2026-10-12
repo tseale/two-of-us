@@ -92,7 +92,7 @@ enum TimeFormatting {
             let weeks = days / 7
             return "\(weeks) weeks old"
         }
-        let months = cal.dateComponents([.month], from: dob, to: now).month ?? 0
+        let months = cal.dateComponents([.month], from: cal.startOfDay(for: dob), to: cal.startOfDay(for: now)).month ?? 0
         return months == 1 ? "1 month old" : "\(months) months old"
     }
 }
