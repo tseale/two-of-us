@@ -133,6 +133,7 @@ struct HomeView: View {
                                 sleepSeconds: todaySummary?.sleepSeconds ?? 0,
                                 daycare: daycareToday ?? DaycareDaySummary(),
                                 attendingSince: attendance?.since,
+                                firstDaycareEventAt: firstDaycareEventToday,
                                 liveNapStartedAt: liveNapToday,
                                 activeSleepStartedAt: activeSleep?.startedAt,
                                 now: ctx.date,
