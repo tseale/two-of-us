@@ -6,6 +6,13 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Changed — daycare hero polish, round two
+- Home/daycare are side-by-side columns again, each a vertical emoji list.
+- Diapers break down wet vs dirty ("💧1 💩1" — a `.both` counts toward each).
+- Circle numbers wear their circle's own darker ink (lighter in dark mode)
+  instead of stark black; sleep reads "4h 50m" everywhere; circle labels
+  drop to quiet lowercase captions.
+
 ### Changed — daycare hero polish
 - The circles sit straight on the card (the gradient band behind them is
   gone), the top-right corner reads just "daycare since 7:51 AM", and the

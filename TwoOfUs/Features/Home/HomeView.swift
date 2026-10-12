@@ -123,6 +123,8 @@ struct HomeView: View {
                                     feedCount: todaySummary?.feedCount ?? 0,
                                     feedOz: todaySummary?.feedOz ?? 0,
                                     diaperCount: todaySummary?.diaperCount ?? 0,
+                                    wetCount: todayDiaperSplit.wet,
+                                    dirtyCount: todayDiaperSplit.dirty,
                                     sleepSeconds: todaySummary?.sleepSeconds ?? 0,
                                     daycare: daycareToday ?? DaycareDaySummary(),
                                     since: attendance.since,
@@ -421,6 +423,8 @@ struct HomeView: View {
         day.napCount = dayNaps.count
         day.napSeconds = dayNaps.reduce(0) { $0 + ($1.endedAt ?? $1.startedAt).timeIntervalSince($1.startedAt) }
         day.diaperCount = dayDiapers.count
+        day.wetCount = dayDiapers.filter { $0.type == .wet || $0.type == .both }.count
+        day.dirtyCount = dayDiapers.filter { $0.type == .dirty || $0.type == .both }.count
         day.activityCount = activityEvents.filter { $0.isFromDaycare && isToday($0.timestamp) }.count
         day.photoCount = mediaEvents.filter { $0.isFromDaycare && isToday($0.timestamp) }.count
         day.medicationCount = medicationEvents.filter { $0.isFromDaycare && isToday($0.timestamp) }.count
@@ -486,6 +490,14 @@ struct HomeView: View {
     private var todaySummary: DaySummary? {
         StatsEngine(feeds: feeds, sleeps: sleeps, diapers: diapers)
             .dailySummaries(days: 1).first
+    }
+
+    /// Today's wet/dirty tallies for the hero card's split (a `.both` diaper
+    /// counts toward each). The @Query is newest-first, so today is a prefix.
+    private var todayDiaperSplit: (wet: Int, dirty: Int) {
+        let today = diapers.prefix(while: { $0.timestamp >= dayStart })
+        return (today.filter { $0.type == .wet || $0.type == .both }.count,
+                today.filter { $0.type == .dirty || $0.type == .both }.count)
     }
 
     // MARK: Log buttons
