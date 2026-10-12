@@ -99,10 +99,13 @@ struct TodayHeroCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .firstTextBaseline) {
                 // "Today", not "<name>'s Day" — his name sits right above in
-                // the profile header. The eyebrow idiom (sectionLabelStyle)
-                // matches every other read card in this stack: Tonight's
-                // Schedule, Up next, Insights, "IS SLEEPING".
-                Text("Today").sectionLabelStyle()
+                // the profile header. Rounded title3 like the log tiles'
+                // titles: the eyebrow idiom the smaller cards use was tried
+                // and read smaller than the capsule beside it — too quiet to
+                // anchor the hero.
+                Text("Today")
+                    .font(.system(.title3, design: .rounded).weight(.semibold))
+                    .foregroundStyle(AppColor.text)
                 Spacer()
                 // Neutral like the strip's daycare zone — a place, not an
                 // event, so it stays out of the feed-teal family. Absent on
@@ -243,11 +246,11 @@ struct TodayHeroCard: View {
                 // a 3 AM stretch at home isn't a nap.
                 HStack(spacing: 3) {
                     Image(systemName: "moon.zzz.fill")
-                        .font(.caption2.weight(.semibold))
+                        .font(.caption.weight(.semibold))
                     Text("\(liveNapStartedAt != nil || attendingSince != nil ? "napping" : "asleep") · \(TimeFormatting.duration(from: start, to: now))")
                         .monospacedDigit()
                 }
-                .font(.caption2.weight(.semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(accent(for: .sleep))
                 .opacity(reduceMotion ? 1 : (breathing ? 1 : 0.55))
                 .animation(reduceMotion ? nil
@@ -259,7 +262,7 @@ struct TodayHeroCard: View {
                 .minimumScaleFactor(0.7)
             } else {
                 Text(caption)
-                    .font(.caption2.weight(.medium))
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(AppColor.text2)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -317,10 +320,10 @@ struct TodayHeroCard: View {
             HStack(spacing: 9) {
                 iconDisc("building.2.fill", tint: AppColor.text2)
                 Text("Daycare")
-                    .font(.caption.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundStyle(AppColor.text)
-                    .frame(width: 52, alignment: .leading)
-                HStack(spacing: 10) {
+                    .frame(width: 60, alignment: .leading)
+                HStack(spacing: 12) {
                     if daycare.feedCount > 0 {
                         emojiItem("🍼",
                                   "\(OzFormat.string(daycare.feedOz)) oz (\(daycare.feedCount))")
@@ -364,9 +367,9 @@ struct TodayHeroCard: View {
     private func emojiItem(_ emoji: String, _ text: String) -> some View {
         HStack(spacing: 3) {
             Text(emoji)
-                .font(.caption2)
-            Text(text)
                 .font(.caption)
+            Text(text)
+                .font(.footnote)
                 .foregroundStyle(AppColor.text2)
                 .monospacedDigit()
         }
@@ -396,11 +399,11 @@ struct TodayHeroCard: View {
         HStack(spacing: 9) {
             iconDisc(systemImage, tint: tint)
             Text(title)
-                .font(.caption.weight(.semibold))
+                .font(.footnote.weight(.semibold))
                 .foregroundStyle(AppColor.text)
-                .frame(width: 52, alignment: .leading)
+                .frame(width: 60, alignment: .leading)
             Text(text)
-                .font(.caption)
+                .font(.footnote)
                 .foregroundStyle(textTint)
                 .monospacedDigit()
                 .lineLimit(2)
@@ -552,10 +555,10 @@ private struct DayFlowStrip: View {
                     // strip reads at a glance (🍼 lands before "feed" does).
                     func emojiMark(_ h: Double, _ emoji: String, above: Bool) {
                         let y = above ? bandY - 8 : bandY + bandH + 8
-                        let glyph = ctx.resolve(Text(emoji).font(.system(size: 9)))
+                        let glyph = ctx.resolve(Text(emoji).font(.system(size: 10)))
                         // Clamp inside the strip so an event at the window's
                         // edge doesn't draw a half-clipped glyph.
-                        ctx.draw(glyph, at: CGPoint(x: min(max(x(h), 5), size.width - 5), y: y),
+                        ctx.draw(glyph, at: CGPoint(x: min(max(x(h), 6), size.width - 6), y: y),
                                  anchor: .center)
                     }
                     for mark in marks where mark.kind == .feed {
@@ -580,7 +583,7 @@ private struct DayFlowStrip: View {
                     var h = window.start
                     while h <= window.end {
                         let t = ctx.resolve(Text(hourLabel(Int(h)))
-                            .font(.system(size: 8, weight: .medium))
+                            .font(.system(size: 9, weight: .medium))
                             .foregroundStyle(AppColor.text3))
                         ctx.draw(t, at: CGPoint(x: min(max(x(h), 7), size.width - 9),
                                                 y: size.height - 4), anchor: .center)
