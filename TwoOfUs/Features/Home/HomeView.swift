@@ -114,8 +114,33 @@ struct HomeView: View {
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         // 12pt matches the tile grid spacing, so the active sleep
                         // card reads as the Sleep row transformed in place.
+                        let attendance = daycareAttendance(now: ctx.date)
                         VStack(spacing: 12) {
-                            logButtons(now: ctx.date)
+                            // Daycare hours invert the screen's job: between
+                            // check-in and check-out the parents aren't the
+                            // ones logging — they're watching. The report card
+                            // takes the hero slot and the log tiles collapse
+                            // to a strip; check-out brings the tiles back.
+                            if let attendance {
+                                if let daycare = daycareToday {
+                                    DaycareReportCard(
+                                        babyName: babies.first?.name ?? "Miller",
+                                        day: daycare
+                                    )
+                                }
+                                DaycareLogStrip(
+                                    babyName: baby?.name ?? "Baby",
+                                    subtitle: daycareSubtitle(attendance),
+                                    showFeed: isTracked(.feed),
+                                    showSleep: isTracked(.sleep) && activeSleep == nil,
+                                    showDiaper: isTracked(.diaper),
+                                    onFeed: { activeSheet = .feed },
+                                    onSleep: startSleep,
+                                    onDiaper: { activeSheet = .diaper }
+                                )
+                            } else {
+                                logButtons(now: ctx.date)
+                            }
                             if let sleep = activeSleep {
                                 SleepActiveCard(
                                     sleep: sleep, now: ctx.date,
@@ -140,8 +165,10 @@ struct HomeView: View {
                             }
                             // What the daycare logged today, in one line. Below
                             // the suggestion cards (a pending decision outranks
-                            // a summary) and above the schedule rows.
-                            if let daycare = daycareToday {
+                            // a summary) and above the schedule rows. During
+                            // daycare hours the card is the hero at the top of
+                            // the stack instead — never both.
+                            if attendance == nil, let daycare = daycareToday {
                                 DaycareReportCard(
                                     babyName: babies.first?.name ?? "Miller",
                                     day: daycare
@@ -161,7 +188,11 @@ struct HomeView: View {
                             switch nightState(now: ctx.date) {
                             case .active, .approaching:
                                 let tonight = tonightOccurrences(now: ctx.date)
-                                if !tonight.isEmpty {
+                                // Once every slot is settled (the 7:58 AM
+                                // all-checkmarks state), the card is a finished
+                                // checklist — hide it until the next evening's
+                                // run-up puts fresh slots on the roster.
+                                if NightSchedule.hasRemainingBusiness(tonight) {
                                     tonightCard(tonight, now: ctx.date)
                                 }
                             case .day, nil:
@@ -174,6 +205,10 @@ struct HomeView: View {
                         // sites) so CloudKit- and Siri-initiated starts animate too.
                         .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.8),
                                    value: activeSleep != nil)
+                        // Check-in/out arrives via Brightwheel sync, never a
+                        // tap — animate the tiles ↔ strip swap it causes.
+                        .animation(reduceMotion ? nil : .easeInOut(duration: 0.3),
+                                   value: attendance != nil)
                     }
                 }
                 .listRowBackground(Color.clear)
@@ -398,6 +433,55 @@ struct HomeView: View {
             || pottyEvents.contains { $0.isFromDaycare && isToday($0.timestamp) }
             || milestoneEvents.contains { $0.isFromDaycare && isToday($0.timestamp) }
         return day.isEmpty ? nil : day
+    }
+
+    /// Whether Miller is at daycare right now, and since when (`DaycareStatus`
+    /// — check markers first, first daycare-logged event as the fallback, with
+    /// the 5:30 PM assumed check-out). Drives the tiles-↔-strip swap and the
+    /// report card's hero placement.
+    private func daycareAttendance(now: Date) -> DaycareStatus.Attendance? {
+        DaycareStatus.attendance(
+            checks: checkEvents.map { ($0.timestamp, $0.type) },
+            firstDaycareEvent: firstDaycareEventToday,
+            dayStart: dayStart, now: now)
+    }
+
+    /// The earliest daycare-sourced event of any kind today — the stand-in
+    /// check-in when the real marker never arrived: if daycare is logging
+    /// bottles, he's there. Check markers excluded (they're the primary
+    /// signal), parent-logged events excluded (a home feed isn't attendance).
+    /// Each @Query is newest-first, so today's slice is a prefix.
+    private var firstDaycareEventToday: Date? {
+        func earliest<T>(_ items: [T], at time: (T) -> Date,
+                         fromDaycare: (T) -> Bool) -> Date? {
+            items.prefix(while: { time($0) >= dayStart })
+                .filter(fromDaycare).map(time).min()
+        }
+        return [
+            earliest(feeds, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            earliest(sleeps, at: \.startedAt, fromDaycare: \.isFromDaycare),
+            earliest(diapers, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            earliest(noteEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            earliest(activityEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            earliest(mediaEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            earliest(medicationEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            earliest(healthCheckEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            earliest(moodEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            earliest(pottyEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            earliest(milestoneEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            earliest(staffNoteEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+        ].compactMap { $0 }.min()
+    }
+
+    /// The strip's subline says what the mode rests on: the real marker, or
+    /// the inference when daycare never tapped check-in.
+    private func daycareSubtitle(_ attendance: DaycareStatus.Attendance) -> String {
+        switch attendance.basis {
+        case .checkInEvent:
+            "checked in \(TimeFormatting.clock(attendance.since))"
+        case .firstDaycareEvent:
+            "daycare's been logging since \(TimeFormatting.clock(attendance.since))"
+        }
     }
 
     private var todaySummary: DaySummary? {

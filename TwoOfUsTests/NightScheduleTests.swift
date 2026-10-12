@@ -613,4 +613,44 @@ final class NightScheduleTests: XCTestCase {
         XCTAssertTrue(evening.allSatisfy { $0.dayKey == 20_260_721 },
                       "dayKey is the NIGHT's key — overrides must match across midnight")
     }
+
+    // MARK: Remaining business (the Home card's hide-when-done rule)
+
+    private func occurrence(_ status: ScheduleOccurrence.Status,
+                            span: Bool = false) -> ScheduleOccurrence {
+        let at = date(2026, 10, 12, 3, 0)
+        return ScheduleOccurrence(
+            id: UUID().uuidString, slotID: UUID(), kind: span ? .sleep : .feed,
+            date: at, dayKey: 20_261_011, status: status,
+            assignedToID: nil, assignedToName: "", assignedToColorHex: "",
+            activeOverrideID: nil, overrideCreatedByID: nil,
+            endDate: span ? at.addingTimeInterval(3600) : nil, source: .night)
+    }
+
+    func testAllSettledSlotsMeanNoRemainingBusiness() {
+        // 7:58 AM, both overnight bottles done: the card is a completed
+        // checklist and must leave Home until the next evening.
+        let done = [occurrence(.fulfilled(byEventID: UUID())),
+                    occurrence(.fulfilled(byEventID: UUID()))]
+        XCTAssertFalse(NightSchedule.hasRemainingBusiness(done))
+        XCTAssertFalse(NightSchedule.hasRemainingBusiness(
+            [occurrence(.fulfilled(byEventID: UUID())), occurrence(.missed),
+             occurrence(.skipped)]))
+        XCTAssertFalse(NightSchedule.hasRemainingBusiness([]))
+    }
+
+    func testUpcomingOrOverdueSlotsKeepTheCard() {
+        XCTAssertTrue(NightSchedule.hasRemainingBusiness(
+            [occurrence(.fulfilled(byEventID: UUID())), occurrence(.upcoming)]))
+        XCTAssertTrue(NightSchedule.hasRemainingBusiness(
+            [occurrence(.fulfilled(byEventID: UUID())), occurrence(.overdue)]))
+    }
+
+    func testSpansAloneDoNotHoldTheCardUp() {
+        // A parent's sleep window is a span, not duty — with every instant
+        // slot settled, an ongoing span must not keep the checklist on screen.
+        XCTAssertFalse(NightSchedule.hasRemainingBusiness(
+            [occurrence(.fulfilled(byEventID: UUID())),
+             occurrence(.upcoming, span: true)]))
+    }
 }

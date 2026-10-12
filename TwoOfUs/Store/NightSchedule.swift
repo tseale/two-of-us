@@ -134,6 +134,22 @@ struct NightSchedule {
     /// A feed this close BEFORE the window opens still counts as the night's
     /// first bottle — an 8:15pm feed against a 9pm window starts the night.
     static let preWindowGraceMinutes = 60
+
+    /// Whether tonight's roster still has anything a parent could act on: an
+    /// upcoming or overdue instant slot. Once every slot is fulfilled, missed,
+    /// or skipped, the card is a completed checklist — dead information at
+    /// 7:58 AM — so Home hides it until the next evening's run-up puts fresh
+    /// upcoming slots on the roster. Spans (parents' sleep windows) aren't
+    /// duty and never hold the card up on their own.
+    static func hasRemainingBusiness(_ occurrences: [ScheduleOccurrence]) -> Bool {
+        occurrences.contains { occ in
+            guard occ.endDate == nil else { return false }
+            switch occ.status {
+            case .upcoming, .overdue: return true
+            case .fulfilled, .skipped, .missed: return false
+            }
+        }
+    }
     /// How far a bottle may slide off the rhythm to land while a parent is
     /// already awake. Always within `fulfillmentWindow`, so a bottle logged at
     /// the un-slid rhythm time still ticks its slot off.
