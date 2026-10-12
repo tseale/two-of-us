@@ -998,6 +998,14 @@ struct HomeView: View {
                 TimelineNowCap()
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                // Brightwheel's in-progress nap has no SleepEvent yet (the
+                // pair imports whole at wake), so its live row is synthesized
+                // here at the top — it started recently, so chronology holds.
+                if let napStart = liveNapToday {
+                    LiveDaycareNapRow(start: napStart)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                }
                 ForEach(timelineEntries) { entry in
                     DayTimelineRow(entry: entry, loggedByPhoto: loggerPhoto[entry.loggedByID],
                                    loggedByNameFallback: loggerName[entry.loggedByID])
@@ -1011,7 +1019,9 @@ struct HomeView: View {
                         .onTapGesture {
                             if case .media(let e) = entry {
                                 viewingMedia = e
-                            } else if entry.isEditable {
+                            } else if entry.isEditable, !entry.isActiveSleep {
+                                // A running sleep has no end to edit yet — its
+                                // controls live on the active card above.
                                 editing = entry
                             }
                         }
@@ -1063,7 +1073,9 @@ struct HomeView: View {
         let since = Calendar.current.date(byAdding: .hour, value: -24, to: .now) ?? .now
         var entries: [TimelineEntry] = []
         entries += feeds.filter { $0.timestamp >= since }.map(TimelineEntry.feed)
-        entries += sleeps.filter { !$0.isActive && $0.startedAt >= since }.map(TimelineEntry.sleep)
+        // Active sleeps ride the timeline too — a nap in progress shows as a
+        // growing bar with a counting label, not a gap until it ends.
+        entries += sleeps.filter { $0.isActive || $0.startedAt >= since }.map(TimelineEntry.sleep)
         entries += diapers.filter { $0.timestamp >= since }.map(TimelineEntry.diaper)
         entries += noteEvents.filter { $0.timestamp >= since }.map(TimelineEntry.note)
         entries += activityEvents.filter { $0.timestamp >= since }.map(TimelineEntry.activity)
@@ -1086,6 +1098,15 @@ struct HomeView: View {
     // MARK: Actions
 
     private func delete(_ entry: TimelineEntry) {
+        // A running sleep can't go through the generic soft-delete — that
+        // would strand its Live Activity and wake alarm. cancelSleep tears
+        // those down too, and Undo resumes the timer whole.
+        if case .sleep(let e) = entry, e.isActive {
+            store.cancelSleep(e)
+            Haptics.warning()
+            showToast("Deleted", accent: AppColor.urgencyAmber) { store.resumeSleep(e) }
+            return
+        }
         let event: any SoftDeletable
         switch entry {
         case .feed(let e): event = e

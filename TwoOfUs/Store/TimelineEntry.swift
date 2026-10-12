@@ -147,6 +147,14 @@ enum TimelineEntry: Identifiable {
         return false
     }
 
+    /// A sleep still running right now. The timeline renders it live
+    /// (growing bar, counting label), and it takes the active card's
+    /// controls rather than the edit sheet — nothing to end-date yet.
+    var isActiveSleep: Bool {
+        if case .sleep(let e) = self { return e.isActive }
+        return false
+    }
+
     /// True for events imported from the daycare's Brightwheel log — the
     /// timeline tags them so daycare entries read apart from the parents' own.
     var isFromDaycare: Bool {

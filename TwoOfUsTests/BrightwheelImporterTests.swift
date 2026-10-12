@@ -27,14 +27,25 @@ final class BrightwheelImporterTests: XCTestCase {
         super.tearDown()
     }
 
-    private func napActivity(id: String, state: String, minutesAgo: Int) throws -> BrightwheelActivity {
+    private func activity(id: String, action: String, minutesAgo: Int,
+                          state: String? = nil, withPhoto: Bool = false,
+                          details: [String: Any]? = nil) throws -> BrightwheelActivity {
         let when = ISO8601DateFormatter()
             .string(from: Date(timeIntervalSinceNow: -Double(minutesAgo) * 60))
-        let dict: [String: Any] = ["object_id": id, "action_type": "ac_nap",
-                                   "event_date": when, "state": state]
+        var dict: [String: Any] = ["object_id": id, "action_type": action, "event_date": when]
+        if let state { dict["state"] = state }
+        if let details { dict["details_blob"] = details }
+        if withPhoto {
+            dict["media"] = ["image_url": "https://cdn.example/\(id).jpg",
+                             "thumbnail_url": "https://cdn.example/\(id)-thumb.jpg"]
+        }
         return try JSONDecoder().decode(
             BrightwheelActivity.self,
             from: JSONSerialization.data(withJSONObject: dict))
+    }
+
+    private func napActivity(id: String, state: String, minutesAgo: Int) throws -> BrightwheelActivity {
+        try activity(id: id, action: "ac_nap", minutesAgo: minutesAgo, state: state)
     }
 
     func testUnpairedNapStartSurfacesAsLiveNapWithoutPersisting() throws {
@@ -54,6 +65,44 @@ final class BrightwheelImporterTests: XCTestCase {
             ])   // newest-first, like the API delivers
         XCTAssertEqual(summary.sleeps, 1)
         XCTAssertNil(summary.openNapStartedAt)
+    }
+
+    func testPhotoAttachedToAFeedImportsAsItsOwnPhotoEvent() throws {
+        let feed = try activity(id: "feed-1", action: "ac_food", minutesAgo: 30,
+                                withPhoto: true,
+                                details: ["food_type": "bottle", "amount": 4.0,
+                                          "amount_type": "oz"])
+        let summary = BrightwheelImporter(context: container.mainContext)
+            .importActivities([feed])
+        XCTAssertEqual(summary.feeds, 1)
+        XCTAssertEqual(summary.media, 1, "the attached photo rides along as a photo event")
+
+        let media = try container.mainContext.fetch(FetchDescriptor<MediaEvent>())
+        XCTAssertEqual(media.first?.externalID, "feed-1-photo",
+                       "derived id so the attachment dedupes apart from its host")
+        XCTAssertEqual(media.first?.remoteURL, "https://cdn.example/feed-1.jpg")
+    }
+
+    func testAttachedPhotoDedupesOnReimport() throws {
+        let feed = try activity(id: "feed-2", action: "ac_food", minutesAgo: 30,
+                                withPhoto: true,
+                                details: ["food_type": "bottle", "amount": 4.0,
+                                          "amount_type": "oz"])
+        let importer = BrightwheelImporter(context: container.mainContext)
+        _ = importer.importActivities([feed])
+        let second = importer.importActivities([feed])
+        XCTAssertEqual(second.feeds, 0)
+        XCTAssertEqual(second.media, 0, "the same sync re-fetched must not duplicate the photo")
+    }
+
+    func testPhotoOnAnOpenNapImportsWhileTheNapWaits() throws {
+        let start = try activity(id: "nap-photo", action: "ac_nap", minutesAgo: 12,
+                                 state: "1", withPhoto: true)
+        let summary = BrightwheelImporter(context: container.mainContext)
+            .importActivities([start])
+        XCTAssertEqual(summary.sleeps, 0, "the nap still waits for its wake half")
+        XCTAssertEqual(summary.media, 1, "but its photo shows up right away")
+        XCTAssertEqual(summary.openNapStartedAt, start.when)
     }
 
     func testCompletedNapPlusNewStartIsALiveNap() throws {

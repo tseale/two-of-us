@@ -25,6 +25,24 @@ struct DayTimelineRow: View {
     }
 
     var body: some View {
+        Group {
+            if entry.isActiveSleep {
+                // A nap in progress re-renders each minute so its bar keeps
+                // growing; the counting label updates itself (.relative).
+                TimelineView(.everyMinute) { _ in rowContent }
+            } else {
+                rowContent
+            }
+        }
+        .frame(minHeight: 46)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+        // Onscreen awareness: Siri can be asked about "this" row and gets the
+        // `CareEventEntity` behind it rather than guessing from pixels.
+        .appEntityIdentifier(EntityIdentifier(for: CareEventEntity.self, identifier: entry.id))
+    }
+
+    private var rowContent: some View {
         HStack(spacing: 10) {
             timeColumn
 
@@ -34,7 +52,7 @@ struct DayTimelineRow: View {
                 Text(entry.emoji).font(.callout)
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 6) {
-                        Text(entry.title)
+                        titleText
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(AppColor.text)
                             .lineLimit(2)
@@ -67,12 +85,15 @@ struct DayTimelineRow: View {
                 }
             }
         }
-        .frame(minHeight: 46)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityLabel)
-        // Onscreen awareness: Siri can be asked about "this" row and gets the
-        // `CareEventEntity` behind it rather than guessing from pixels.
-        .appEntityIdentifier(EntityIdentifier(for: CareEventEntity.self, identifier: entry.id))
+    }
+
+    /// Completed events use their static title; a running sleep counts up
+    /// live ("Napping · 23 min" — the relative style keeps itself current).
+    private var titleText: Text {
+        if case .sleep(let e) = entry, e.isActive {
+            return Text("Napping · ") + Text(e.startedAt, style: .relative)
+        }
+        return Text(entry.title)
     }
 
     private var accent: Color {
@@ -105,6 +126,9 @@ struct DayTimelineRow: View {
         var label: String
         if case .sleep(let e) = entry, let end = e.endedAt {
             label = "\(entry.title), from \(TimeFormatting.clock(e.startedAt)) to \(TimeFormatting.clock(end))"
+        } else if case .sleep(let e) = entry, e.isActive {
+            label = "Napping since \(TimeFormatting.clock(e.startedAt)), "
+                + "\(TimeFormatting.duration(from: e.startedAt, to: .now)) so far"
         } else {
             label = "\(entry.title), \(TimeFormatting.clock(entry.sortDate))"
         }
@@ -140,9 +164,11 @@ struct DayTimelineRow: View {
 
     /// Length of the sleep duration capsule, shared by the rail's node and
     /// the time column so the two start/end labels line up with its ends.
+    /// A running sleep measures up to *now* — the per-minute TimelineView in
+    /// `body` re-renders it, so the bar visibly keeps growing.
     private var sleepBarLength: CGFloat? {
         guard case .sleep(let e) = entry else { return nil }
-        let minutes = (e.endedAt ?? e.startedAt).timeIntervalSince(e.startedAt) / 60
+        let minutes = (e.endedAt ?? Date()).timeIntervalSince(e.startedAt) / 60
         return max(14, min(40, 14 + CGFloat(max(0, minutes)).squareRoot() * 1.6))
     }
 
@@ -176,6 +202,55 @@ struct DayTimelineRow: View {
                 .frame(width: 11, height: 11)
                 .overlay(Circle().strokeBorder(AppColor.card, lineWidth: 2))
         }
+    }
+}
+
+/// The timeline's view of a nap Brightwheel has started but not ended. No
+/// SleepEvent exists yet (the pair imports whole at wake — see
+/// `BrightwheelManager.liveNapStartedAt`), so this row is synthesized by
+/// HomeView from the manager's ephemeral signal: same anatomy as a sleep
+/// row — growing purple capsule, counting label — plus the Daycare tag.
+struct LiveDaycareNapRow: View {
+    let start: Date
+
+    var body: some View {
+        TimelineView(.everyMinute) { ctx in
+            HStack(spacing: 10) {
+                Text(TimeFormatting.clock(start))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(AppColor.text3)
+                    .frame(width: 64, alignment: .trailing)
+                ZStack {
+                    Rectangle()
+                        .fill(AppColor.separator.opacity(0.6))
+                        .frame(width: 2)
+                        .frame(maxHeight: .infinity)
+                    Capsule()
+                        .fill(AppColor.accentSleep)
+                        .frame(width: 9, height: barLength(at: ctx.date))
+                        .overlay(Capsule().strokeBorder(AppColor.card, lineWidth: 2))
+                }
+                .frame(width: 16)
+                HStack(spacing: 8) {
+                    Text("💤").font(.callout)
+                    (Text("Napping · ") + Text(start, style: .relative))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppColor.text)
+                        .lineLimit(1)
+                    DaycareTag(color: AppColor.accentSleep)
+                    Spacer(minLength: 8)
+                }
+            }
+            .frame(minHeight: 46)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Napping at daycare since \(TimeFormatting.clock(start))")
+    }
+
+    /// Same square-root growth curve as DayTimelineRow's sleep capsule.
+    private func barLength(at now: Date) -> CGFloat {
+        let minutes = max(0, now.timeIntervalSince(start)) / 60
+        return max(14, min(40, 14 + CGFloat(minutes).squareRoot() * 1.6))
     }
 }
 
