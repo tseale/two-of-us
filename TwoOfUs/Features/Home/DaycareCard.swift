@@ -452,13 +452,16 @@ private struct DayFlowStrip: View {
                     ctx.fill(Path(roundedRect: band, cornerRadius: bandH / 2),
                              with: .color(AppColor.card2.opacity(0.8)))
 
-                    // Daycare zone, drop-off → now, soft right edge
+                    // Daycare zone, drop-off → now, soft right edge. A place,
+                    // not an event — so a neutral wash, NOT a palette color:
+                    // teal here read as feed territory under the feed dots.
+                    // Daycare's teal identity stays in the glyph and chrome.
                     let zone = CGRect(x: x(hour(since)), y: bandY,
                                       width: max(bandH, nowX - x(hour(since))), height: bandH)
                     ctx.fill(Path(roundedRect: zone, cornerRadius: bandH / 2),
                              with: .linearGradient(
-                                Gradient(colors: [AppColor.accentCheck.opacity(0.28),
-                                                  AppColor.accentCheck.opacity(0.10)]),
+                                Gradient(colors: [AppColor.text2.opacity(0.16),
+                                                  AppColor.text2.opacity(0.05)]),
                                 startPoint: CGPoint(x: zone.minX, y: 0),
                                 endPoint: CGPoint(x: zone.maxX, y: 0)))
                     let glyph = ctx.resolve(Text(Image(systemName: "building.2.fill"))
