@@ -6,6 +6,20 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Added — attached photos and live naps on the timeline
+- **Photos attached to any Brightwheel activity** (a diaper change or feed
+  can carry one, not just standalone photo posts) now import as their own
+  photo events on the timeline, deduped independently of their host event.
+  Photos on either half of a nap import immediately, even while the nap is
+  still open.
+- **Naps in progress show on the timeline**: an active sleep renders as a
+  growing purple capsule with a live "Napping · 23 min" label — manual
+  timers, SNOO sessions, and Brightwheel daycare naps alike (the daycare one
+  is synthesized from the live-nap signal, since its SleepEvent only lands at
+  wake). Tapping a running sleep doesn't open the edit sheet (nothing to
+  end-date yet), and swipe-deleting one tears down its Live Activity and
+  alarm properly, with Undo resuming the timer.
+
 ### Changed — daycare hero polish, round two
 - Home/daycare are side-by-side columns again, each a vertical emoji list.
 - Diapers break down wet vs dirty ("💧1 💩1" — a `.both` counts toward each).

@@ -110,11 +110,37 @@ struct BrightwheelImporter {
         return summary
     }
 
+    // MARK: Attached photos
+
+    /// Brightwheel lets staff attach a photo to ANY activity — a diaper
+    /// change or feed can carry one, not just standalone `ac_photo` posts.
+    /// The attachment imports as its own photo event beside the typed one,
+    /// under a derived id so it dedupes independently of its host. (If
+    /// Brightwheel re-issues the host under a new object id, the photo can
+    /// re-import once — accepted over risking a dropped photo.)
+    private func importAttachedPhoto(_ activity: BrightwheelActivity, when: Date,
+                                     into summary: inout Summary) {
+        guard let url = activity.media?.imageURL ?? activity.media?.thumbnailURL,
+              let hostID = activity.objectID else { return }
+        let id = "\(hostID)-photo"
+        guard !hasEvent(externalID: id) else {
+            summary.skippedDuplicates += 1
+            return
+        }
+        if store.logMedia(.photo, at: when, caption: activity.note, remoteURL: url,
+                          source: .brightwheel, externalID: id) != nil {
+            summary.media += 1
+        }
+    }
+
     // MARK: Naps (start/end pairing)
 
     private func importNapHalf(_ activity: BrightwheelActivity, when: Date,
                                openStart: inout BrightwheelActivity?,
                                into summary: inout Summary) {
+        // Either half can carry a photo (sleepy cheeks at put-down, bedhead
+        // at wake) — import it now; the nap itself still waits for its pair.
+        importAttachedPhoto(activity, when: when, into: &summary)
         switch activity.napState {
         case "1":
             // Two starts in a row: the first never got its wake-up (staff
@@ -151,6 +177,13 @@ struct BrightwheelImporter {
         if isDuplicate(activity, action: action, when: when) {
             summary.skippedDuplicates += 1
             return
+        }
+        // A photo riding on any non-photo activity imports alongside it —
+        // including activities the switch below can't map, whose photo is
+        // still worth seeing. Standalone photo/video posts import whole in
+        // their own case.
+        if action != "ac_photo", action != "ac_video" {
+            importAttachedPhoto(activity, when: when, into: &summary)
         }
         switch action {
         case "ac_food":
