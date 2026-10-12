@@ -6,6 +6,14 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Changed — photo polish
+- The viewer's post-save checkmark (which read as a tappable button) is now
+  a quiet "Saved" text that fades after two seconds; the Save button doesn't
+  re-offer itself for an already-saved photo.
+- Photo bursts render as a little pile of polaroids — card-framed thumbnails
+  fanned with rotation and offset, deeper photos leaning further out, the
+  count badge riding the top corner — instead of a flat side-by-side strip.
+
 ### Fixed — simultaneous Brightwheel photos no longer dedupe each other
 - Two photos posted at the same minute (the 9:23 AM pair) imported as one:
   the importer's ±90s same-type fallback treated the second as a re-issue.

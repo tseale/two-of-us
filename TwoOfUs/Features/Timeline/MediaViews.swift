@@ -55,6 +55,59 @@ struct MediaThumbnail: View {
     }
 }
 
+/// A photo burst as a little pile of polaroids: the newest on top, the ones
+/// beneath peeking out slightly rotated and offset — photos layered on a
+/// table, not a flat grid. The count badge rides the top corner; tapping the
+/// row (HomeView) opens the swipeable pager. Three layers at most; the badge
+/// carries the real total.
+struct PhotoStack: View {
+    /// Newest first — the order the timeline assembler builds.
+    let events: [MediaEvent]
+
+    /// Rotation/offset per depth: the deeper the photo, the further it leans
+    /// out of the pile. Front stays nearly straight.
+    private static let poses: [(angle: Double, offset: CGSize)] = [
+        (-2, .zero),
+        (4, CGSize(width: 5, height: -3)),
+        (9, CGSize(width: 9, height: -6)),
+    ]
+
+    var body: some View {
+        ZStack {
+            ForEach(Array(events.prefix(Self.poses.count).enumerated()).reversed(),
+                    id: \.element.id) { index, event in
+                polaroid(event)
+                    .rotationEffect(.degrees(Self.poses[index].angle))
+                    .offset(Self.poses[index].offset)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            Text("\(events.count)")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1.5)
+                .background(.black.opacity(0.55), in: Capsule())
+                .offset(x: 6, y: -6)
+        }
+        .frame(width: 60, height: 54)
+        .accessibilityHidden(true)   // the row's label already says "Photos (N)"
+    }
+
+    /// A thumbnail in a thin card frame with a whisper of shadow — the
+    /// physical print the stack is pretending to be.
+    private func polaroid(_ event: MediaEvent) -> some View {
+        MediaThumbnail(event: event, size: 42)
+            .padding(2)
+            .background(AppColor.card, in: RoundedRectangle(cornerRadius: 9))
+            .overlay {
+                RoundedRectangle(cornerRadius: 9)
+                    .strokeBorder(AppColor.separator.opacity(0.6), lineWidth: 0.5)
+            }
+            .shadow(color: .black.opacity(0.18), radius: 1.5, y: 1)
+    }
+}
+
 /// Full-size viewer, presented when a media row is tapped. Shows the image
 /// (cached bytes first, then the remote URL), the staff caption, and the time.
 struct MediaViewerSheet: View {
@@ -63,7 +116,10 @@ struct MediaViewerSheet: View {
     let events: [MediaEvent]
     @Environment(\.dismiss) private var dismiss
 
-    private enum SaveState: Equatable { case idle, saving, saved, failed(String) }
+    /// `.saved` shows the brief confirmation; `.acknowledged` is after it
+    /// fades — the photo stays marked saved (no re-offer of the button), the
+    /// toolbar just goes quiet.
+    private enum SaveState: Equatable { case idle, saving, saved, acknowledged, failed(String) }
     @State private var saveStates: [UUID: SaveState] = [:]
     @State private var selection = 0
 
@@ -151,10 +207,23 @@ struct MediaViewerSheet: View {
         case .saving:
             ProgressView()
         case .saved:
-            Label("Saved", systemImage: "checkmark")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(AppColor.accentCheck)
+            // A status, not a control: plain muted text (no symbol, no
+            // button chrome — a checkmark up here read as tappable), gone
+            // after a moment. The state stays `.acknowledged`, so the Save
+            // button doesn't re-offer itself for an already-saved photo.
+            Text("Saved")
+                .font(.subheadline)
+                .foregroundStyle(AppColor.accentCheck.opacity(0.85))
+                .transition(.opacity)
                 .accessibilityLabel("Saved to camera roll")
+                .task {
+                    try? await Task.sleep(for: .seconds(2))
+                    withAnimation(.easeOut(duration: 0.4)) {
+                        saveStates[event.id] = .acknowledged
+                    }
+                }
+        case .acknowledged:
+            EmptyView()
         }
     }
 
