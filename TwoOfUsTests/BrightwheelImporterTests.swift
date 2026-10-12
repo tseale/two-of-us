@@ -1,5 +1,6 @@
-import XCTest
 import SwiftData
+import UIKit
+import XCTest
 @testable import TwoOfUs
 
 /// Nap-pairing behavior of the Brightwheel importer: naps arrive as separate
@@ -103,6 +104,24 @@ final class BrightwheelImporterTests: XCTestCase {
         XCTAssertEqual(summary.sleeps, 0, "the nap still waits for its wake half")
         XCTAssertEqual(summary.media, 1, "but its photo shows up right away")
         XCTAssertEqual(summary.openNapStartedAt, start.when)
+    }
+
+    // MARK: PhotoSaver byte sourcing (no Photos-framework access needed)
+
+    func testPhotoSaverPrefersCachedBytes() async {
+        let png = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2))
+            .pngData { $0.fill(CGRect(x: 0, y: 0, width: 2, height: 2)) }
+        let event = MediaEvent(baby: nil, kind: .photo, mediaData: png,
+                               loggedByID: UUID(), loggedByName: "", loggedByColorHex: "")
+        let data = await PhotoSaver.imageData(for: event)
+        XCTAssertEqual(data, png, "cached bytes win — no network touch")
+    }
+
+    func testPhotoSaverReturnsNilWithoutBytesOrURL() async {
+        let event = MediaEvent(baby: nil, kind: .photo,
+                               loggedByID: UUID(), loggedByName: "", loggedByColorHex: "")
+        let data = await PhotoSaver.imageData(for: event)
+        XCTAssertNil(data, "no cache and no link means nothing to save — never junk bytes")
     }
 
     func testCompletedNapPlusNewStartIsALiveNap() throws {

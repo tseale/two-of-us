@@ -42,6 +42,9 @@ targets:
         # Only standard HTTPS/CloudKit crypto — exempt. Without this, every
         # TestFlight build waits on a manual export-compliance answer in ASC.
         ITSAppUsesNonExemptEncryption: NO
+        # "Save to camera roll" on daycare photos (PhotoSaver) — add-only
+        # access, always user-initiated, never reads the library.
+        NSPhotoLibraryAddUsageDescription: Two of Us saves daycare photos to your camera roll only when you tap Save.
         # Required for CloudKit sharing: without it, iOS won't route a tapped
         # invite link into the app (the scene/app delegate accept handlers
         # never fire) and the co-parent can never join.

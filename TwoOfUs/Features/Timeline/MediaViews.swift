@@ -61,6 +61,9 @@ struct MediaViewerSheet: View {
     let event: MediaEvent
     @Environment(\.dismiss) private var dismiss
 
+    private enum SaveState: Equatable { case idle, saving, saved, failed(String) }
+    @State private var saveState: SaveState = .idle
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
@@ -77,6 +80,13 @@ struct MediaViewerSheet: View {
                 Text(TimeFormatting.clock(event.timestamp))
                     .font(.caption)
                     .foregroundStyle(AppColor.text3)
+                if case .failed(let message) = saveState {
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(AppColor.urgencyAmber)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                }
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -84,10 +94,47 @@ struct MediaViewerSheet: View {
             .navigationTitle(event.kind.label)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // Photos save to the camera roll; videos stream from the CDN
+                // and have no local bytes to save (yet — byte caching is a
+                // named later phase).
+                if event.kind == .photo {
+                    ToolbarItem(placement: .topBarLeading) { saveButton }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var saveButton: some View {
+        switch saveState {
+        case .idle, .failed:
+            Button {
+                Task { await save() }
+            } label: {
+                Label("Save", systemImage: "square.and.arrow.down")
+            }
+            .accessibilityLabel("Save photo to camera roll")
+        case .saving:
+            ProgressView()
+        case .saved:
+            Label("Saved", systemImage: "checkmark")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(AppColor.accentCheck)
+                .accessibilityLabel("Saved to camera roll")
+        }
+    }
+
+    private func save() async {
+        saveState = .saving
+        do {
+            try await PhotoSaver.save(event)
+            saveState = .saved
+            Haptics.tap()
+        } catch {
+            saveState = .failed(error.localizedDescription)
         }
     }
 
