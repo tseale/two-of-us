@@ -6,6 +6,17 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Added — save daycare photos to the camera roll
+- The photo viewer has a **Save** button (add-only Photos access, requested
+  on first save; `NSPhotoLibraryAddUsageDescription` added) — works for
+  standalone photo posts and photos attached to feeds/changes alike, since
+  attachments import as their own photo events.
+- The daycare card (hero and finished forms) gains **"Save all N photos to
+  camera roll"**, batch-saving the day in one tap. Honest reporting: a full
+  save toasts the count, expired CDN links toast a partial ("Saved 3 of 4 —
+  some links expired"), and denied access points at Settings. Exposed to
+  VoiceOver as a custom action on the card.
+
 ### Added — attached photos and live naps on the timeline
 - **Photos attached to any Brightwheel activity** (a diaper change or feed
   can carry one, not just standalone photo posts) now import as their own

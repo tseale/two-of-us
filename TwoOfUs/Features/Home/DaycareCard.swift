@@ -61,6 +61,9 @@ struct DaycareDayHeroCard: View {
     var showFeed = true
     var showSleep = true
     var showDiaper = true
+    /// Batch-saves the day's daycare photos to the camera roll (HomeView
+    /// owns the events and the toast). Nil hides the affordance.
+    var onSavePhotos: (() -> Void)? = nil
 
     private enum Stat { case feed, diaper, sleep }
     @State private var popped: Set<Stat> = []
@@ -121,6 +124,9 @@ struct DaycareDayHeroCard: View {
                 splitSection(icon: "🏠", title: "HOME", tint: AppColor.text2, lines: homeLines)
                 splitSection(icon: "\u{1F3EB}", title: "DAYCARE", tint: AppColor.accentCheck, lines: daycareLines)
             }
+            if let onSavePhotos, daycare.photoCount > 0 {
+                SavePhotosButton(count: daycare.photoCount, action: onSavePhotos)
+            }
         }
         .padding(16)
         .background(
@@ -140,6 +146,13 @@ struct DaycareDayHeroCard: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilitySummary)
+        // The combine above folds the Save button's tap away from VoiceOver —
+        // expose it as a custom action on the card element instead.
+        .accessibilityActions {
+            if let onSavePhotos, daycare.photoCount > 0 {
+                Button("Save daycare photos to camera roll", action: onSavePhotos)
+            }
+        }
         // Stable hook for UI tests (doesn't affect the VoiceOver label above).
         .accessibilityIdentifier("daycareCard")
     }
@@ -344,6 +357,24 @@ struct DaycareDayHeroCard: View {
     }
 }
 
+/// The quiet "save all" row both daycare card forms share — parents want the
+/// day's photos in the camera roll without tapping each one.
+struct SavePhotosButton: View {
+    let count: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(count == 1 ? "Save photo to camera roll"
+                             : "Save all \(count) photos to camera roll",
+                  systemImage: "square.and.arrow.down")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(AppColor.accentCheck)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 // MARK: - The finished day (after pickup)
 
 /// The quiet form, shown after checkout in the old report card's position:
@@ -352,6 +383,9 @@ struct DaycareDayHeroCard: View {
 struct DaycareCard: View {
     let babyName: String
     let day: DaycareDaySummary
+    /// Batch-saves the day's daycare photos (HomeView owns the events and
+    /// the toast). Nil hides the affordance.
+    var onSavePhotos: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -383,11 +417,19 @@ struct DaycareCard: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(AppColor.accentMedication)
             }
+            if let onSavePhotos, day.photoCount > 0 {
+                SavePhotosButton(count: day.photoCount, action: onSavePhotos)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .surfaceCard(cornerRadius: 18)
         .accessibilityElement(children: .combine)
+        .accessibilityActions {
+            if let onSavePhotos, day.photoCount > 0 {
+                Button("Save daycare photos to camera roll", action: onSavePhotos)
+            }
+        }
         .accessibilityIdentifier("daycareCard")
     }
 

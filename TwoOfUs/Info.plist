@@ -43,6 +43,8 @@
 	</array>
 	<key>NSAlarmKitUsageDescription</key>
 	<string>Two of Us uses alarms to remind you when the next feed is due, even when your phone is silenced.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Two of Us saves daycare photos to your camera roll only when you tap Save.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>TOUPrivateCloudComputeEnabled</key>
