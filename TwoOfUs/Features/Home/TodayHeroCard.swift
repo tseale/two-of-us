@@ -166,17 +166,20 @@ struct TodayHeroCard: View {
             }
         }
         .padding(16)
-        .background(
-            // The storybook wash: the app's teal dawning through lavender
-            // into warm peach — all three event accents, saturated enough to
-            // read as the day's one special surface, laid over the standard
-            // card color so hairline + dark mode stay in family.
-            LinearGradient(colors: [AppColor.accentFeed.opacity(0.28),
-                                    AppColor.accentSleep.opacity(0.20),
-                                    AppColor.accentDiaper.opacity(0.26)],
-                           startPoint: .topLeading, endPoint: .bottomTrailing),
-            in: .rect(cornerRadius: 18)
-        )
+        .background {
+            // The storybook wash, as a sunrise band: the three event accents
+            // (teal → lavender → warm peach) across the top of the card,
+            // fading out by mid-height so the body stays the standard card
+            // surface — special at a glance, calm where the numbers live.
+            RoundedRectangle(cornerRadius: 18)
+                .fill(LinearGradient(colors: [AppColor.accentFeed.opacity(0.35),
+                                              AppColor.accentSleep.opacity(0.28),
+                                              AppColor.accentDiaper.opacity(0.33)],
+                                     startPoint: .leading, endPoint: .trailing))
+                .mask(LinearGradient(stops: [.init(color: .white, location: 0),
+                                             .init(color: .clear, location: 0.55)],
+                                     startPoint: .top, endPoint: .bottom))
+        }
         .surfaceCard(cornerRadius: 18)
         .onChange(of: feedOz) { old, new in if new > old { pop(.feed) } }
         .onChange(of: diaperCount) { old, new in if new > old { pop(.diaper) } }
