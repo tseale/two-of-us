@@ -57,6 +57,11 @@ struct TodayHeroCard: View {
     /// Non-nil while he's at daycare: when that day began (check-in, or the
     /// first daycare event). Drives the "since" capsule and the open zone.
     let attendingSince: Date?
+    /// The first daycare-logged event of the day — the check-in stand-in for
+    /// the strip zone and capsule AFTER pickup, when `attendingSince` is gone.
+    /// Real Brightwheel days often never get explicit check markers, and the
+    /// finished day must not vanish off the strip at 5:30.
+    var firstDaycareEventAt: Date? = nil
     /// Start of a nap Brightwheel has begun but not ended — drawn on the
     /// strip (its SleepEvent doesn't exist yet) and counted into the total.
     let liveNapStartedAt: Date?
@@ -83,16 +88,20 @@ struct TodayHeroCard: View {
 
     private var sleepTotal: TimeInterval { sleepSeconds + liveNapSeconds }
 
+    /// When the daycare day began: the real check-in marker, else the first
+    /// daycare-logged event — same fallback `DaycareStatus` uses live.
+    private var daycareDayStart: Date? { daycare.checkIn ?? firstDaycareEventAt }
+
     /// The strip's daycare zone: open-ended while he's there, the recorded
     /// span after pickup (missing checkout falls back to the assumed 5:30).
     private var zone: (start: Date, end: Date?)? {
         if let attendingSince { return (attendingSince, nil) }
-        guard let checkIn = daycare.checkIn else { return nil }
+        guard let start = daycareDayStart else { return nil }
         let assumed = Calendar.current.date(bySettingHour: DaycareStatus.assumedCheckOutHour,
                                             minute: DaycareStatus.assumedCheckOutMinute,
                                             second: 0, of: now)
         guard let end = daycare.checkOut ?? assumed else { return nil }
-        return (checkIn, min(end, now))
+        return (start, min(end, now))
     }
 
     var body: some View {
@@ -199,11 +208,11 @@ struct TodayHeroCard: View {
         if let attendingSince {
             return "daycare since \(TimeFormatting.clock(attendingSince))"
         }
-        guard let checkIn = daycare.checkIn else { return nil }
-        if let checkOut = daycare.checkOut, checkOut > checkIn {
-            return "daycare \(TimeFormatting.clock(checkIn)) – \(TimeFormatting.clock(checkOut))"
+        guard let start = daycareDayStart else { return nil }
+        if let checkOut = daycare.checkOut, checkOut > start {
+            return "daycare \(TimeFormatting.clock(start)) – \(TimeFormatting.clock(checkOut))"
         }
-        return "daycare from \(TimeFormatting.clock(checkIn))"
+        return "daycare from \(TimeFormatting.clock(start))"
     }
 
     // MARK: Totals
@@ -223,19 +232,20 @@ struct TodayHeroCard: View {
         VStack(spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(emoji(for: stat))
-                    .font(.footnote)
+                    .font(.callout)
                     .opacity(active ? 1 : 0.45)
                     .padding(.trailing, 1)
                 Text(value)
-                    // Ink in the stat's own pastel family, not stark black.
-                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    // Glance values are display-scale (the type ramp's rule
+                    // #1) — the big rounded numerals the old TODAY card had,
+                    // inked in the stat's own pastel family, not stark black.
+                    .font(AppFont.display(28, relativeTo: .title2))
                     .foregroundStyle(active ? accent(for: stat) : AppColor.text3)
-                    .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.55)
                 if let unit {
                     Text(unit)
-                        .font(.system(.caption, design: .rounded).weight(.semibold))
+                        .font(.system(.callout, design: .rounded).weight(.semibold))
                         .foregroundStyle(active ? accent(for: stat).opacity(0.7) : AppColor.text3)
                 }
             }
