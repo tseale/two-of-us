@@ -556,7 +556,10 @@ private struct DayFlowStrip: View {
                     func emojiMark(_ h: Double, _ emoji: String, above: Bool) {
                         let y = above ? bandY - 8 : bandY + bandH + 8
                         let glyph = ctx.resolve(Text(emoji).font(.system(size: 9)))
-                        ctx.draw(glyph, at: CGPoint(x: x(h), y: y), anchor: .center)
+                        // Clamp inside the strip so an event at the window's
+                        // edge doesn't draw a half-clipped glyph.
+                        ctx.draw(glyph, at: CGPoint(x: min(max(x(h), 5), size.width - 5), y: y),
+                                 anchor: .center)
                     }
                     for mark in marks where mark.kind == .feed {
                         emojiMark(hour(mark.start), "🍼", above: true)
