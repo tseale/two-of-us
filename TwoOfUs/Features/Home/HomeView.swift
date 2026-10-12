@@ -114,44 +114,33 @@ struct HomeView: View {
                         // card reads as the Sleep row transformed in place.
                         let attendance = daycareAttendance(now: ctx.date)
                         VStack(spacing: 12) {
-                            // Daycare hours invert the screen's job: between
-                            // check-in and check-out the parents aren't the
-                            // ones logging — they're watching. The TODAY card
-                            // and the daycare card were the same three numbers
-                            // in two formats, so while he's there ONE hero
-                            // card replaces both — ribbon, whole-day beads,
-                            // live nap pulse, home/daycare split — and the
-                            // log tiles sit the day out. Checkout brings the
-                            // plain TODAY card and tiles back.
-                            if let attendance {
-                                DaycareDayHeroCard(
-                                    babyName: baby?.name ?? "Baby",
-                                    marks: todayMarks,
-                                    feedCount: todaySummary?.feedCount ?? 0,
-                                    feedOz: todaySummary?.feedOz ?? 0,
-                                    diaperCount: todaySummary?.diaperCount ?? 0,
-                                    wetCount: todayDiaperSplit.wet,
-                                    dirtyCount: todayDiaperSplit.dirty,
-                                    sleepSeconds: todaySummary?.sleepSeconds ?? 0,
-                                    daycare: daycareToday ?? DaycareDaySummary(),
-                                    since: attendance.since,
-                                    liveNapStartedAt: liveNapToday,
-                                    now: ctx.date,
-                                    showFeed: isTracked(.feed),
-                                    showSleep: isTracked(.sleep),
-                                    showDiaper: isTracked(.diaper),
-                                    onSavePhotos: saveDaycarePhotos
-                                )
-                            } else {
-                                TodayRibbonCard(
-                                    marks: todayMarks,
-                                    feedCount: todaySummary?.feedCount ?? 0,
-                                    sleepSeconds: todaySummary?.sleepSeconds ?? 0,
-                                    diaperCount: todaySummary?.diaperCount ?? 0,
-                                    showFeed: isTracked(.feed),
-                                    showSleep: isTracked(.sleep),
-                                    showDiaper: isTracked(.diaper)
-                                )
+                            // ONE hero card, every day — a day-flow strip
+                            // with a breathing live-sleep glow and plain
+                            // totals. Daycare arrives as layers on the same
+                            // base (zone, capsule, recap line, photos), not
+                            // as a different card. Between check-in and
+                            // check-out the parents aren't the ones logging
+                            // — they're watching — so the log tiles sit the
+                            // daycare day out; checkout brings them back.
+                            TodayHeroCard(
+                                babyName: baby?.name ?? "Baby",
+                                marks: todayMarks,
+                                feedCount: todaySummary?.feedCount ?? 0,
+                                feedOz: todaySummary?.feedOz ?? 0,
+                                diaperCount: todaySummary?.diaperCount ?? 0,
+                                wetCount: todayDiaperSplit.wet,
+                                dirtyCount: todayDiaperSplit.dirty,
+                                sleepSeconds: todaySummary?.sleepSeconds ?? 0,
+                                daycare: daycareToday ?? DaycareDaySummary(),
+                                attendingSince: attendance?.since,
+                                liveNapStartedAt: liveNapToday,
+                                activeSleepStartedAt: activeSleep?.startedAt,
+                                now: ctx.date,
+                                showFeed: isTracked(.feed),
+                                showSleep: isTracked(.sleep),
+                                showDiaper: isTracked(.diaper)
+                            )
+                            if attendance == nil {
                                 logButtons(now: ctx.date)
                             }
                             if let sleep = activeSleep {
@@ -176,18 +165,10 @@ struct HomeView: View {
                                     }
                                 }
                             }
-                            // The finished day, after pickup — same card in
-                            // its quiet form. Below the suggestion cards (a
-                            // pending decision outranks a summary) and above
-                            // the schedule rows. During daycare hours the
-                            // card is the hero at the top instead — never both.
-                            if attendance == nil, let daycare = daycareToday {
-                                DaycareCard(
-                                    babyName: baby?.name ?? "Baby",
-                                    day: daycare,
-                                    onSavePhotos: saveDaycarePhotos
-                                )
-                            }
+                            // (The old after-pickup daycare report card is
+                            // gone: the hero's recap line and its
+                            // "daycare 7:30 – 4:30" capsule carry the
+                            // finished day all evening.)
                             // Inside the ticking TimelineView so the rows stay
                             // honest on a phone left open overnight: 11pm passing
                             // greys the 11pm row and surfaces the 3am one without
@@ -494,37 +475,6 @@ struct HomeView: View {
     /// saw the wake-up land.
     private var liveNapToday: Date? {
         brightwheel.liveNapStartedAt.flatMap { $0 >= dayStart ? $0 : nil }
-    }
-
-    /// Today's daycare photos, for the card's "Save all" (videos stream from
-    /// the CDN and aren't saveable yet). Newest-first @Query → today is a prefix.
-    private var todayDaycarePhotos: [MediaEvent] {
-        mediaEvents.prefix(while: { $0.timestamp >= dayStart })
-            .filter { $0.isFromDaycare && $0.kind == .photo }
-    }
-
-    /// Batch-saves the day's daycare photos to the camera roll and reports
-    /// honestly: full success, partial (expired CDN links), or no access.
-    private func saveDaycarePhotos() {
-        let photos = todayDaycarePhotos
-        guard !photos.isEmpty else { return }
-        Task { @MainActor in
-            do {
-                let result = try await PhotoSaver.saveAll(photos)
-                if result.failed == 0 {
-                    toast = ToastData(
-                        message: "Saved \(Plural.count(result.saved, "photo")) to camera roll",
-                        accent: AppColor.accentCheck, undo: nil)
-                } else {
-                    toast = ToastData(
-                        message: "Saved \(result.saved) of \(photos.count) — some links expired",
-                        accent: AppColor.urgencyAmber, undo: nil)
-                }
-            } catch {
-                toast = ToastData(message: error.localizedDescription,
-                                  accent: AppColor.urgencyAmber, undo: nil)
-            }
-        }
     }
 
     private var todaySummary: DaySummary? {

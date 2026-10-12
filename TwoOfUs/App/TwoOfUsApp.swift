@@ -44,6 +44,29 @@ struct TwoOfUsApp: App {
         if ProcessInfo.processInfo.arguments.contains("-seedDaycareSampleDay") {
             _ = BrightwheelManager.shared.loadSampleDay(context: realContainer.mainContext)
         }
+        // Dev-only: `-seedDaycareFullDay` imports the WHOLE mock day (events
+        // still in the future clamp to now), landing Home in the after-pickup
+        // state at any hour.
+        if ProcessInfo.processInfo.arguments.contains("-seedDaycareFullDay") {
+            _ = BrightwheelManager.shared.loadSampleDay(context: realContainer.mainContext,
+                                                        fullDay: true)
+        }
+        // Dev-only: `-seedBabyOnly` creates the baby with no events — the
+        // empty-morning zero state.
+        if ProcessInfo.processInfo.arguments.contains("-seedBabyOnly") {
+            SeedData.seedIfNeeded(in: realContainer.mainContext, babyName: "Charlie")
+        }
+        // Dev-only: `-seedActiveSleep` opens a 25-minute-old sleep, so the
+        // hero card's breathing glow / "asleep" state is reachable on demand.
+        if ProcessInfo.processInfo.arguments.contains("-seedActiveSleep") {
+            let ctx = realContainer.mainContext
+            let baby = try? ctx.fetch(FetchDescriptor<Baby>()).first
+            ctx.insert(SleepEvent(baby: baby,
+                                  startedAt: .now.addingTimeInterval(-25 * 60),
+                                  loggedByID: UUID(), loggedByName: "Seed",
+                                  loggedByColorHex: "8E8EFF"))
+            try? ctx.save()
+        }
         // Dev-only: `-previewJoin` simulates a parent who just accepted a share,
         // so the co-parent join flow can be iterated on in the simulator (the real
         // path needs a second iCloud account accepting a CloudKit invite).

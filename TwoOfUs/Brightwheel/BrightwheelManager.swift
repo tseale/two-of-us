@@ -159,9 +159,13 @@ final class BrightwheelManager {
     /// sample falls back to yesterday's full report — every event lands
     /// exactly where the schedule says.
     @discardableResult
-    func loadSampleDay(context: ModelContext, now: Date = .now) -> BrightwheelImporter.Summary {
+    func loadSampleDay(context: ModelContext, now: Date = .now,
+                       fullDay: Bool = false) -> BrightwheelImporter.Summary {
+        // `fullDay` imports the whole day regardless of the clock — the
+        // not-yet-happened events clamp to "now" on insert, which lands Home
+        // in the after-pickup state at any hour (visual QA only).
         let todaySoFar = BrightwheelMockDay.activities(for: now)
-            .filter { ($0.when ?? .distantFuture) <= now }
+            .filter { fullDay || ($0.when ?? .distantFuture) <= now }
         let activities: [BrightwheelActivity]
         if todaySoFar.count >= 4 {
             activities = todaySoFar

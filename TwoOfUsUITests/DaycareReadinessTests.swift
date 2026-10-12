@@ -24,18 +24,17 @@ final class DaycareReadinessTests: XCTestCase {
 
         app.launch()
 
-        // 1 — Home loads. The seeded day is time-of-day dependent: from
-        // mid-morning, today's mock check-in (no check-out yet) puts Home in
-        // daycare mode — the daycare card is the anchor and the big log
-        // tiles are deliberately absent. Run EARLY morning, the seeder falls
-        // back to yesterday's full day instead, today has no daycare
-        // presence, and Home shows the plain tiles with no card — also
-        // correct. Accept whichever state the clock earns.
-        let daycareCard = app.descendants(matching: .any)
-            .matching(identifier: "daycareCard").firstMatch
-        let feedTile = app.buttons["logTile.feed"]
-        XCTAssertTrue(daycareCard.waitForExistence(timeout: 30) || feedTile.waitForExistence(timeout: 10),
-                      "Home presented neither the daycare card nor the log tiles")
+        // 1 — Home loads. The TODAY hero card is the anchor in every state
+        // now; the seeded day only decides its daycare layers. From
+        // mid-morning, today's mock check-in (no check-out yet) adds the
+        // zone/capsule/recap and the big log tiles are deliberately absent.
+        // Run EARLY morning, the seeder falls back to yesterday's full day,
+        // today has no daycare presence, and the tiles are back — the card
+        // stays either way.
+        let todayCard = app.descendants(matching: .any)
+            .matching(identifier: "todayCard").firstMatch
+        XCTAssertTrue(todayCard.waitForExistence(timeout: 30),
+                      "Home did not present the TODAY hero card")
         snapshot("01-Home-DaycareReportCard")
 
         // 2 — Timeline rows carry the daycare tag (accessibility label ends
