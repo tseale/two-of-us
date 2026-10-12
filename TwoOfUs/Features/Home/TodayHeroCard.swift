@@ -40,7 +40,6 @@ struct DaycareDaySummary: Equatable {
 /// a running Brightwheel nap also ticks into the sleep total live.
 struct TodayHeroCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
 
     let babyName: String
     /// Today's events — home and daycare together — for the day-flow strip.
@@ -222,14 +221,14 @@ struct TodayHeroCard: View {
                 Text(value)
                     // Ink in the stat's own pastel family, not stark black.
                     .font(.system(.title3, design: .rounded).weight(.bold))
-                    .foregroundStyle(active ? ink(for: stat) : AppColor.text3)
+                    .foregroundStyle(active ? accent(for: stat) : AppColor.text3)
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.55)
                 if let unit {
                     Text(unit)
                         .font(.system(.caption, design: .rounded).weight(.semibold))
-                        .foregroundStyle(active ? ink(for: stat).opacity(0.7) : AppColor.text3)
+                        .foregroundStyle(active ? accent(for: stat).opacity(0.7) : AppColor.text3)
                 }
             }
             .scaleEffect(popped.contains(stat) ? 1.12 : 1)
@@ -247,7 +246,7 @@ struct TodayHeroCard: View {
                         .monospacedDigit()
                 }
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(ink(for: .sleep))
+                .foregroundStyle(accent(for: .sleep))
                 .opacity(reduceMotion ? 1 : (breathing ? 1 : 0.55))
                 .animation(reduceMotion ? nil
                            : .easeInOut(duration: 2.6).repeatForever(autoreverses: true),
@@ -276,17 +275,13 @@ struct TodayHeroCard: View {
                              : parts.joined(separator: " · ")
     }
 
-    /// Darker siblings of the pastel accents for the value text — and in
-    /// dark mode the opposite: lighter ones, since the pastel fill is dim
-    /// there and a dark ink would sink into it.
-    private func ink(for stat: Stat) -> Color {
-        switch (stat, colorScheme == .dark) {
-        case (.feed, false):   Color(hex: "1E6B5E")
-        case (.feed, true):    Color(hex: "9FE8DA")
-        case (.diaper, false): Color(hex: "7A5220")
-        case (.diaper, true):  Color(hex: "F4D1A0")
-        case (.sleep, false):  Color(hex: "45459E")
-        case (.sleep, true):   Color(hex: "C2C2FF")
+    /// The same accents the rest of the app uses for these event types —
+    /// the strip, the timeline, History — so the totals stay in family.
+    private func accent(for stat: Stat) -> Color {
+        switch stat {
+        case .feed:   AppColor.accentFeed
+        case .diaper: AppColor.accentDiaper
+        case .sleep:  AppColor.accentSleep
         }
     }
 
@@ -459,8 +454,8 @@ struct TodayHeroCard: View {
     }
 }
 
-/// The day as a horizontal time strip: a soft track spanning the waking
-/// day, the daycare window as a neutral wash (open-ended and fading while
+/// The day as a horizontal time strip: a soft track spanning the whole
+/// day, midnight to midnight, the daycare window as a neutral wash (open-ended and fading while
 /// he's there, a closed span after pickup, absent on a home day), naps as
 /// slim lavender lozenges in the band, feeds as 🍼 above it, diapers as
 /// 💧/💩 below, sparse hour labels underneath. Any
@@ -579,16 +574,15 @@ private struct DayFlowStrip: View {
                             with: .color(AppColor.text2), lineWidth: 1.5)
                     }
 
-                    // Sparse hour labels
-                    var h = ceil(window.start)
-                    while h.truncatingRemainder(dividingBy: 3) != 0 { h += 1 }
+                    // Sparse hour labels — the day's quarter marks.
+                    var h = window.start
                     while h <= window.end {
                         let t = ctx.resolve(Text(hourLabel(Int(h)))
                             .font(.system(size: 8, weight: .medium))
                             .foregroundStyle(AppColor.text3))
                         ctx.draw(t, at: CGPoint(x: min(max(x(h), 7), size.width - 9),
                                                 y: size.height - 4), anchor: .center)
-                        h += 3
+                        h += 6
                     }
                 }
 
@@ -614,18 +608,10 @@ private struct DayFlowStrip: View {
             }
     }
 
-    /// The waking-day window: starts at 6 AM or the day's first meaningful
-    /// moment (an overnight sleep counts by its END — when he woke — so the
-    /// strip never stretches back to midnight), ends at 6 PM or just past now.
+    /// The whole calendar day, midnight to midnight — a fixed scale, so an
+    /// hour is always the same width and the day fills in left to right.
     private func hourWindow(dayStart: Date) -> (start: Double, end: Double) {
-        func hour(_ d: Date) -> Double { d.timeIntervalSince(dayStart) / 3600 }
-        let moments = marks.map { mark in
-            mark.kind == .sleep && hour(mark.start) <= 0.01
-                ? hour(mark.end ?? now) : hour(mark.start)
-        }
-        let start = min(6, floor(moments.min() ?? 6))
-        let end = max(18, min(24, hour(now) + 0.75))
-        return (max(0, start), end)
+        (0, 24)
     }
 
     private func hourLabel(_ h: Int) -> String {
