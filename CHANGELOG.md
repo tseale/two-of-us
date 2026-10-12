@@ -6,6 +6,17 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Changed — the daycare hero card absorbs TODAY
+- During daycare hours the TODAY card and the daycare card — the same three
+  numbers in two formats — merge into one storybook page: "🏫 Miller's Day ·
+  since 7:51 AM · 1h 9m" over the 24-hour ribbon, whole-day totals as three
+  beads on a soft gradient string (the sleep bead counts and pulses mid-nap),
+  and a home/daycare split underneath ("🏠 5 oz · 2 changes · 3h 10m |
+  🏫 2 oz · 1 change · 40m", daycare side in the check-in teal). Warm
+  peach-to-lavender wash; pops on new events; Reduce Motion respected.
+- Checkout dissolves it back into the plain TODAY card, the log tiles, and
+  the quiet finished-day daycare card.
+
 ### Changed — one daycare card, now a window into his day
 - The daycare report paragraph and the "at daycare" strip merged into one
   card: "Miller is at daycare · since 7:51 AM · 3h 12m" over three stat

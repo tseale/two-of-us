@@ -31,8 +31,8 @@ final class DaycareReadinessTests: XCTestCase {
         // back to yesterday's full day instead, today has no daycare
         // presence, and Home shows the plain tiles with no card — also
         // correct. Accept whichever state the clock earns.
-        let daycareCard = app.staticTexts.containing(
-            NSPredicate(format: "label CONTAINS[c] %@", "at daycare")).firstMatch
+        let daycareCard = app.descendants(matching: .any)
+            .matching(identifier: "daycareCard").firstMatch
         let feedTile = app.buttons["logTile.feed"]
         XCTAssertTrue(daycareCard.waitForExistence(timeout: 30) || feedTile.waitForExistence(timeout: 10),
                       "Home presented neither the daycare card nor the log tiles")
