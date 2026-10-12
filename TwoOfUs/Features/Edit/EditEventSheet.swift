@@ -230,6 +230,8 @@ struct EditEventSheet: View {
         case .note(let e): store.softDelete(e)
         case .activity(let e): store.softDelete(e)
         case .media(let e): store.softDelete(e)
+        // Unreachable (groups are never editable) — exhaustiveness only.
+        case .mediaGroup(let events): events.forEach { store.softDelete($0) }
         case .check(let e): store.softDelete(e)
         case .medication(let e): store.softDelete(e)
         case .healthCheck(let e): store.softDelete(e)

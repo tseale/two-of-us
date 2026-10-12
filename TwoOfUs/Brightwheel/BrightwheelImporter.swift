@@ -483,6 +483,11 @@ struct BrightwheelImporter {
                 $0.sourceRaw == source && $0.timestamp >= lo && $0.timestamp <= hi
             })) > 0
         case "ac_photo", "ac_video":
+            // Photos legitimately arrive in bursts sharing one timestamp —
+            // two 9:23 AM photos are two photos, not a re-issue. With a real
+            // object id, the externalID check above is the whole answer; the
+            // time window only backstops the (never yet seen) id-less case.
+            guard activity.objectID == nil else { return false }
             return fetchCount(FetchDescriptor<MediaEvent>(predicate: #Predicate {
                 $0.sourceRaw == source && $0.timestamp >= lo && $0.timestamp <= hi
             })) > 0

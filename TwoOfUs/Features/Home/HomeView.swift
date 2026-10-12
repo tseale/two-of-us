@@ -44,7 +44,7 @@ struct HomeView: View {
 
     @State private var activeSheet: ActiveSheet?
     @State private var editing: TimelineEntry?
-    @State private var viewingMedia: MediaEvent?
+    @State private var viewingMedia: MediaViewing?
     @State private var editingSleepStart = false
     @State private var toast: ToastData?
     @State private var showSettings = false
@@ -63,6 +63,13 @@ struct HomeView: View {
     @State private var dayStart = Calendar.current.startOfDay(for: .now)
 
     private enum ActiveSheet: String, Identifiable { case feed, diaper, note; var id: String { rawValue } }
+
+    /// What the photo viewer is showing: one photo from a plain row, or the
+    /// whole burst from a grouped row (swiped as pages).
+    struct MediaViewing: Identifiable {
+        let events: [MediaEvent]
+        var id: UUID { events.first?.id ?? UUID() }
+    }
 
     private var baby: Baby? { babies.first }
     private var store: EventStore { EventStore(context: context) }
@@ -262,8 +269,8 @@ struct HomeView: View {
             .sheet(item: $editing) { entry in
                 EditEventSheet(entry: entry)
             }
-            .sheet(item: $viewingMedia) { event in
-                MediaViewerSheet(event: event)
+            .sheet(item: $viewingMedia) { viewing in
+                MediaViewerSheet(events: viewing.events)
             }
             .sheet(isPresented: $editingSleepStart) {
                 if let sleep = activeSleep {
@@ -1051,7 +1058,9 @@ struct HomeView: View {
                         // read-only (swipe-to-delete still works).
                         .onTapGesture {
                             if case .media(let e) = entry {
-                                viewingMedia = e
+                                viewingMedia = MediaViewing(events: [e])
+                            } else if case .mediaGroup(let events) = entry {
+                                viewingMedia = MediaViewing(events: events)
                             } else if entry.isEditable, !entry.isActiveSleep {
                                 // A running sleep has no end to edit yet — its
                                 // controls live on the active card above.
@@ -1123,9 +1132,46 @@ struct HomeView: View {
         // Never render one event twice: duplicate rows sharing an id can exist
         // between sweeps (inbound upsert races, legacy data).
         var seen = Set<UUID>()
-        return entries
+        let deduped = entries
             .sorted { $0.sortDate > $1.sortDate }
             .filter { seen.insert($0.id).inserted }
+        return Self.groupingPhotoBursts(deduped)
+    }
+
+    /// Collapses photo bursts into one row: daycare posts several photos
+    /// with the same (or near-identical) timestamp, and a strip of
+    /// thumbnails on one "Photos (2)" row reads better than a stack of
+    /// identical "Photo" rows. Adjacent photos within a minute of each
+    /// other, same origin, chain into a group; videos and lone photos keep
+    /// their plain rows.
+    static func groupingPhotoBursts(_ entries: [TimelineEntry]) -> [TimelineEntry] {
+        var grouped: [TimelineEntry] = []
+        var burst: [MediaEvent] = []
+        func flush() {
+            if burst.count > 1 {
+                grouped.append(.mediaGroup(burst))
+            } else if let only = burst.first {
+                grouped.append(.media(only))
+            }
+            burst = []
+        }
+        for entry in entries {
+            if case .media(let e) = entry, e.kind == .photo {
+                if let last = burst.last,
+                   abs(last.timestamp.timeIntervalSince(e.timestamp)) <= 60,
+                   last.isFromDaycare == e.isFromDaycare {
+                    burst.append(e)
+                } else {
+                    flush()
+                    burst = [e]
+                }
+            } else {
+                flush()
+                grouped.append(entry)
+            }
+        }
+        flush()
+        return grouped
     }
 
     // MARK: Actions
@@ -1140,6 +1186,16 @@ struct HomeView: View {
             showToast("Deleted", accent: AppColor.urgencyAmber) { store.resumeSleep(e) }
             return
         }
+        // A photo burst deletes as one gesture — all of it, one Undo.
+        if case .mediaGroup(let events) = entry {
+            events.forEach { store.softDelete($0) }
+            Haptics.warning()
+            showToast("Deleted \(Plural.count(events.count, "photo"))",
+                      accent: AppColor.urgencyAmber) {
+                events.forEach { store.restore($0) }
+            }
+            return
+        }
         let event: any SoftDeletable
         switch entry {
         case .feed(let e): event = e
@@ -1148,6 +1204,7 @@ struct HomeView: View {
         case .note(let e): event = e
         case .activity(let e): event = e
         case .media(let e): event = e
+        case .mediaGroup(let events): event = events[0]   // unreachable — handled above
         case .check(let e): event = e
         case .medication(let e): event = e
         case .healthCheck(let e): event = e
