@@ -8,6 +8,10 @@ struct DaycareDaySummary: Equatable {
     var napCount = 0
     var napSeconds: TimeInterval = 0
     var diaperCount = 0
+    /// Wet/dirty breakdown of `diaperCount` — a `.both` diaper counts toward
+    /// each, the way parents and pediatricians tally them.
+    var wetCount = 0
+    var dirtyCount = 0
     var activityCount = 0
     var photoCount = 0
     var medicationCount = 0
@@ -34,6 +38,7 @@ struct DaycareDaySummary: Equatable {
 /// finished-day card below.
 struct DaycareDayHeroCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
 
     let babyName: String
     /// Today's full 24-hour ribbon — home and daycare events together.
@@ -42,6 +47,9 @@ struct DaycareDayHeroCard: View {
     let feedCount: Int
     let feedOz: Double
     let diaperCount: Int
+    /// Whole-day wet/dirty tallies (a `.both` diaper counts toward each).
+    let wetCount: Int
+    let dirtyCount: Int
     let sleepSeconds: TimeInterval
     /// The daycare-only slice, for the split row.
     let daycare: DaycareDaySummary
@@ -63,7 +71,8 @@ struct DaycareDayHeroCard: View {
     // The home side of the split is the day minus the daycare slice.
     private var homeOz: Double { max(0, feedOz - daycare.feedOz) }
     private var homeFeeds: Int { max(0, feedCount - daycare.feedCount) }
-    private var homeChanges: Int { max(0, diaperCount - daycare.diaperCount) }
+    private var homeWet: Int { max(0, wetCount - daycare.wetCount) }
+    private var homeDirty: Int { max(0, dirtyCount - daycare.dirtyCount) }
     private var homeSleep: TimeInterval { max(0, sleepSeconds - daycare.napSeconds) }
 
     var body: some View {
@@ -106,8 +115,12 @@ struct DaycareDayHeroCard: View {
                 }
             }
 
-            splitSection(icon: "🏠", title: "HOME", tint: AppColor.text2, lines: homeLines)
-            splitSection(icon: "\u{1F3EB}", title: "DAYCARE", tint: AppColor.accentCheck, lines: daycareLines)
+            // Two columns, a vertical emoji list inside each — scannable
+            // down, comparable across.
+            HStack(alignment: .top, spacing: 12) {
+                splitSection(icon: "🏠", title: "HOME", tint: AppColor.text2, lines: homeLines)
+                splitSection(icon: "\u{1F3EB}", title: "DAYCARE", tint: AppColor.accentCheck, lines: daycareLines)
+            }
         }
         .padding(16)
         .background(
@@ -152,8 +165,10 @@ struct DaycareDayHeroCard: View {
                 VStack(spacing: 1) {
                     Text(emoji).font(.system(size: 16))
                     Text(value)
+                        // Ink in the circle's own family, not stark black —
+                        // the number should feel dyed into the pastel.
                         .font(.system(.subheadline, design: .rounded).weight(.bold))
-                        .foregroundStyle(active ? AppColor.text : AppColor.text3)
+                        .foregroundStyle(active ? ink(for: stat) : AppColor.text3)
                         .monospacedDigit()
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
@@ -168,11 +183,26 @@ struct DaycareDayHeroCard: View {
                            value: popped)
             }
             Text(label)
-                .sectionLabelStyle(color: AppColor.text3)
+                .font(.caption2)
+                .foregroundStyle(AppColor.text3)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// Darker siblings of the pastel accents for the value text — and in
+    /// dark mode the opposite: lighter ones, since the pastel fill is dim
+    /// there and a dark ink would sink into it.
+    private func ink(for stat: Stat) -> Color {
+        switch (stat, colorScheme == .dark) {
+        case (.feed, false):   Color(hex: "1E6B5E")
+        case (.feed, true):    Color(hex: "9FE8DA")
+        case (.diaper, false): Color(hex: "7A5220")
+        case (.diaper, true):  Color(hex: "F4D1A0")
+        case (.sleep, false):  Color(hex: "45459E")
+        case (.sleep, true):   Color(hex: "C2C2FF")
+        }
     }
 
     /// A short grow-and-settle when a stat gains a new event — the moment a
@@ -188,31 +218,37 @@ struct DaycareDayHeroCard: View {
 
     /// Whole-day sleep; mid-nap the running nap joins the count live (its
     /// SleepEvent only lands when staff log the wake), so the bead ticks.
+    /// Same "4h 50m" spelling as the split lines below — one format everywhere.
     private var sleepValue: String {
         var total = sleepSeconds
         if let start = liveNapStartedAt { total += max(0, now.timeIntervalSince(start)) }
-        return total > 0 ? WakeWindow.shortLabel(total) : "—"
+        return total > 0 ? TimeFormatting.duration(minutes: Int(total / 60)) : "—"
     }
 
     // MARK: Home / daycare split
 
-    /// One emoji-tagged line in a split section — "🍼 10 oz (2 feeds)".
+    /// One emoji-tagged line in a split column — "🍼 10 oz (2)". `spoken` is
+    /// the VoiceOver spelling where the visual leans on emoji ("💧1 💩1" →
+    /// "1 wet, 1 dirty").
     private struct SplitLine: Identifiable {
         let emoji: String
         let text: String
         var tint: Color?
+        var spoken: String?
         var id: String { emoji + text }
     }
 
     private var homeLines: [SplitLine] {
-        trackerLines(oz: homeOz, feeds: homeFeeds, changes: homeChanges, sleep: homeSleep)
+        trackerLines(oz: homeOz, feeds: homeFeeds, wet: homeWet, dirty: homeDirty,
+                     sleep: homeSleep)
     }
 
-    /// The daycare section also carries the day's softer entries — photos,
+    /// The daycare column also carries the day's softer entries — photos,
     /// activities — and medication in its attention red.
     private var daycareLines: [SplitLine] {
         var lines = trackerLines(oz: daycare.feedOz, feeds: daycare.feedCount,
-                                 changes: daycare.diaperCount, sleep: daycare.napSeconds)
+                                 wet: daycare.wetCount, dirty: daycare.dirtyCount,
+                                 sleep: daycare.napSeconds)
         if daycare.activityCount > 0 {
             lines.append(SplitLine(
                 emoji: "🎨",
@@ -224,30 +260,48 @@ struct DaycareDayHeroCard: View {
         if daycare.medicationCount > 0 {
             lines.append(SplitLine(
                 emoji: "💊",
-                text: "\(Plural.count(daycare.medicationCount, "medication")) given — see the timeline",
+                text: "\(Plural.count(daycare.medicationCount, "medication")) — see timeline",
                 tint: AppColor.accentMedication))
         }
         return lines
     }
 
-    private func trackerLines(oz: Double, feeds: Int, changes: Int,
+    private func trackerLines(oz: Double, feeds: Int, wet: Int, dirty: Int,
                               sleep: TimeInterval) -> [SplitLine] {
         var lines: [SplitLine] = []
-        if showFeed, feeds > 0 { lines.append(SplitLine(emoji: "🍼", text: feedText(oz: oz, feeds: feeds))) }
-        if showDiaper, changes > 0 { lines.append(SplitLine(emoji: "💩", text: Plural.count(changes, "change"))) }
+        if showFeed, feeds > 0 {
+            let text = oz > 0 ? "\(OzFormat.string(oz)) oz (\(feeds))" : "\(feeds)"
+            lines.append(SplitLine(emoji: "🍼", text: text,
+                                   spoken: "\(OzFormat.string(oz)) ounces across \(Plural.count(feeds, "feed"))"))
+        }
+        if showDiaper, wet + dirty > 0 {
+            // Wet vs dirty, the split parents and pediatricians actually
+            // count — "💧1 💩1". A .both diaper tallies on each side.
+            var spoken: [String] = []
+            if wet > 0 { spoken.append("\(wet) wet") }
+            if dirty > 0 { spoken.append("\(dirty) dirty") }
+            lines.append(SplitLine(emoji: wet > 0 ? "💧" : "💩",
+                                   text: diaperText(wet: wet, dirty: dirty),
+                                   spoken: spoken.joined(separator: ", ") + " diapers"))
+        }
         if showSleep, sleep > 0 {
-            lines.append(SplitLine(emoji: "💤", text: TimeFormatting.duration(minutes: Int(sleep / 60))))
+            lines.append(SplitLine(emoji: "💤",
+                                   text: TimeFormatting.duration(minutes: Int(sleep / 60)),
+                                   spoken: "\(TimeFormatting.duration(minutes: Int(sleep / 60))) sleep"))
         }
         return lines
     }
 
-    private func feedText(oz: Double, feeds: Int) -> String {
-        oz > 0 ? "\(OzFormat.string(oz)) oz (\(Plural.count(feeds, "feed")))" : Plural.count(feeds, "feed")
+    /// "1 💩1" after a 💧 lead emoji, or just the counts when one side is
+    /// zero — the emoji column renders the first glyph, this the remainder.
+    private func diaperText(wet: Int, dirty: Int) -> String {
+        if wet > 0 && dirty > 0 { return "\(wet)  💩\(dirty)" }
+        return wet > 0 ? "\(wet)" : "\(dirty)"
     }
 
     private func splitSection(icon: String, title: String, tint: Color,
                               lines: [SplitLine]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 4) {
                 Text(icon).font(.caption2)
                 Text(title)
@@ -259,17 +313,16 @@ struct DaycareDayHeroCard: View {
                 Text("nothing yet")
                     .font(.caption)
                     .foregroundStyle(AppColor.text3)
-                    .padding(.leading, 20)
             } else {
                 ForEach(lines) { line in
-                    HStack(spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
                         Text(line.emoji).font(.caption)
                         Text(line.text)
                             .font(.caption.weight(line.tint == nil ? .regular : .medium))
                             .foregroundStyle(line.tint ?? AppColor.text2)
                             .monospacedDigit()
+                            .lineLimit(2)
                     }
-                    .padding(.leading, 20)
                 }
             }
         }
@@ -277,14 +330,16 @@ struct DaycareDayHeroCard: View {
     }
 
     private var accessibilitySummary: String {
+        func speak(_ lines: [SplitLine]) -> String {
+            lines.isEmpty ? "nothing yet"
+                : lines.map { $0.spoken ?? $0.text }.joined(separator: ", ")
+        }
         var parts = ["\(babyName) is at daycare since \(TimeFormatting.clock(since))"]
         if napping, let start = liveNapStartedAt {
             parts.append("napping right now, \(TimeFormatting.duration(from: start, to: now)) so far")
         }
-        parts.append("at home: " + (homeLines.isEmpty ? "nothing yet"
-            : homeLines.map(\.text).joined(separator: ", ")))
-        parts.append("at daycare: " + (daycareLines.isEmpty ? "nothing yet"
-            : daycareLines.map(\.text).joined(separator: ", ")))
+        parts.append("at home: \(speak(homeLines))")
+        parts.append("at daycare: \(speak(daycareLines))")
         return parts.joined(separator: ", ")
     }
 }
@@ -373,10 +428,12 @@ struct DaycareCard: View {
     DaycareDayHeroCard(
         babyName: "Miller",
         marks: [],
-        feedCount: 3, feedOz: 7, diaperCount: 3, sleepSeconds: 4 * 3600 + 50 * 60,
+        feedCount: 3, feedOz: 7, diaperCount: 3, wetCount: 2, dirtyCount: 1,
+        sleepSeconds: 4 * 3600 + 50 * 60,
         daycare: {
             var d = DaycareDaySummary()
             d.feedCount = 1; d.feedOz = 2; d.diaperCount = 1
+            d.wetCount = 1
             d.napCount = 1; d.napSeconds = 40 * 60
             d.activityCount = 2; d.photoCount = 3
             return d
