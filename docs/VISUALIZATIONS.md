@@ -1,7 +1,9 @@
 # Visualizations & Stats — Design Exploration
 
-> **Status:** Forward-looking ideation for the deferred charts/stats phase. No code yet.
-> See [BUILD_PLAN.md](BUILD_PLAN.md) for where this lands in the roadmap.
+> **Status:** Largely shipped — the ✅ marks in the body track what landed
+> (History charts, Stats fun cards, Wrapped). Still open: avg-interval trend,
+> oz-per-feed distribution, and the interactivity/accessibility work now
+> planned in [IOS-27-BEST-IN-CLASS.md](IOS-27-BEST-IN-CLASS.md) §3a/§5.
 
 Today every surface shows **"time since last X"** — a single number per event
 ([SmallEventWidget.swift](../TwoOfUsWidgets/SmallEventWidget.swift),

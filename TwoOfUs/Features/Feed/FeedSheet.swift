@@ -73,7 +73,7 @@ struct FeedSheet: View {
         guard let suggested = suggestedOz else { return nil }
         return suggested.isBaseline
             ? "typical at \(TimeFormatting.age(from: babies.first?.dateOfBirth ?? .now)): ~\(OzFormat.string(suggested.oz)) oz"
-            : "he's been taking ~\(OzFormat.string(suggested.oz)) oz at this hour"
+            : "\(babies.first?.name ?? "Baby") has been taking ~\(OzFormat.string(suggested.oz)) oz at this hour"
     }
 
     var body: some View {

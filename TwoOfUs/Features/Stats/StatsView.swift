@@ -417,7 +417,7 @@ struct StatsView: View {
     private var modelStatusLine: String {
         let wins = [timeAccuracy, amountAccuracy].compactMap { $0 }.contains { $0.modelWins }
         return wins
-            ? "His personal model is beating the baseline and is in use."
+            ? "\(babyName)'s personal model is beating the baseline and is in use."
             : "Baseline statistics are in use; a personal model takes over only if it proves more accurate."
     }
 

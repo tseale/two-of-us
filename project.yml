@@ -356,6 +356,8 @@ targets:
               - COPARENT
               - REMINDER_FEED
               - REMINDER_DIAPER
+              - SCHEDULE_FEED
+              - SCHEDULE_SLEEP
             UNNotificationExtensionInitialContentSizeRatio: 0.4
             UNNotificationExtensionDefaultContentHidden: true
     entitlements:

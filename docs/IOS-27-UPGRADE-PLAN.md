@@ -319,4 +319,4 @@ satisfies. Items 1–3 are a comfortable single week.
 - `docs/AI-PREDICTIONS.md` — PCC section, Privacy section, Settings copy (§3/§5)
 - `docs/SIRI_AND_SHORTCUTS.md` — re-test phrases under LLM Siri, rewrite list
 - `docs/PRIVACY.md` + `docs/APP_PRIVACY_ANSWERS.md` — with the PCC card
-- New: `docs/AI-CHAT-DESIGN.md` (§5)
+- ~~New: `docs/AI-CHAT-DESIGN.md`~~ — moot: §5 decided against in-app chat (2026-09-18)

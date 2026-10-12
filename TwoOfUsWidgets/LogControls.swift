@@ -3,11 +3,8 @@ import SwiftUI
 import AppIntents
 
 // Control Center / Lock Screen / Action button controls (iOS 18+).
-// Each runs an existing App Intent — no new write path. Gated with @available
-// because the ControlWidget APIs are iOS 18+; the WidgetBundle includes them
-// behind `if #available`.
+// Each runs an existing App Intent — no new write path.
 
-@available(iOS 18.0, *)
 struct LogFeedControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "com.taylorseale.twoofus.control.feed") {
@@ -21,7 +18,6 @@ struct LogFeedControl: ControlWidget {
     }
 }
 
-@available(iOS 18.0, *)
 struct LogDiaperControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "com.taylorseale.twoofus.control.diaper") {
@@ -37,7 +33,6 @@ struct LogDiaperControl: ControlWidget {
 
 /// Stateful sleep toggle — reflects whether a sleep is currently running and
 /// drives it to the requested state, rather than a one-press blind toggle.
-@available(iOS 18.0, *)
 struct ToggleSleepControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(
@@ -60,7 +55,6 @@ struct ToggleSleepControl: ControlWidget {
 }
 
 /// Supplies the current sleep state (asleep = a sleep is running) to the toggle.
-@available(iOS 18.0, *)
 struct SleepStateProvider: ControlValueProvider {
     var previewValue: Bool { false }
 

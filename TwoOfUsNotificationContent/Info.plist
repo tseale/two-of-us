@@ -30,6 +30,8 @@
 				<string>COPARENT</string>
 				<string>REMINDER_FEED</string>
 				<string>REMINDER_DIAPER</string>
+				<string>SCHEDULE_FEED</string>
+				<string>SCHEDULE_SLEEP</string>
 			</array>
 			<key>UNNotificationExtensionDefaultContentHidden</key>
 			<true/>
