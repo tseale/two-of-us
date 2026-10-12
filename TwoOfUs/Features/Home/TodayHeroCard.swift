@@ -316,7 +316,13 @@ struct TodayHeroCard: View {
                                 "\(OzFormat.string(daycare.feedOz)) oz (\(daycare.feedCount))")
                     }
                     if daycare.diaperCount > 0 {
-                        dotItem(AppColor.accentDiaper, daycareDiaperWords)
+                        // Both kinds compact to a total — "1 wet · 1 dirty"
+                        // overflows the one line; the whole-day split is
+                        // already in the diaper total's caption above.
+                        dotItem(AppColor.accentDiaper,
+                                daycare.wetCount > 0 && daycare.dirtyCount > 0
+                                    ? Plural.count(daycare.diaperCount, "diaper")
+                                    : daycareDiaperWords)
                     }
                     if daycare.napSeconds + liveNapSeconds > 0 {
                         dotItem(AppColor.accentSleep,
