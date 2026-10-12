@@ -99,11 +99,10 @@ struct TodayHeroCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .firstTextBaseline) {
                 // "Today", not "<name>'s Day" — his name sits right above in
-                // the profile header, and the TODAY card uses the same word
-                // on non-daycare days, so the slot reads consistently.
-                Text("Today")
-                    .font(.system(.title3, design: .rounded).weight(.semibold))
-                    .foregroundStyle(AppColor.text)
+                // the profile header. The eyebrow idiom (sectionLabelStyle)
+                // matches every other read card in this stack: Tonight's
+                // Schedule, Up next, Insights, "IS SLEEPING".
+                Text("Today").sectionLabelStyle()
                 Spacer()
                 // Neutral like the strip's daycare zone — a place, not an
                 // event, so it stays out of the feed-teal family. Absent on
@@ -111,7 +110,7 @@ struct TodayHeroCard: View {
                 if let pillText {
                     HStack(spacing: 4) {
                         Image(systemName: "building.2.fill")
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(.caption2.weight(.semibold))
                         Text(pillText)
                             .monospacedDigit()
                     }
@@ -165,14 +164,17 @@ struct TodayHeroCard: View {
         }
         .padding(16)
         .background(
-            // The storybook wash: warm peach rising into lavender, laid over
-            // the standard card color so hairline + dark mode stay in family.
-            LinearGradient(colors: [AppColor.accentDiaper.opacity(0.12),
-                                    AppColor.accentSleep.opacity(0.14)],
+            // The storybook wash: the app's teal dawning through lavender
+            // into warm peach — all three event accents, saturated enough to
+            // read as the day's one special surface, laid over the standard
+            // card color so hairline + dark mode stay in family.
+            LinearGradient(colors: [AppColor.accentFeed.opacity(0.28),
+                                    AppColor.accentSleep.opacity(0.20),
+                                    AppColor.accentDiaper.opacity(0.26)],
                            startPoint: .topLeading, endPoint: .bottomTrailing),
-            in: .rect(cornerRadius: 20)
+            in: .rect(cornerRadius: 18)
         )
-        .surfaceCard(cornerRadius: 20)
+        .surfaceCard(cornerRadius: 18)
         .onChange(of: feedOz) { old, new in if new > old { pop(.feed) } }
         .onChange(of: diaperCount) { old, new in if new > old { pop(.diaper) } }
         .onChange(of: sleepSeconds) { old, new in if new > old { pop(.sleep) } }
@@ -215,7 +217,7 @@ struct TodayHeroCard: View {
         VStack(spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(emoji(for: stat))
-                    .font(.system(size: 13))
+                    .font(.footnote)
                     .opacity(active ? 1 : 0.45)
                     .padding(.trailing, 1)
                 Text(value)
@@ -241,7 +243,7 @@ struct TodayHeroCard: View {
                 // a 3 AM stretch at home isn't a nap.
                 HStack(spacing: 3) {
                     Image(systemName: "moon.zzz.fill")
-                        .font(.system(size: 8, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                     Text("\(liveNapStartedAt != nil || attendingSince != nil ? "napping" : "asleep") · \(TimeFormatting.duration(from: start, to: now))")
                         .monospacedDigit()
                 }
@@ -362,7 +364,7 @@ struct TodayHeroCard: View {
     private func emojiItem(_ emoji: String, _ text: String) -> some View {
         HStack(spacing: 3) {
             Text(emoji)
-                .font(.system(size: 10))
+                .font(.caption2)
             Text(text)
                 .font(.caption)
                 .foregroundStyle(AppColor.text2)
@@ -382,7 +384,7 @@ struct TodayHeroCard: View {
         ZStack {
             Circle().fill(tint.opacity(0.13)).frame(width: 26, height: 26)
             Image(systemName: systemImage)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(tint)
         }
     }
