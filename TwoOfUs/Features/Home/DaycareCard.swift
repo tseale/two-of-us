@@ -94,6 +94,8 @@ struct DaycareDayHeroCard: View {
                     .font(.system(.title3, design: .rounded).weight(.semibold))
                     .foregroundStyle(AppColor.text)
                 Spacer()
+                // Neutral like the strip's daycare zone — a place, not an
+                // event, so it stays out of the feed-teal family.
                 HStack(spacing: 4) {
                     Image(systemName: "building.2.fill")
                         .font(.system(size: 9, weight: .semibold))
@@ -101,10 +103,10 @@ struct DaycareDayHeroCard: View {
                         .monospacedDigit()
                 }
                 .font(.caption2.weight(.medium))
-                .foregroundStyle(checkInk)
+                .foregroundStyle(AppColor.text2)
                 .padding(.horizontal, 9)
                 .padding(.vertical, 5)
-                .background(AppColor.accentCheck.opacity(0.13), in: Capsule())
+                .background(AppColor.text2.opacity(0.10), in: Capsule())
             }
 
             // The day's actual shape, then its totals as three plain numbers.
@@ -466,7 +468,7 @@ private struct DayFlowStrip: View {
                                 endPoint: CGPoint(x: zone.maxX, y: 0)))
                     let glyph = ctx.resolve(Text(Image(systemName: "building.2.fill"))
                         .font(.system(size: 7, weight: .semibold))
-                        .foregroundStyle(AppColor.accentCheck))
+                        .foregroundStyle(AppColor.text2))
                     ctx.draw(glyph, at: CGPoint(x: zone.minX + 8, y: zone.midY), anchor: .center)
 
                     // Naps (overnight tail clips to the window's left edge)
