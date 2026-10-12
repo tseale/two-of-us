@@ -85,7 +85,10 @@ struct DaycareDayHeroCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .firstTextBaseline) {
-                Text("\(babyName)'s Day")
+                // "Today", not "<name>'s Day" — his name sits right above in
+                // the profile header, and the TODAY card uses the same word
+                // on non-daycare days, so the slot reads consistently.
+                Text("Today")
                     .font(.system(.title3, design: .rounded).weight(.semibold))
                     .foregroundStyle(AppColor.text)
                 Spacer()
