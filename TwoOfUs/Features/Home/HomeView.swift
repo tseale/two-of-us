@@ -138,8 +138,7 @@ struct HomeView: View {
                                 now: ctx.date,
                                 showFeed: isTracked(.feed),
                                 showSleep: isTracked(.sleep),
-                                showDiaper: isTracked(.diaper),
-                                onSavePhotos: saveDaycarePhotos
+                                showDiaper: isTracked(.diaper)
                             )
                             if attendance == nil {
                                 logButtons(now: ctx.date)
@@ -476,37 +475,6 @@ struct HomeView: View {
     /// saw the wake-up land.
     private var liveNapToday: Date? {
         brightwheel.liveNapStartedAt.flatMap { $0 >= dayStart ? $0 : nil }
-    }
-
-    /// Today's daycare photos, for the card's "Save all" (videos stream from
-    /// the CDN and aren't saveable yet). Newest-first @Query → today is a prefix.
-    private var todayDaycarePhotos: [MediaEvent] {
-        mediaEvents.prefix(while: { $0.timestamp >= dayStart })
-            .filter { $0.isFromDaycare && $0.kind == .photo }
-    }
-
-    /// Batch-saves the day's daycare photos to the camera roll and reports
-    /// honestly: full success, partial (expired CDN links), or no access.
-    private func saveDaycarePhotos() {
-        let photos = todayDaycarePhotos
-        guard !photos.isEmpty else { return }
-        Task { @MainActor in
-            do {
-                let result = try await PhotoSaver.saveAll(photos)
-                if result.failed == 0 {
-                    toast = ToastData(
-                        message: "Saved \(Plural.count(result.saved, "photo")) to camera roll",
-                        accent: AppColor.accentCheck, undo: nil)
-                } else {
-                    toast = ToastData(
-                        message: "Saved \(result.saved) of \(photos.count) — some links expired",
-                        accent: AppColor.urgencyAmber, undo: nil)
-                }
-            } catch {
-                toast = ToastData(message: error.localizedDescription,
-                                  accent: AppColor.urgencyAmber, undo: nil)
-            }
-        }
     }
 
     private var todaySummary: DaySummary? {

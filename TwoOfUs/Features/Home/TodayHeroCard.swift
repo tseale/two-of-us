@@ -32,9 +32,10 @@ struct DaycareDaySummary: Equatable {
 /// setting. A day-flow strip tells the day's actual shape — feeds and
 /// diapers as dots at their true times, naps as spans — with the whole-day
 /// totals as three plain numbers beneath. On a home day that's the whole
-/// card. Daycare arrives as layers on the same base: a neutral zone on the
-/// strip from drop-off, the "daycare since" capsule, one quiet dotted
-/// recap line of what staff have logged, and the save-photos button.
+/// card. Daycare arrives as layers on the same base: a neutral zone on
+/// the strip from drop-off, the "daycare since" capsule, and one quiet
+/// dotted recap line of what staff have logged (photos save individually
+/// from the timeline; the recap only counts them).
 /// While any sleep is running the strip's now edge glows and breathes;
 /// a running Brightwheel nap also ticks into the sleep total live.
 struct TodayHeroCard: View {
@@ -67,9 +68,6 @@ struct TodayHeroCard: View {
     var showFeed = true
     var showSleep = true
     var showDiaper = true
-    /// Batch-saves the day's daycare photos to the camera roll (HomeView
-    /// owns the events and the toast). Nil hides the affordance.
-    var onSavePhotos: (() -> Void)? = nil
 
     private enum Stat { case feed, diaper, sleep }
     @State private var popped: Set<Stat> = []
@@ -160,12 +158,10 @@ struct TodayHeroCard: View {
 
             // The daycare recap — what staff logged since drop-off (the
             // totals + strip above already carry the home side). A pure
-            // home day ends at the totals.
+            // home day ends at the totals. Photos save individually from
+            // the timeline; the recap only counts them.
             if !daycare.isEmpty {
                 bottomSection
-            }
-            if let onSavePhotos, daycare.photoCount > 0 {
-                SavePhotosButton(count: daycare.photoCount, action: onSavePhotos)
             }
         }
         .padding(16)
@@ -186,13 +182,6 @@ struct TodayHeroCard: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilitySummary)
-        // The combine above folds the Save button's tap away from VoiceOver —
-        // expose it as a custom action on the card element instead.
-        .accessibilityActions {
-            if let onSavePhotos, daycare.photoCount > 0 {
-                Button("Save daycare photos to camera roll", action: onSavePhotos)
-            }
-        }
         // Stable hook for UI tests (doesn't affect the VoiceOver label above).
         .accessibilityIdentifier("todayCard")
     }
@@ -620,32 +609,6 @@ private struct DayFlowStrip: View {
         case ..<12: "\(h)a"
         default: "\(h - 12)p"
         }
-    }
-}
-
-/// The "save all" capsule — parents want the day's daycare photos in the
-/// camera roll without tapping each one.
-struct SavePhotosButton: View {
-    @Environment(\.colorScheme) private var colorScheme
-    let count: Int
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: "square.and.arrow.down")
-                    .font(.system(size: 11, weight: .semibold))
-                Text(count == 1 ? "Save photo to camera roll"
-                                : "Save all \(count) photos to camera roll")
-            }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(colorScheme == .dark ? AppColor.accentCheck
-                                                  : Color(hex: "1A7E8F"))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(AppColor.accentCheck.opacity(0.13), in: Capsule())
-        }
-        .buttonStyle(.plain)
     }
 }
 
