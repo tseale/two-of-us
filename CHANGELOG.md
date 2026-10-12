@@ -6,6 +6,13 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Changed — daycare hero polish
+- The circles sit straight on the card (the gradient band behind them is
+  gone), the top-right corner reads just "daycare since 7:51 AM", and the
+  home/daycare split is now two vertical emoji lists — 🍼 oz (feeds),
+  💩 changes, 💤 sleep per section, with photos/activities (and medication,
+  in red) living under DAYCARE instead of floating at the card's foot.
+
 ### Changed — the daycare hero card absorbs TODAY
 - During daycare hours the TODAY card and the daycare card — the same three
   numbers in two formats — merge into one storybook page: "🏫 Miller's Day ·
