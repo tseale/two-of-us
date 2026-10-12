@@ -26,27 +26,25 @@ struct DaycareDaySummary: Equatable {
     }
 }
 
-// MARK: - The hero (while he's at daycare)
+// MARK: - The hero (every day)
 
-/// The storybook page of Miller's day, shown while he's at daycare in place
-/// of BOTH the TODAY card and the daycare card — they were the same three
-/// numbers in two formats. A day-flow strip tells the day's actual shape —
-/// feeds and diapers as dots at their true times, naps as spans, the
-/// daycare window tinted from drop-off and fading out at "now" — with the
-/// whole-day totals as three plain numbers beneath. Mid-nap the strip's
-/// leading edge glows and breathes while the sleep total ticks live. One
-/// quiet dotted line underneath recaps what daycare has logged since
-/// drop-off (the home side stays implicit in the strip and totals).
-/// Checkout dissolves it back into the plain TODAY card plus the quiet
-/// finished-day card below.
-struct DaycareDayHeroCard: View {
+/// The storybook page of the day, and Home's one TODAY card in every
+/// setting. A day-flow strip tells the day's actual shape — feeds and
+/// diapers as dots at their true times, naps as spans — with the whole-day
+/// totals as three plain numbers beneath. On a home day that's the whole
+/// card. Daycare arrives as layers on the same base: a neutral zone on the
+/// strip from drop-off, the "daycare since" capsule, one quiet dotted
+/// recap line of what staff have logged, and the save-photos button.
+/// While any sleep is running the strip's now edge glows and breathes;
+/// a running Brightwheel nap also ticks into the sleep total live.
+struct TodayHeroCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
 
     let babyName: String
     /// Today's events — home and daycare together — for the day-flow strip.
     let marks: [RibbonMark]
-    /// Whole-day totals (home + daycare), same numbers the TODAY card showed.
+    /// Whole-day totals (home + daycare).
     let feedCount: Int
     let feedOz: Double
     let diaperCount: Int
@@ -54,12 +52,17 @@ struct DaycareDayHeroCard: View {
     let wetCount: Int
     let dirtyCount: Int
     let sleepSeconds: TimeInterval
-    /// The daycare-only slice, for the split row.
+    /// The daycare-only slice; `.init()` (empty) on a pure home day.
     let daycare: DaycareDaySummary
-    /// When the daycare day began (check-in, or the first daycare event).
-    let since: Date
-    /// Start of a nap Brightwheel has begun but not ended.
+    /// Non-nil while he's at daycare: when that day began (check-in, or the
+    /// first daycare event). Drives the "since" capsule and the open zone.
+    let attendingSince: Date?
+    /// Start of a nap Brightwheel has begun but not ended — drawn on the
+    /// strip (its SleepEvent doesn't exist yet) and counted into the total.
     let liveNapStartedAt: Date?
+    /// Start of a parent-logged sleep still running (already on the strip
+    /// via `marks`; this only drives the glow and the live caption).
+    var activeSleepStartedAt: Date? = nil
     let now: Date
     var showFeed = true
     var showSleep = true
@@ -72,7 +75,8 @@ struct DaycareDayHeroCard: View {
     @State private var popped: Set<Stat> = []
     @State private var breathing = false
 
-    private var napping: Bool { liveNapStartedAt != nil }
+    /// Any sleep in progress — Brightwheel's or a parent-logged one.
+    private var sleepingSince: Date? { liveNapStartedAt ?? activeSleepStartedAt }
 
     /// Seconds of the Brightwheel nap still running — counted into the sleep
     /// totals live (its SleepEvent only lands when staff log the wake).
@@ -81,6 +85,18 @@ struct DaycareDayHeroCard: View {
     }
 
     private var sleepTotal: TimeInterval { sleepSeconds + liveNapSeconds }
+
+    /// The strip's daycare zone: open-ended while he's there, the recorded
+    /// span after pickup (missing checkout falls back to the assumed 5:30).
+    private var zone: (start: Date, end: Date?)? {
+        if let attendingSince { return (attendingSince, nil) }
+        guard let checkIn = daycare.checkIn else { return nil }
+        let assumed = Calendar.current.date(bySettingHour: DaycareStatus.assumedCheckOutHour,
+                                            minute: DaycareStatus.assumedCheckOutMinute,
+                                            second: 0, of: now)
+        guard let end = daycare.checkOut ?? assumed else { return nil }
+        return (checkIn, min(end, now))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -93,24 +109,28 @@ struct DaycareDayHeroCard: View {
                     .foregroundStyle(AppColor.text)
                 Spacer()
                 // Neutral like the strip's daycare zone — a place, not an
-                // event, so it stays out of the feed-teal family.
-                HStack(spacing: 4) {
-                    Image(systemName: "building.2.fill")
-                        .font(.system(size: 9, weight: .semibold))
-                    Text("daycare since \(TimeFormatting.clock(since))")
-                        .monospacedDigit()
+                // event, so it stays out of the feed-teal family. Absent on
+                // a pure home day; a recorded span after pickup.
+                if let pillText {
+                    HStack(spacing: 4) {
+                        Image(systemName: "building.2.fill")
+                            .font(.system(size: 9, weight: .semibold))
+                        Text(pillText)
+                            .monospacedDigit()
+                    }
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(AppColor.text2)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(AppColor.text2.opacity(0.10), in: Capsule())
                 }
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(AppColor.text2)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(AppColor.text2.opacity(0.10), in: Capsule())
             }
 
             // The day's actual shape, then its totals as three plain numbers.
             VStack(spacing: 14) {
-                DayFlowStrip(marks: marks, since: since,
-                             liveNapStartedAt: liveNapStartedAt, now: now)
+                DayFlowStrip(marks: marks, zone: zone,
+                             liveNapStartedAt: liveNapStartedAt,
+                             glowStart: sleepingSince, now: now)
                     .frame(height: 62)
                 HStack(alignment: .top, spacing: 10) {
                     if showFeed {
@@ -129,18 +149,21 @@ struct DaycareDayHeroCard: View {
                     }
                     if showSleep {
                         totalColumn(.sleep,
-                                    active: napping || sleepSeconds > 0,
+                                    active: sleepingSince != nil || sleepSeconds > 0,
                                     value: sleepValue,
                                     unit: nil,
                                     caption: "sleep",
-                                    liveNap: napping)
+                                    liveSleep: sleepingSince != nil)
                     }
                 }
             }
 
             // The daycare recap — what staff logged since drop-off (the
-            // totals + strip above already carry the home side).
-            bottomSection
+            // totals + strip above already carry the home side). A pure
+            // home day ends at the totals.
+            if !daycare.isEmpty {
+                bottomSection
+            }
             if let onSavePhotos, daycare.photoCount > 0 {
                 SavePhotosButton(count: daycare.photoCount, action: onSavePhotos)
             }
@@ -158,7 +181,7 @@ struct DaycareDayHeroCard: View {
         .onChange(of: feedOz) { old, new in if new > old { pop(.feed) } }
         .onChange(of: diaperCount) { old, new in if new > old { pop(.diaper) } }
         .onChange(of: sleepSeconds) { old, new in if new > old { pop(.sleep) } }
-        .onChange(of: liveNapStartedAt) { old, new in
+        .onChange(of: sleepingSince) { old, new in
             if new != nil, old == nil { pop(.sleep) }
         }
         .accessibilityElement(children: .combine)
@@ -171,14 +194,27 @@ struct DaycareDayHeroCard: View {
             }
         }
         // Stable hook for UI tests (doesn't affect the VoiceOver label above).
-        .accessibilityIdentifier("daycareCard")
+        .accessibilityIdentifier("todayCard")
+    }
+
+    /// The header capsule's text: live during attendance, the recorded span
+    /// after pickup, nothing on a pure home day.
+    private var pillText: String? {
+        if let attendingSince {
+            return "daycare since \(TimeFormatting.clock(attendingSince))"
+        }
+        guard let checkIn = daycare.checkIn else { return nil }
+        if let checkOut = daycare.checkOut, checkOut > checkIn {
+            return "daycare \(TimeFormatting.clock(checkIn)) – \(TimeFormatting.clock(checkOut))"
+        }
+        return "daycare from \(TimeFormatting.clock(checkIn))"
     }
 
     // MARK: Totals
 
     private func totalColumn(_ stat: Stat, active: Bool, value: String,
                              unit: String?, caption: String,
-                             liveNap: Bool = false) -> some View {
+                             liveSleep: Bool = false) -> some View {
         VStack(spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(value)
@@ -198,12 +234,14 @@ struct DaycareDayHeroCard: View {
             .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.55),
                        value: popped)
 
-            if liveNap, let start = liveNapStartedAt {
-                // The nap's pulse, breathing with the strip's glow dot.
+            if liveSleep, let start = sleepingSince {
+                // The sleep's pulse, breathing with the strip's glow dot.
+                // "napping" during the daycare day, "asleep" anywhere else —
+                // a 3 AM stretch at home isn't a nap.
                 HStack(spacing: 3) {
                     Image(systemName: "moon.zzz.fill")
                         .font(.system(size: 8, weight: .semibold))
-                    Text("napping · \(TimeFormatting.duration(from: start, to: now))")
+                    Text("\(liveNapStartedAt != nil || attendingSince != nil ? "napping" : "asleep") · \(TimeFormatting.duration(from: start, to: now))")
                         .monospacedDigit()
                 }
                 .font(.caption2.weight(.semibold))
@@ -366,9 +404,14 @@ struct DaycareDayHeroCard: View {
     }
 
     private var accessibilitySummary: String {
-        var parts = ["\(babyName) is at daycare since \(TimeFormatting.clock(since))"]
-        if napping, let start = liveNapStartedAt {
-            parts.append("napping right now, \(TimeFormatting.duration(from: start, to: now)) so far")
+        var parts: [String]
+        if let attendingSince {
+            parts = ["\(babyName) is at daycare since \(TimeFormatting.clock(attendingSince))"]
+        } else {
+            parts = ["\(babyName)'s day so far"]
+        }
+        if let start = sleepingSince {
+            parts.append("asleep right now, \(TimeFormatting.duration(from: start, to: now)) so far")
         }
         var today: [String] = []
         if showFeed, feedCount > 0 {
@@ -397,7 +440,9 @@ struct DaycareDayHeroCard: View {
         if daycare.photoCount > 0 {
             recap.append(Plural.count(daycare.photoCount, "photo"))
         }
-        parts.append("at daycare: " + (recap.isEmpty ? "nothing yet" : recap.joined(separator: ", ")))
+        if !daycare.isEmpty || attendingSince != nil {
+            parts.append("at daycare: " + (recap.isEmpty ? "nothing yet" : recap.joined(separator: ", ")))
+        }
         if daycare.medicationCount > 0 {
             parts.append("\(Plural.count(daycare.medicationCount, "medication")) given, see the timeline")
         }
@@ -406,19 +451,22 @@ struct DaycareDayHeroCard: View {
 }
 
 /// The day as a horizontal time strip: a soft track spanning the waking
-/// day, the daycare window tinted teal from drop-off and fading toward
-/// "now" (the day is still being written), naps as slim lavender lozenges
-/// in the band, feeds as teal dots above it, diapers as amber dots below,
-/// sparse hour labels underneath. A running Brightwheel nap runs its
-/// lozenge into a glow dot at the now edge, breathing while he sleeps.
+/// day, the daycare window as a neutral wash (open-ended and fading while
+/// he's there, a closed span after pickup, absent on a home day), naps as
+/// slim lavender lozenges in the band, feeds as teal dots above it,
+/// diapers as amber dots below, sparse hour labels underneath. Any
+/// running sleep puts a breathing glow dot at the now edge.
 private struct DayFlowStrip: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let marks: [RibbonMark]
-    /// When the daycare day began — the tinted zone's left edge.
-    let since: Date
-    /// Start of a Brightwheel nap still running.
+    /// The daycare window; `end == nil` means still there (fade into now).
+    let zone: (start: Date, end: Date?)?
+    /// Start of a Brightwheel nap still running — drawn as its own span,
+    /// since its SleepEvent isn't in the store (and `marks`) yet.
     let liveNapStartedAt: Date?
+    /// Start of any in-progress sleep: the breathing glow at the now edge.
+    let glowStart: Date?
     let now: Date
 
     @State private var glowBreathing = false
@@ -451,22 +499,32 @@ private struct DayFlowStrip: View {
                     ctx.fill(Path(roundedRect: band, cornerRadius: bandH / 2),
                              with: .color(AppColor.card2.opacity(0.8)))
 
-                    // Daycare zone, drop-off → now, soft right edge. A place,
-                    // not an event — so a neutral wash, NOT a palette color:
-                    // teal here read as feed territory under the feed dots.
-                    // Daycare's teal identity stays in the glyph and chrome.
-                    let zone = CGRect(x: x(hour(since)), y: bandY,
-                                      width: max(bandH, nowX - x(hour(since))), height: bandH)
-                    ctx.fill(Path(roundedRect: zone, cornerRadius: bandH / 2),
-                             with: .linearGradient(
+                    // Daycare zone. A place, not an event — so a neutral
+                    // wash, NOT a palette color: teal here read as feed
+                    // territory under the feed dots. Open-ended, it fades
+                    // toward now (the day still being written); after
+                    // pickup it sits as a flat, finished span.
+                    if let zone {
+                        let ongoing = zone.end == nil
+                        let endX = x(hour(zone.end ?? now))
+                        let rect = CGRect(x: x(hour(zone.start)), y: bandY,
+                                          width: max(bandH, endX - x(hour(zone.start))),
+                                          height: bandH)
+                        let path = Path(roundedRect: rect, cornerRadius: bandH / 2)
+                        if ongoing {
+                            ctx.fill(path, with: .linearGradient(
                                 Gradient(colors: [AppColor.text2.opacity(0.16),
                                                   AppColor.text2.opacity(0.05)]),
-                                startPoint: CGPoint(x: zone.minX, y: 0),
-                                endPoint: CGPoint(x: zone.maxX, y: 0)))
-                    let glyph = ctx.resolve(Text(Image(systemName: "building.2.fill"))
-                        .font(.system(size: 7, weight: .semibold))
-                        .foregroundStyle(AppColor.text2))
-                    ctx.draw(glyph, at: CGPoint(x: zone.minX + 8, y: zone.midY), anchor: .center)
+                                startPoint: CGPoint(x: rect.minX, y: 0),
+                                endPoint: CGPoint(x: rect.maxX, y: 0)))
+                        } else {
+                            ctx.fill(path, with: .color(AppColor.text2.opacity(0.10)))
+                        }
+                        let glyph = ctx.resolve(Text(Image(systemName: "building.2.fill"))
+                            .font(.system(size: 7, weight: .semibold))
+                            .foregroundStyle(AppColor.text2))
+                        ctx.draw(glyph, at: CGPoint(x: rect.minX + 8, y: rect.midY), anchor: .center)
+                    }
 
                     // Naps (overnight tail clips to the window's left edge)
                     func nap(from: Double, to: Double, live: Bool) {
@@ -498,8 +556,8 @@ private struct DayFlowStrip: View {
                         dot(hour(mark.start), AppColor.accentDiaper, above: false)
                     }
 
-                    // The "now" edge, marked even outside a nap
-                    if liveNapStartedAt == nil {
+                    // The "now" edge, marked even outside a sleep
+                    if glowStart == nil {
                         ctx.stroke(
                             Path(ellipseIn: CGRect(x: nowX - 3, y: bandY + bandH / 2 - 3,
                                                    width: 6, height: 6)),
@@ -519,8 +577,8 @@ private struct DayFlowStrip: View {
                     }
                 }
 
-                // The living part: a breathing glow where the nap meets now.
-                if liveNapStartedAt != nil {
+                // The living part: a breathing glow where sleep meets now.
+                if glowStart != nil {
                     ZStack {
                         Circle()
                             .fill(AppColor.accentSleep.opacity(0.45))
@@ -565,8 +623,8 @@ private struct DayFlowStrip: View {
     }
 }
 
-/// The "save all" capsule both daycare card forms share — parents want the
-/// day's photos in the camera roll without tapping each one.
+/// The "save all" capsule — parents want the day's daycare photos in the
+/// camera roll without tapping each one.
 struct SavePhotosButton: View {
     @Environment(\.colorScheme) private var colorScheme
     let count: Int
@@ -591,115 +649,26 @@ struct SavePhotosButton: View {
     }
 }
 
-// MARK: - The finished day (after pickup)
-
-/// The quiet form, shown after checkout in the old report card's position:
-/// the daycare slice of the day with its attendance span. The TODAY card is
-/// back above by then, so this stays daycare-only and calm.
-struct DaycareCard: View {
-    let babyName: String
-    let day: DaycareDaySummary
-    /// Batch-saves the day's daycare photos (HomeView owns the events and
-    /// the toast). Nil hides the affordance.
-    var onSavePhotos: (() -> Void)? = nil
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("\u{1F3EB}").font(.title3)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("\(babyName)'s day at daycare")
-                        .font(.headline)
-                        .foregroundStyle(AppColor.text)
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(AppColor.text2)
-                            .monospacedDigit()
-                    }
-                }
-            }
-            Text(summaryLine)
-                .font(.subheadline)
-                .foregroundStyle(AppColor.text)
-                .fixedSize(horizontal: false, vertical: true)
-            if let extras {
-                Text(extras)
-                    .font(.caption)
-                    .foregroundStyle(AppColor.text3)
-            }
-            if day.medicationCount > 0 {
-                Text("\(Plural.count(day.medicationCount, "medication")) given — see the timeline.")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(AppColor.accentMedication)
-            }
-            if let onSavePhotos, day.photoCount > 0 {
-                SavePhotosButton(count: day.photoCount, action: onSavePhotos)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .surfaceCard(cornerRadius: 18)
-        .accessibilityElement(children: .combine)
-        .accessibilityActions {
-            if let onSavePhotos, day.photoCount > 0 {
-                Button("Save daycare photos to camera roll", action: onSavePhotos)
-            }
-        }
-        .accessibilityIdentifier("daycareCard")
+private func previewMarks() -> [RibbonMark] {
+    let cal = Calendar.current
+    func at(_ h: Int, _ m: Int) -> Date {
+        cal.date(bySettingHour: h, minute: m, second: 0, of: .now) ?? .now
     }
-
-    private var subtitle: String? {
-        guard let checkIn = day.checkIn else { return nil }
-        guard let checkOut = day.checkOut, checkOut > checkIn else {
-            return "from \(TimeFormatting.clock(checkIn))"
-        }
-        return "\(TimeFormatting.clock(checkIn)) – \(TimeFormatting.clock(checkOut))"
-            + " · \(TimeFormatting.duration(from: checkIn, to: checkOut))"
-    }
-
-    private var summaryLine: String {
-        var parts: [String] = []
-        if day.feedCount > 0 {
-            parts.append("\(Plural.count(day.feedCount, "bottle")) (\(OzFormat.string(day.feedOz)) oz)")
-        }
-        if day.napCount > 0 {
-            parts.append("\(Plural.count(day.napCount, "nap")) (\(TimeFormatting.duration(minutes: Int(day.napSeconds / 60))))")
-        }
-        if day.diaperCount > 0 { parts.append(Plural.count(day.diaperCount, "diaper change")) }
-        guard !parts.isEmpty else { return "A quiet day at daycare." }
-        return "\(babyName) had " + parts.formatted(.list(type: .and)) + "."
-    }
-
-    private var extras: String? {
-        var parts: [String] = []
-        if day.activityCount > 0 {
-            parts.append("\(day.activityCount) " + (day.activityCount == 1 ? "activity" : "activities"))
-        }
-        if day.photoCount > 0 { parts.append(Plural.count(day.photoCount, "photo")) }
-        guard !parts.isEmpty else { return nil }
-        return parts.joined(separator: " · ") + " on the timeline"
-    }
+    return [
+        RibbonMark(kind: .sleep, start: cal.startOfDay(for: .now), end: at(6, 30)),
+        RibbonMark(kind: .feed, start: at(6, 45)),
+        RibbonMark(kind: .diaper, start: at(7, 0), diaperType: .wet),
+        RibbonMark(kind: .feed, start: at(9, 0)),
+        RibbonMark(kind: .sleep, start: at(9, 45), end: at(10, 30)),
+        RibbonMark(kind: .diaper, start: at(10, 45), diaperType: .dirty),
+        RibbonMark(kind: .feed, start: at(12, 0)),
+    ]
 }
 
-#Preview("Hero, napping") {
-    DaycareDayHeroCard(
+#Preview("Hero, at daycare, napping") {
+    TodayHeroCard(
         babyName: "Miller",
-        marks: {
-            let cal = Calendar.current
-            func at(_ h: Int, _ m: Int) -> Date {
-                cal.date(bySettingHour: h, minute: m, second: 0, of: .now) ?? .now
-            }
-            return [
-                RibbonMark(kind: .sleep, start: cal.startOfDay(for: .now), end: at(6, 30)),
-                RibbonMark(kind: .feed, start: at(6, 45)),
-                RibbonMark(kind: .diaper, start: at(7, 0), diaperType: .wet),
-                RibbonMark(kind: .feed, start: at(9, 0)),
-                RibbonMark(kind: .sleep, start: at(9, 45), end: at(10, 30)),
-                RibbonMark(kind: .diaper, start: at(10, 45), diaperType: .dirty),
-                RibbonMark(kind: .feed, start: at(12, 0)),
-            ]
-        }(),
+        marks: previewMarks(),
         feedCount: 3, feedOz: 7, diaperCount: 3, wetCount: 2, dirtyCount: 1,
         sleepSeconds: 4 * 3600 + 50 * 60,
         daycare: {
@@ -708,13 +677,30 @@ struct DaycareCard: View {
             d.wetCount = 1
             d.napCount = 1; d.napSeconds = 40 * 60
             d.activityCount = 2; d.photoCount = 3
+            d.checkIn = .now.addingTimeInterval(-69 * 60)
             return d
         }(),
-        since: .now.addingTimeInterval(-69 * 60),
+        attendingSince: .now.addingTimeInterval(-69 * 60),
         liveNapStartedAt: .now.addingTimeInterval(-12 * 60),
         now: .now
     )
     .padding()
     .background(AppColor.bg)
     .preferredColorScheme(.dark)
+}
+
+#Preview("Hero, home day") {
+    TodayHeroCard(
+        babyName: "Miller",
+        marks: previewMarks(),
+        feedCount: 3, feedOz: 7, diaperCount: 3, wetCount: 2, dirtyCount: 1,
+        sleepSeconds: 4 * 3600 + 50 * 60,
+        daycare: DaycareDaySummary(),
+        attendingSince: nil,
+        liveNapStartedAt: nil,
+        activeSleepStartedAt: .now.addingTimeInterval(-25 * 60),
+        now: .now
+    )
+    .padding()
+    .background(AppColor.bg)
 }
