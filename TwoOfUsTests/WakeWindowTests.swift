@@ -7,6 +7,14 @@ import XCTest
 final class WakeWindowTests: XCTestCase {
 
     private let minute: TimeInterval = 60
+    private let now = Date(timeIntervalSince1970: 1_770_000_000)
+
+    /// Gaps that all just happened — recency weighting leaves them at full
+    /// weight, so these tests exercise the same blend the old unweighted
+    /// `predicted` ran.
+    private func fresh(_ gaps: [TimeInterval]) -> [(gap: TimeInterval, wokeAt: Date)] {
+        gaps.map { (gap: $0, wokeAt: now) }
+    }
 
     // MARK: Age bands
 
@@ -36,15 +44,17 @@ final class WakeWindowTests: XCTestCase {
     func testThinHistoryLeavesTheAgeBaselineAlone() {
         let baseline = WakeWindow.baseline(ageInDays: 60)
         // Two samples is below `minimumSamples` — one odd day must not redefine him.
-        XCTAssertEqual(WakeWindow.predicted(ageInDays: 60, observedGaps: [80 * minute, 85 * minute]),
+        XCTAssertEqual(WakeWindow.predicted(ageInDays: 60,
+                                            observedGaps: fresh([80 * minute, 85 * minute]),
+                                            now: now),
                        baseline)
-        XCTAssertEqual(WakeWindow.predicted(ageInDays: 60, observedGaps: []), baseline)
+        XCTAssertEqual(WakeWindow.predicted(ageInDays: 60, observedGaps: [], now: now), baseline)
     }
 
     func testConsistentlyShortWindowsPullThePredictionDown() {
         let baseline = WakeWindow.baseline(ageInDays: 60)   // 2–3 months → 90m midpoint
-        let short = Array(repeating: 78 * minute, count: 8)
-        let predicted = WakeWindow.predicted(ageInDays: 60, observedGaps: short)
+        let short = fresh(Array(repeating: 78 * minute, count: 8))
+        let predicted = WakeWindow.predicted(ageInDays: 60, observedGaps: short, now: now)
         XCTAssertLessThan(predicted, baseline, "his own shorter windows should win")
         XCTAssertEqual(predicted, 78 * minute, accuracy: 1,
                        "at full confidence the prediction lands on his median")
@@ -53,9 +63,11 @@ final class WakeWindowTests: XCTestCase {
     func testMoreEvidenceMovesThePredictionFurther() {
         let baseline = WakeWindow.baseline(ageInDays: 60)
         let three = WakeWindow.predicted(ageInDays: 60,
-                                         observedGaps: Array(repeating: 78 * minute, count: 3))
+                                         observedGaps: fresh(Array(repeating: 78 * minute, count: 3)),
+                                         now: now)
         let eight = WakeWindow.predicted(ageInDays: 60,
-                                         observedGaps: Array(repeating: 78 * minute, count: 8))
+                                         observedGaps: fresh(Array(repeating: 78 * minute, count: 8)),
+                                         now: now)
         XCTAssertLessThan(three, baseline)
         XCTAssertLessThan(eight, three, "confidence grows with sample count")
     }
@@ -65,8 +77,8 @@ final class WakeWindowTests: XCTestCase {
     func testPredictionNeverLeavesTheAgeBand() {
         let band = WakeWindow.ageBand(ageInDays: 60).range
         // A run of implausibly long (but individually plausible) windows.
-        let long = Array(repeating: 5 * 3600 as TimeInterval, count: 20)
-        let predicted = WakeWindow.predicted(ageInDays: 60, observedGaps: long)
+        let long = fresh(Array(repeating: 5 * 3600 as TimeInterval, count: 20))
+        let predicted = WakeWindow.predicted(ageInDays: 60, observedGaps: long, now: now)
         XCTAssertLessThanOrEqual(predicted, band.upperBound,
                                  "a chaotic week must not project a newborn into toddler territory")
         XCTAssertGreaterThanOrEqual(predicted, band.lowerBound)
@@ -76,7 +88,8 @@ final class WakeWindowTests: XCTestCase {
         // A 9-hour "wake gap" is a forgotten timer; it must not even count as a
         // sample, or three of them would look like enough evidence.
         let predicted = WakeWindow.predicted(ageInDays: 60,
-                                             observedGaps: [9 * 3600, 10 * 3600, 11 * 3600])
+                                             observedGaps: fresh([9 * 3600, 10 * 3600, 11 * 3600]),
+                                             now: now)
         XCTAssertEqual(predicted, WakeWindow.baseline(ageInDays: 60),
                        "junk samples fall back to the age table, not to the band ceiling")
     }
@@ -85,6 +98,30 @@ final class WakeWindowTests: XCTestCase {
         // Mean would be dragged; median holds.
         let gaps = [80 * minute, 82 * minute, 84 * minute, 86 * minute, 5.5 * 3600]
         XCTAssertEqual(WakeWindow.median(gaps)!, 84 * minute, accuracy: 1)
+    }
+
+    // MARK: Recency
+
+    func testRecentGapsOutweighStaleOnes() {
+        // Five stale 100m gaps (a week old, faded past two half-lives)
+        // against four 80m gaps from the last day: the raw count favors the
+        // old rhythm, the weighted median must side with this week's.
+        let day: TimeInterval = 24 * 3600
+        let stale = (0..<5).map { _ in (gap: 100 * minute, wokeAt: now.addingTimeInterval(-7 * day)) }
+        let recent = (0..<4).map { (gap: 80 * minute, wokeAt: now.addingTimeInterval(-Double($0) * 6 * 3600)) }
+        let predicted = WakeWindow.predicted(ageInDays: 60, observedGaps: stale + recent, now: now)
+        XCTAssertLessThan(predicted, 90 * minute,
+                          "the weighted median should track the recent 80m rhythm")
+    }
+
+    func testMostlyStaleEvidenceFallsBackToTheAgeTable() {
+        // Three gaps, all two weeks old: raw count meets the minimum but the
+        // Kish effective count does not — the age table stands.
+        let staleDate = now.addingTimeInterval(-14 * 24 * 3600)
+        let one = [(gap: 80 * minute, wokeAt: now)]
+        let stale = (0..<2).map { _ in (gap: 80 * minute, wokeAt: staleDate) }
+        XCTAssertEqual(WakeWindow.predicted(ageInDays: 60, observedGaps: one + stale, now: now),
+                       WakeWindow.baseline(ageInDays: 60))
     }
 
     // MARK: Deriving gaps from history
@@ -99,7 +136,9 @@ final class WakeWindowTests: XCTestCase {
     func testWakeGapsAreTheTimeBetweenSleeps() {
         let sleeps = [sleep("09:00", "10:00"), sleep("11:30", "12:30"), sleep("14:00", "15:00")]
         let gaps = WakeWindow.wakeGaps(sleeps: sleeps, nightStartMinute: 1200, nightEndMinute: 480)
-        XCTAssertEqual(gaps, [90 * minute, 90 * minute])
+        XCTAssertEqual(gaps.map(\.gap), [90 * minute, 90 * minute])
+        XCTAssertEqual(gaps.map(\.wokeAt), [sleeps[0].endedAt!, sleeps[1].endedAt!],
+                       "each gap carries the wake moment so recency weighting can date it")
     }
 
     func testNightWakesAreExcluded() {
@@ -113,7 +152,8 @@ final class WakeWindowTests: XCTestCase {
 
     func testAnOpenSleepContributesNoGap() {
         let sleeps = [sleep("09:00", "10:00"), sleep("11:30", nil)]
-        XCTAssertEqual(WakeWindow.wakeGaps(sleeps: sleeps, nightStartMinute: 1200, nightEndMinute: 480),
+        XCTAssertEqual(WakeWindow.wakeGaps(sleeps: sleeps, nightStartMinute: 1200,
+                                           nightEndMinute: 480).map(\.gap),
                        [90 * minute])
     }
 
@@ -121,8 +161,10 @@ final class WakeWindowTests: XCTestCase {
         // The app's @Query sorts newest-first; the math must not depend on that.
         let ordered = [sleep("09:00", "10:00"), sleep("11:30", "12:30")]
         let reversed = Array(ordered.reversed())
-        XCTAssertEqual(WakeWindow.wakeGaps(sleeps: reversed, nightStartMinute: 1200, nightEndMinute: 480),
-                       WakeWindow.wakeGaps(sleeps: ordered, nightStartMinute: 1200, nightEndMinute: 480))
+        XCTAssertEqual(WakeWindow.wakeGaps(sleeps: reversed, nightStartMinute: 1200,
+                                           nightEndMinute: 480).map(\.gap),
+                       WakeWindow.wakeGaps(sleeps: ordered, nightStartMinute: 1200,
+                                           nightEndMinute: 480).map(\.gap))
     }
 
     func testNightWindowWrapsMidnight() {

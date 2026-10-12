@@ -72,8 +72,16 @@ enum WakeWindow {
     static let minimumSamples = 3
     static let fullConfidenceSamples = 8
 
+    /// How fast old wake gaps fade: a gap `gapHalfLife` ago carries half the
+    /// weight of one from just now. Same recency reasoning as
+    /// `PredictionEngine.decayWeight` (docs/PREDICTION-MATH.md §3 Option D) —
+    /// duplicated here, not shared, because the widget and watch targets
+    /// compile `WakeWindow` without `PredictionEngine`.
+    static let gapHalfLife: TimeInterval = 3 * 24 * 3600
+
     /// Wake gaps derived from sleep history: the time from one sleep ending to
-    /// the next beginning.
+    /// the next beginning, each tagged with when it happened so `predicted`
+    /// can weight fresh evidence over stale.
     ///
     /// **Night wakes are excluded.** Overnight the baby surfaces for a feed and
     /// goes back down inside half an hour; those 20-minute gaps are not wake
@@ -84,9 +92,9 @@ enum WakeWindow {
         nightStartMinute: Int,
         nightEndMinute: Int,
         calendar: Calendar = .current
-    ) -> [TimeInterval] {
+    ) -> [(gap: TimeInterval, wokeAt: Date)] {
         let ordered = sleeps.sorted { $0.startedAt < $1.startedAt }
-        var gaps: [TimeInterval] = []
+        var gaps: [(gap: TimeInterval, wokeAt: Date)] = []
         for (index, sleep) in ordered.enumerated() {
             guard let wokeAt = sleep.endedAt, index + 1 < ordered.count else { continue }
             let nextStart = ordered[index + 1].startedAt
@@ -94,7 +102,7 @@ enum WakeWindow {
             guard plausibleGap.contains(gap) else { continue }
             guard !isNight(wokeAt, startMinute: nightStartMinute,
                            endMinute: nightEndMinute, calendar: calendar) else { continue }
-            gaps.append(gap)
+            gaps.append((gap: gap, wokeAt: wokeAt))
         }
         return gaps
     }
@@ -112,23 +120,57 @@ enum WakeWindow {
 
     // MARK: The prediction
 
-    /// The projected wake window: the age midpoint, slid toward the median of
-    /// `observedGaps` in proportion to how much evidence there is, then clamped
-    /// into the age band.
+    /// The projected wake window: the age midpoint, slid toward the
+    /// recency-weighted median of `observedGaps` in proportion to how much
+    /// evidence there is, then clamped into the age band. Evidence is counted
+    /// in Kish effective samples, so a window of mostly-stale gaps leans on
+    /// the age table instead of presenting last week at full confidence.
     ///
     /// Below `minimumSamples` the age table stands alone — three wake gaps is
     /// the least that can carry a meaningful median, and one unusual day should
     /// not redefine a baby.
-    static func predicted(ageInDays: Int, observedGaps: [TimeInterval]) -> TimeInterval {
+    static func predicted(ageInDays: Int,
+                          observedGaps: [(gap: TimeInterval, wokeAt: Date)],
+                          now: Date = .now) -> TimeInterval {
         let band = ageBand(ageInDays: ageInDays)
-        let usable = observedGaps.filter { plausibleGap.contains($0) }
-        guard usable.count >= minimumSamples, let observed = median(usable) else {
+        let weighted = observedGaps
+            .filter { plausibleGap.contains($0.gap) }
+            .map { (value: $0.gap,
+                    weight: pow(2, -max(0, now.timeIntervalSince($0.wokeAt)) / gapHalfLife)) }
+        let evidence = effectiveCount(weighted.map(\.weight))
+        guard evidence >= Double(minimumSamples),
+              let observed = weightedMedian(weighted) else {
             return band.midpoint
         }
-        let confidence = min(Double(usable.count), Double(fullConfidenceSamples))
+        let confidence = min(evidence, Double(fullConfidenceSamples))
             / Double(fullConfidenceSamples)
         let blended = band.midpoint + confidence * (observed - band.midpoint)
         return min(max(blended, band.range.lowerBound), band.range.upperBound)
+    }
+
+    /// Kish effective sample size, (Σw)²/Σw² — `PredictionEngine.effectiveCount`
+    /// duplicated for the same target-isolation reason as `gapHalfLife`.
+    static func effectiveCount(_ weights: [Double]) -> Double {
+        let sum = weights.reduce(0, +)
+        let sumOfSquares = weights.reduce(0) { $0 + $1 * $1 }
+        guard sumOfSquares > 0 else { return 0 }
+        return sum * sum / sumOfSquares
+    }
+
+    /// Weighted median: the smallest value whose cumulative weight reaches
+    /// half the total. Still an order statistic — an outlier contributes its
+    /// weight, never its magnitude.
+    static func weightedMedian(_ observed: [(value: TimeInterval, weight: Double)]) -> TimeInterval? {
+        let usable = observed.filter { $0.weight > 0 }
+        guard !usable.isEmpty else { return nil }
+        let sorted = usable.sorted { $0.value < $1.value }
+        let threshold = sorted.reduce(0) { $0 + $1.weight } / 2
+        var cumulative = 0.0
+        for pair in sorted {
+            cumulative += pair.weight
+            if cumulative >= threshold { return pair.value }
+        }
+        return sorted[sorted.count - 1].value
     }
 
     /// Median, not mean: one 5-hour outing that slipped past `plausibleGap`
