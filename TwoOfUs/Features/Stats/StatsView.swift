@@ -38,7 +38,7 @@ struct StatsView: View {
 
     @State private var summary: String?
     @State private var summaryLoading = false
-    @State private var outlook: String?
+    @State private var outlookRows: [TodayOutlook.Row] = []
     @State private var patterns: BabyIntelligence.WeeklyPatterns?
     @State private var timeAccuracy: AccuracyReport?
     @State private var amountAccuracy: AccuracyReport?
@@ -54,8 +54,8 @@ struct StatsView: View {
                     if showInsights {
                         insightsCard
                     }
-                    if let outlook, aiEnabled {
-                        outlookCard(outlook)
+                    if !outlookRows.isEmpty, aiEnabled {
+                        outlookCard(outlookRows)
                     }
                     if let patterns, aiEnabled {
                         patternsCard(patterns)
@@ -182,20 +182,15 @@ struct StatsView: View {
         // here before doing the expensive generation.
         try? await Task.sleep(for: .seconds(0.8))
         guard !Task.isCancelled else { return }
-        // The accuracy walk-forward is pure Swift and cheap (~10ms) — no
-        // Apple Intelligence hardware needed, unlike the generated cards.
+        // The accuracy walk-forward and the outlook rows are pure Swift and
+        // cheap (~10ms) — no Apple Intelligence hardware needed, unlike the
+        // generated cards.
         loadAccuracy()
+        loadOutlook()
         guard BabyIntelligence.isAvailable else { return }
         summaryLoading = true
         summary = await BabyIntelligence.summary(digest: buildDigest(), babyName: babyName)
         summaryLoading = false
-        guard !Task.isCancelled else { return }
-        // Sequential on purpose: one on-device generation at a time.
-        if let digest = buildOutlookDigest() {
-            outlook = await BabyIntelligence.outlook(digest: digest, babyName: babyName)
-        } else {
-            outlook = nil
-        }
         guard !Task.isCancelled else { return }
         // Last, and only on iOS 27: the cloud round-trip is the slow one, and
         // the two on-device cards should already be on screen while it runs.
@@ -249,88 +244,60 @@ struct StatsView: View {
             nightStartMinute: settings.nightStartMinute, nightEndMinute: settings.nightEndMinute)
     }
 
-    /// Digest for the outlook generation: the engine's numbers, spelled out,
-    /// so the model narrates arithmetic it never performs. Nil (no card) when
-    /// no prediction clears the confidence floor.
-    private func buildOutlookDigest() -> String? {
+    /// The outlook rows: the engine's numbers with their basis spelled out,
+    /// assembled deterministically (`TodayOutlook`) — no generation step, so
+    /// no hardware gate and nothing to hallucinate. Empty when no prediction
+    /// clears the confidence floor, and the card hides.
+    private func loadOutlook() {
         guard let baby = babies.first,
-              let settings = SharedSettings.canonical(settingsList) else { return nil }
-        let now = Date.now
-        let ageInDays = WakeWindow.ageInDays(dateOfBirth: baby.dateOfBirth, now: now)
-        var lines: [String] = []
-
-        if let last = feeds.map(\.timestamp).max() {
-            let next = PredictionEngine.nextFeed(
-                lastFeed: last, feeds: feeds.map(\.timestamp),
-                targetInterval: settings.feedInterval(after: last),
-                nightStartMinute: settings.nightStartMinute, nightEndMinute: settings.nightEndMinute,
-                now: now)
-            if next.confidence != .low, next.date > now {
-                let amount = PredictionEngine.feedAmount(
-                    feeds: feeds.map { ($0.timestamp, $0.amountOz) },
-                    ageInDays: ageInDays, at: next.date,
-                    nightStartMinute: settings.nightStartMinute, nightEndMinute: settings.nightEndMinute,
-                    now: now)
-                var line = "Next bottle predicted around \(TimeFormatting.clock(next.date))"
-                if amount.confidence != .low { line += ", about \(OzFormat.string(amount.oz)) oz" }
-                lines.append(line + ".")
-            }
+              let settings = SharedSettings.canonical(settingsList) else {
+            outlookRows = []
+            return
         }
-
-        let napReference = Calendar.current.date(bySettingHour: 13, minute: 0, second: 0, of: now) ?? now
-        let nap = PredictionEngine.sleepDuration(
-            startingAt: napReference, sleeps: sleeps.map { ($0.startedAt, $0.endedAt) },
-            ageInDays: ageInDays,
-            nightStartMinute: settings.nightStartMinute, nightEndMinute: settings.nightEndMinute,
-            now: now)
-        if nap.confidence != .low, !nap.isNight {
-            lines.append("Naps have been running about \(WakeWindow.shortLabel(nap.duration)).")
-        }
-        let nightReference = Calendar.current.date(bySettingHour: 21, minute: 0, second: 0, of: now) ?? now
-        let night = PredictionEngine.sleepDuration(
-            startingAt: nightReference, sleeps: sleeps.map { ($0.startedAt, $0.endedAt) },
-            ageInDays: ageInDays,
-            nightStartMinute: settings.nightStartMinute, nightEndMinute: settings.nightEndMinute,
-            now: now)
-        if night.confidence != .low, night.isNight {
-            lines.append("Overnight stretches have been about \(WakeWindow.shortLabel(night.duration)).")
-        }
-
-        guard !lines.isEmpty else { return nil }
-        if let avg = engine.averageFeedInterval(fromDaysAgo: 3, toDaysAgo: 0) {
-            lines.append("Recent average gap between feeds: \(WakeWindow.shortLabel(avg)).")
-        }
-        return (["\(babyName) is \(TimeFormatting.age(from: baby.dateOfBirth)) old. Predictions:"] + lines)
-            .joined(separator: "\n")
+        outlookRows = TodayOutlook.rows(
+            feeds: feeds.map { ($0.timestamp, $0.amountOz) },
+            sleeps: sleeps.map { ($0.startedAt, $0.endedAt) },
+            dateOfBirth: baby.dateOfBirth,
+            targetFeedInterval: { settings.feedInterval(after: $0) },
+            nightStartMinute: settings.nightStartMinute,
+            nightEndMinute: settings.nightEndMinute)
     }
 
     // MARK: Outlook (Phase 3) + accuracy (Phase 4)
 
-    /// The one place the AI gradient touches a container — the whole card's
-    /// content is generated, so the faint border marks the boundary honestly.
-    private func outlookCard(_ text: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+    /// Structured predictions with the reasoning shown — computed, not
+    /// generated, so unlike the insights and weekly cards it carries no
+    /// gradient border and its caption says "computed."
+    private func outlookCard(_ rows: [TodayOutlook.Row]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
             Text("\(AIGlow.mark) TODAY'S OUTLOOK")
                 .font(.caption2.weight(.semibold))
                 .kerning(0.8)
                 .foregroundStyle(AIGlow.gradient)
-            Text(text)
-                .font(.subheadline)
-                .foregroundStyle(AppColor.text)
-            Text("Generated on-device from \(babyName)'s recent patterns")
+            ForEach(rows) { row in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(row.title.uppercased())
+                            .font(.caption2.weight(.semibold))
+                            .kerning(0.6)
+                            .foregroundStyle(AppColor.text2)
+                        Spacer()
+                        Text(row.value)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppColor.text)
+                    }
+                    Text(row.basis)
+                        .font(.caption2)
+                        .foregroundStyle(AppColor.text3)
+                }
+            }
+            Text("Computed on-device from \(babyName)'s recent patterns")
                 .font(.caption2)
                 .foregroundStyle(AppColor.text3)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .surfaceCard(cornerRadius: 18)
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .strokeBorder(
-                    LinearGradient(colors: AIGlow.colors.map { $0.opacity(0.35) },
-                                   startPoint: .topLeading, endPoint: .bottomTrailing),
-                    lineWidth: 1)
-        )
         .accessibilityElement(children: .combine)
     }
 

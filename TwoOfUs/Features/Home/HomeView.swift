@@ -496,14 +496,16 @@ struct HomeView: View {
     /// this tile would average his entire sleep history and drift from every
     /// other surface as he ages.
     private var sleepTarget: TimeInterval {
-        let weekAgo = Date.now.addingTimeInterval(-7 * 24 * 3600)
+        let now = Date.now
+        let weekAgo = now.addingTimeInterval(-7 * 24 * 3600)
         return WakeWindow.predicted(
             ageInDays: baby.map { WakeWindow.ageInDays(dateOfBirth: $0.dateOfBirth) } ?? 0,
             observedGaps: WakeWindow.wakeGaps(
                 sleeps: sleeps.filter { $0.startedAt >= weekAgo }
                     .map { ($0.startedAt, $0.endedAt) },
                 nightStartMinute: settingsList.first?.nightStartMinute ?? 1200,
-                nightEndMinute: settingsList.first?.nightEndMinute ?? 480))
+                nightEndMinute: settingsList.first?.nightEndMinute ?? 480),
+            now: now)
     }
 
     // MARK: Tonight (nighttime schedule card)

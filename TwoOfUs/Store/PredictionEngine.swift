@@ -46,6 +46,16 @@ enum PredictionEngine {
         let isNight: Bool
     }
 
+    struct Bedtime: Equatable {
+        /// Tonight's projected bed-down moment.
+        let date: Date
+        /// The middle half of his observed bedtimes (weighted 25th–75th
+        /// percentile), projected onto tonight — the honest "somewhere in
+        /// here" a parent actually plans around.
+        let range: ClosedRange<Date>
+        let confidence: Confidence
+    }
+
     private static let minute = 60.0
     private static let hour = 3600.0
 
@@ -201,6 +211,29 @@ enum PredictionEngine {
                         confidence: blended.confidence)
     }
 
+    // MARK: Day parts
+
+    /// Finer buckets than day/night for bottle sizes: a first-thing-in-the-
+    /// morning bottle and an evening cluster feed are genuinely different
+    /// sizes once there's enough history to tell them apart. The night check
+    /// defers to the household night window; the day splits at fixed clock
+    /// boundaries (noon, 5 PM) rather than window-relative ones so the
+    /// buckets stay meaningful whatever hours the parents configured.
+    enum DayPart: Equatable {
+        case night, morning, midday, evening
+
+        static func classify(_ date: Date, nightStartMinute: Int, nightEndMinute: Int,
+                             calendar: Calendar = .current) -> DayPart {
+            if WakeWindow.isNight(date, startMinute: nightStartMinute,
+                                  endMinute: nightEndMinute, calendar: calendar) { return .night }
+            let parts = calendar.dateComponents([.hour, .minute], from: date)
+            let minuteOfDay = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+            if minuteOfDay < 12 * 60 { return .morning }
+            if minuteOfDay < 17 * 60 { return .midday }
+            return .evening
+        }
+    }
+
     // MARK: Feed amount
 
     static let plausibleOz: ClosedRange<Double> = 0.5...12
@@ -210,10 +243,20 @@ enum PredictionEngine {
     static let amountHalfLife: TimeInterval = 2 * 24 * hour
     static let amountMinimumEvidence = 4.0
     static let amountFullEvidence = 12.0
+    /// A clock bucket holds a third of the day's bottles, so demanding the
+    /// whole-day evidence bar inside one would leave bucketed suggestions
+    /// hedged forever. A same-hour sample is also worth more — the
+    /// distribution it's drawn from is tighter — so full trust comes sooner.
+    static let amountBucketFullEvidence = 8.0
 
     /// Expected bottle size for a feed at `reference`: the age-band midpoint
-    /// slid toward the recency-weighted median of his same-day-part bottles
-    /// over the trailing week. Clamped to the age band stretched by 1.5 oz each side — the
+    /// slid toward the recency-weighted median of his comparable bottles
+    /// over the trailing week. Comparable means the same clock bucket
+    /// (`DayPart`) when that bucket carries enough evidence on its own —
+    /// morning and evening bottles genuinely differ once history can show it
+    /// — and otherwise the same side of the day/night split, so thin buckets
+    /// degrade to the broader pattern instead of to the age table.
+    /// Clamped to the age band stretched by 1.5 oz each side — the
     /// published bands are softer truth than wake windows (a big eater
     /// genuinely outruns his band, and under-suggesting every bottle would
     /// make the feature read broken), but a fat-fingered 10 oz log still
@@ -230,20 +273,33 @@ enum PredictionEngine {
     ) -> FeedAmount {
         let night = WakeWindow.isNight(reference, startMinute: nightStartMinute,
                                        endMinute: nightEndMinute, calendar: calendar)
-        let observed = feeds
-            .filter {
-                $0.timestamp > now.addingTimeInterval(-amountHistoryWindow) && $0.timestamp <= now
-                    && plausibleOz.contains($0.oz)
-                    && WakeWindow.isNight($0.timestamp, startMinute: nightStartMinute,
-                                          endMinute: nightEndMinute, calendar: calendar) == night
-            }
-            .map { (value: $0.oz,
-                    weight: decayWeight(age: now.timeIntervalSince($0.timestamp),
-                                        halfLife: amountHalfLife)) }
+        let part = DayPart.classify(reference, nightStartMinute: nightStartMinute,
+                                    nightEndMinute: nightEndMinute, calendar: calendar)
+        let usable = feeds.filter {
+            $0.timestamp > now.addingTimeInterval(-amountHistoryWindow) && $0.timestamp <= now
+                && plausibleOz.contains($0.oz)
+        }
+        func weighted(_ samples: [(timestamp: Date, oz: Double)]) -> [(value: Double, weight: Double)] {
+            samples.map { (value: $0.oz,
+                           weight: decayWeight(age: now.timeIntervalSince($0.timestamp),
+                                               halfLife: amountHalfLife)) }
+        }
+        let bucketed = weighted(usable.filter {
+            DayPart.classify($0.timestamp, nightStartMinute: nightStartMinute,
+                             nightEndMinute: nightEndMinute, calendar: calendar) == part
+        })
+        let bucketStands = effectiveCount(bucketed.map(\.weight)) >= amountMinimumEvidence
+        let observed = bucketStands
+            ? bucketed
+            : weighted(usable.filter {
+                WakeWindow.isNight($0.timestamp, startMinute: nightStartMinute,
+                                   endMinute: nightEndMinute, calendar: calendar) == night
+            })
+        let fullEvidence = bucketStands ? amountBucketFullEvidence : amountFullEvidence
         let band = AgeBaselines.band(AgeBaselines.ozPerFeed, ageInDays: ageInDays)
         let clamp = max(0.5, band.range.lowerBound - 1.5)...(band.range.upperBound + 1.5)
         let blended = blend(prior: band.midpoint, observed: observed,
-                            minimum: amountMinimumEvidence, full: amountFullEvidence,
+                            minimum: amountMinimumEvidence, full: fullEvidence,
                             clampTo: clamp)
         return FeedAmount(oz: (blended.value * 4).rounded() / 4, confidence: blended.confidence)
     }
@@ -297,6 +353,82 @@ enum PredictionEngine {
                             minimum: sleepMinimumEvidence, full: sleepFullEvidence,
                             clampTo: band.range)
         return SleepDuration(duration: blended.value, confidence: blended.confidence, isNight: night)
+    }
+
+    // MARK: Bedtime
+
+    /// Bedtimes shift on a slower clock than bottles, and there's only one
+    /// observation per night, so the window and half-life run longer and the
+    /// evidence gates lower (one per night ≈ a week to full confidence).
+    static let bedtimeHistoryWindow: TimeInterval = 10 * 24 * hour
+    static let bedtimeHalfLife: TimeInterval = 4 * 24 * hour
+    static let bedtimeMinimumEvidence = 3.0
+    static let bedtimeFullEvidence = 7.0
+    /// The hunting ground for "went down for the night" around the configured
+    /// night start: a bed-down up to 90 minutes before the window still
+    /// counts as bedtime, and the first down up to 4 hours after it still
+    /// does (a rough evening, not a different routine). Anything later is a
+    /// night wake re-settle, which must never read as bedtime evidence.
+    static let bedtimeEarlyMargin: TimeInterval = 90 * minute
+    static let bedtimeLateCutoff: TimeInterval = 4 * hour
+
+    /// When he goes down for the night: the earliest qualifying sleep start
+    /// of each trailing night, recency-weighted, blended toward the
+    /// configured night start as the prior. The range is the weighted middle
+    /// half of those observed bedtimes — shown to the parents instead of
+    /// false single-minute precision.
+    static func bedtime(
+        sleeps: [(startedAt: Date, endedAt: Date?)],
+        nightStartMinute: Int,
+        nightEndMinute: Int,
+        now: Date = .now,
+        calendar: Calendar = .current
+    ) -> Bedtime {
+        let day: TimeInterval = 24 * hour
+        // Offsets are measured from the start of the hunting ground, so the
+        // prior (bedtime = the configured night start) sits `earlyMargin` in.
+        let anchorFromMidnight = Double(nightStartMinute) * minute - bedtimeEarlyMargin
+        let span = bedtimeEarlyMargin + bedtimeLateCutoff
+
+        func secondsOfDay(_ date: Date) -> Double {
+            let parts = calendar.dateComponents([.hour, .minute, .second], from: date)
+            return Double((parts.hour ?? 0) * 3600 + (parts.minute ?? 0) * 60 + (parts.second ?? 0))
+        }
+
+        // Earliest qualifying bed-down per night. Later night starts (the
+        // 2 AM re-settle after a feed) lose to the real bedtime on min-offset.
+        var byNight: [Date: (offset: Double, at: Date)] = [:]
+        for sleep in sleeps {
+            let start = sleep.startedAt
+            guard start > now.addingTimeInterval(-bedtimeHistoryWindow), start <= now else { continue }
+            var offset = (secondsOfDay(start) - anchorFromMidnight).truncatingRemainder(dividingBy: day)
+            if offset < 0 { offset += day }
+            guard offset <= span else { continue }
+            let nightKey = calendar.startOfDay(for: start.addingTimeInterval(-offset))
+            if let existing = byNight[nightKey], existing.offset <= offset { continue }
+            byNight[nightKey] = (offset: offset, at: start)
+        }
+
+        let observed = byNight.values.map {
+            (value: $0.offset,
+             weight: decayWeight(age: now.timeIntervalSince($0.at), halfLife: bedtimeHalfLife))
+        }
+        let blended = blend(prior: bedtimeEarlyMargin, observed: observed,
+                            minimum: bedtimeMinimumEvidence, full: bedtimeFullEvidence,
+                            clampTo: 0...span)
+
+        // Project onto the upcoming night: today's hunting ground, or
+        // tomorrow's once tonight's has fully passed.
+        var anchor = calendar.startOfDay(for: now).addingTimeInterval(anchorFromMidnight)
+        if anchor.addingTimeInterval(span) < now { anchor = anchor.addingTimeInterval(day) }
+
+        let lower = weightedQuantile(observed, q: 0.25) ?? blended.value
+        let upper = weightedQuantile(observed, q: 0.75) ?? blended.value
+        let range = anchor.addingTimeInterval(min(lower, upper))...anchor.addingTimeInterval(max(lower, upper))
+        return Bedtime(
+            date: anchor.addingTimeInterval(blended.value),
+            range: range,
+            confidence: blended.confidence)
     }
 
     // MARK: The blend

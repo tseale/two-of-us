@@ -6,6 +6,27 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Changed — Today's outlook rebuilt: computed, not generated
+- **Today's outlook** (Stats) is now assembled directly from the prediction
+  engine as structured rows — next bottle (time + size), next nap or wake-up,
+  and bedtime — each with the basis it rests on ("usually ~3h10m between
+  feeds · last fed 5:40 PM"). The Foundation Models generation step is gone:
+  the on-device model kept parroting its own prompt example ("the 2:15 nap")
+  into every output, and the card's content was always numbers the engine had
+  already computed. As a side effect the card no longer needs Apple
+  Intelligence hardware.
+- **Bedtime prediction**: the engine now learns when Miller goes down for the
+  night (earliest qualifying bed-down per night, recency-weighted, overnight
+  re-settles excluded) and shows it with the observed range.
+- **Time-of-day bottle sizes**: amount suggestions now read the matching
+  clock bucket (morning / midday / evening) when it has enough evidence of
+  its own, so a big-dinner pattern stops being averaged into breakfast.
+  Thin buckets fall back to the whole-day pattern as before.
+- **Wake-window recency weighting**: the "next nap" projection now weights
+  the past week's wake gaps by freshness (3-day half-life) with
+  effective-sample-size gating — the same Option D math the feed and sleep
+  predictions already use (docs/PREDICTION-MATH.md).
+
 ### Added — AI predictions, phases 2–4
 - **Prediction accuracy card** (Stats): the trailing month of predictions
   scored against what actually happened — median miss for feed timing, bottle

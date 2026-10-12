@@ -7,6 +7,18 @@ the AI Features toggle. Phase 4: walk-forward accuracy evaluation
 personal models (`RidgeRegression`, `PredictionModel`) behind the
 champion/challenger gate (`PredictionArbiter`). Phase 3: the Foundation
 Models "Today's outlook" card on Stats (`BabyIntelligence.outlook`).
+
+**Phase 3 reversed (2026-10-11):** the generated outlook was scrapped. The
+small on-device model parroted its own instruction example — "the 2:15 nap"
+showed up in nearly every output regardless of Miller's actual day — and
+everything true it could say was a number `PredictionEngine` had already
+computed. The card survives, assembled deterministically by
+`TwoOfUs/Store/TodayOutlook.swift`: structured rows (next bottle, next
+nap/wake, bedtime — the bedtime predictor and time-of-day bottle buckets were
+added alongside, see docs/PREDICTION-MATH.md) with each number's basis shown.
+The principle stands as written below: LLMs narrate, they never predict —
+Phase 3 just turned out to need no narration. `BabyIntelligence` keeps the
+summary and weekly-patterns generations, which are genuinely narrative.
 Decisions taken: v1 trio only (diaper predictions held), Home + Live Activity
 surfaces first, subtle gradient styling, night-schedule annotations only, age
 baselines from day one, one synced family-wide toggle. The

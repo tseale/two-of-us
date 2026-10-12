@@ -327,4 +327,112 @@ final class PredictionEngineTests: XCTestCase {
             minimum: 3, full: 8, clampTo: 5...15)
         XCTAssertEqual(result.value, 15)
     }
+
+    // MARK: Day parts
+
+    func testDayPartClassification() {
+        func part(_ hour: Int) -> PredictionEngine.DayPart {
+            PredictionEngine.DayPart.classify(at(hour: hour),
+                                              nightStartMinute: nightStart, nightEndMinute: nightEnd)
+        }
+        XCTAssertEqual(part(9), .morning)
+        XCTAssertEqual(part(13), .midday)
+        XCTAssertEqual(part(18), .evening)
+        XCTAssertEqual(part(23), .night)
+        XCTAssertEqual(part(3), .night)
+    }
+
+    func testFeedAmountSeparatesMorningFromEveningBottles() {
+        // A week of small morning bottles and big evening ones — enough
+        // evidence in each clock bucket that the suggestion should stop
+        // averaging breakfast into dinner.
+        var feeds: [(Date, Double)] = []
+        for day in 1...7 {
+            for hour in [8, 10] { feeds.append((at(daysAgo: day, hour: hour), 2.8)) }
+            for hour in [17, 19] { feeds.append((at(daysAgo: day, hour: hour), 4.8)) }
+        }
+        let morning = PredictionEngine.feedAmount(
+            feeds: feeds, ageInDays: 75, at: at(hour: 9),
+            nightStartMinute: nightStart, nightEndMinute: nightEnd, now: noon)
+        let evening = PredictionEngine.feedAmount(
+            feeds: feeds, ageInDays: 75, at: at(hour: 18),
+            nightStartMinute: nightStart, nightEndMinute: nightEnd, now: noon)
+        XCTAssertNotEqual(morning.confidence, .low)
+        XCTAssertNotEqual(evening.confidence, .low)
+        XCTAssertGreaterThan(evening.oz, morning.oz + 0.5,
+                             "evening bottles run 2 oz bigger; the buckets must show it")
+    }
+
+    func testFeedAmountFallsBackToDayPatternWhenBucketIsThin() {
+        // Plenty of morning bottles but only one evening one: the evening
+        // bucket can't stand alone, so the suggestion leans on the whole
+        // daytime pattern instead of hiding.
+        var feeds: [(Date, Double)] = []
+        for day in 1...7 {
+            for hour in [8, 10, 13] { feeds.append((at(daysAgo: day, hour: hour), 3.5)) }
+        }
+        feeds.append((at(daysAgo: 1, hour: 18), 5.0))
+        let evening = PredictionEngine.feedAmount(
+            feeds: feeds, ageInDays: 75, at: at(hour: 18),
+            nightStartMinute: nightStart, nightEndMinute: nightEnd, now: noon)
+        XCTAssertNotEqual(evening.confidence, .low)
+        XCTAssertEqual(evening.oz, 3.5, accuracy: 0.5)
+    }
+
+    // MARK: Bedtime
+
+    /// Evening bed-downs with overnight re-settles: the re-settles must never
+    /// read as bedtime, and the projection lands near his observed pattern.
+    func testBedtimeFindsTheNightlyBedDown() {
+        var sleeps: [(Date, Date?)] = []
+        for (day, minute) in [(1, 35), (2, 45), (3, 40), (4, 30), (5, 50), (6, 40), (7, 35)] {
+            let down = at(daysAgo: day, hour: 20, minute: minute)
+            sleeps.append((down, down.addingTimeInterval(4 * 3600)))
+            // The 2 AM re-settle after a night feed — deep past the cutoff.
+            let resettle = at(daysAgo: day - 1, hour: 2)
+            sleeps.append((resettle, resettle.addingTimeInterval(3 * 3600)))
+        }
+        let bed = PredictionEngine.bedtime(
+            sleeps: sleeps, nightStartMinute: nightStart, nightEndMinute: nightEnd, now: noon)
+        XCTAssertNotEqual(bed.confidence, .low)
+        // Tonight, somewhere around his ~8:40 PM habit (the prior at 8:00 PM
+        // still carries a little weight).
+        XCTAssertEqual(bed.date.timeIntervalSince(at(hour: 20, minute: 40)), 0, accuracy: 20 * 60)
+        XCTAssertTrue(bed.range.lowerBound >= at(hour: 20, minute: 25))
+        XCTAssertTrue(bed.range.upperBound <= at(hour: 20, minute: 55))
+    }
+
+    func testBedtimeCountsAnEarlyBedDownBeforeTheNightWindow() {
+        // Going down 7:15 PM — before the configured 8 PM night start — is
+        // still bedtime, not a nap.
+        var sleeps: [(Date, Date?)] = []
+        for day in 1...5 {
+            let down = at(daysAgo: day, hour: 19, minute: 15)
+            sleeps.append((down, down.addingTimeInterval(5 * 3600)))
+        }
+        let bed = PredictionEngine.bedtime(
+            sleeps: sleeps, nightStartMinute: nightStart, nightEndMinute: nightEnd, now: noon)
+        XCTAssertNotEqual(bed.confidence, .low)
+        XCTAssertLessThan(bed.date, at(hour: 20))
+    }
+
+    func testBedtimeIgnoresNightWakeResettlesAlone() {
+        // Only overnight re-settles on record (bedtimes never logged): no
+        // bedtime evidence, so the prior stands at .low and callers hide it.
+        var sleeps: [(Date, Date?)] = []
+        for day in 0...6 {
+            let resettle = at(daysAgo: day, hour: 2, minute: 30)
+            sleeps.append((resettle, resettle.addingTimeInterval(3 * 3600)))
+        }
+        let bed = PredictionEngine.bedtime(
+            sleeps: sleeps, nightStartMinute: nightStart, nightEndMinute: nightEnd, now: noon)
+        XCTAssertEqual(bed.confidence, .low)
+    }
+
+    func testBedtimeColdStartIsLowConfidenceAtTheNightStart() {
+        let bed = PredictionEngine.bedtime(
+            sleeps: [], nightStartMinute: nightStart, nightEndMinute: nightEnd, now: noon)
+        XCTAssertEqual(bed.confidence, .low)
+        XCTAssertEqual(bed.date, at(hour: 20), "the prior is the configured night start")
+    }
 }

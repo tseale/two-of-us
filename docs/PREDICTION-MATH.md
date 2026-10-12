@@ -15,11 +15,21 @@ relative to the analysis below:
 - `HomeView.sleepTarget` is windowed to the trailing 7 days (§1.5's bug).
 - `NightScheduleGenerator.predictedNextFeed` (dead simple-mean code) is
   deleted.
-- Not done: `WakeWindow` itself stays unweighted (phase 2 per §3's table),
-  and the on-real-data half-life sweep (§4 step 3) still needs a run of
+- **2026-10-11:** `WakeWindow` is now weighted too (the "phase 2" item from
+  §3's table): `wakeGaps` carries each gap's wake moment, `predicted` runs a
+  weighted median with a 3-day half-life and gates on the Kish effective
+  count. Same date: a **bedtime predictor** (`PredictionEngine.bedtime` —
+  earliest qualifying bed-down per night, 4-day half-life, night-wake
+  re-settles excluded) and **time-of-day bottle buckets**
+  (`PredictionEngine.DayPart`: morning/midday/evening within the day side,
+  falling back to the whole day side when a bucket runs thin).
+- Not done: the on-real-data half-life sweep (§4 step 3) still needs a run of
   `PredictionAccuracy` against Miller's live history on-device — the
   constants are the analysis's priors, and the accuracy card on Stats is
-  the thing to watch after this ships.
+  the thing to watch after this ships. Day-of-week patterns were considered
+  and skipped: a 2–3-month-old has no weekday schedule, and seven-way
+  bucketing would cut every sample count below the evidence gates for pure
+  noise.
 
 The analysis below describes the state *before* this branch; §1's formulas
 are the "current state" it replaced.
