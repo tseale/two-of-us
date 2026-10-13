@@ -236,6 +236,20 @@ struct HomeView: View {
                 timelineSection
             }
             .listStyle(.plain)
+            // One pull refreshes everything: the daycare feed (Brightwheel)
+            // and the other parent's phone (CloudKit), concurrently — the
+            // native spinner holds until both finish, and the @Queries
+            // re-render the Today card and timeline the moment either lands
+            // anything new. No partial refreshes.
+            .refreshable {
+                async let daycare: Void = {
+                    _ = await brightwheel.syncNow(context: context)
+                }()
+                async let cloud: Void = {
+                    _ = await SyncManager.shared?.handleRemoteNotification()
+                }()
+                _ = await (daycare, cloud)
+            }
             .background(AppColor.bg)
             // Settings now lives in the header row (top-aligned with the profile),
             // so the empty inline nav bar would just add dead space above it.
