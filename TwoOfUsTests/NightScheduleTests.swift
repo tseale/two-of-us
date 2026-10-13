@@ -219,16 +219,27 @@ final class NightScheduleTests: XCTestCase {
         XCTAssertEqual(schedule(feeds: feeds, now: date(2026, 7, 21, 14, 0)).state, .day)
     }
 
-    func testEveningPredictionIntoTheWindowIsApproaching() {
-        // Fed 5:30pm → 9:30pm is a night bottle. From that moment the run-up
-        // is on: the Tonight card should already be up at 6pm, well before
-        // the 8pm grace hour.
+    func testEveningPredictionIntoTheWindowIsApproachingOnceTheSlotIsNear() {
+        // Fed 5:30pm → 9:30pm is a night bottle, but the run-up now waits
+        // for the 90-minute lead: 6pm is too early (the 3:46 PM bug, from
+        // the other end), 8:05pm is inside it.
         let feeds = [feed(at: date(2026, 7, 21, 17, 30))]
+        XCTAssertEqual(schedule(feeds: feeds, now: date(2026, 7, 21, 18, 0)).state, .day,
+                       "a nighttime schedule has no business on screen hours early")
         guard case .approaching(let occs) =
-            schedule(feeds: feeds, now: date(2026, 7, 21, 18, 0)).state else {
-            return XCTFail("a predicted night bottle means the night is approaching")
+            schedule(feeds: feeds, now: date(2026, 7, 21, 20, 5)).state else {
+            return XCTFail("within 90 minutes of the first slot the run-up is on")
         }
         XCTAssertEqual(occs.first?.date, date(2026, 7, 21, 21, 30))
+    }
+
+    func testAfternoonPredictionIntoTheWindowIsStillDay() {
+        // The 3:46 PM regression: a mid-afternoon feed whose projection
+        // already resolves into tonight's window (3:46 + 5h = 8:46, inside
+        // the 8pm–8am window) must not surface the card mid-day.
+        let feeds = [feed(at: date(2026, 7, 21, 15, 46))]
+        XCTAssertEqual(schedule(feeds: feeds, now: date(2026, 7, 21, 15, 46),
+                                startMinute: 20 * 60, spacing: 300).state, .day)
     }
 
     func testGraceHourIsApproachingEvenWithNoFeeds() {

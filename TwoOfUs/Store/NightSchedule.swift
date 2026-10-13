@@ -181,14 +181,19 @@ struct NightSchedule {
 
     // MARK: Public API
 
+    /// How close the night's first slot must be before the run-up surfaces
+    /// the Tonight card — a mid-afternoon prediction that already resolves
+    /// into the window must not put a nighttime schedule up at 3:46 PM.
+    static let runUpLeadMinutes = 90
+
     var state: State {
         if currentWindow != nil { return .active(occurrences()) }
         guard let window = relevantWindow else { return .day }
-        // The night is *approaching* — surface the Tonight card early — once
-        // the next predicted bottle is already a night bottle (the projected
-        // anchor resolves), once we're inside the grace hour before the
-        // window opens (which is also when a grace-logged feed can anchor),
-        // or once a parent has manually set tonight's first feed.
+        // The night is *approaching* once something points at it — the next
+        // predicted bottle is a night bottle, we're inside the grace hour,
+        // or a parent manually set tonight's first feed — AND the first slot
+        // is near (within `runUpLeadMinutes`). The manual anchor skips the
+        // nearness gate: a parent configuring tonight wants to see it now.
         let graceStart = window.start.addingTimeInterval(
             -TimeInterval(Self.preWindowGraceMinutes * 60))
         let predictsIn = lastLiveFeed.map {
@@ -196,8 +201,12 @@ struct NightSchedule {
                                  windowStart: window.start, windowEnd: window.end) != nil
         } ?? false
         let manualSet = manualAnchor(in: window) != nil
-        return (now >= graceStart || predictsIn || manualSet)
-            ? .approaching(occurrences()) : .day
+        let occ = occurrences()
+        let firstSlotNear = occ.first.map {
+            now >= $0.date.addingTimeInterval(-TimeInterval(Self.runUpLeadMinutes * 60))
+        } ?? false
+        return (((now >= graceStart || predictsIn) && firstSlotNear) || manualSet)
+            ? .approaching(occ) : .day
     }
 
     /// The night's constructed schedule, ascending — tonight's when `now` is
