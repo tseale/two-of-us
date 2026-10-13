@@ -417,28 +417,20 @@ struct TodayHeroCard: View {
 
     // MARK: Manual check slot
 
-    /// The one-tap drop-off/pick-up row. The primary action is a tinted
-    /// glass capsule (tappable = glass, same family as the log tiles but a
-    /// clear step lighter); "home today" is a featherweight text link so it
-    /// never competes with Drop off.
+    /// The one-tap drop-off/pick-up row. Gray glass, like the strip's zone
+    /// and the Daycare disc — daycare is a place, not an event, so the
+    /// buttons stay out of the accent families. Drop off and Home today
+    /// carry equal weight, side by side.
     @ViewBuilder private var checkSlot: some View {
         switch checkinSlot {
         case .hidden:
             EmptyView()
         case .dropOff:
-            HStack(spacing: 14) {
+            HStack(spacing: 12) {
                 checkButton("🏫", "Drop off", action: onDropOff)
                     .accessibilityHint("Logs a daycare drop-off right now")
-                Button { onHomeToday?() } label: {
-                    Text("home today")
-                        .font(.caption)
-                        .foregroundStyle(AppColor.text3)
-                        .padding(.vertical, 12)
-                        .padding(.horizontal, 2)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Home today")
-                .accessibilityHint("Hides the drop-off button — no daycare today")
+                checkButton("🏡", "Home today", action: onHomeToday)
+                    .accessibilityHint("No daycare today — hides these buttons")
             }
         case .pickUp:
             checkButton("🚗", "Pick up", action: onPickUp)
@@ -452,7 +444,7 @@ struct TodayHeroCard: View {
                 Button { onUndoHomeToday?() } label: {
                     Text("undo")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppColor.accentCheck)
+                        .foregroundStyle(AppColor.text)
                         .padding(.vertical, 10)
                         .padding(.horizontal, 2)
                 }
@@ -473,7 +465,7 @@ struct TodayHeroCard: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 11)
-            .glassTile(cornerRadius: 14, tint: AppColor.accentCheck)
+            .glassTile(cornerRadius: 14, tint: AppColor.text2)
             .contentShape(.rect(cornerRadius: 14))
             .foregroundStyle(AppColor.text)
         }

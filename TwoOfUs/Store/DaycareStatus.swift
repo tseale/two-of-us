@@ -23,6 +23,10 @@ enum DaycareStatus {
     static let assumedCheckOutHour = 17
     static let assumedCheckOutMinute = 30
 
+    /// Daycare opens at 7 AM — the manual Drop off button stays hidden
+    /// before then. (Someday a Daycare settings page can own these hours.)
+    static let opensHour = 7
+
     /// Nil = not at daycare. The check events are the primary source: today's
     /// latest marker decides (check-out always wins). When today has no
     /// markers at all, the first daycare-sourced event of any kind stands in

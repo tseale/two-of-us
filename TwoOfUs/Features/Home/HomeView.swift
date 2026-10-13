@@ -990,6 +990,10 @@ struct HomeView: View {
                                                second: 0, of: now), now >= assumed {
             return .hidden
         }
+        // Daycare opens at 7 — no buttons during the night shift.
+        guard Calendar.current.component(.hour, from: now) >= DaycareStatus.opensHour else {
+            return .hidden
+        }
         return .dropOff
     }
 
