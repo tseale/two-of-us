@@ -125,6 +125,8 @@ struct BrightwheelActivity: Decodable, Sendable {
         let dosage: String?             // "dosage"
         let temperature: Double?        // "temperature" — health checks
         let mood: String?               // "mood"
+        let startTime: String?          // "start_time" — naps (single-record shape)
+        let endTime: String?            // "end_time"
 
         enum CodingKeys: String, CodingKey {
             case foodType = "food_type"
@@ -136,13 +138,16 @@ struct BrightwheelActivity: Decodable, Sendable {
             case durationMinutes = "duration"
             case medicationName = "medication_name"
             case dosage, temperature, mood
+            case startTime = "start_time"
+            case endTime = "end_time"
         }
 
         init(foodType: String? = nil, amount: Double? = nil, amountType: String? = nil,
              pottyType: String? = nil, pottyExtras: [String]? = nil,
              state: String? = nil, tags: [String]? = nil,
              durationMinutes: Int? = nil, medicationName: String? = nil,
-             dosage: String? = nil, temperature: Double? = nil, mood: String? = nil) {
+             dosage: String? = nil, temperature: Double? = nil, mood: String? = nil,
+             startTime: String? = nil, endTime: String? = nil) {
             self.foodType = foodType
             self.amount = amount
             self.amountType = amountType
@@ -155,6 +160,8 @@ struct BrightwheelActivity: Decodable, Sendable {
             self.dosage = dosage
             self.temperature = temperature
             self.mood = mood
+            self.startTime = startTime
+            self.endTime = endTime
         }
 
         init(from decoder: Decoder) throws {
@@ -197,6 +204,8 @@ struct BrightwheelActivity: Decodable, Sendable {
                 temperature = nil
             }
             mood = try? c.decode(String.self, forKey: .mood)
+            startTime = try? c.decode(String.self, forKey: .startTime)
+            endTime = try? c.decode(String.self, forKey: .endTime)
         }
     }
 
@@ -240,6 +249,32 @@ struct BrightwheelActivity: Decodable, Sendable {
 
     /// Nap state, wherever the wire put it.
     var napState: String? { state ?? detailsBlob?.state }
+
+    /// Which half of a nap this ac_nap activity is — generous about the
+    /// wire's spelling. The verified 2026-09-28 shape is state "1"/"0", but
+    /// Miller's second real day dropped a 3h nap on the floor, so unknown
+    /// spellings and a note-text fallback ("Miller nap started") are now
+    /// recognized rather than silently skipped.
+    enum NapHalf { case start, end }
+    var napHalf: NapHalf? {
+        switch napState?.lowercased() {
+        case "1", "true", "start", "started", "asleep", "sleeping",
+             "nap_start", "sleep_start":
+            return .start
+        case "0", "false", "end", "ended", "woke", "awake", "wake",
+             "nap_end", "sleep_end":
+            return .end
+        default:
+            let text = (note ?? "").lowercased()
+            if text.contains("nap started") || text.contains("fell asleep") { return .start }
+            if text.contains("nap ended") || text.contains("woke up") { return .end }
+            return nil
+        }
+    }
+
+    /// Single-record nap shape: the record itself carries its span.
+    var napBlobStart: Date? { Self.parseDate(detailsBlob?.startTime) }
+    var napBlobEnd: Date? { Self.parseDate(detailsBlob?.endTime) }
 
     /// Bottle detection, HA-style: explicit `food_type`, else keyword
     /// fallback for older entries, else "no menu items" (solids carry them).

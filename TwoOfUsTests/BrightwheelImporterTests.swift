@@ -106,6 +106,104 @@ final class BrightwheelImporterTests: XCTestCase {
         XCTAssertEqual(summary.openNapStartedAt, start.when)
     }
 
+    // MARK: Miller's missing 3h17m nap (2026-10-13, second daycare day)
+
+    func testMillersDayTwoNapSurvivesMidNapPhotoRestatements() throws {
+        // The real day: nap started 8:40, photos posted ON the nap record at
+        // 10:52 and 10:56 (re-stating "asleep"), nap ended 11:57. The photo
+        // re-statements must not usurp the true start.
+        let summary = try BrightwheelImporter(context: container.mainContext)
+            .importActivities([
+                napActivity(id: "nap-end", state: "0", minutesAgo: 0),
+                activity(id: "nap-photo-2", action: "ac_nap", minutesAgo: 61,
+                         state: "1", withPhoto: true),
+                activity(id: "nap-photo-1", action: "ac_nap", minutesAgo: 65,
+                         state: "1", withPhoto: true),
+                napActivity(id: "nap-start", state: "1", minutesAgo: 197),
+            ])
+        XCTAssertEqual(summary.sleeps, 1)
+        XCTAssertEqual(summary.media, 2, "both mid-nap photos import")
+        let sleeps = try container.mainContext.fetch(FetchDescriptor<SleepEvent>())
+        let nap = try XCTUnwrap(sleeps.first)
+        XCTAssertEqual(nap.endedAt.map { $0.timeIntervalSince(nap.startedAt) } ?? 0,
+                       197 * 60, accuracy: 90,
+                       "the full 3h17m span, not photo-to-wake")
+    }
+
+    func testOrphanWakeUpPairsWithTheCarriedLiveNapStart() throws {
+        // A wake-up whose start never re-appears in the batch (updated in
+        // place, or scrolled off the page) pairs with the live-nap start an
+        // earlier sync remembered.
+        let start = Date(timeIntervalSinceNow: -197 * 60)
+        let summary = try BrightwheelImporter(context: container.mainContext)
+            .importActivities([napActivity(id: "nap-end-solo", state: "0", minutesAgo: 0)],
+                              carriedNapStart: start)
+        XCTAssertEqual(summary.sleeps, 1)
+        let nap = try XCTUnwrap(container.mainContext.fetch(FetchDescriptor<SleepEvent>()).first)
+        XCTAssertEqual(nap.startedAt.timeIntervalSince(start), 0, accuracy: 1)
+    }
+
+    func testSingleRecordNapShapeImportsFromItsOwnSpan() throws {
+        // Hedge against the updated-in-place wire: one ac_nap record, final
+        // state "0", carrying its span in the blob.
+        let start = ISO8601DateFormatter().string(from: Date(timeIntervalSinceNow: -197 * 60))
+        let summary = try BrightwheelImporter(context: container.mainContext)
+            .importActivities([
+                activity(id: "nap-single", action: "ac_nap", minutesAgo: 0,
+                         state: "0", details: ["start_time": start]),
+            ])
+        XCTAssertEqual(summary.sleeps, 1)
+    }
+
+    func testLoneWakeUpWithDurationWalksBackToTheStart() throws {
+        let summary = try BrightwheelImporter(context: container.mainContext)
+            .importActivities([
+                activity(id: "nap-duration", action: "ac_nap", minutesAgo: 0,
+                         state: "0", details: ["duration": 197]),
+            ])
+        XCTAssertEqual(summary.sleeps, 1)
+        let nap = try XCTUnwrap(container.mainContext.fetch(FetchDescriptor<SleepEvent>()).first)
+        XCTAssertEqual(nap.endedAt.map { $0.timeIntervalSince(nap.startedAt) } ?? 0,
+                       197 * 60, accuracy: 90)
+    }
+
+    func testWordySleepStatesStillPair() throws {
+        // Unknown state spellings must not silently drop a nap again.
+        let summary = try BrightwheelImporter(context: container.mainContext)
+            .importActivities([
+                activity(id: "nap-end-w", action: "ac_nap", minutesAgo: 0, state: "awake"),
+                activity(id: "nap-start-w", action: "ac_nap", minutesAgo: 50, state: "asleep"),
+            ])
+        XCTAssertEqual(summary.sleeps, 1)
+    }
+
+    func testNapHalvesRecognizedFromNoteTextWhenStateIsMissing() throws {
+        // No state anywhere; the human-readable rows carry the halves.
+        func noteActivity(_ id: String, _ note: String, minutesAgo: Int) throws -> BrightwheelActivity {
+            let dict: [String: Any] = [
+                "object_id": id, "action_type": "ac_nap", "note": note,
+                "event_date": ISO8601DateFormatter()
+                    .string(from: Date(timeIntervalSinceNow: -Double(minutesAgo) * 60)),
+            ]
+            return try JSONDecoder().decode(
+                BrightwheelActivity.self,
+                from: JSONSerialization.data(withJSONObject: dict))
+        }
+        let summary = try BrightwheelImporter(context: container.mainContext)
+            .importActivities([
+                noteActivity("nap-end-n", "Miller nap ended", minutesAgo: 0),
+                noteActivity("nap-start-n", "Miller nap started", minutesAgo: 50),
+            ])
+        XCTAssertEqual(summary.sleeps, 1)
+    }
+
+    func testLoneWakeUpWithNothingUsableStaysSkippedNotFabricated() throws {
+        let summary = try BrightwheelImporter(context: container.mainContext)
+            .importActivities([napActivity(id: "nap-end-bare", state: "0", minutesAgo: 0)])
+        XCTAssertEqual(summary.sleeps, 0)
+        XCTAssertEqual(summary.skippedUnmapped, 1)
+    }
+
     func testTwoPhotosAtTheSameTimestampBothImport() throws {
         // The 9:23 AM bug: distinct photo posts sharing one timestamp are two
         // photos, not a re-issue — the time-window fallback must not eat the
