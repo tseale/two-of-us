@@ -62,6 +62,10 @@ struct TodayHeroCard: View {
     /// Real Brightwheel days often never get explicit check markers, and the
     /// finished day must not vanish off the strip at 5:30.
     var firstDaycareEventAt: Date? = nil
+    /// The last daycare-logged event of the day — the check-out stand-in on
+    /// marker-less days: it closes the capsule's window and the strip zone at
+    /// the last thing staff logged instead of the assumed 5:30.
+    var lastDaycareEventAt: Date? = nil
     /// Start of a nap Brightwheel has begun but not ended — drawn on the
     /// strip (its SleepEvent doesn't exist yet) and counted into the total.
     let liveNapStartedAt: Date?
@@ -92,15 +96,19 @@ struct TodayHeroCard: View {
     /// daycare-logged event — same fallback `DaycareStatus` uses live.
     private var daycareDayStart: Date? { daycare.checkIn ?? firstDaycareEventAt }
 
+    /// When it ended: the real check-out marker, else the last thing staff
+    /// logged. Nil only when neither exists.
+    private var daycareDayEnd: Date? { daycare.checkOut ?? lastDaycareEventAt }
+
     /// The strip's daycare zone: open-ended while he's there, the recorded
-    /// span after pickup (missing checkout falls back to the assumed 5:30).
+    /// (or inferred) span after pickup — assumed 5:30 as the last resort.
     private var zone: (start: Date, end: Date?)? {
         if let attendingSince { return (attendingSince, nil) }
         guard let start = daycareDayStart else { return nil }
         let assumed = Calendar.current.date(bySettingHour: DaycareStatus.assumedCheckOutHour,
                                             minute: DaycareStatus.assumedCheckOutMinute,
                                             second: 0, of: now)
-        guard let end = daycare.checkOut ?? assumed else { return nil }
+        guard let end = daycareDayEnd ?? assumed else { return nil }
         return (start, min(end, now))
     }
 
@@ -206,13 +214,13 @@ struct TodayHeroCard: View {
     /// after pickup, nothing on a pure home day.
     private var pillText: String? {
         if let attendingSince {
-            return "daycare since \(TimeFormatting.clock(attendingSince))"
+            return "@ daycare since \(TimeFormatting.clock(attendingSince))"
         }
         guard let start = daycareDayStart else { return nil }
-        if let checkOut = daycare.checkOut, checkOut > start {
-            return "daycare \(TimeFormatting.clock(start)) – \(TimeFormatting.clock(checkOut))"
+        if let end = daycareDayEnd, end > start {
+            return "@ daycare from \(TimeFormatting.clock(start)) – \(TimeFormatting.clock(end))"
         }
-        return "daycare from \(TimeFormatting.clock(start))"
+        return "@ daycare from \(TimeFormatting.clock(start))"
     }
 
     // MARK: Totals
@@ -229,17 +237,18 @@ struct TodayHeroCard: View {
     private func totalColumn(_ stat: Stat, active: Bool, value: String,
                              unit: String?, caption: String,
                              liveSleep: Bool = false) -> some View {
-        VStack(spacing: 3) {
-            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(emoji(for: stat))
-                    .font(.callout)
-                    .opacity(active ? 1 : 0.45)
-                    .padding(.trailing, 1)
+        VStack(spacing: 2) {
+            // The old TODAY card's geometry: emoji on top, the display-scale
+            // numeral below it with the full column width to itself (inline,
+            // the emoji's width forced the long sleep values to shrink).
+            Text(emoji(for: stat))
+                .font(.callout)
+                .opacity(active ? 1 : 0.45)
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(value)
                     // Glance values are display-scale (the type ramp's rule
-                    // #1) — the big rounded numerals the old TODAY card had,
-                    // inked in the stat's own pastel family, not stark black.
-                    .font(AppFont.display(28, relativeTo: .title2))
+                    // #1), inked in the stat's own pastel family.
+                    .font(AppFont.display(34))
                     .foregroundStyle(active ? accent(for: stat) : AppColor.text3)
                     .lineLimit(1)
                     .minimumScaleFactor(0.55)
@@ -516,10 +525,11 @@ private struct DayFlowStrip: View {
 
         return ZStack(alignment: .topLeading) {
                 Canvas { ctx, _ in
-                    // Track
+                    // Track — full card2, no fade: at 0.8 over the dark card
+                    // the whole strip nearly vanished.
                     let band = CGRect(x: 0, y: bandY, width: size.width, height: bandH)
                     ctx.fill(Path(roundedRect: band, cornerRadius: bandH / 2),
-                             with: .color(AppColor.card2.opacity(0.8)))
+                             with: .color(AppColor.card2))
 
                     // Daycare zone. A place, not an event — so a neutral
                     // wash, NOT a palette color: teal here read as feed
@@ -535,12 +545,12 @@ private struct DayFlowStrip: View {
                         let path = Path(roundedRect: rect, cornerRadius: bandH / 2)
                         if ongoing {
                             ctx.fill(path, with: .linearGradient(
-                                Gradient(colors: [AppColor.text2.opacity(0.16),
-                                                  AppColor.text2.opacity(0.05)]),
+                                Gradient(colors: [AppColor.text2.opacity(0.30),
+                                                  AppColor.text2.opacity(0.10)]),
                                 startPoint: CGPoint(x: rect.minX, y: 0),
                                 endPoint: CGPoint(x: rect.maxX, y: 0)))
                         } else {
-                            ctx.fill(path, with: .color(AppColor.text2.opacity(0.10)))
+                            ctx.fill(path, with: .color(AppColor.text2.opacity(0.22)))
                         }
                         let glyph = ctx.resolve(Text(Image(systemName: "building.2.fill"))
                             .font(.system(size: 7, weight: .semibold))
@@ -597,7 +607,7 @@ private struct DayFlowStrip: View {
                     while h <= window.end {
                         let t = ctx.resolve(Text(hourLabel(Int(h)))
                             .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(AppColor.text3))
+                            .foregroundStyle(AppColor.text2))
                         ctx.draw(t, at: CGPoint(x: min(max(x(h), 7), size.width - 9),
                                                 y: size.height - 4), anchor: .center)
                         h += 6
