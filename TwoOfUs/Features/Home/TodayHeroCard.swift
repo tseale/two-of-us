@@ -650,6 +650,14 @@ struct TodayHeroCard: View {
 /// slim lavender lozenges in the band, feeds as 🍼 above it, diapers as
 /// 💧/💩 below, sparse hour labels underneath. Any
 /// running sleep puts a breathing glow dot at the now edge.
+/// The strip's daycare zone palette: soft blue, Taylor's pick (2026-10-13)
+/// over warm gold — apart from every event accent, so the lavender nap
+/// lozenges read cleanly inside the span.
+private enum DaycareZoneStyle {
+    static let base = Color(red: 56 / 255, green: 135 / 255, blue: 220 / 255)
+    static let fillOpacity = 0.12
+}
+
 private struct DayFlowStrip: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -694,27 +702,18 @@ private struct DayFlowStrip: View {
                     ctx.fill(Path(roundedRect: band, cornerRadius: bandH / 2),
                              with: .color(AppColor.card2))
 
-                    // Daycare zone. A place, not an event — so a neutral
-                    // wash, NOT a palette color: teal here read as feed
-                    // territory under the feed dots. Open-ended, it fades
-                    // toward now (the day still being written); after
-                    // pickup it sits as a flat, finished span.
+                    // Daycare zone — a place, not an event, so soft blue,
+                    // apart from the event-accent families: a quiet fill
+                    // with a 1.5pt border so the span reads crisply over
+                    // the track in both modes.
                     if let zone {
-                        let ongoing = zone.end == nil
                         let endX = x(hour(zone.end ?? now))
                         let rect = CGRect(x: x(hour(zone.start)), y: bandY,
                                           width: max(bandH, endX - x(hour(zone.start))),
                                           height: bandH)
                         let path = Path(roundedRect: rect, cornerRadius: bandH / 2)
-                        if ongoing {
-                            ctx.fill(path, with: .linearGradient(
-                                Gradient(colors: [AppColor.text2.opacity(0.30),
-                                                  AppColor.text2.opacity(0.10)]),
-                                startPoint: CGPoint(x: rect.minX, y: 0),
-                                endPoint: CGPoint(x: rect.maxX, y: 0)))
-                        } else {
-                            ctx.fill(path, with: .color(AppColor.text2.opacity(0.22)))
-                        }
+                        ctx.fill(path, with: .color(DaycareZoneStyle.base.opacity(DaycareZoneStyle.fillOpacity)))
+                        ctx.stroke(path, with: .color(DaycareZoneStyle.base.opacity(0.4)), lineWidth: 1.5)
                         let glyph = ctx.resolve(Text(Image(systemName: "building.2.fill"))
                             .font(.system(size: 7, weight: .semibold))
                             .foregroundStyle(AppColor.text2))
