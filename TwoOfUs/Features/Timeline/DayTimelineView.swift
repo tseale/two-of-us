@@ -91,12 +91,19 @@ struct DayTimelineRow: View {
     }
 
     /// Completed events use their static title; a running sleep counts up
-    /// live ("Napping · 23 min" — the relative style keeps itself current).
-    private var titleText: Text {
+    /// live, minutes only ("Napping · 43m") — a seconds ticker is noise at
+    /// the timeline's altitude, so the minute schedule replaces the old
+    /// seconds-bearing relative style.
+    @ViewBuilder
+    private var titleText: some View {
         if case .sleep(let e) = entry, e.isActive {
-            return Text("Napping · ") + Text(e.startedAt, style: .relative)
+            TimelineView(.everyMinute) { ctx in
+                Text("Napping · \(TimeFormatting.duration(from: e.startedAt, to: ctx.date))")
+                    .monospacedDigit()
+            }
+        } else {
+            Text(entry.title)
         }
-        return Text(entry.title)
     }
 
     private var accent: Color {
@@ -236,7 +243,8 @@ struct LiveDaycareNapRow: View {
                 .frame(width: 16)
                 HStack(spacing: 8) {
                     Text("💤").font(.callout)
-                    (Text("Napping · ") + Text(start, style: .relative))
+                    Text("Napping · \(TimeFormatting.duration(from: start, to: ctx.date))")
+                        .monospacedDigit()
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppColor.text)
                         .lineLimit(1)

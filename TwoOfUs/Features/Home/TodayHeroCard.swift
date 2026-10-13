@@ -90,7 +90,19 @@ struct TodayHeroCard: View {
         liveNapStartedAt.map { max(0, now.timeIntervalSince($0)) } ?? 0
     }
 
-    private var sleepTotal: TimeInterval { sleepSeconds + liveNapSeconds }
+    /// Today's share of the parent/SNOO sleep still running. StatsEngine only
+    /// counts finished sleeps, so the big total would otherwise sit frozen
+    /// while the caption beneath it ticks "asleep · 43m". Clamped to midnight
+    /// — an overnight stretch's earlier hours belong to yesterday's total.
+    private var activeSleepSeconds: TimeInterval {
+        guard let start = activeSleepStartedAt else { return 0 }
+        let todayStart = Calendar.current.startOfDay(for: now)
+        return max(0, now.timeIntervalSince(max(start, todayStart)))
+    }
+
+    private var sleepTotal: TimeInterval {
+        sleepSeconds + liveNapSeconds + activeSleepSeconds
+    }
 
     /// When the daycare day began: the real check-in marker, else the first
     /// daycare-logged event — same fallback `DaycareStatus` uses live.
