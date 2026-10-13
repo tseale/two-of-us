@@ -68,6 +68,18 @@ struct NotificationSettingsView: View {
             }
 
             Section {
+                Toggle(isOn: $prefs.daycareNotificationsEnabled) {
+                    SettingsIconLabel(title: "Daycare events", systemImage: "building.2.fill",
+                                      tint: AppColor.accentCheck)
+                }
+                .onChange(of: prefs.daycareNotificationsEnabled) { _, _ in notificationsChanged() }
+            } header: {
+                Text("When the daycare logs")
+            } footer: {
+                Text("A quiet ping when staff log a feed, nap, diaper, or photo in Brightwheel. This device only — each parent chooses for their own phone.")
+            }
+
+            Section {
                 Toggle(isOn: $prefs.gentleRemindersEnabled) {
                     SettingsIconLabel(title: "Gentle reminders", systemImage: "bell", tint: AppColor.urgencyAmber)
                 }

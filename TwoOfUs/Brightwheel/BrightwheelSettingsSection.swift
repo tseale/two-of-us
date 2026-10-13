@@ -7,7 +7,6 @@ import SwiftData
 /// for the same cell-recycle reason as SNOO's.
 struct BrightwheelSettingsSection: View {
     @State private var manager = BrightwheelManager.shared
-    @State private var prefs = LocalPrefs.shared
     @Binding var showLogin: Bool
     @Query private var settingsList: [SharedSettings]
 
@@ -40,27 +39,6 @@ struct BrightwheelSettingsSection: View {
                 .buttonStyle(.plain)
             }
 
-            // Per-device, never synced — each parent decides for their own
-            // pocket. Shown whenever the HOUSEHOLD is connected: on the
-            // importing phone the pings come straight from the importer, on
-            // the other one from the sync path. Enabling asks for alert
-            // permission if it was never granted.
-            if manager.session != nil || householdStatus != nil {
-                Toggle(isOn: Binding(
-                    get: { prefs.daycareNotificationsEnabled },
-                    set: { on in
-                        prefs.daycareNotificationsEnabled = on
-                        if on { Task { await NotificationManager.requestAuthorization() } }
-                    }
-                )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Daycare notifications")
-                        Text("A quiet ping when staff log a feed, nap, diaper, or photo. Just this phone.")
-                            .font(.caption)
-                            .foregroundStyle(AppColor.text2)
-                    }
-                }
-            }
         } footer: {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Brings the daily report Miller's daycare logs in Brightwheel — feeds, naps, diapers, notes — into the timeline, tagged so daycare entries read apart from yours. Connecting one phone is enough; imported events reach both of you through sync.")
