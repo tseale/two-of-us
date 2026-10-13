@@ -213,7 +213,7 @@ struct MediaViewerSheet: View {
             // button doesn't re-offer itself for an already-saved photo.
             Text("Saved")
                 .font(.subheadline)
-                .foregroundStyle(AppColor.accentCheck.opacity(0.85))
+                .foregroundStyle(AppColor.text2)
                 .transition(.opacity)
                 .accessibilityLabel("Saved to camera roll")
                 .task {
