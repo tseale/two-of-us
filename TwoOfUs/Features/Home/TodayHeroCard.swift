@@ -124,22 +124,11 @@ struct TodayHeroCard: View {
                     .font(.system(.title3, design: .rounded).weight(.semibold))
                     .foregroundStyle(AppColor.text)
                 Spacer()
-                // Neutral like the strip's daycare zone — a place, not an
-                // event, so it stays out of the feed-teal family. Absent on
-                // a pure home day; a recorded span after pickup.
-                if let pillText {
-                    HStack(spacing: 4) {
-                        Image(systemName: "building.2.fill")
-                            .font(.caption2.weight(.semibold))
-                        Text(pillText)
-                            .monospacedDigit()
-                    }
-                    .font(.caption2.weight(.medium))
+                // Today's date — the daycare window lives on the Daycare
+                // recap row now, where the place's numbers already are.
+                Text(now.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                    .font(.subheadline)
                     .foregroundStyle(AppColor.text2)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(AppColor.text2.opacity(0.10), in: Capsule())
-                }
             }
 
             // The day's actual shape, then its totals as three plain numbers.
@@ -152,22 +141,24 @@ struct TodayHeroCard: View {
                     if showFeed {
                         totalColumn(.feed,
                                     active: feedCount > 0,
-                                    value: feedCount > 0 ? OzFormat.string(feedOz) : "—",
-                                    unit: feedCount > 0 ? "oz" : nil,
+                                    segments: feedCount > 0
+                                        ? [(OzFormat.string(feedOz), false), (" oz", true)]
+                                        : [("—", false)],
                                     caption: feedCount > 0 ? Plural.count(feedCount, "feed") : "no feeds yet")
                     }
                     if showDiaper {
                         totalColumn(.diaper,
                                     active: diaperCount > 0,
-                                    value: diaperCount > 0 ? "\(diaperCount)" : "—",
-                                    unit: nil,
+                                    segments: diaperCount > 0
+                                        ? [("\(diaperCount)", false),
+                                           (diaperCount == 1 ? " diaper" : " diapers", true)]
+                                        : [("—", false)],
                                     caption: diaperCaption)
                     }
                     if showSleep {
                         totalColumn(.sleep,
                                     active: sleepingSince != nil || sleepSeconds > 0,
-                                    value: sleepValue,
-                                    unit: nil,
+                                    segments: sleepSegments,
                                     caption: "sleep",
                                     liveSleep: sleepingSince != nil)
                     }
@@ -211,45 +202,64 @@ struct TodayHeroCard: View {
         .accessibilityIdentifier("todayCard")
     }
 
-    /// The header capsule's text: live during attendance, the recorded span
-    /// after pickup, nothing on a pure home day.
-    private var pillText: String? {
+    /// The Daycare row's second label line: live during attendance, the
+    /// recorded (or inferred) window after pickup. Compact clocks — the slot
+    /// is narrow and the day half is obvious.
+    private var daycareWindowText: String? {
         if let attendingSince {
-            return "@ daycare since \(TimeFormatting.clock(attendingSince))"
+            return "since \(TimeFormatting.clockCompact(attendingSince))"
         }
         guard let start = daycareDayStart else { return nil }
         if let end = daycareDayEnd, end > start {
-            return "@ daycare from \(TimeFormatting.clock(start)) – \(TimeFormatting.clock(end))"
+            return "\(TimeFormatting.clockCompact(start)) – \(TimeFormatting.clockCompact(end))"
         }
-        return "@ daycare from \(TimeFormatting.clock(start))"
+        return "from \(TimeFormatting.clockCompact(start))"
     }
 
     // MARK: Totals
 
-    private func totalColumn(_ stat: Stat, active: Bool, value: String,
-                             unit: String?, caption: String,
+    /// One value as (text, isUnit) segments: digits at display scale, units
+    /// ("oz", "diapers", the h/m inside a duration) in the small rounded
+    /// style — concatenated Text so the mix shares one baseline and scales
+    /// down as a unit when the column is tight.
+    private func valueText(_ segments: [(String, Bool)], active: Bool, accent: Color) -> Text {
+        segments.map { text, isUnit in
+            Text(text)
+                .font(isUnit ? .system(.callout, design: .rounded).weight(.semibold)
+                             : AppFont.display(36))
+                .foregroundStyle(active ? (isUnit ? accent.opacity(0.7) : accent)
+                                        : AppColor.text3)
+        }.reduce(Text(""), +)
+    }
+
+    /// Whole-day sleep as segments — "8h 20m" with the h/m styled like the
+    /// other columns' units, mid-nap ticking live via `sleepTotal`.
+    private var sleepSegments: [(String, Bool)] {
+        guard sleepTotal > 0 else { return [("—", false)] }
+        let mins = Int(sleepTotal / 60)
+        let h = mins / 60, m = mins % 60
+        var segments: [(String, Bool)] = []
+        if h > 0 { segments += [("\(h)", false), ("h", true)] }
+        if m > 0 || h == 0 {
+            segments += [(h > 0 ? " \(m)" : "\(m)", false), ("m", true)]
+        }
+        return segments
+    }
+
+    private func totalColumn(_ stat: Stat, active: Bool,
+                             segments: [(String, Bool)], caption: String,
                              liveSleep: Bool = false) -> some View {
         VStack(spacing: 2) {
             // No emoji here: the strip above already tells each event's story
             // in glyphs, and the accent-inked numeral + caption identify the
-            // stat on their own. The numbers get the whole stage.
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(value)
-                    // Glance values are display-scale (the type ramp's rule
-                    // #1), inked in the stat's own pastel family.
-                    .font(AppFont.display(34))
-                    .foregroundStyle(active ? accent(for: stat) : AppColor.text3)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.55)
-                if let unit {
-                    Text(unit)
-                        .font(.system(.callout, design: .rounded).weight(.semibold))
-                        .foregroundStyle(active ? accent(for: stat).opacity(0.7) : AppColor.text3)
-                }
-            }
-            .scaleEffect(popped.contains(stat) ? 1.12 : 1)
-            .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.55),
-                       value: popped)
+            // stat on their own. The numbers get the whole stage. (Glance
+            // values are display-scale — the type ramp's rule #1.)
+            valueText(segments, active: active, accent: accent(for: stat))
+                .lineLimit(1)
+                .minimumScaleFactor(0.55)
+                .scaleEffect(popped.contains(stat) ? 1.12 : 1)
+                .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.55),
+                           value: popped)
 
             if liveSleep, let start = sleepingSince {
                 // The sleep's pulse, breathing with the strip's glow dot.
@@ -330,10 +340,22 @@ struct TodayHeroCard: View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 9) {
                 iconDisc("building.2.fill", tint: AppColor.text2)
-                Text("Daycare")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(AppColor.text)
-                    .frame(width: 60, alignment: .leading)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Daycare")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(AppColor.text)
+                    // The attendance window, under its own roof: "since 7:51"
+                    // while he's there, "7:51 – 4:15" once he's home.
+                    if let daycareWindowText {
+                        Text(daycareWindowText)
+                            .font(.caption2)
+                            .foregroundStyle(AppColor.text2)
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                }
+                .frame(width: 60, alignment: .leading)
                 HStack(spacing: 12) {
                     if daycare.feedCount > 0 {
                         emojiItem("🍼",
