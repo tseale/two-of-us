@@ -68,6 +68,12 @@ enum TimeFormatting {
         return f
     }()
 
+    /// Compact local time with no AM/PM, e.g. "2:14" — for tight slots where
+    /// the day half is obvious from context (a daycare window's 7:51 – 4:15).
+    static func clockCompact(_ date: Date) -> String {
+        date.formatted(.dateTime.hour(.defaultDigits(amPM: .omitted)).minute())
+    }
+
     /// Adaptive age string: days → weeks → months. A future date of birth is a
     /// due date (expecting parents set up before the arrival) and counts down
     /// in the same brackets the age counts up.
