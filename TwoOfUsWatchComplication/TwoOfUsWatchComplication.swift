@@ -235,7 +235,7 @@ struct GlanceComplicationView: View {
                 Text("💤")
                     .font(.subheadline)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("\(entry.babyName) is sleeping")
+                    Text("\(entry.babyName) is \(SleepLanguage.gerund(start: startedAt))")
                         .sectionLabelStyle(color: tint)
                         .widgetAccentable()
                         .lineLimit(1)

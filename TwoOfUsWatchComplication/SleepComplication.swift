@@ -118,7 +118,7 @@ struct SleepComplicationView: View {
                 Text("💤")
                     .font(.subheadline)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Sleeping")
+                    Text(SleepLanguage.gerund(start: startedAt).capitalized)
                         .sectionLabelStyle(color: tint)
                         .widgetAccentable()
                     Text(timerInterval: sleepRange(from: startedAt),

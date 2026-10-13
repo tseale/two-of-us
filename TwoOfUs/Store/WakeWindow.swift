@@ -212,9 +212,12 @@ enum WakeWindow {
         guard let lastWake else { return "start timer" }
         let next = lastWake.addingTimeInterval(target)
         let window = style == .full ? "\(shortLabel(target)) awake" : shortLabel(target)
+        // A projection into the evening is bedtime, not a nap — the noun
+        // follows the predicted clock time (SleepLanguage).
+        let noun = SleepLanguage.predictedNoun(at: next)
         return next < now
-            ? "nap was due ~\(TimeFormatting.clock(next)) · \(window)"
-            : "next nap ~\(TimeFormatting.clock(next)) · \(window)"
+            ? "\(noun) was due ~\(TimeFormatting.clock(next)) · \(window)"
+            : "next \(noun) ~\(TimeFormatting.clock(next)) · \(window)"
     }
 
     /// Age in whole days from a date of birth, for `ageBand`.

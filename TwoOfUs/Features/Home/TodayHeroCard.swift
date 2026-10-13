@@ -329,12 +329,12 @@ struct TodayHeroCard: View {
 
             if liveSleep, let start = sleepingSince {
                 // The sleep's pulse, breathing with the strip's glow dot.
-                // "napping" during the daycare day, "asleep" anywhere else —
-                // a 3 AM stretch at home isn't a nap.
+                // SleepLanguage picks the word: daytime under 2h is
+                // "napping", night or a long stretch is "sleeping".
                 HStack(spacing: 3) {
                     Image(systemName: "moon.zzz.fill")
                         .font(.caption.weight(.semibold))
-                    Text("\(liveNapStartedAt != nil || attendingSince != nil ? "napping" : "asleep") · \(TimeFormatting.duration(from: start, to: now))")
+                    Text("\(SleepLanguage.gerund(start: start, now: now)) · \(TimeFormatting.duration(from: start, to: now))")
                         .monospacedDigit()
                 }
                 .font(.caption.weight(.semibold))
@@ -518,7 +518,7 @@ struct TodayHeroCard: View {
             parts = ["\(babyName)'s day so far"]
         }
         if let start = sleepingSince {
-            parts.append("asleep right now, \(TimeFormatting.duration(from: start, to: now)) so far")
+            parts.append("\(SleepLanguage.gerund(start: start, now: now)) right now, \(TimeFormatting.duration(from: start, to: now)) so far")
         }
         var today: [String] = []
         if showFeed, feedCount > 0 {

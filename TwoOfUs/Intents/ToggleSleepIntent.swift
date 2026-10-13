@@ -28,10 +28,11 @@ struct StartSleepIntent: LiveActivityIntent {
             return .result(dialog: "Couldn't reach Two of Us.")
         }
         let name = logger.babyName ?? "Baby"
-        guard logger.activeSleep == nil else {
+        if let active = logger.activeSleep {
+            let gerund = SleepLanguage.gerund(start: active.startedAt)
             return .result(
-                dialog: "\(name) is already asleep.",
-                view: ConfirmationSnippet(emoji: "💤", title: "Already asleep", subtitle: name)
+                dialog: "\(name) is already \(gerund).",
+                view: ConfirmationSnippet(emoji: "💤", title: "Already \(gerund)", subtitle: name)
             )
         }
         guard logger.isTrackingEnabled(.sleep) else {
