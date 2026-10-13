@@ -134,6 +134,7 @@ struct HomeView: View {
                                 daycare: daycareToday ?? DaycareDaySummary(),
                                 attendingSince: attendance?.since,
                                 firstDaycareEventAt: firstDaycareEventToday,
+                                lastDaycareEventAt: lastDaycareEventToday,
                                 liveNapStartedAt: liveNapToday,
                                 activeSleepStartedAt: activeSleep?.startedAt,
                                 now: ctx.date,
@@ -469,6 +470,32 @@ struct HomeView: View {
             earliest(milestoneEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
             earliest(staffNoteEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
         ].compactMap { $0 }.min()
+    }
+
+    /// The latest daycare-sourced event of any kind today — the check-out
+    /// stand-in when the real marker never arrived: the hero's capsule window
+    /// and strip zone close at the last thing staff logged. A sleep counts by
+    /// its END (a nap that ran past the last diaper means he was still there).
+    private var lastDaycareEventToday: Date? {
+        func latest<T>(_ items: [T], at time: (T) -> Date,
+                       fromDaycare: (T) -> Bool) -> Date? {
+            items.prefix(while: { time($0) >= dayStart })
+                .filter(fromDaycare).map(time).max()
+        }
+        return [
+            latest(feeds, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            latest(sleeps, at: { $0.endedAt ?? $0.startedAt }, fromDaycare: \.isFromDaycare),
+            latest(diapers, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            latest(noteEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            latest(activityEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            latest(mediaEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            latest(medicationEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            latest(healthCheckEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            latest(moodEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            latest(pottyEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            latest(milestoneEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            latest(staffNoteEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+        ].compactMap { $0 }.max()
     }
 
     /// Brightwheel's in-progress nap, if it started today — guards against a
