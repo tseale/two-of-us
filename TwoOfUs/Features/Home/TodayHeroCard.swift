@@ -137,7 +137,12 @@ struct TodayHeroCard: View {
                              liveNapStartedAt: liveNapStartedAt,
                              glowStart: sleepingSince, now: now)
                     .frame(height: 62)
-                HStack(alignment: .top, spacing: 10) {
+                // Natural-width columns with flexible gaps, NOT equal thirds:
+                // forced into a third, "33.75 oz" overflows and the whole
+                // concatenated value scales down — the digits must never
+                // render below their display size just because oz-and-a-half
+                // of decimals showed up.
+                HStack(alignment: .top, spacing: 12) {
                     if showFeed {
                         totalColumn(.feed,
                                     active: feedCount > 0,
@@ -145,6 +150,7 @@ struct TodayHeroCard: View {
                                         ? [(OzFormat.string(feedOz), false), (" oz", true)]
                                         : [("—", false)],
                                     caption: feedCount > 0 ? Plural.count(feedCount, "feed") : "no feeds yet")
+                        if showDiaper || showSleep { Spacer(minLength: 12) }
                     }
                     if showDiaper {
                         totalColumn(.diaper,
@@ -154,6 +160,7 @@ struct TodayHeroCard: View {
                                            (diaperCount == 1 ? " diaper" : " diapers", true)]
                                         : [("—", false)],
                                     caption: diaperCaption)
+                        if showSleep { Spacer(minLength: 12) }
                     }
                     if showSleep {
                         totalColumn(.sleep,
@@ -163,6 +170,7 @@ struct TodayHeroCard: View {
                                     liveSleep: sleepingSince != nil)
                     }
                 }
+                .frame(maxWidth: .infinity)
             }
 
             // The daycare recap — what staff logged since drop-off (the
@@ -289,7 +297,6 @@ struct TodayHeroCard: View {
                     .minimumScaleFactor(0.7)
             }
         }
-        .frame(maxWidth: .infinity)
     }
 
     private var diaperCaption: String {
