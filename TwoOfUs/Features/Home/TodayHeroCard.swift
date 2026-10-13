@@ -225,25 +225,13 @@ struct TodayHeroCard: View {
 
     // MARK: Totals
 
-    /// Each stat's instant-read glyph — a parent reads 🍼 before "feed".
-    private func emoji(for stat: Stat) -> String {
-        switch stat {
-        case .feed: "🍼"
-        case .diaper: "💧"
-        case .sleep: "💤"
-        }
-    }
-
     private func totalColumn(_ stat: Stat, active: Bool, value: String,
                              unit: String?, caption: String,
                              liveSleep: Bool = false) -> some View {
         VStack(spacing: 2) {
-            // The old TODAY card's geometry: emoji on top, the display-scale
-            // numeral below it with the full column width to itself (inline,
-            // the emoji's width forced the long sleep values to shrink).
-            Text(emoji(for: stat))
-                .font(.callout)
-                .opacity(active ? 1 : 0.45)
+            // No emoji here: the strip above already tells each event's story
+            // in glyphs, and the accent-inked numeral + caption identify the
+            // stat on their own. The numbers get the whole stage.
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(value)
                     // Glance values are display-scale (the type ramp's rule
