@@ -84,14 +84,19 @@ final class NightScheduleTests: XCTestCase {
     }
 
     func testReportedBugScenarioElevenPMWindow() {
-        // The live-app bug: window 11pm–8am, spacing 4h, last feed 7:45pm,
-        // now 9:41pm. The night must run 11:45pm → 3:45am → 7:45am — NOT
-        // anchor at 1:45am (the old day-interval chain 7:45 → 10:45 → 1:45).
+        // The live-app bug: window 11pm–8am, spacing 4h, last feed 7:45pm.
+        // The night must run 11:45pm → 3:45am → 7:45am — NOT anchor at
+        // 1:45am (the old day-interval chain 7:45 → 10:45 → 1:45). Checked
+        // at 10:30pm, inside the 90-minute run-up lead (at the original
+        // 9:41pm the card now correctly stays down — asserted below).
         let feeds = [feed(at: date(2026, 7, 28, 19, 45))]
-        let s = schedule(feeds: feeds, now: date(2026, 7, 28, 21, 41), startMinute: 23 * 60)
+        XCTAssertEqual(schedule(feeds: feeds, now: date(2026, 7, 28, 21, 41),
+                                startMinute: 23 * 60).state, .day,
+                       "2h+ before the first slot is too early for the card")
+        let s = schedule(feeds: feeds, now: date(2026, 7, 28, 22, 30), startMinute: 23 * 60)
 
         guard case .approaching(let occs) = s.state else {
-            return XCTFail("9:41pm with an 11:45pm night bottle predicted is the run-up to the night")
+            return XCTFail("10:30pm with an 11:45pm night bottle predicted is the run-up to the night")
         }
         XCTAssertEqual(occs.map(\.date), [
             date(2026, 7, 28, 23, 45), date(2026, 7, 29, 3, 45), date(2026, 7, 29, 7, 45),
