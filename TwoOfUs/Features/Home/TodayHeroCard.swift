@@ -38,6 +38,15 @@ struct DaycareDaySummary: Equatable {
 /// from the timeline; the recap only counts them).
 /// While any sleep is running the strip's now edge glows and breathes;
 /// a running Brightwheel nap also ticks into the sleep total live.
+/// What the hero's manual check slot offers right now (weekdays only —
+/// HomeView computes this; `.hidden` collapses the slot entirely).
+enum CheckinSlot: Equatable {
+    case dropOff     // weekday morning, nothing logged: Drop off + "home today"
+    case pickUp      // attending (manual or Brightwheel-implicit)
+    case homeToday   // "home today" active: one quiet line with an undo
+    case hidden      // weekend, after pickup, past the 5:30 close
+}
+
 struct TodayHeroCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -76,6 +85,12 @@ struct TodayHeroCard: View {
     var showFeed = true
     var showSleep = true
     var showDiaper = true
+    /// The manual check slot's state and actions (see `CheckinSlot`).
+    var checkinSlot: CheckinSlot = .hidden
+    var onDropOff: (() -> Void)? = nil
+    var onPickUp: (() -> Void)? = nil
+    var onHomeToday: (() -> Void)? = nil
+    var onUndoHomeToday: (() -> Void)? = nil
 
     private enum Stat { case feed, diaper, sleep }
     @State private var popped: Set<Stat> = []
@@ -126,6 +141,10 @@ struct TodayHeroCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // The readout combines into ONE VoiceOver element (the summary
+            // below); the check buttons stay outside it so they remain
+            // focusable and activatable — the SleepActiveCard lesson.
+            VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .firstTextBaseline) {
                 // "Today", not "<name>'s Day" — his name sits right above in
                 // the profile header. Rounded title3 like the log tiles'
@@ -181,6 +200,17 @@ struct TodayHeroCard: View {
             if !daycare.isEmpty {
                 bottomSection
             }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(accessibilitySummary)
+
+            // Manual check-in/out, weekdays only: Drop off → Pick up →
+            // gone for the day, with a featherweight "home today" escape
+            // hatch. One tap, no sheets — you're holding a baby and a bag.
+            if checkinSlot != .hidden {
+                checkSlot
+                    .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
+            }
         }
         .padding(16)
         .background {
@@ -205,9 +235,7 @@ struct TodayHeroCard: View {
         .onChange(of: sleepingSince) { old, new in
             if new != nil, old == nil { pop(.sleep) }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilitySummary)
-        // Stable hook for UI tests (doesn't affect the VoiceOver label above).
+        // Stable hook for UI tests (doesn't affect the VoiceOver labels).
         .accessibilityIdentifier("todayCard")
     }
 
@@ -385,6 +413,71 @@ struct TodayHeroCard: View {
     /// one format everywhere.
     private var sleepValue: String {
         sleepTotal > 0 ? TimeFormatting.duration(minutes: Int(sleepTotal / 60)) : "—"
+    }
+
+    // MARK: Manual check slot
+
+    /// The one-tap drop-off/pick-up row. The primary action is a tinted
+    /// glass capsule (tappable = glass, same family as the log tiles but a
+    /// clear step lighter); "home today" is a featherweight text link so it
+    /// never competes with Drop off.
+    @ViewBuilder private var checkSlot: some View {
+        switch checkinSlot {
+        case .hidden:
+            EmptyView()
+        case .dropOff:
+            HStack(spacing: 14) {
+                checkButton("🏫", "Drop off", action: onDropOff)
+                    .accessibilityHint("Logs a daycare drop-off right now")
+                Button { onHomeToday?() } label: {
+                    Text("home today")
+                        .font(.caption)
+                        .foregroundStyle(AppColor.text3)
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 2)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Home today")
+                .accessibilityHint("Hides the drop-off button — no daycare today")
+            }
+        case .pickUp:
+            checkButton("🚗", "Pick up", action: onPickUp)
+                .accessibilityHint("Logs the daycare pick-up right now")
+        case .homeToday:
+            HStack(spacing: 5) {
+                Text("🏡").font(.caption)
+                Text("home today")
+                    .font(.caption)
+                    .foregroundStyle(AppColor.text2)
+                Button { onUndoHomeToday?() } label: {
+                    Text("undo")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppColor.accentCheck)
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 2)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Undo home today")
+                .accessibilityHint("Shows the drop-off button again")
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private func checkButton(_ emoji: String, _ title: String,
+                             action: (() -> Void)?) -> some View {
+        Button { action?(); Haptics.tap() } label: {
+            HStack(spacing: 6) {
+                Text(emoji).font(.callout)
+                Text(title).font(.subheadline.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 11)
+            .glassTile(cornerRadius: 14, tint: AppColor.accentCheck)
+            .contentShape(.rect(cornerRadius: 14))
+            .foregroundStyle(AppColor.text)
+        }
+        .buttonStyle(PressableTileStyle())
     }
 
     // MARK: Daycare recap

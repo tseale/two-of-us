@@ -71,6 +71,12 @@ enum MediaKind: String, Codable, CaseIterable, Identifiable {
 enum CheckType: String, Codable, CaseIterable, Identifiable {
     case checkIn
     case checkOut
+    /// A parent marked "home today" — no daycare this day. Suppresses the
+    /// Drop off button; a Brightwheel event arriving anyway overrides it
+    /// (if staff are logging bottles, he's there). NOTE: builds older than
+    /// this case decode it as `.checkIn` (the fallback), so both phones
+    /// should update together when this ships.
+    case notAttending
 
     var id: String { rawValue }
 
@@ -78,6 +84,7 @@ enum CheckType: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .checkIn: return "Checked in"
         case .checkOut: return "Checked out"
+        case .notAttending: return "Home today"
         }
     }
 
@@ -85,6 +92,7 @@ enum CheckType: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .checkIn: return "🏫"
         case .checkOut: return "🏠"
+        case .notAttending: return "🏡"
         }
     }
 }

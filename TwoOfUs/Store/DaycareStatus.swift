@@ -41,7 +41,12 @@ enum DaycareStatus {
         func isLive(_ t: Date) -> Bool { t >= dayStart && t <= now }
 
         let candidate: Attendance?
-        if let latest = checks.filter({ isLive($0.timestamp) })
+        // "Home today" markers are not attendance markers — they only hide
+        // the Drop off button. Filtered here so one can never read as a
+        // check-in, and so a Brightwheel event arriving anyway still flips
+        // attendance on through the fallback below (staff logging bottles
+        // overrides a stale "home today").
+        if let latest = checks.filter({ isLive($0.timestamp) && $0.type != .notAttending })
             .max(by: { $0.timestamp < $1.timestamp }) {
             guard latest.type == .checkIn else { return nil }
             candidate = Attendance(since: latest.timestamp, basis: .checkInEvent)

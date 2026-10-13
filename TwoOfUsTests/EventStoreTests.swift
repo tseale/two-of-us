@@ -610,4 +610,28 @@ final class EventStoreTests: XCTestCase {
                        "the write must land on the canonical (lowest-UUID) row")
         XCTAssertNil(rows.first { $0.id == high }?.snooCredentials)
     }
+
+    // MARK: Manual daycare checks
+
+    func testLogCheckAttributesTheTapper() throws {
+        let event = try XCTUnwrap(store.logCheck(.checkIn))
+        XCTAssertEqual(event.type, .checkIn)
+        XCTAssertEqual(event.loggedByName, "Taylor")
+        XCTAssertEqual(event.byName, "Taylor",
+                       "the timeline row's 'Checked in by Taylor' reads byName")
+        XCTAssertNil(event.sourceRaw, "manual = the hand-logged (nil) convention")
+        XCTAssertFalse(event.isFromDaycare)
+        // Undo is a soft delete — the record survives for sync as an update.
+        store.softDelete(event)
+        XCTAssertNotNil(event.deletedAt)
+    }
+
+    func testLogCheckHomeTodayRoundTrips() throws {
+        let event = try XCTUnwrap(store.logCheck(.notAttending))
+        XCTAssertEqual(event.type, .notAttending)
+        store.softDelete(event)        // "actually, taking him in"
+        XCTAssertNotNil(event.deletedAt)
+        store.restore(event)
+        XCTAssertNil(event.deletedAt)
+    }
 }

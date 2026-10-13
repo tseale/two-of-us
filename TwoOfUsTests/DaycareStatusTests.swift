@@ -120,4 +120,38 @@ final class DaycareStatusTests: XCTestCase {
                                 now: today(hour: 18))
         XCTAssertEqual(result?.since, today(hour: 17, minute: 45))
     }
+
+    // MARK: "Home today" markers (manual check-in feature)
+
+    func testHomeTodayMarkerIsNotACheckIn() {
+        // The decode fallback maps unknown raws to .checkIn — the engine
+        // must filter .notAttending before the latest-marker scan.
+        XCTAssertNil(attendance(checks: [(today(hour: 7), .notAttending)],
+                                now: today(hour: 10)))
+    }
+
+    func testBrightwheelEventOverridesHomeToday() {
+        // Staff logging a bottle means he's there, whatever the marker says.
+        let result = attendance(checks: [(today(hour: 7), .notAttending)],
+                                firstEvent: today(hour: 8, minute: 15),
+                                now: today(hour: 10))
+        XCTAssertEqual(result, .init(since: today(hour: 8, minute: 15),
+                                     basis: .firstDaycareEvent))
+    }
+
+    func testManualCheckInAfterHomeTodayWins() {
+        // "Actually, taking him in" without even undoing the marker.
+        let result = attendance(checks: [(today(hour: 7), .notAttending),
+                                         (today(hour: 8), .checkIn)],
+                                now: today(hour: 10))
+        XCTAssertEqual(result?.since, today(hour: 8))
+    }
+
+    func testManualPickupEndsTheDayBeforeTheAssumedClose() {
+        // Requirement: a 4:00 pickup ends daycare mode at 4:00, not 5:30.
+        XCTAssertNil(attendance(
+            checks: [(today(hour: 7, minute: 48), .checkIn),
+                     (today(hour: 16), .checkOut)],
+            now: today(hour: 16, minute: 5)))
+    }
 }
