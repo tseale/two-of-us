@@ -581,6 +581,16 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
                   let eventID = UUID(uuidString: r.recordID.recordName)
             else { continue }
 
+            // Daycare-sourced events reach THIS phone via sync (the other
+            // phone runs the imports) — they ping in daycare style, never as
+            // "<co-parent> fed Miller" (the importer merely stamped their
+            // identity). The importing phone never gets here for them
+            // (loggedBy == myID skips above), so no double notification.
+            if r["sourceRaw"] as? String == EventSource.brightwheel.rawValue {
+                notifyDaycareRecord(r, babyName: babyName)
+                continue
+            }
+
             let senderName = (r["loggedByName"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                 ?? "Your co-parent"
             let photo = participantPhoto(loggedBy)
@@ -629,6 +639,45 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
 
     private func isRecent(_ date: Date) -> Bool {
         abs(date.timeIntervalSinceNow) <= NotificationManager.coParentRecencyWindow
+    }
+
+    /// Daycare pings for Brightwheel-sourced records arriving via sync — the
+    /// NON-importing phone's path to the same notifications the importer
+    /// posts locally. `postDaycareActivity` owns every gate (per-device
+    /// toggle, 10-minute freshness, quiet hours, Focus, dedupe by the same
+    /// externalID the importer uses, so a phone can never double-ping).
+    private func notifyDaycareRecord(_ r: CKRecord, babyName: String) {
+        let dedupe = (r["externalID"] as? String) ?? r.recordID.recordName
+        switch r.recordType {
+        case SyncConstants.RecordType.feed:
+            guard let at = r["timestamp"] as? Date else { return }
+            let oz = r["amountOz"] as? Double ?? 0
+            NotificationManager.postDaycareActivity(
+                dedupeKey: dedupe,
+                body: NotificationManager.DaycareText.feed(babyName, oz: oz), at: at)
+        case SyncConstants.RecordType.diaper:
+            guard let at = r["timestamp"] as? Date else { return }
+            NotificationManager.postDaycareActivity(
+                dedupeKey: dedupe,
+                body: NotificationManager.DaycareText.diaper(babyName), at: at)
+        case SyncConstants.RecordType.sleep:
+            // Daycare naps sync as completed pairs — announce the wake.
+            guard let start = r["startedAt"] as? Date,
+                  let end = r["endedAt"] as? Date else { return }
+            NotificationManager.postDaycareActivity(
+                dedupeKey: dedupe,
+                body: NotificationManager.DaycareText.napEnded(babyName, start: start, end: end),
+                at: end)
+        case SyncConstants.RecordType.media:
+            guard let at = r["timestamp"] as? Date,
+                  (r["kindRaw"] as? String) != MediaKind.video.rawValue else { return }
+            NotificationManager.postDaycareActivity(
+                dedupeKey: dedupe,
+                body: NotificationManager.DaycareText.photo, at: at,
+                photoURLString: r["remoteURL"] as? String)
+        default:
+            break
+        }
     }
 
     private func participantPhoto(_ id: UUID) -> Data? {

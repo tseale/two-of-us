@@ -96,8 +96,12 @@ enum NotificationManager {
             identifier: NotificationID.Category.milestone,
             actions: [], intentIdentifiers: [], options: []
         )
+        let daycare = UNNotificationCategory(
+            identifier: NotificationID.Category.daycare,
+            actions: [], intentIdentifiers: [], options: []
+        )
 
-        center.setNotificationCategories([feed, diaper, scheduleFeed, scheduleSleep, coParent, milestone])
+        center.setNotificationCategories([feed, diaper, scheduleFeed, scheduleSleep, coParent, milestone, daycare])
     }
 
     /// Requests alert + badge authorization (never sound — the app is silent).
@@ -418,6 +422,93 @@ enum NotificationManager {
         try? await interaction.donate()
 
         return try? base.updating(from: intent)
+    }
+
+    // MARK: Daycare activity (Brightwheel)
+
+    /// Daycare notifications only fire for events this fresh — a bulk sync
+    /// (the day's first fetch, a re-install backfill) must not flood the
+    /// lock screen with the whole morning.
+    static let daycareRecencyWindow: TimeInterval = 10 * 60
+
+    /// Whether a daycare event is fresh enough to ping about. Pure for tests;
+    /// a small future tolerance forgives clock skew between the daycare's
+    /// server and the phone.
+    static func isFreshDaycareEvent(_ when: Date, now: Date = .now) -> Bool {
+        now.timeIntervalSince(when) <= daycareRecencyWindow
+            && when.timeIntervalSince(now) <= 60
+    }
+
+    /// The notification bodies, pure and unit-tested. Emoji-led per the
+    /// design spec; the title is always "Daycare", so the bodies skip the
+    /// "at daycare" suffix.
+    enum DaycareText {
+        static func feed(_ babyName: String, oz: Double) -> String {
+            "🍼 \(babyName) had a \(OzFormat.string(oz)) oz bottle"
+        }
+        static func diaper(_ babyName: String) -> String {
+            "💧 Diaper change for \(babyName)"
+        }
+        static func napStarted(_ babyName: String) -> String {
+            "💤 \(babyName) started napping"
+        }
+        /// "napped 1h 30m" — or "slept", past the SleepLanguage crossover,
+        /// so the ping agrees with the timeline row it announces.
+        static func napEnded(_ babyName: String, start: Date, end: Date) -> String {
+            let verb = SleepLanguage.isNap(start: start, end: end) ? "napped" : "slept"
+            return "💤 \(babyName) woke up — \(verb) \(TimeFormatting.duration(from: start, to: end))"
+        }
+        static let photo = "📸 New photo from daycare"
+    }
+
+    /// Posts one quiet daycare ping. Gated on the per-device toggle, demo
+    /// mode, quiet hours, Focus, the 10-minute freshness window, and an
+    /// externalID-keyed dedupe (so the importer on this phone and the sync
+    /// path from the other one can both call in safely). `.passive`
+    /// interruption honors Do Not Disturb and Focus; photo URLs become rich
+    /// attachments, downloaded best-effort.
+    static func postDaycareActivity(dedupeKey: String, body: String, at when: Date,
+                                    photoURLString: String? = nil) {
+        guard prefs.daycareNotificationsEnabled, !prefs.demoModeEnabled else { return }
+        guard isFreshDaycareEvent(when) else { return }
+        guard !isWithinQuietHours(.now), !focusSuppressesPassive else { return }
+        let key = "daycare-\(dedupeKey)"
+        guard !hasPosted(key) else { return }
+        markPosted(key)
+
+        let content = makeContent(
+            title: "Daycare", body: body,
+            category: NotificationID.Category.daycare,
+            threadID: NotificationID.Thread.daycare(day: dayKey(when)),
+            level: .passive, relevanceScore: 0.5
+        )
+        Task {
+            if let photoURLString {
+                content.attachments = await daycarePhotoAttachment(photoURLString)
+            }
+            try? await center.add(UNNotificationRequest(
+                identifier: NotificationID.Request.daycare(dedupeKey),
+                content: content, trigger: nil))
+        }
+    }
+
+    private static func dayKey(_ date: Date) -> String {
+        let c = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return "\(c.year ?? 0)-\(c.month ?? 0)-\(c.day ?? 0)"
+    }
+
+    /// Downloads the photo into a temp file for `UNNotificationAttachment`
+    /// (which requires a local URL). Any failure quietly drops the image —
+    /// the text notification still lands.
+    private static func daycarePhotoAttachment(_ urlString: String) async -> [UNNotificationAttachment] {
+        guard let url = URL(string: urlString),
+              let (data, _) = try? await URLSession.shared.data(from: url) else { return [] }
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("daycare-\(UUID().uuidString).jpg")
+        guard (try? data.write(to: file)) != nil,
+              let attachment = try? UNNotificationAttachment(identifier: "photo", url: file)
+        else { return [] }
+        return [attachment]
     }
 
     // MARK: Notification-action responses

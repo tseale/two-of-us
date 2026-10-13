@@ -28,11 +28,27 @@ import SwiftData
 struct BrightwheelImporter {
     let store: EventStore
     let context: ModelContext
+    /// Real syncs post local notifications for freshly logged events (the
+    /// daycare pings); sample-day loads and tests stay silent — the default.
+    var notifiesNewEvents: Bool = false
 
-    init(context: ModelContext) {
+    init(context: ModelContext, notifiesNewEvents: Bool = false) {
         self.context = context
         self.store = EventStore(context: context)
+        self.notifiesNewEvents = notifiesNewEvents
     }
+
+    /// One daycare ping, when enabled. Freshness, the per-device toggle,
+    /// quiet hours, Focus, and dedupe all live in `NotificationManager`.
+    private func notifyDaycare(_ body: String, at when: Date,
+                               dedupe: String?, photoURL: String? = nil) {
+        guard notifiesNewEvents else { return }
+        NotificationManager.postDaycareActivity(
+            dedupeKey: dedupe ?? UUID().uuidString, body: body, at: when,
+            photoURLString: photoURL)
+    }
+
+    private var babyName: String { store.baby?.name ?? "Baby" }
 
     struct Summary: Equatable {
         var feeds = 0
@@ -138,6 +154,8 @@ struct BrightwheelImporter {
         if store.logMedia(.photo, at: when, caption: activity.note, remoteURL: url,
                           source: .brightwheel, externalID: id) != nil {
             summary.media += 1
+            notifyDaycare(NotificationManager.DaycareText.photo, at: when,
+                          dedupe: id, photoURL: url)
         }
     }
 
@@ -188,6 +206,8 @@ struct BrightwheelImporter {
                                        notes: activity.note ?? startNote,
                                        source: .brightwheel, externalID: id) != nil {
                 summary.sleeps += 1
+                notifyDaycare(NotificationManager.DaycareText.napEnded(babyName, start: startWhen, end: when),
+                              at: when, dedupe: id)
             }
         case nil:
             summary.skippedUnmapped += 1
@@ -234,6 +254,8 @@ struct BrightwheelImporter {
                 if store.logFeed(amountOz: oz, at: when, notes: activity.note,
                                  source: .brightwheel, externalID: id) != nil {
                     summary.feeds += 1
+                    notifyDaycare(NotificationManager.DaycareText.feed(babyName, oz: oz),
+                                  at: when, dedupe: id)
                 }
             } else if store.logNote(mealText(activity), at: when,
                                     source: .brightwheel, externalID: id) != nil {
@@ -246,6 +268,8 @@ struct BrightwheelImporter {
                 if store.logDiaper(type, at: when, notes: activity.note,
                                    source: .brightwheel, externalID: id) != nil {
                     summary.diapers += 1
+                    notifyDaycare(NotificationManager.DaycareText.diaper(babyName),
+                                  at: when, dedupe: id)
                 }
             } else if store.logNote(noteText("Diaper check — dry", activity.note), at: when,
                                     source: .brightwheel, externalID: id) != nil {

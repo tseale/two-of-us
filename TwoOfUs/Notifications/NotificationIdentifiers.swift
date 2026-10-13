@@ -16,6 +16,8 @@ enum NotificationID {
         /// Informational "the other parent just logged something" notifications.
         static let coParent = "COPARENT"
         static let milestone = "MILESTONE"
+        /// Informational "the daycare just logged something" notifications.
+        static let daycare = "DAYCARE"
     }
 
     /// Action buttons. Logging actions run in the background (no `.foreground`)
@@ -34,6 +36,7 @@ enum NotificationID {
         static let diaperReminder = "reminder.diaper"
         static let dailyMilestone = "milestone.daily"
         static func coParent(_ key: String) -> String { "coparent.\(key)" }
+        static func daycare(_ key: String) -> String { "daycare.\(key)" }
         /// Namespace for every schedule reminder (per-occurrence + snooze), so a
         /// re-arm can sweep them all without knowing which nights were pending.
         static let schedulePrefix = "schedule."
@@ -50,5 +53,8 @@ enum NotificationID {
         static let sleep = "thread.sleep"
         static let milestone = "thread.milestone"
         static let schedule = "thread.schedule"
+        /// Daycare events group per DAY, so a busy morning stacks into one
+        /// lock-screen bundle instead of a flood.
+        static func daycare(day: String) -> String { "thread.daycare.\(day)" }
     }
 }
