@@ -142,7 +142,7 @@ struct HomeView: View {
                                 showSleep: isTracked(.sleep),
                                 showDiaper: isTracked(.diaper),
                                 checkinSlot: checkinSlot(now: ctx.date, attendance: attendance),
-                                onDropOff: { logCheck(.checkIn, toast: "Off to daycare") },
+                                onDropOff: { logCheck(.checkIn, toast: "Dropped off") },
                                 onPickUp: { logCheck(.checkOut, toast: "Picked up") },
                                 onHomeToday: { logCheck(.notAttending, toast: "Staying home today") },
                                 onUndoHomeToday: undoHomeToday

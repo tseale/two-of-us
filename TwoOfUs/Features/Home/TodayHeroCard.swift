@@ -429,7 +429,7 @@ struct TodayHeroCard: View {
         case .dropOff:
             GlassEffectContainer(spacing: 12) {
                 HStack(spacing: 12) {
-                    checkButton("🎒", "Off to daycare", action: onDropOff)
+                    checkButton("🎒", "Dropped off", action: onDropOff)
                         .accessibilityHint("Logs the daycare drop-off right now")
                     checkButton("🏡", "Staying home", action: onHomeToday)
                         .accessibilityHint("No daycare today — hides these buttons")
