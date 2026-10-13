@@ -723,7 +723,7 @@ private struct DayFlowStrip: View {
                         ctx.stroke(path, with: .color(DaycareZoneStyle.base.opacity(0.4)), lineWidth: 1.5)
                         let glyph = ctx.resolve(Text(Image(systemName: "building.2.fill"))
                             .font(.system(size: 7, weight: .semibold))
-                            .foregroundStyle(AppColor.text2))
+                            .foregroundStyle(DaycareZoneStyle.base))
                         ctx.draw(glyph, at: CGPoint(x: rect.minX + 8, y: rect.midY), anchor: .center)
                     }
 
