@@ -137,38 +137,25 @@ struct TodayHeroCard: View {
                              liveNapStartedAt: liveNapStartedAt,
                              glowStart: sleepingSince, now: now)
                     .frame(height: 62)
-                // Natural-width columns with flexible gaps, NOT equal thirds:
-                // forced into a third, "33.75 oz" overflows and the whole
-                // concatenated value scales down — the digits must never
-                // render below their display size just because oz-and-a-half
-                // of decimals showed up.
-                HStack(alignment: .top, spacing: 12) {
-                    if showFeed {
-                        totalColumn(.feed,
-                                    active: feedCount > 0,
-                                    segments: feedCount > 0
-                                        ? [(OzFormat.string(feedOz), false), (" oz", true)]
-                                        : [("—", false)],
-                                    caption: feedCount > 0 ? Plural.count(feedCount, "feed") : "no feeds yet")
-                        if showDiaper || showSleep { Spacer(minLength: 12) }
+                // Tiered sizing, never truncation: minimumScaleFactor does
+                // NOT reliably scale a concatenated multi-font Text — it
+                // truncates ("10 diape…", the TestFlight bug) — so the rigid
+                // tiers measure every value at its TRUE width and ViewThatFits
+                // steps the whole row down together (36 → 31) when a long day
+                // or a large Dynamic Type setting overflows. The last tier is
+                // flexible so something always fits.
+                ViewThatFits(in: .horizontal) {
+                    totalsRow(valueSize: 36, rigid: true)
+                    totalsRow(valueSize: 31, rigid: true)
+                    totalsRow(valueSize: 27, rigid: true)
+                    totalsRow(valueSize: 23, rigid: true)
+                    // The floor, for accessibility text sizes: the three
+                    // stats stack vertically — still full-size, still whole,
+                    // never truncated.
+                    VStack(alignment: .leading, spacing: 10) {
+                        totalsColumns(valueSize: 27, rigid: true)
                     }
-                    if showDiaper {
-                        totalColumn(.diaper,
-                                    active: diaperCount > 0,
-                                    segments: diaperCount > 0
-                                        ? [("\(diaperCount)", false),
-                                           (diaperCount == 1 ? " diaper" : " diapers", true)]
-                                        : [("—", false)],
-                                    caption: diaperCaption)
-                        if showSleep { Spacer(minLength: 12) }
-                    }
-                    if showSleep {
-                        totalColumn(.sleep,
-                                    active: sleepingSince != nil || sleepSeconds > 0,
-                                    segments: sleepSegments,
-                                    caption: "sleep",
-                                    liveSleep: sleepingSince != nil)
-                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -228,16 +215,73 @@ struct TodayHeroCard: View {
 
     /// One value as (text, isUnit) segments: digits at display scale, units
     /// ("oz", "diapers", the h/m inside a duration) in the small rounded
-    /// style — concatenated Text so the mix shares one baseline and scales
-    /// down as a unit when the column is tight.
-    private func valueText(_ segments: [(String, Bool)], active: Bool, accent: Color) -> Text {
+    /// style — concatenated Text so the mix shares one baseline.
+    private func valueText(_ segments: [(String, Bool)], active: Bool, accent: Color,
+                           size: CGFloat) -> Text {
         segments.map { text, isUnit in
             Text(text)
                 .font(isUnit ? .system(.callout, design: .rounded).weight(.semibold)
-                             : AppFont.display(36))
+                             : AppFont.display(size))
                 .foregroundStyle(active ? (isUnit ? accent.opacity(0.7) : accent)
                                         : AppColor.text3)
         }.reduce(Text(""), +)
+    }
+
+    /// One size tier of the totals row: natural-width columns, flexible gaps.
+    /// Rigid tiers hold their true width (no shrink, no truncation) so
+    /// ViewThatFits can measure them honestly.
+    private func totalsRow(valueSize: CGFloat, rigid: Bool) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            if showFeed {
+                feedColumn(valueSize: valueSize, rigid: rigid)
+                if showDiaper || showSleep { Spacer(minLength: 12) }
+            }
+            if showDiaper {
+                diaperColumn(valueSize: valueSize, rigid: rigid)
+                if showSleep { Spacer(minLength: 12) }
+            }
+            if showSleep {
+                sleepColumn(valueSize: valueSize, rigid: rigid)
+            }
+        }
+    }
+
+    /// The same three columns bare, for the stacked accessibility floor.
+    @ViewBuilder
+    private func totalsColumns(valueSize: CGFloat, rigid: Bool) -> some View {
+        if showFeed { feedColumn(valueSize: valueSize, rigid: rigid) }
+        if showDiaper { diaperColumn(valueSize: valueSize, rigid: rigid) }
+        if showSleep { sleepColumn(valueSize: valueSize, rigid: rigid) }
+    }
+
+    private func feedColumn(valueSize: CGFloat, rigid: Bool) -> some View {
+        totalColumn(.feed,
+                    active: feedCount > 0,
+                    segments: feedCount > 0
+                        ? [(OzFormat.string(feedOz), false), (" oz", true)]
+                        : [("—", false)],
+                    caption: feedCount > 0 ? Plural.count(feedCount, "feed") : "no feeds yet",
+                    valueSize: valueSize, rigid: rigid)
+    }
+
+    private func diaperColumn(valueSize: CGFloat, rigid: Bool) -> some View {
+        totalColumn(.diaper,
+                    active: diaperCount > 0,
+                    segments: diaperCount > 0
+                        ? [("\(diaperCount)", false),
+                           (diaperCount == 1 ? " diaper" : " diapers", true)]
+                        : [("—", false)],
+                    caption: diaperCaption,
+                    valueSize: valueSize, rigid: rigid)
+    }
+
+    private func sleepColumn(valueSize: CGFloat, rigid: Bool) -> some View {
+        totalColumn(.sleep,
+                    active: sleepingSince != nil || sleepSeconds > 0,
+                    segments: sleepSegments,
+                    caption: "sleep",
+                    valueSize: valueSize, rigid: rigid,
+                    liveSleep: sleepingSince != nil)
     }
 
     /// Whole-day sleep as segments — "8h 20m" with the h/m styled like the
@@ -256,15 +300,17 @@ struct TodayHeroCard: View {
 
     private func totalColumn(_ stat: Stat, active: Bool,
                              segments: [(String, Bool)], caption: String,
+                             valueSize: CGFloat, rigid: Bool,
                              liveSleep: Bool = false) -> some View {
         VStack(spacing: 2) {
             // No emoji here: the strip above already tells each event's story
             // in glyphs, and the accent-inked numeral + caption identify the
             // stat on their own. The numbers get the whole stage. (Glance
             // values are display-scale — the type ramp's rule #1.)
-            valueText(segments, active: active, accent: accent(for: stat))
+            valueText(segments, active: active, accent: accent(for: stat), size: valueSize)
                 .lineLimit(1)
-                .minimumScaleFactor(0.55)
+                .fixedSize(horizontal: rigid, vertical: false)
+                .minimumScaleFactor(rigid ? 1 : 0.7)
                 .scaleEffect(popped.contains(stat) ? 1.12 : 1)
                 .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.55),
                            value: popped)
