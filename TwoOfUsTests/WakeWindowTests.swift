@@ -184,8 +184,15 @@ final class WakeWindowTests: XCTestCase {
         XCTAssertEqual(WakeWindow.shortLabel(2 * 3600), "2h")
     }
 
+    /// A local wall-clock date — the hint's noun is day/night-aware
+    /// (SleepLanguage), so the tests pin the hour explicitly.
+    private func localDate(hour: Int) -> Date {
+        Calendar.current.date(from: DateComponents(
+            year: 2026, month: 2, day: 2, hour: hour))!
+    }
+
     func testNapHintShowsTheWindowItAssumed() {
-        let woke = Date(timeIntervalSince1970: 1_770_000_000)
+        let woke = localDate(hour: 10)   // projects to 11:30 AM — a nap
         let hint = WakeWindow.napHint(lastWake: woke, target: 90 * minute,
                                       now: woke.addingTimeInterval(10 * minute))
         XCTAssertTrue(hint.hasPrefix("next nap ~"), hint)
@@ -193,10 +200,17 @@ final class WakeWindowTests: XCTestCase {
     }
 
     func testNapHintFlipsToOverdue() {
-        let woke = Date(timeIntervalSince1970: 1_770_000_000)
+        let woke = localDate(hour: 8)    // was due 9:30 AM, it's 10 AM
         let hint = WakeWindow.napHint(lastWake: woke, target: 90 * minute,
                                       now: woke.addingTimeInterval(2 * 3600))
         XCTAssertTrue(hint.hasPrefix("nap was due ~"), hint)
+    }
+
+    func testNapHintCallsAnEveningProjectionSleep() {
+        let woke = localDate(hour: 19)   // projects to 8:30 PM — bedtime
+        let hint = WakeWindow.napHint(lastWake: woke, target: 90 * minute,
+                                      now: woke.addingTimeInterval(10 * minute))
+        XCTAssertTrue(hint.hasPrefix("next sleep ~"), hint)
     }
 
     func testNapHintWithNoHistory() {

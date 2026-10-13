@@ -143,6 +143,7 @@ targets:
       # needs it too.
       - path: TwoOfUs/Store/NightScheduleGenerator.swift
       - path: TwoOfUs/Store/WakeWindow.swift
+      - path: TwoOfUs/Store/SleepLanguage.swift
       - path: TwoOfUs/Support/AppGroup.swift
       - path: TwoOfUs/DesignSystem/Colors.swift
       - path: TwoOfUs/DesignSystem/Typography.swift
@@ -220,6 +221,7 @@ targets:
       - path: TwoOfUs/Store/Schema.swift
       - path: TwoOfUs/Store/NightScheduleGenerator.swift
       - path: TwoOfUs/Store/WakeWindow.swift
+      - path: TwoOfUs/Store/SleepLanguage.swift
       - path: TwoOfUs/Support/AppGroup.swift
       - path: TwoOfUs/Support/AppLog.swift
       - path: TwoOfUs/DesignSystem/TimeFormatting.swift
@@ -305,6 +307,7 @@ targets:
       # target compiling SharedSettings.swift needs it too.
       - path: TwoOfUs/Store/NightScheduleGenerator.swift
       - path: TwoOfUs/Store/WakeWindow.swift
+      - path: TwoOfUs/Store/SleepLanguage.swift
       # Tonight's dynamic schedule (Next Feed / Night Shift complications):
       # NightSchedule computes who's up next; ScheduleEngine carries
       # ScheduleOccurrence and the dayKey/materialize helpers it leans on.
@@ -377,6 +380,7 @@ targets:
       # needs it too.
       - path: TwoOfUs/Store/NightScheduleGenerator.swift
       - path: TwoOfUs/Store/WakeWindow.swift
+      - path: TwoOfUs/Store/SleepLanguage.swift
       - path: TwoOfUs/Support/AppGroup.swift
       - path: TwoOfUs/DesignSystem/Colors.swift
       - path: TwoOfUs/DesignSystem/Typography.swift

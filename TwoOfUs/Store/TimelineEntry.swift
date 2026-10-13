@@ -227,7 +227,10 @@ enum TimelineEntry: Identifiable {
             return OzFormat.string(e.amountOz) + " oz"
         case .sleep(let e):
             if let end = e.endedAt {
-                return "Sleep · " + TimeFormatting.duration(from: e.startedAt, to: end)
+                // "Nap · 45m" by day, "Sleep · 6h 8m" at night or past the
+                // 2h crossover — SleepLanguage decides, same as the live rows.
+                return "\(SleepLanguage.noun(start: e.startedAt, end: end)) · "
+                    + TimeFormatting.duration(from: e.startedAt, to: end)
             } else {
                 return "Sleep · in progress"
             }

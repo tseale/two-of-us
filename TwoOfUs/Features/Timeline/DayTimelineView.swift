@@ -92,13 +92,13 @@ struct DayTimelineRow: View {
 
     /// Completed events use their static title; a running sleep counts up
     /// live, minutes only ("Napping · 43m") — a seconds ticker is noise at
-    /// the timeline's altitude, so the minute schedule replaces the old
-    /// seconds-bearing relative style.
+    /// the timeline's altitude. SleepLanguage picks the word, so a night
+    /// stretch or a 2h+ marathon reads "Sleeping".
     @ViewBuilder
     private var titleText: some View {
         if case .sleep(let e) = entry, e.isActive {
             TimelineView(.everyMinute) { ctx in
-                Text("Napping · \(TimeFormatting.duration(from: e.startedAt, to: ctx.date))")
+                Text("\(SleepLanguage.gerund(start: e.startedAt, now: ctx.date).capitalized) · \(TimeFormatting.duration(from: e.startedAt, to: ctx.date))")
                     .monospacedDigit()
             }
         } else {
@@ -137,7 +137,7 @@ struct DayTimelineRow: View {
         if case .sleep(let e) = entry, let end = e.endedAt {
             label = "\(entry.title), from \(TimeFormatting.clock(e.startedAt)) to \(TimeFormatting.clock(end))"
         } else if case .sleep(let e) = entry, e.isActive {
-            label = "Napping since \(TimeFormatting.clock(e.startedAt)), "
+            label = "\(SleepLanguage.gerund(start: e.startedAt).capitalized) since \(TimeFormatting.clock(e.startedAt)), "
                 + "\(TimeFormatting.duration(from: e.startedAt, to: .now)) so far"
         } else {
             label = "\(entry.title), \(TimeFormatting.clock(entry.sortDate))"
@@ -243,7 +243,7 @@ struct LiveDaycareNapRow: View {
                 .frame(width: 16)
                 HStack(spacing: 8) {
                     Text("💤").font(.callout)
-                    Text("Napping · \(TimeFormatting.duration(from: start, to: ctx.date))")
+                    Text("\(SleepLanguage.gerund(start: start, now: ctx.date).capitalized) · \(TimeFormatting.duration(from: start, to: ctx.date))")
                         .monospacedDigit()
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppColor.text)
@@ -255,7 +255,7 @@ struct LiveDaycareNapRow: View {
             .frame(minHeight: 46)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Napping at daycare since \(TimeFormatting.clock(start))")
+        .accessibilityLabel("\(SleepLanguage.gerund(start: start).capitalized) at daycare since \(TimeFormatting.clock(start))")
     }
 
     /// Same square-root growth curve as DayTimelineRow's sleep capsule.

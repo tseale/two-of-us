@@ -636,7 +636,7 @@ struct HomeView: View {
     private var lastNapDetail: TileDetail? {
         guard let last = sleeps.first(where: { $0.endedAt != nil }),
               let end = last.endedAt else { return nil }
-        return TileDetail(label: "last nap",
+        return TileDetail(label: "last \(SleepLanguage.noun(start: last.startedAt, end: end).lowercased())",
                           value: TimeFormatting.duration(from: last.startedAt, to: end))
     }
 

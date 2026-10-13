@@ -110,7 +110,7 @@ struct NotificationCardView: View {
 
     private func sleepStatus(_ l: QuickLogger) -> String {
         if let active = l.activeSleep {
-            return "asleep \(TimeFormatting.since(active.startedAt))"
+            return "\(SleepLanguage.gerund(start: active.startedAt)) \(TimeFormatting.since(active.startedAt))"
         }
         if let last = l.lastEndedSleep, let ended = last.endedAt {
             return "awake \(TimeFormatting.since(ended))"

@@ -185,9 +185,13 @@ struct SmallEventWidgetView: View {
         kind == .sleep && entry.isActiveSleep && entry.activeSleepStartedAt != nil
     }
 
-    /// Tile title, matching the app's `LogButtons` labels.
+    /// Tile title, matching the app's `LogButtons` labels. A running sleep's
+    /// word follows SleepLanguage ("Napping" by day, "Sleeping" at night or
+    /// past 2h) — refreshed with the widget timeline, so close enough.
     private var title: String {
-        if showingActiveSleep { return "Sleeping" }
+        if showingActiveSleep, let start = entry.activeSleepStartedAt {
+            return SleepLanguage.gerund(start: start).capitalized
+        }
         switch kind {
         case .feed:   return "Feed"
         case .sleep:  return "Sleep"
@@ -255,7 +259,9 @@ struct SmallEventWidgetView: View {
 
     /// Eyebrow above the value on the lock-screen accessory.
     private var lockCaption: String {
-        if showingActiveSleep { return "sleeping now" }
+        if showingActiveSleep, let start = entry.activeSleepStartedAt {
+            return "\(SleepLanguage.gerund(start: start)) now"
+        }
         switch kind {
         case .feed:   return "last feed"
         case .sleep:  return "last sleep"

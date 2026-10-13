@@ -26,8 +26,14 @@ struct SleepActiveCard: View {
         openURL(BabyCamLink.destination { UIApplication.shared.canOpenURL($0) })
     }
 
+    /// "napping" by day, "sleeping" by night or past the nap crossover —
+    /// SleepLanguage keeps this card's word in step with the hero and rows.
+    private var gerund: String {
+        SleepLanguage.gerund(start: sleep.startedAt, now: now)
+    }
+
     private var statusLabel: String {
-        var label = "\(babyName) is sleeping, \(elapsed), since \(TimeFormatting.clock(sleep.startedAt))\(sleep.isFromSnoo ? ", from SNOO" : "")"
+        var label = "\(babyName) is \(gerund), \(elapsed), since \(TimeFormatting.clock(sleep.startedAt))\(sleep.isFromSnoo ? ", from SNOO" : "")"
         if let predictedWake {
             label += ", predicted wake around \(TimeFormatting.clock(predictedWake))"
         }
@@ -37,7 +43,7 @@ struct SleepActiveCard: View {
     @ViewBuilder
     private var statusContent: some View {
         Text("💤").font(.system(size: 34))
-        Text("\(babyName.uppercased()) IS SLEEPING")
+        Text("\(babyName.uppercased()) IS \(gerund.uppercased())")
             .sectionLabelStyle(color: AppColor.accentSleep)
         Text(elapsed)
             .font(AppFont.display(48, weight: .heavy))

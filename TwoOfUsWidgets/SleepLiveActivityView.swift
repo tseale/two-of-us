@@ -325,7 +325,7 @@ struct SleepLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.center) {
                     VStack(spacing: 1) {
-                        Text("\(context.attributes.babyName) is sleeping")
+                        Text("\(context.attributes.babyName) is \(SleepLanguage.gerund(start: context.state.startedAt))")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)

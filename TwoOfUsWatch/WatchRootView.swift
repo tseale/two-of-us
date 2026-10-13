@@ -406,7 +406,7 @@ private struct ActiveSleepRow: View {
                 HStack(spacing: 4) {
                     Text("💤")
                         .font(.caption)
-                    Text("\(babyName) is sleeping")
+                    Text("\(babyName) is \(SleepLanguage.gerund(start: startedAt))")
                         .sectionLabelStyle(color: AppColor.accentSleep)
                 }
                 Text(timerInterval: startedAt...Date.distantFuture, countsDown: false)
@@ -425,7 +425,7 @@ private struct ActiveSleepRow: View {
             .padding(.vertical, 6)
         }
         .listRowBackground(tintedCard(AppColor.accentSleep))
-        .accessibilityLabel("\(babyName) is sleeping, since \(TimeFormatting.clock(startedAt))")
+        .accessibilityLabel("\(babyName) is \(SleepLanguage.gerund(start: startedAt)), since \(TimeFormatting.clock(startedAt))")
         .accessibilityHint("Asks to confirm before ending the sleep session")
     }
 }

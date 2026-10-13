@@ -88,7 +88,7 @@ struct WidgetMetricColumns: View {
     /// The sleep column becomes a live counting timer while a sleep runs.
     @ViewBuilder private var sleepColumn: some View {
         if entry.isActiveSleep, let started = entry.activeSleepStartedAt {
-            column(emoji: "💤", label: "sleeping",
+            column(emoji: "💤", label: SleepLanguage.gerund(start: started),
                    value: Text(started, style: .timer),
                    urgency: .green, labelColor: AppColor.accentSleep)
         } else {

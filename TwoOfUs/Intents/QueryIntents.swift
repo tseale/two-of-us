@@ -64,7 +64,7 @@ struct SleepStatusIntent: AppIntent {
         let name = logger.babyName ?? "Baby"
         if let started = logger.activeSleep?.startedAt {
             let dur = TimeFormatting.duration(from: started, to: .now)
-            return .result(dialog: "\(name) has been asleep for \(dur), since \(TimeFormatting.clock(started)).")
+            return .result(dialog: "\(name) has been \(SleepLanguage.gerund(start: started)) for \(dur), since \(TimeFormatting.clock(started)).")
         }
         if let last = logger.lastEndedSleep, let end = last.endedAt {
             return .result(dialog: "\(name) is awake. The last sleep ended \(TimeFormatting.since(end)) ago.")
