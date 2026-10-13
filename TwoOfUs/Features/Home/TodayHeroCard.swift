@@ -417,20 +417,23 @@ struct TodayHeroCard: View {
 
     // MARK: Manual check slot
 
-    /// The one-tap drop-off/pick-up row. Gray glass, like the strip's zone
-    /// and the Daycare disc — daycare is a place, not an event, so the
-    /// buttons stay out of the accent families. Drop off and Home today
-    /// carry equal weight, side by side.
+    /// The one-tap drop-off/pick-up row: twin glass capsules in one
+    /// GlassEffectContainer (they read as a liquid pair, like the log
+    /// tiles), tinted a whisper of the daycare gray — a place, not an
+    /// event, so they stay out of the accent families. The wording keeps
+    /// the app's storybook voice: the morning ritual, not a transaction.
     @ViewBuilder private var checkSlot: some View {
         switch checkinSlot {
         case .hidden:
             EmptyView()
         case .dropOff:
-            HStack(spacing: 12) {
-                checkButton("🏫", "Drop off", action: onDropOff)
-                    .accessibilityHint("Logs a daycare drop-off right now")
-                checkButton("🏡", "Home today", action: onHomeToday)
-                    .accessibilityHint("No daycare today — hides these buttons")
+            GlassEffectContainer(spacing: 12) {
+                HStack(spacing: 12) {
+                    checkButton("🎒", "Off to daycare", action: onDropOff)
+                        .accessibilityHint("Logs the daycare drop-off right now")
+                    checkButton("🏡", "Staying home", action: onHomeToday)
+                        .accessibilityHint("No daycare today — hides these buttons")
+                }
             }
         case .pickUp:
             checkButton("🚗", "Pick up", action: onPickUp)
@@ -438,7 +441,7 @@ struct TodayHeroCard: View {
         case .homeToday:
             HStack(spacing: 5) {
                 Text("🏡").font(.caption)
-                Text("home today")
+                Text("staying home")
                     .font(.caption)
                     .foregroundStyle(AppColor.text2)
                 Button { onUndoHomeToday?() } label: {
@@ -449,7 +452,7 @@ struct TodayHeroCard: View {
                         .padding(.horizontal, 2)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Undo home today")
+                .accessibilityLabel("Undo staying home")
                 .accessibilityHint("Shows the drop-off button again")
                 Spacer(minLength: 0)
             }
@@ -459,14 +462,20 @@ struct TodayHeroCard: View {
     private func checkButton(_ emoji: String, _ title: String,
                              action: (() -> Void)?) -> some View {
         Button { action?(); Haptics.tap() } label: {
-            HStack(spacing: 6) {
-                Text(emoji).font(.callout)
-                Text(title).font(.subheadline.weight(.semibold))
+            HStack(spacing: 7) {
+                Text(emoji).font(.body)
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 11)
-            .glassTile(cornerRadius: 14, tint: AppColor.text2)
-            .contentShape(.rect(cornerRadius: 14))
+            .padding(.vertical, 13)
+            // A whisper of the daycare gray through true-capsule glass —
+            // the surface glows through instead of painting a slab.
+            .glassEffect(.regular.tint(AppColor.text2.opacity(0.1)).interactive(),
+                         in: Capsule())
+            .contentShape(Capsule())
             .foregroundStyle(AppColor.text)
         }
         .buttonStyle(PressableTileStyle())
