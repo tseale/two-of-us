@@ -145,10 +145,10 @@ struct TodayHeroCard: View {
                 // or a large Dynamic Type setting overflows. The last tier is
                 // flexible so something always fits.
                 ViewThatFits(in: .horizontal) {
-                    totalsRow(valueSize: 32, rigid: true)
                     totalsRow(valueSize: 28, rigid: true)
-                    totalsRow(valueSize: 24, rigid: true)
-                    totalsRow(valueSize: 21, rigid: true)
+                    totalsRow(valueSize: 25, rigid: true)
+                    totalsRow(valueSize: 22, rigid: true)
+                    totalsRow(valueSize: 19, rigid: true)
                     // The floor, for accessibility text sizes: the three
                     // stats stack vertically — still full-size, still whole,
                     // never truncated.
