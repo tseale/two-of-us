@@ -189,12 +189,14 @@ struct HomeView: View {
                             // has a schedule; daytime keeps the one-line up-next.
                             switch nightState(now: ctx.date) {
                             case .active, .approaching:
+                                // Never while he's at daycare — the nighttime
+                                // roster waits for pickup. Once every slot is
+                                // settled (the 7:58 AM all-checkmarks state),
+                                // the card is a finished checklist — hidden
+                                // until the next evening's run-up.
                                 let tonight = tonightOccurrences(now: ctx.date)
-                                // Once every slot is settled (the 7:58 AM
-                                // all-checkmarks state), the card is a finished
-                                // checklist — hide it until the next evening's
-                                // run-up puts fresh slots on the roster.
-                                if NightSchedule.hasRemainingBusiness(tonight) {
+                                if attendance == nil,
+                                   NightSchedule.hasRemainingBusiness(tonight) {
                                     tonightCard(tonight, now: ctx.date)
                                 }
                             case .day, nil:
