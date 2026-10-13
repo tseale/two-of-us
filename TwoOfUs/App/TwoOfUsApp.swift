@@ -81,11 +81,14 @@ struct TwoOfUsApp: App {
         }
         // Dev-only: `-seedCheckedIn` logs a manual 7:51 AM drop-off, landing
         // Home mid-attendance (the Pick up state) at any later hour.
+        // `-seedCheckedInMinutesAgo N` places it N minutes ago instead, so the
+        // check-in row tops the timeline in a headless screenshot.
         if ProcessInfo.processInfo.arguments.contains("-seedCheckedIn") {
             let ctx = realContainer.mainContext
             let baby = try? ctx.fetch(FetchDescriptor<Baby>()).first
-            let at = Calendar.current.date(bySettingHour: 7, minute: 51,
-                                           second: 0, of: .now) ?? .now
+            let minutesAgo = UserDefaults.standard.string(forKey: "seedCheckedInMinutesAgo").flatMap(Int.init)
+            let at = minutesAgo.map { Date.now.addingTimeInterval(-Double($0) * 60) }
+                ?? Calendar.current.date(bySettingHour: 7, minute: 51, second: 0, of: .now) ?? .now
             ctx.insert(CheckEvent(baby: baby, type: .checkIn, timestamp: at,
                                   byName: "Taylor",
                                   loggedByID: UUID(), loggedByName: "Taylor",

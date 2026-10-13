@@ -661,7 +661,7 @@ struct TodayHeroCard: View {
 /// over warm gold — apart from every event accent, so the lavender nap
 /// lozenges read cleanly inside the span.
 private enum DaycareZoneStyle {
-    static let base = Color(red: 56 / 255, green: 135 / 255, blue: 220 / 255)
+    static let base = AppColor.accentCheck
     static let fillOpacity = 0.12
 }
 

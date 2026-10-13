@@ -78,7 +78,10 @@ enum AppColor {
     // (a note is a note, whoever wrote it).
     static let accentActivity   = Color(hex: "7FB2FF")   // blue
     static let accentMedia      = Color(hex: "9C9CA4")   // gray — photos speak for themselves
-    static let accentCheck      = Color(hex: "4EC9D9")   // teal-cyan, apart from feed's teal-green
+    /// Daycare blue — check-in/out dots, the strip's daycare zone, and the
+    /// Daycare disc all wear it, so "daycare" reads as one system. (Was a
+    /// teal-cyan that sat indistinguishably close to feed's teal-green.)
+    static let accentCheck      = Color(hex: "3887DC")
     static let accentMedication = Color(hex: "FF6B6B")   // red — the one row that demands attention
     static let accentHealth     = Color(hex: "5AD17E")   // mint
     static let accentMood       = Color(hex: "FF8FA3")   // soft pink
