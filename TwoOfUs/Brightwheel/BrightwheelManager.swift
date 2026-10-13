@@ -136,9 +136,18 @@ final class BrightwheelManager {
                 cookie: session.cookie, studentID: session.studentID, day: .now)
             // The remembered live-nap start rescues a wake-up whose start
             // never re-appears in the batch (see importNapHalf).
-            let summary = BrightwheelImporter(context: context)
+            let previousNapStart = liveNapStartedAt
+            let summary = BrightwheelImporter(context: context, notifiesNewEvents: true)
                 .importActivities(activities, carriedNapStart: liveNapStartedAt)
             liveNapStartedAt = summary.openNapStartedAt
+            // A nap START isn't an event yet (the pair persists at wake), so
+            // its ping fires here, the moment the live indicator first sees it.
+            if let start = summary.openNapStartedAt, start != previousNapStart {
+                let name = (try? context.fetch(FetchDescriptor<Baby>()))?.first?.name ?? "Baby"
+                NotificationManager.postDaycareActivity(
+                    dedupeKey: "napstart-\(Int(start.timeIntervalSince1970))",
+                    body: NotificationManager.DaycareText.napStarted(name), at: start)
+            }
             markSynced()
             if summary.imported > 0 {
                 AppLog.store.info("Brightwheel: imported \(summary.imported) event(s)")
