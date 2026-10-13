@@ -436,7 +436,7 @@ struct TodayHeroCard: View {
                 }
             }
         case .pickUp:
-            checkButton("🚗", "Pick up", action: onPickUp)
+            checkButton("🚗", "Picked up", action: onPickUp)
                 .accessibilityHint("Logs the daycare pick-up right now")
         case .homeToday:
             HStack(spacing: 5) {
