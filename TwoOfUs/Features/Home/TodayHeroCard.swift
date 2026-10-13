@@ -491,7 +491,7 @@ struct TodayHeroCard: View {
     private var bottomSection: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 9) {
-                iconDisc("building.2.fill", tint: AppColor.text2)
+                iconDisc("building.2.fill", tint: DaycareZoneStyle.base, bordered: true)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Daycare")
                         .font(.footnote.weight(.semibold))
@@ -568,9 +568,16 @@ struct TodayHeroCard: View {
                              : parts.joined(separator: " · ")
     }
 
-    private func iconDisc(_ systemImage: String, tint: Color) -> some View {
+    /// `bordered` mirrors the strip's daycare-zone treatment (fill + 1.5pt
+    /// ring) so the Daycare disc and the zone read as one connected system.
+    private func iconDisc(_ systemImage: String, tint: Color,
+                          bordered: Bool = false) -> some View {
         ZStack {
             Circle().fill(tint.opacity(0.13)).frame(width: 26, height: 26)
+            if bordered {
+                Circle().strokeBorder(tint.opacity(0.4), lineWidth: 1.5)
+                    .frame(width: 26, height: 26)
+            }
             Image(systemName: systemImage)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(tint)
@@ -716,7 +723,7 @@ private struct DayFlowStrip: View {
                         ctx.stroke(path, with: .color(DaycareZoneStyle.base.opacity(0.4)), lineWidth: 1.5)
                         let glyph = ctx.resolve(Text(Image(systemName: "building.2.fill"))
                             .font(.system(size: 7, weight: .semibold))
-                            .foregroundStyle(AppColor.text2))
+                            .foregroundStyle(DaycareZoneStyle.base))
                         ctx.draw(glyph, at: CGPoint(x: rect.minX + 8, y: rect.midY), anchor: .center)
                     }
 
