@@ -185,16 +185,17 @@ struct TodayHeroCard: View {
         .padding(16)
         .background {
             // The storybook wash, as a sunrise band: the three event accents
-            // (teal → lavender → warm peach) across the top of the card,
-            // fading out by mid-height so the body stays the standard card
-            // surface — special at a glance, calm where the numbers live.
+            // across the top of the card in the totals' own order (feed teal
+            // → diaper peach → sleep lavender), fading out high so the body
+            // stays the standard card surface — special at a glance, calm
+            // where the numbers live.
             RoundedRectangle(cornerRadius: 18)
                 .fill(LinearGradient(colors: [AppColor.accentFeed.opacity(0.35),
-                                              AppColor.accentSleep.opacity(0.28),
-                                              AppColor.accentDiaper.opacity(0.33)],
+                                              AppColor.accentDiaper.opacity(0.33),
+                                              AppColor.accentSleep.opacity(0.28)],
                                      startPoint: .leading, endPoint: .trailing))
                 .mask(LinearGradient(stops: [.init(color: .white, location: 0),
-                                             .init(color: .clear, location: 0.55)],
+                                             .init(color: .clear, location: 0.25)],
                                      startPoint: .top, endPoint: .bottom))
         }
         .surfaceCard(cornerRadius: 18)
