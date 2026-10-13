@@ -145,6 +145,27 @@ struct EventStore {
         return event
     }
 
+    /// One-tap daycare marker (manual Drop off / Pick up / Home today).
+    /// `sourceRaw` stays nil — the hand-logged convention — and `byName`
+    /// carries the logger so the timeline reads "Checked in by Taylor".
+    @discardableResult
+    func logCheck(_ type: CheckType, at date: Date = .now) -> CheckEvent? {
+        guard let logger = requireOwner() else { return nil }
+        let event = CheckEvent(
+            baby: baby, type: type,
+            timestamp: EventBounds.clampPast(date),
+            byName: logger.displayName,
+            loggedByID: logger.id,
+            loggedByName: logger.displayName,
+            loggedByColorHex: logger.colorHex
+        )
+        context.insert(event)
+        guard save() else { context.delete(event); return nil }
+        sync(save: [event.id])
+        reloadWidgets()
+        return event
+    }
+
     /// `loggedBy` attributes the event to someone other than the local user —
     /// nil keeps the owner default.
     @discardableResult

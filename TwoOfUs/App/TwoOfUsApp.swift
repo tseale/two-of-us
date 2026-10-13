@@ -25,6 +25,18 @@ struct TwoOfUsApp: App {
             try? ctx.delete(model: FeedEvent.self)
             try? ctx.delete(model: SleepEvent.self)
             try? ctx.delete(model: DiaperEvent.self)
+            try? ctx.delete(model: NoteEvent.self)
+            // Daycare-era models too — leftovers (a stale check-out marker
+            // especially) otherwise contaminate every seeded QA state.
+            try? ctx.delete(model: ActivityEvent.self)
+            try? ctx.delete(model: MediaEvent.self)
+            try? ctx.delete(model: CheckEvent.self)
+            try? ctx.delete(model: MedicationEvent.self)
+            try? ctx.delete(model: HealthCheckEvent.self)
+            try? ctx.delete(model: MoodEvent.self)
+            try? ctx.delete(model: PottyEvent.self)
+            try? ctx.delete(model: MilestoneEvent.self)
+            try? ctx.delete(model: StaffNoteEvent.self)
             try? ctx.delete(model: PlanSlot.self)
             try? ctx.delete(model: PlanOverride.self)
             try? ctx.delete(model: Participant.self)
@@ -65,6 +77,29 @@ struct TwoOfUsApp: App {
                                   startedAt: .now.addingTimeInterval(-25 * 60),
                                   loggedByID: UUID(), loggedByName: "Seed",
                                   loggedByColorHex: "8E8EFF"))
+            try? ctx.save()
+        }
+        // Dev-only: `-seedCheckedIn` logs a manual 7:51 AM drop-off, landing
+        // Home mid-attendance (the Pick up state) at any later hour.
+        if ProcessInfo.processInfo.arguments.contains("-seedCheckedIn") {
+            let ctx = realContainer.mainContext
+            let baby = try? ctx.fetch(FetchDescriptor<Baby>()).first
+            let at = Calendar.current.date(bySettingHour: 7, minute: 51,
+                                           second: 0, of: .now) ?? .now
+            ctx.insert(CheckEvent(baby: baby, type: .checkIn, timestamp: at,
+                                  byName: "Taylor",
+                                  loggedByID: UUID(), loggedByName: "Taylor",
+                                  loggedByColorHex: "4EC9D9"))
+            try? ctx.save()
+        }
+        // Dev-only: `-seedHomeToday` marks today "home today", so the check
+        // slot's quiet undo line is reachable for QA/screenshots.
+        if ProcessInfo.processInfo.arguments.contains("-seedHomeToday") {
+            let ctx = realContainer.mainContext
+            let baby = try? ctx.fetch(FetchDescriptor<Baby>()).first
+            ctx.insert(CheckEvent(baby: baby, type: .notAttending,
+                                  loggedByID: UUID(), loggedByName: "Seed",
+                                  loggedByColorHex: "4EC9D9"))
             try? ctx.save()
         }
         // Dev-only: `-previewJoin` simulates a parent who just accepted a share,

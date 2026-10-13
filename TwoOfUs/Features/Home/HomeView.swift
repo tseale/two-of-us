@@ -140,7 +140,12 @@ struct HomeView: View {
                                 now: ctx.date,
                                 showFeed: isTracked(.feed),
                                 showSleep: isTracked(.sleep),
-                                showDiaper: isTracked(.diaper)
+                                showDiaper: isTracked(.diaper),
+                                checkinSlot: checkinSlot(now: ctx.date, attendance: attendance),
+                                onDropOff: { logCheck(.checkIn, toast: "Dropped off") },
+                                onPickUp: { logCheck(.checkOut, toast: "Picked up") },
+                                onHomeToday: { logCheck(.notAttending, toast: "Staying home today") },
+                                onUndoHomeToday: undoHomeToday
                             )
                             if attendance == nil {
                                 logButtons(now: ctx.date)
@@ -407,7 +412,10 @@ struct HomeView: View {
         let dayFeeds = feeds.filter { $0.isFromDaycare && isToday($0.timestamp) }
         let dayNaps = sleeps.filter { $0.isFromDaycare && isToday($0.startedAt) && $0.endedAt != nil }
         let dayDiapers = diapers.filter { $0.isFromDaycare && isToday($0.timestamp) }
-        let dayChecks = checkEvents.filter { $0.isFromDaycare && isToday($0.timestamp) }
+        // ANY source — a manual drop-off/pick-up brackets the day exactly
+        // like Brightwheel's markers do (capsule window, strip zone).
+        // "Home today" markers aren't attendance and stay out.
+        let dayChecks = checkEvents.filter { isToday($0.timestamp) && $0.type != .notAttending }
 
         var day = DaycareDaySummary()
         day.feedCount = dayFeeds.count
@@ -962,6 +970,46 @@ struct HomeView: View {
             ? "Up next: your \(occ.kind == .sleep ? "sleep" : "bottle") at \(TimeFormatting.clock(occ.date))"
             : "Up next: \(occ.kind == .sleep ? "sleep" : "bottle") at \(TimeFormatting.clock(occ.date)), \(occ.assignedToName)'s turn")
         .accessibilityHint("Opens the schedule")
+    }
+
+    // MARK: Manual check-in/out
+
+    /// The hero's manual check slot: weekdays only. Drop off until attendance
+    /// begins (or "home today" hides it), Pick up while he's there — manual
+    /// OR Brightwheel-implicit, so marker-less days get a real checkout —
+    /// and nothing once the day has ended (pickup logged, or the assumed
+    /// 5:30 close passed with nothing to show).
+    private func checkinSlot(now: Date, attendance: DaycareStatus.Attendance?) -> CheckinSlot {
+        guard !Calendar.current.isDateInWeekend(now) else { return .hidden }
+        if attendance != nil { return .pickUp }
+        let todays = checkEvents.filter { $0.timestamp >= dayStart && $0.timestamp <= now }
+        if todays.contains(where: { $0.type == .checkOut }) { return .hidden }
+        if todays.contains(where: { $0.type == .notAttending }) { return .homeToday }
+        if let assumed = Calendar.current.date(bySettingHour: DaycareStatus.assumedCheckOutHour,
+                                               minute: DaycareStatus.assumedCheckOutMinute,
+                                               second: 0, of: now), now >= assumed {
+            return .hidden
+        }
+        // Daycare opens at 7 — no buttons during the night shift.
+        guard Calendar.current.component(.hour, from: now) >= DaycareStatus.opensHour else {
+            return .hidden
+        }
+        return .dropOff
+    }
+
+    /// One-tap marker + the app-standard Undo toast (undo soft-deletes the
+    /// marker, which also reverses any daycare-mode flip it caused).
+    private func logCheck(_ type: CheckType, toast message: String) {
+        guard let event = store.logCheck(type) else { return }
+        showToast(message, accent: AppColor.accentCheck) { store.softDelete(event) }
+    }
+
+    /// "Actually, taking him in" — clears today's home-today marker(s).
+    private func undoHomeToday() {
+        checkEvents
+            .filter { $0.timestamp >= dayStart && $0.type == .notAttending }
+            .forEach { store.softDelete($0) }
+        Haptics.tap()
     }
 
     private func tileStatus(since date: Date?, now: Date, target: TimeInterval) -> TileStatus? {
