@@ -153,9 +153,11 @@ struct TodayHeroCard: View {
                 // NOT reliably scale a concatenated multi-font Text — it
                 // truncates ("10 diape…", the TestFlight bug) — so the rigid
                 // tiers measure every value at its TRUE width and ViewThatFits
-                // steps the whole row down together (36 → 31) when a long day
-                // or a large Dynamic Type setting overflows. The last tier is
-                // flexible so something always fits.
+                // steps the whole row down together when a long day or a
+                // large Dynamic Type setting overflows. EqualSlotRow pins
+                // the diaper column dead-center (see its doc) and reports an
+                // ideal of slots×widest, so the ladder drops a size the
+                // moment the widest column couldn't hold a third.
                 ViewThatFits(in: .horizontal) {
                     totalsRow(valueSize: 28, rigid: true)
                     totalsRow(valueSize: 25, rigid: true)
@@ -239,22 +241,13 @@ struct TodayHeroCard: View {
         }.reduce(Text(""), +)
     }
 
-    /// One size tier of the totals row: natural-width columns, flexible gaps.
-    /// Rigid tiers hold their true width (no shrink, no truncation) so
-    /// ViewThatFits can measure them honestly.
+    /// One size tier of the totals row: equal slots, so the middle (diaper)
+    /// column is always dead-center of the card — text widths move within
+    /// their slots, never the grid. Values stay rigid (no shrink, no
+    /// truncation) so ViewThatFits can measure the tier honestly.
     private func totalsRow(valueSize: CGFloat, rigid: Bool) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            if showFeed {
-                feedColumn(valueSize: valueSize, rigid: rigid)
-                if showDiaper || showSleep { Spacer(minLength: 12) }
-            }
-            if showDiaper {
-                diaperColumn(valueSize: valueSize, rigid: rigid)
-                if showSleep { Spacer(minLength: 12) }
-            }
-            if showSleep {
-                sleepColumn(valueSize: valueSize, rigid: rigid)
-            }
+        EqualSlotRow(spacing: 12) {
+            totalsColumns(valueSize: valueSize, rigid: rigid)
         }
     }
 
@@ -725,6 +718,76 @@ private struct DayFlowStrip: View {
         case ..<12: "\(h)a"
         default: "\(h - 12)p"
         }
+    }
+}
+
+/// The totals grid, anchored on its MIDDLE child: the diaper column sits
+/// dead-center of the card no matter how wide any text runs. The side
+/// columns rest at their thirds (1/6 and 5/6 of the width) and slide
+/// OUTWARD toward the card edges when they need more room — moving a column
+/// always beats dropping the font, so the ViewThatFits ladder above only
+/// steps down when even edge-to-edge placement couldn't fit. Its reported
+/// ideal width (middle + 2 × (spacing + widest side)) is what makes that
+/// measurement honest — a plain grid would always "fit" and let text
+/// overflow its slot instead (the old truncation bug, mirrored).
+private struct EqualSlotRow: Layout {
+    var spacing: CGFloat = 12
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews,
+                      cache: inout ()) -> CGSize {
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        let ideal: CGFloat
+        if sizes.count == 3 {
+            // Sides may slide to the card edges, so the honest minimum is
+            // the pinned middle plus the widest side on BOTH flanks (the
+            // narrower side gets the same room; symmetry is the point).
+            let side = max(sizes[0].width, sizes[2].width)
+            ideal = sizes[1].width + 2 * (spacing + side)
+        } else {
+            let n = CGFloat(max(1, sizes.count))
+            ideal = (sizes.map(\.width).max() ?? 0) * n + spacing * (n - 1)
+        }
+        // Fill the card when given room; the ideal is the honest minimum.
+        return CGSize(width: max(ideal, proposal.width ?? ideal),
+                      height: sizes.map(\.height).max() ?? 0)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize,
+                       subviews: Subviews, cache: inout ()) {
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        guard subviews.count == 3 else {
+            // One or two visible trackers: plain equal slots.
+            let n = CGFloat(max(1, subviews.count))
+            for (i, subview) in subviews.enumerated() {
+                let centerX = bounds.minX + bounds.width * (2 * CGFloat(i) + 1) / (2 * n)
+                subview.place(at: CGPoint(x: centerX, y: bounds.minY),
+                              anchor: .top, proposal: .unspecified)
+            }
+            return
+        }
+
+        // Middle: pinned to the card's center — the anchor.
+        let midX = bounds.midX
+        subviews[1].place(at: CGPoint(x: midX, y: bounds.minY),
+                          anchor: .top, proposal: .unspecified)
+        let midHalf = sizes[1].width / 2
+
+        // Left: rests at its third, slides toward the edge before it would
+        // touch the middle column — moving beats shrinking the font.
+        let leftHalf = sizes[0].width / 2
+        var leftX = bounds.minX + bounds.width / 6
+        leftX = min(leftX, midX - midHalf - spacing - leftHalf)
+        leftX = max(leftX, bounds.minX + leftHalf)
+        subviews[0].place(at: CGPoint(x: leftX, y: bounds.minY),
+                          anchor: .top, proposal: .unspecified)
+
+        // Right: mirrored.
+        let rightHalf = sizes[2].width / 2
+        var rightX = bounds.minX + bounds.width * 5 / 6
+        rightX = max(rightX, midX + midHalf + spacing + rightHalf)
+        rightX = min(rightX, bounds.maxX - rightHalf)
+        subviews[2].place(at: CGPoint(x: rightX, y: bounds.minY),
+                          anchor: .top, proposal: .unspecified)
     }
 }
 
