@@ -134,7 +134,10 @@ final class BrightwheelManager {
         do {
             let activities = try await client.activities(
                 cookie: session.cookie, studentID: session.studentID, day: .now)
-            let summary = BrightwheelImporter(context: context).importActivities(activities)
+            // The remembered live-nap start rescues a wake-up whose start
+            // never re-appears in the batch (see importNapHalf).
+            let summary = BrightwheelImporter(context: context)
+                .importActivities(activities, carriedNapStart: liveNapStartedAt)
             liveNapStartedAt = summary.openNapStartedAt
             markSynced()
             if summary.imported > 0 {

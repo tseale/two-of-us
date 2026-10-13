@@ -81,21 +81,29 @@ struct BrightwheelImporter {
 
     private static let duplicateWindow: TimeInterval = 90
 
+    /// `carriedNapStart` is the live-nap start remembered from an EARLIER
+    /// sync (`BrightwheelManager.liveNapStartedAt`) — the rescue for a
+    /// wake-up whose start never appears in this batch (updated-in-place
+    /// records, a start that scrolled out of the page, a shape we misread
+    /// that morning). Miller's 3h17m day-2 nap was lost to exactly that.
     @discardableResult
-    func importActivities(_ activities: [BrightwheelActivity]) -> Summary {
+    func importActivities(_ activities: [BrightwheelActivity],
+                          carriedNapStart: Date? = nil) -> Summary {
         var summary = Summary()
         // The API delivers newest-first; work oldest-first so nap pairing is
         // a simple forward scan and the timeline fills chronologically.
         let ordered = activities.sorted { ($0.when ?? .distantPast) < ($1.when ?? .distantPast) }
 
         var openNapStart: BrightwheelActivity?
+        var carried = carriedNapStart
         for activity in ordered {
             guard let when = activity.when, let action = activity.actionType else {
                 summary.skippedUnmapped += 1
                 continue
             }
             if action == "ac_nap" {
-                importNapHalf(activity, when: when, openStart: &openNapStart, into: &summary)
+                importNapHalf(activity, when: when, openStart: &openNapStart,
+                              carriedStart: &carried, into: &summary)
             } else {
                 importSingle(activity, action: action, when: when, into: &summary)
             }
@@ -137,22 +145,39 @@ struct BrightwheelImporter {
 
     private func importNapHalf(_ activity: BrightwheelActivity, when: Date,
                                openStart: inout BrightwheelActivity?,
+                               carriedStart: inout Date?,
                                into summary: inout Summary) {
         // Either half can carry a photo (sleepy cheeks at put-down, bedhead
         // at wake) — import it now; the nap itself still waits for its pair.
         importAttachedPhoto(activity, when: when, into: &summary)
-        switch activity.napState {
-        case "1":
-            // Two starts in a row: the first never got its wake-up (staff
-            // corrected it) — the newer start wins.
-            if openStart != nil { summary.skippedUnmapped += 1 }
-            openStart = activity
-        case "0":
-            guard let start = openStart, let startWhen = start.when, startWhen < when else {
-                // Orphan woke-up (its start predates the fetch window).
-                summary.skippedUnmapped += 1
+        switch activity.napHalf {
+        case .start:
+            // A mid-nap PHOTO on the nap record re-states "asleep" — it must
+            // not usurp the true 8:40 start, or the pair would import as a
+            // photo-to-wake stub. Only a bare, photo-less start reads as a
+            // staff correction that replaces the open one.
+            if activity.media != nil, openStart != nil || carriedStart != nil {
                 return
             }
+            if openStart != nil { summary.skippedUnmapped += 1 }
+            openStart = activity
+        case .end:
+            // The start, in preference order: this batch's open start → the
+            // record's own span (single-record shape) → the live-nap start
+            // remembered from an earlier sync (same day only).
+            let startWhen = openStart?.when
+                ?? activity.napBlobStart
+                ?? carried(forWake: when, carriedStart: &carriedStart)
+                ?? startDerived(fromDurationEndingAt: when, activity: activity)
+            guard let startWhen, startWhen < when else {
+                // Orphan woke-up with no usable start anywhere — log the
+                // shape loudly so the next capture tells us what we missed,
+                // never fabricate a span.
+                summary.skippedUnmapped += 1
+                AppLog.store.error("Brightwheel: dropped nap wake-up at \(when, privacy: .public) — no usable start (state \(activity.napState ?? "nil", privacy: .public))")
+                return
+            }
+            let startNote = openStart?.note
             openStart = nil
             let id = activity.objectID
             if isDuplicateSleep(externalID: id, start: startWhen) {
@@ -160,13 +185,31 @@ struct BrightwheelImporter {
                 return
             }
             if store.logCompletedSleep(startedAt: startWhen, endedAt: when,
-                                       notes: activity.note ?? start.note,
+                                       notes: activity.note ?? startNote,
                                        source: .brightwheel, externalID: id) != nil {
                 summary.sleeps += 1
             }
-        default:
+        case nil:
             summary.skippedUnmapped += 1
+            AppLog.store.error("Brightwheel: unrecognized ac_nap shape at \(when, privacy: .public) (state \(activity.napState ?? "nil", privacy: .public))")
         }
+    }
+
+    /// The carried live-nap start, consumed if it plausibly belongs to this
+    /// wake-up: earlier the same day.
+    private func carried(forWake wake: Date, carriedStart: inout Date?) -> Date? {
+        guard let start = carriedStart, start < wake,
+              Calendar.current.isDate(start, inSameDayAs: wake) else { return nil }
+        carriedStart = nil
+        return start
+    }
+
+    /// Last resort for a lone wake-up: a duration in the blob walks back to
+    /// the start.
+    private func startDerived(fromDurationEndingAt end: Date,
+                              activity: BrightwheelActivity) -> Date? {
+        guard let minutes = activity.detailsBlob?.durationMinutes, minutes > 0 else { return nil }
+        return end.addingTimeInterval(TimeInterval(-minutes * 60))
     }
 
     // MARK: Everything else
