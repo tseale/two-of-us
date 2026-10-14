@@ -699,7 +699,21 @@ private struct DayFlowStrip: View {
         }
         let bandY = size.height * 0.32
         let bandH = size.height * 0.30
-        let nowX = x(hour(now))
+        let nowH = hour(now)
+        let nowX = x(nowH)
+        /// A span's horizontal extent with nothing past the now marker. Both
+        /// ends clamp to now (an open span's end IS now; a future-skewed
+        /// timestamp from the daycare's clock lands on now, not beyond).
+        /// The minimum width that keeps a just-started nap visible grows
+        /// LEFTWARD from now — growing it rightward from the start is what
+        /// pushed a 32-minute-old nap's capsule past the dot.
+        func span(from: Double, to: Double, minWidth: CGFloat) -> (x: CGFloat, width: CGFloat) {
+            let x0 = x(min(from, nowH))
+            let x1 = max(x0, x(min(to, nowH)))
+            let width = max(minWidth, x1 - x0)
+            let right = min(x0 + width, max(x1, nowX))
+            return (max(0, right - width), width)
+        }
 
         return ZStack(alignment: .topLeading) {
                 Canvas { ctx, _ in
@@ -714,10 +728,9 @@ private struct DayFlowStrip: View {
                     // with a 1.5pt border so the span reads crisply over
                     // the track in both modes.
                     if let zone {
-                        let endX = x(hour(zone.end ?? now))
-                        let rect = CGRect(x: x(hour(zone.start)), y: bandY,
-                                          width: max(bandH, endX - x(hour(zone.start))),
-                                          height: bandH)
+                        let s = span(from: hour(zone.start), to: hour(zone.end ?? now),
+                                     minWidth: bandH)
+                        let rect = CGRect(x: s.x, y: bandY, width: s.width, height: bandH)
                         let path = Path(roundedRect: rect, cornerRadius: bandH / 2)
                         ctx.fill(path, with: .color(DaycareZoneStyle.base.opacity(DaycareZoneStyle.fillOpacity)))
                         ctx.stroke(path, with: .color(DaycareZoneStyle.base.opacity(0.4)), lineWidth: 1.5)
@@ -730,9 +743,9 @@ private struct DayFlowStrip: View {
                     // Naps (overnight tail clips to the window's left edge)
                     func nap(from: Double, to: Double, live: Bool) {
                         let h: CGFloat = max(9, bandH - 7)
-                        let x0 = x(from), x1 = x(to)
-                        let r = CGRect(x: x0, y: bandY + (bandH - h) / 2,
-                                       width: max(h, x1 - x0), height: h)
+                        let s = span(from: from, to: to, minWidth: h)
+                        let r = CGRect(x: s.x, y: bandY + (bandH - h) / 2,
+                                       width: s.width, height: h)
                         ctx.fill(Path(roundedRect: r, cornerRadius: h / 2),
                                  with: .color(AppColor.accentSleep.opacity(live ? 0.9 : 0.55)))
                     }
@@ -748,9 +761,11 @@ private struct DayFlowStrip: View {
                     func emojiMark(_ h: Double, _ emoji: String, above: Bool) {
                         let y = above ? bandY - 8 : bandY + bandH + 8
                         let glyph = ctx.resolve(Text(emoji).font(.system(size: 10)))
-                        // Clamp inside the strip so an event at the window's
-                        // edge doesn't draw a half-clipped glyph.
-                        ctx.draw(glyph, at: CGPoint(x: min(max(x(h), 6), size.width - 6), y: y),
+                        // A future-skewed timestamp lands on now, never past
+                        // it; then clamp inside the strip so an event at the
+                        // window's edge doesn't draw a half-clipped glyph.
+                        let gx = x(min(h, nowH))
+                        ctx.draw(glyph, at: CGPoint(x: min(max(gx, 6), size.width - 6), y: y),
                                  anchor: .center)
                     }
                     for mark in marks where mark.kind == .feed {
