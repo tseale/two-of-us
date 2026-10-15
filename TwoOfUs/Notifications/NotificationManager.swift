@@ -100,8 +100,41 @@ enum NotificationManager {
             identifier: NotificationID.Category.daycare,
             actions: [], intentIdentifiers: [], options: []
         )
+        // Geofence arrival prompts: the one-tap check markers, straight from
+        // the lock screen — the hero card's check slot, without opening the app.
+        let checkIn = UNNotificationAction(
+            identifier: NotificationID.Action.logCheckIn,
+            title: "Dropped off",
+            options: [],
+            icon: UNNotificationActionIcon(systemImageName: "backpack.fill")
+        )
+        let homeToday = UNNotificationAction(
+            identifier: NotificationID.Action.logHomeToday,
+            title: "Staying home",
+            options: [],
+            icon: UNNotificationActionIcon(systemImageName: "house.fill")
+        )
+        let checkOut = UNNotificationAction(
+            identifier: NotificationID.Action.logCheckOut,
+            title: "Picked up",
+            options: [],
+            icon: UNNotificationActionIcon(systemImageName: "car.fill")
+        )
+        let geofenceDropOff = UNNotificationCategory(
+            identifier: NotificationID.Category.geofenceDropOff,
+            actions: [checkIn, homeToday],
+            intentIdentifiers: [],
+            options: []
+        )
+        let geofencePickUp = UNNotificationCategory(
+            identifier: NotificationID.Category.geofencePickUp,
+            actions: [checkOut],
+            intentIdentifiers: [],
+            options: []
+        )
 
-        center.setNotificationCategories([feed, diaper, scheduleFeed, scheduleSleep, coParent, milestone, daycare])
+        center.setNotificationCategories([feed, diaper, scheduleFeed, scheduleSleep, coParent,
+                                          milestone, daycare, geofenceDropOff, geofencePickUp])
     }
 
     /// Requests alert + badge authorization (never sound — the app is silent).
@@ -533,6 +566,15 @@ enum NotificationManager {
             flushAndRearm()
         case NotificationID.Action.snooze:
             snooze(category: category)
+        case NotificationID.Action.logCheckIn:
+            QuickLogger.make()?.logCheck(.checkIn)
+            flushAndRearm()
+        case NotificationID.Action.logCheckOut:
+            QuickLogger.make()?.logCheck(.checkOut)
+            flushAndRearm()
+        case NotificationID.Action.logHomeToday:
+            QuickLogger.make()?.logCheck(.notAttending)
+            flushAndRearm()
         default:
             // Default tap on a slot reminder lands on the Schedule tab; every
             // other notification just opens the app.
