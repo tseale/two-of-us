@@ -121,6 +121,27 @@ final class DaycareStatusTests: XCTestCase {
         XCTAssertEqual(result?.since, today(hour: 17, minute: 45))
     }
 
+    // MARK: Configured hours (Daycare settings)
+
+    func testConfiguredCloseMovesTheAssumedCheckOut() {
+        // A 6:00 PM daycare: 5:31 is still mid-attendance, 6:00 clears it.
+        let checks: [(Date, CheckType)] = [(today(hour: 7, minute: 30), .checkIn)]
+        XCTAssertNotNil(DaycareStatus.attendance(
+            checks: checks, firstDaycareEvent: nil, dayStart: dayStart,
+            now: today(hour: 17, minute: 31), closeMinute: 18 * 60))
+        XCTAssertNil(DaycareStatus.attendance(
+            checks: checks, firstDaycareEvent: nil, dayStart: dayStart,
+            now: today(hour: 18), closeMinute: 18 * 60))
+    }
+
+    func testEarlierConfiguredCloseClearsSooner() {
+        // A 4:00 PM close must end the day before the old 5:30 default.
+        let checks: [(Date, CheckType)] = [(today(hour: 7, minute: 30), .checkIn)]
+        XCTAssertNil(DaycareStatus.attendance(
+            checks: checks, firstDaycareEvent: nil, dayStart: dayStart,
+            now: today(hour: 16, minute: 30), closeMinute: 16 * 60))
+    }
+
     // MARK: "Home today" markers (manual check-in feature)
 
     func testHomeTodayMarkerIsNotACheckIn() {

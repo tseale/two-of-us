@@ -47,8 +47,11 @@ Faster than the Console: `docs/cloudkit-schema.ckdb` is the full schema —
 merge it over a fresh export (the file omits the system `Users` /
 `cloudkit.share` types, which an import would otherwise try to delete) and
 `xcrun cktool import-schema --environment development`. Production still
-requires the Console's Deploy button or an explicit
-`import-schema --environment production` run by Taylor.
+requires the Console's **Deploy Schema Changes to Production** button —
+`import-schema --environment production` is rejected by Apple ("endpoint not
+applicable in the environment 'production'"), and cktool has no
+promote/deploy subcommand. Verify afterwards with
+`xcrun cktool export-schema --environment production`.
 
 | Record type | Field | CloudKit type |
 |---|---|---|

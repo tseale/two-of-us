@@ -86,6 +86,13 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         NSSupportsLiveActivities: YES
         NSAlarmKitUsageDescription: Two of Us uses alarms to remind you when the next feed is due, even when your phone is silenced.
+        # Daycare geofence (Settings → Integrations → Daycare): When In Use
+        # covers the settings map + "use current location"; Always lets the
+        # drop-off/pick-up arrival prompts fire with the app closed. Location
+        # is only compared against the daycare pin on-device — never stored,
+        # synced, or sent anywhere.
+        NSLocationWhenInUseUsageDescription: Two of Us uses your location to place the daycare pin and to notice when you arrive at daycare.
+        NSLocationAlwaysAndWhenInUseUsageDescription: With Always access, Two of Us can offer the drop-off and pick-up prompts when you arrive at daycare, even with the app closed. Your location never leaves your phone.
         UIBackgroundModes:
           - remote-notification
     entitlements:
