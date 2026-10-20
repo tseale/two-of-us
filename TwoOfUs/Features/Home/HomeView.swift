@@ -135,7 +135,12 @@ struct HomeView: View {
                                 attendingSince: attendance?.since,
                                 firstDaycareEventAt: firstDaycareEventToday,
                                 lastDaycareEventAt: lastDaycareEventToday,
-                                liveNapStartedAt: liveNapToday,
+                                // Stops crediting the live nap the instant he's
+                                // no longer considered "at daycare" — an explicit
+                                // checkout (handled above by closing the nap
+                                // outright) or the assumed-close fallback once
+                                // nothing ever arrives. Never runs forever.
+                                liveNapStartedAt: attendance != nil ? liveNapToday : nil,
                                 activeSleepStartedAt: activeSleep?.startedAt,
                                 now: ctx.date,
                                 showFeed: isTracked(.feed),
@@ -1017,6 +1022,11 @@ struct HomeView: View {
     /// marker, which also reverses any daycare-mode flip it caused).
     private func logCheck(_ type: CheckType, toast message: String) {
         guard let event = store.logCheck(type) else { return }
+        // A marker-less day's Pick up is the only checkout Brightwheel's own
+        // import never sees — close any nap still live the same way it would.
+        if type == .checkOut {
+            brightwheel.closeLiveNapOnCheckout(at: event.timestamp, context: context)
+        }
         showToast(message, accent: AppColor.accentCheck) { store.softDelete(event) }
     }
 
