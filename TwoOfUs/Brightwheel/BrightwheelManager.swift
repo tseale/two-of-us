@@ -247,6 +247,20 @@ final class BrightwheelManager {
             cookie: session.cookie, studentID: session.studentID, day: .now)
     }
 
+    /// A parent's manual Pick up (marker-less days) ends a live Brightwheel
+    /// nap the same way the importer would if Brightwheel's own checkout had
+    /// synced first — the general rule that a daycare nap can't outlive
+    /// checkout. No-op when nothing is actually napping.
+    @discardableResult
+    func closeLiveNapOnCheckout(at checkoutAt: Date, context: ModelContext) -> Bool {
+        guard let start = liveNapStartedAt, start < checkoutAt else { return false }
+        var summary = BrightwheelImporter.Summary()
+        let closed = BrightwheelImporter(context: context)
+            .closeNapOnCheckout(startedAt: start, checkoutAt: checkoutAt, into: &summary)
+        if closed { liveNapStartedAt = nil }
+        return closed
+    }
+
     private func markSynced() {
         lastSyncAt = .now
         UserDefaults.standard.set(lastSyncAt, forKey: Self.lastSyncKey)
