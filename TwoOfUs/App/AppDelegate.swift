@@ -26,6 +26,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             // watch's complication, and the session must already be activated
             // when that sync event lands.
             WatchAppStatus.shared.activate()
+            // Re-arm the daycare geofence on EVERY launch: a geofence event
+            // may be exactly why iOS relaunched us, and CLMonitor only
+            // delivers it once something is awaiting its events again.
+            DaycareGeofenceManager.shared.refreshMonitoring()
         }
 
         // Local notifications: become the delegate so action buttons route to us,
@@ -82,6 +86,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 SyncManager.shared?.reconcileLiveActivityFromStore()
             }
             SyncManager.shared?.drainExtensionQueue()
+            // Re-aim the daycare geofence: the co-parent's settings edits
+            // (new pin, radius, on/off) arrive via sync while we're away.
+            DaycareGeofenceManager.shared.refreshMonitoring()
         }
         // Reconcile against the SAME store the UI reads (the shared container's
         // main context) — not a QuickLogger-built throwaway container whose

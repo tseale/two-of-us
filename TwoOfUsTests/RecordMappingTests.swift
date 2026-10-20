@@ -487,6 +487,57 @@ final class RecordMappingTests: XCTestCase {
                        "who takes the first shift is a shared setting")
     }
 
+    /// The daycare config travels on the settings record: one parent's setup
+    /// reaches the other, the location pin keeps the three-state contract
+    /// (present syncs, empty clears, absent keeps local), and an older
+    /// build's record keeps the local defaults.
+    func testDaycareSettingsRoundTrip() throws {
+        let original = SharedSettings()
+        original.daycareName = "Little Owls"
+        original.daycareRoom = "Owls"
+        original.daycarePhone = "(555) 123-4567"
+        original.daycareAddress = "1 Main St"
+        original.daycareCoordinate = (37.3349, -122.0090)
+        original.daycareGeofenceRadiusMeters = 500
+        original.daycareGeofenceEnabled = true
+        original.daycareOpenMinute = 8 * 60
+        original.daycareCloseMinute = 18 * 60
+        original.daycareDays = [2, 3, 4]
+        context.insert(original)
+        try context.save()
+
+        let receiver = AppModelContainer.make(inMemory: true)
+        try RecordMapping.apply(try outbound(original.id), in: receiver.mainContext)
+
+        let copy = try XCTUnwrap(receiver.mainContext.fetch(FetchDescriptor<SharedSettings>()).first)
+        XCTAssertEqual(copy.daycareName, "Little Owls")
+        XCTAssertEqual(copy.daycareRoom, "Owls")
+        XCTAssertEqual(copy.daycarePhone, "(555) 123-4567")
+        XCTAssertEqual(copy.daycareAddress, "1 Main St")
+        XCTAssertEqual(copy.daycareCoordinate?.latitude, 37.3349)
+        XCTAssertEqual(copy.daycareCoordinate?.longitude, -122.0090)
+        XCTAssertEqual(copy.daycareGeofenceRadiusMeters, 500)
+        XCTAssertTrue(copy.daycareGeofenceEnabled)
+        XCTAssertEqual(copy.daycareOpenMinute, 8 * 60)
+        XCTAssertEqual(copy.daycareCloseMinute, 18 * 60)
+        XCTAssertEqual(copy.daycareDays, [2, 3, 4])
+
+        // An older build's record (no daycare fields) keeps the local config.
+        let old = CKRecord(recordType: SyncConstants.RecordType.settings, recordID: recordID(original.id))
+        old["targetFeedIntervalMinutes"] = 120
+        try RecordMapping.apply(old, in: receiver.mainContext)
+        XCTAssertEqual(copy.daycareName, "Little Owls",
+                       "an older build's record must not wipe the daycare config")
+        XCTAssertNotNil(copy.daycareCoordinate)
+
+        // An explicit pin clear ("") travels, distinct from never-set nil.
+        let cleared = CKRecord(recordType: SyncConstants.RecordType.settings, recordID: recordID(original.id))
+        cleared["daycareLocation"] = ""
+        try RecordMapping.apply(cleared, in: receiver.mainContext)
+        XCTAssertNil(copy.daycareCoordinate, "removing the pin must reach the co-parent")
+        XCTAssertEqual(copy.daycareLocationRaw, "")
+    }
+
     /// The household SNOO connection travels on the settings record: present
     /// syncs, empty clears (sign-out anywhere disconnects everyone), absent
     /// (an older build's record) keeps the local copy.

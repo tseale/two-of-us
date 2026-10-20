@@ -18,6 +18,10 @@ enum NotificationID {
         static let milestone = "MILESTONE"
         /// Informational "the daycare just logged something" notifications.
         static let daycare = "DAYCARE"
+        /// Geofence arrival prompts — split by direction so the morning ask
+        /// offers Drop off + Staying home and the afternoon ask offers Pick up.
+        static let geofenceDropOff = "GEOFENCE_DROPOFF"
+        static let geofencePickUp = "GEOFENCE_PICKUP"
     }
 
     /// Action buttons. Logging actions run in the background (no `.foreground`)
@@ -27,6 +31,9 @@ enum NotificationID {
         static let logDiaperWet = "LOG_DIAPER_WET"
         static let logDiaperDirty = "LOG_DIAPER_DIRTY"
         static let snooze = "SNOOZE"
+        static let logCheckIn = "LOG_CHECKIN"
+        static let logCheckOut = "LOG_CHECKOUT"
+        static let logHomeToday = "LOG_HOME_TODAY"
     }
 
     /// Request identifiers. Scheduled reminders use a stable id so a reschedule
@@ -37,6 +44,9 @@ enum NotificationID {
         static let dailyMilestone = "milestone.daily"
         static func coParent(_ key: String) -> String { "coparent.\(key)" }
         static func daycare(_ key: String) -> String { "daycare.\(key)" }
+        /// Geofence prompts replace by direction: a second drop-off ask (edge
+        /// jitter) supersedes the first instead of stacking.
+        static func geofence(_ direction: String) -> String { "geofence.\(direction)" }
         /// Namespace for every schedule reminder (per-occurrence + snooze), so a
         /// re-arm can sweep them all without knowing which nights were pending.
         static let schedulePrefix = "schedule."

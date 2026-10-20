@@ -44,7 +44,7 @@ enum CheckinSlot: Equatable {
     case dropOff     // weekday morning, nothing logged: Drop off + "home today"
     case pickUp      // attending (manual or Brightwheel-implicit)
     case homeToday   // "home today" active: one quiet line with an undo
-    case hidden      // weekend, after pickup, past the 5:30 close
+    case hidden      // non-operating day, after pickup, past the close
 }
 
 struct TodayHeroCard: View {
@@ -69,11 +69,11 @@ struct TodayHeroCard: View {
     /// The first daycare-logged event of the day — the check-in stand-in for
     /// the strip zone and capsule AFTER pickup, when `attendingSince` is gone.
     /// Real Brightwheel days often never get explicit check markers, and the
-    /// finished day must not vanish off the strip at 5:30.
+    /// finished day must not vanish off the strip at closing time.
     var firstDaycareEventAt: Date? = nil
     /// The last daycare-logged event of the day — the check-out stand-in on
     /// marker-less days: it closes the capsule's window and the strip zone at
-    /// the last thing staff logged instead of the assumed 5:30.
+    /// the last thing staff logged instead of the assumed close.
     var lastDaycareEventAt: Date? = nil
     /// Start of a nap Brightwheel has begun but not ended — drawn on the
     /// strip (its SleepEvent doesn't exist yet) and counted into the total.
@@ -85,6 +85,12 @@ struct TodayHeroCard: View {
     var showFeed = true
     var showSleep = true
     var showDiaper = true
+    /// What to call the place — the configured name (Settings → Daycare), or
+    /// the generic word until one is set.
+    var daycareName = "Daycare"
+    /// The configured closing time (minutes from midnight) — the last-resort
+    /// close of the strip zone on marker-less days.
+    var daycareCloseMinute = DaycareStatus.defaultCloseMinute
     /// The manual check slot's state and actions (see `CheckinSlot`).
     var checkinSlot: CheckinSlot = .hidden
     var onDropOff: (() -> Void)? = nil
@@ -128,13 +134,13 @@ struct TodayHeroCard: View {
     private var daycareDayEnd: Date? { daycare.checkOut ?? lastDaycareEventAt }
 
     /// The strip's daycare zone: open-ended while he's there, the recorded
-    /// (or inferred) span after pickup — assumed 5:30 as the last resort.
+    /// (or inferred) span after pickup — the configured close as the last resort.
     private var zone: (start: Date, end: Date?)? {
         if let attendingSince { return (attendingSince, nil) }
         guard let start = daycareDayStart else { return nil }
-        let assumed = Calendar.current.date(bySettingHour: DaycareStatus.assumedCheckOutHour,
-                                            minute: DaycareStatus.assumedCheckOutMinute,
-                                            second: 0, of: now)
+        let assumed = DaycareStatus.assumedCheckOut(
+            dayStart: Calendar.current.startOfDay(for: now),
+            closeMinute: daycareCloseMinute)
         guard let end = daycareDayEnd ?? assumed else { return nil }
         return (start, min(end, now))
     }
@@ -493,9 +499,11 @@ struct TodayHeroCard: View {
             HStack(spacing: 9) {
                 iconDisc("building.2.fill", tint: DaycareZoneStyle.base, bordered: true)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Daycare")
+                    Text(daycareName)
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(AppColor.text)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                     // The attendance window, under its own roof: "since 7:51"
                     // while he's there, "7:51 – 4:15" once he's home.
                     if let daycareWindowText {

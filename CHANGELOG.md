@@ -6,6 +6,26 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Added — Daycare settings page (Settings → Integrations → Daycare)
+- The daycare is now a configured place, not hardcoded assumptions: name
+  (used wherever the app said "Daycare"), classroom, phone (with a quick-dial
+  row), operating hours, and operating days — all on `SharedSettings`, so one
+  parent's setup syncs to the other (schema generation 5; the ten new fields
+  are live in the CloudKit **Development** schema, Production deploy pending).
+- Operating hours replace the hardcoded 7 AM / 5:30 PM: the drop-off button
+  appears when the doors open, and with no pick-up logged the daycare day is
+  assumed over at the configured close. Operating days replace the weekday
+  check — the check-in chips only show on configured days.
+- Location: address search (MapKit) or tap-to-place pin on a map, with the
+  geofence radius (100/200/500 m) drawn around it.
+- Arrival prompts: entering the geofence posts "Drop off Miller?" in the
+  morning or "Pick up Miller?" while he's at daycare — with one-tap
+  Dropped off / Picked up / Staying home notification actions that log the
+  check marker straight from the lock screen. Runs on `CLMonitor`, so it
+  works with the app closed; needs per-device "Always" location permission
+  (new `NSLocation*` usage strings). One ask per direction per day, silent
+  on home days and after checkout.
+
 ### Changed — photo polish
 - The viewer's post-save checkmark (which read as a tappable button) is now
   a quiet "Saved" text that fades after two seconds; the Save button doesn't

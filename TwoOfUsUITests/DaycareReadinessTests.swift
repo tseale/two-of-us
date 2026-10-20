@@ -57,8 +57,15 @@ final class DaycareReadinessTests: XCTestCase {
         // alongside SNOO (disconnected in the simulator, so it reads
         // "Not connected" — the sample-day button itself lives behind a
         // real session).
+        // The timeline swipes above scrolled the header (and its gear) away —
+        // come back to the top first. Soft `if` on the gear made steps 4–5
+        // silently skippable; the daycare page deserves a hard assert.
+        for _ in 0..<4 where !app.buttons["Settings"].firstMatch.isHittable {
+            app.swipeDown()
+        }
         let gear = app.buttons["Settings"].firstMatch
-        if gear.waitForExistence(timeout: 5) {
+        XCTAssertTrue(gear.waitForExistence(timeout: 5), "Home has no Settings gear")
+        if gear.exists {
             gear.tap()
             _ = app.navigationBars["Settings"].waitForExistence(timeout: 8)
             let integrations = app.buttons["Integrations"].firstMatch
@@ -76,6 +83,22 @@ final class DaycareReadinessTests: XCTestCase {
                               NSPredicate(format: "label CONTAINS[c] %@", "SNOO")).firstMatch.exists,
                           "Integrations page has no SNOO row")
             snapshot("04-Settings-Integrations")
+
+            // 5 — The Daycare page: the place, hours, days, location map,
+            // and the arrival-prompts section all render.
+            let daycareRow = app.staticTexts["Daycare"].firstMatch
+            XCTAssertTrue(daycareRow.exists, "Integrations page has no Daycare row")
+            daycareRow.tap()
+            XCTAssertTrue(app.navigationBars["Daycare"].waitForExistence(timeout: 8),
+                          "Daycare settings page did not open")
+            XCTAssertTrue(app.staticTexts["Opens"].firstMatch.waitForExistence(timeout: 5),
+                          "Daycare page has no Opens hour picker")
+            snapshot("05-Settings-Daycare")
+            app.swipeUp()
+            XCTAssertTrue(app.staticTexts["Use Current Location"].firstMatch
+                .waitForExistence(timeout: 5),
+                          "Daycare page has no location section")
+            snapshot("06-Settings-Daycare-Location")
         }
     }
 
