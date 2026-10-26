@@ -236,6 +236,7 @@ enum RecordMapping {
             r["daycareGeofenceEnabled"] = m.daycareGeofenceEnabled ? 1 : 0
             r["daycareOpenMinute"] = m.daycareOpenMinute
             r["daycareCloseMinute"] = m.daycareCloseMinute
+            r["daycarePickupShowMinute"] = m.daycarePickupShowMinute
             r["daycareDaysRaw"] = m.daycareDaysRaw
             return r
         }
@@ -759,6 +760,8 @@ enum RecordMapping {
             ?? m.daycareGeofenceEnabled
         m.daycareOpenMinute = r["daycareOpenMinute"] as? Int ?? m.daycareOpenMinute
         m.daycareCloseMinute = r["daycareCloseMinute"] as? Int ?? m.daycareCloseMinute
+        m.daycarePickupShowMinute = r["daycarePickupShowMinute"] as? Int
+            ?? m.daycarePickupShowMinute
         m.daycareDaysRaw = r["daycareDaysRaw"] as? String ?? m.daycareDaysRaw
     }
 

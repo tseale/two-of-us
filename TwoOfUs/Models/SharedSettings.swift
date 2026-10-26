@@ -79,6 +79,10 @@ final class SharedSettings {
     var daycareGeofenceEnabled: Bool = false
     var daycareOpenMinute: Int = 420           // doors open 7:00 AM
     var daycareCloseMinute: Int = 1050         // doors close 5:30 PM
+    /// Earliest wall-clock minute the hero's pick-up control may appear.
+    /// Before it the control is hidden entirely — a stray thumb at 10 AM
+    /// can't log a checkout. Defaulted so pre-upgrade records read 3:00 PM.
+    var daycarePickupShowMinute: Int = 900     // pick-up control from 3:00 PM
     /// Operating days as CSV of `Calendar` weekday numbers (1 = Sunday … 7 =
     /// Saturday) — "2,3,4,5,6" is Mon–Fri. CSV, not a bitmask, so the synced
     /// value reads in the Console and degrades predictably on older builds.

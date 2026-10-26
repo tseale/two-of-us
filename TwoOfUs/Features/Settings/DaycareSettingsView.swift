@@ -105,10 +105,15 @@ struct DaycareSettingsView: View {
                            geofence.refreshMonitoring()
                        },
                        displayedComponents: .hourAndMinute)
+            DatePicker("Pick-up from",
+                       selection: minuteBinding(settings.daycarePickupShowMinute) {
+                           store.updateDaycare(pickupShowMinute: $0)
+                       },
+                       displayedComponents: .hourAndMinute)
         } header: {
             Text("Hours")
         } footer: {
-            Text("The drop-off button appears when the doors open; with no pick-up logged, the daycare day is assumed over at closing time.")
+            Text("The drop-off button appears when the doors open. The pick-up button stays hidden until \"Pick-up from\" — then a quiet ask that expands on a tap, or on arriving at \(settings.daycareDisplayName) with arrival prompts on. With no pick-up logged, the daycare day is assumed over at closing time.")
         }
     }
 

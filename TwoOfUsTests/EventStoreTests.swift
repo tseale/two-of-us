@@ -634,4 +634,28 @@ final class EventStoreTests: XCTestCase {
         store.restore(event)
         XCTAssertNil(event.deletedAt)
     }
+
+    // MARK: Daycare hours validation
+
+    func testPickupShowTimeStaysInsideTheHours() throws {
+        let settings = try XCTUnwrap(
+            container.mainContext.fetch(FetchDescriptor<SharedSettings>()).first)
+
+        store.updateDaycare(pickupShowMinute: 15 * 60)
+        XCTAssertEqual(settings.daycarePickupShowMinute, 15 * 60)
+
+        // Before the open it's meaningless — clamp up to the open.
+        store.updateDaycare(pickupShowMinute: 5 * 60)
+        XCTAssertEqual(settings.daycarePickupShowMinute, settings.daycareOpenMinute)
+
+        // At/after the close the control could never appear (attendance ends
+        // at the assumed close) — clamp just inside it.
+        store.updateDaycare(pickupShowMinute: 23 * 60)
+        XCTAssertEqual(settings.daycarePickupShowMinute, settings.daycareCloseMinute - 1)
+
+        // Moving the hours re-clamps a show time the move stranded.
+        store.updateDaycare(pickupShowMinute: 15 * 60)
+        store.updateDaycare(closeMinute: 14 * 60)
+        XCTAssertEqual(settings.daycarePickupShowMinute, 14 * 60 - 1)
+    }
 }

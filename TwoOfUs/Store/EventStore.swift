@@ -925,13 +925,15 @@ struct EventStore {
                        location: (latitude: Double, longitude: Double)?? = .none,
                        geofenceRadiusMeters: Double? = nil, geofenceEnabled: Bool? = nil,
                        openMinute: Int? = nil, closeMinute: Int? = nil,
+                       pickupShowMinute: Int? = nil,
                        days: Set<Int>? = nil) {
         guard let settings else { return }
         // All-nil is a no-op (the settings page commits on exit whether or
         // not anything was typed) — don't mint a save/sync for it.
         guard name != nil || room != nil || phone != nil || address != nil
             || location != nil || geofenceRadiusMeters != nil || geofenceEnabled != nil
-            || openMinute != nil || closeMinute != nil || days != nil else { return }
+            || openMinute != nil || closeMinute != nil || pickupShowMinute != nil
+            || days != nil else { return }
         if let name { settings.daycareName = EventBounds.cleanNote(name) ?? "" }
         if let room { settings.daycareRoom = EventBounds.cleanNote(room) ?? "" }
         if let phone { settings.daycarePhone = EventBounds.cleanNote(phone) ?? "" }
@@ -943,12 +945,19 @@ struct EventStore {
         if let geofenceEnabled { settings.daycareGeofenceEnabled = geofenceEnabled }
         if let openMinute { settings.daycareOpenMinute = openMinute }
         if let closeMinute { settings.daycareCloseMinute = closeMinute }
+        if let pickupShowMinute { settings.daycarePickupShowMinute = pickupShowMinute }
         if let days { settings.daycareDays = days }
         // Open must stay before close — a crossed pair would hide the drop-off
         // button all day and close the daycare day at its open.
         if settings.daycareCloseMinute <= settings.daycareOpenMinute {
             settings.daycareCloseMinute = min(settings.daycareOpenMinute + 60, 24 * 60 - 1)
         }
+        // The pick-up show time must sit inside the day's hours: before the
+        // open it's meaningless, and at/after the close the control could
+        // never appear — attendance itself ends at the assumed close.
+        settings.daycarePickupShowMinute = min(
+            max(settings.daycarePickupShowMinute, settings.daycareOpenMinute),
+            settings.daycareCloseMinute - 1)
         save()
         sync(save: [settings.id])
     }

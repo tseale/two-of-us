@@ -25,6 +25,33 @@ enum DaycareStatus {
     /// Drop off button through the night shift.
     static let defaultOpenMinute = 7 * 60            // 7:00 AM
     static let defaultCloseMinute = 17 * 60 + 30     // 5:30 PM
+    static let defaultPickupShowMinute = 15 * 60     // pick-up control from 3:00 PM
+
+    /// How the hero's pick-up control presents while he's at daycare. The
+    /// morning and midday answer is `hidden` — pick-up isn't on anyone's
+    /// mind yet, and a bare always-there button is exactly how a bounced
+    /// phone logs a 10 AM checkout. From `showMinute` the control surfaces
+    /// collapsed (a quiet one-line ask that expands on tap — two steps, no
+    /// accidents); standing at the daycare (`nearDaycare`, the geofence) or
+    /// having tapped the collapsed ask (`expanded`) earns the full button.
+    enum PickupControl: Equatable {
+        case hidden      // before the show time: nothing at all
+        case collapsed   // quiet "Ready to pick up?" line, expands on tap
+        case full        // the real one-tap Picked up button
+    }
+
+    static func pickupControl(
+        now: Date,
+        showMinute: Int = defaultPickupShowMinute,
+        nearDaycare: Bool,
+        expanded: Bool,
+        calendar: Calendar = .current
+    ) -> PickupControl {
+        let minuteOfDay = calendar.component(.hour, from: now) * 60
+            + calendar.component(.minute, from: now)
+        guard minuteOfDay >= showMinute else { return .hidden }
+        return (expanded || nearDaycare) ? .full : .collapsed
+    }
 
     /// When the day is assumed over with no check-out marker: the configured
     /// close on `dayStart`'s calendar day. `bySettingHour` (not minute

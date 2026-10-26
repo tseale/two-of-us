@@ -41,10 +41,12 @@ struct DaycareDaySummary: Equatable {
 /// What the hero's manual check slot offers right now (weekdays only —
 /// HomeView computes this; `.hidden` collapses the slot entirely).
 enum CheckinSlot: Equatable {
-    case dropOff     // weekday morning, nothing logged: Drop off + "home today"
-    case pickUp      // attending (manual or Brightwheel-implicit)
-    case homeToday   // "home today" active: one quiet line with an undo
-    case hidden      // non-operating day, after pickup, past the close
+    case dropOff          // weekday morning, nothing logged: Drop off + "home today"
+    case pickUp           // attending, pick-up earned: the full one-tap button
+    case pickUpCollapsed  // attending, after the show time: quiet ask, expands on tap
+    case pickedUp(Date)   // checked out: quiet "picked up at 4:12" line
+    case homeToday        // "home today" active: one quiet line with an undo
+    case hidden           // non-operating day, before the show time, past the close
 }
 
 struct TodayHeroCard: View {
@@ -95,6 +97,7 @@ struct TodayHeroCard: View {
     var checkinSlot: CheckinSlot = .hidden
     var onDropOff: (() -> Void)? = nil
     var onPickUp: (() -> Void)? = nil
+    var onExpandPickup: (() -> Void)? = nil
     var onHomeToday: (() -> Void)? = nil
     var onUndoHomeToday: (() -> Void)? = nil
 
@@ -444,6 +447,43 @@ struct TodayHeroCard: View {
         case .pickUp:
             checkButton("🚗", "Picked up", action: onPickUp)
                 .accessibilityHint("Logs the daycare pick-up right now")
+                .transition(.opacity.combined(with: .scale(0.96, anchor: .leading)))
+        case .pickUpCollapsed:
+            // The pick-up ask at rest: one quiet line, the same voice as the
+            // "staying home" row — not a button that a bounced phone can
+            // press. The tap only REVEALS the real button (or arriving at
+            // the daycare does); logging stays its own deliberate tap.
+            Button {
+                onExpandPickup?()
+                Haptics.tap()
+            } label: {
+                HStack(spacing: 5) {
+                    Text("🚗").font(.caption)
+                    Text("Ready to pick up \(babyName)?")
+                        .font(.caption)
+                        .foregroundStyle(AppColor.text2)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(AppColor.text3)
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Ready to pick up \(babyName)?")
+            .accessibilityHint("Shows the Picked up button")
+        case .pickedUp(let at):
+            // The closing line of the daycare day — the button's work is
+            // done, so it leaves a receipt in the staying-home row's voice.
+            HStack(spacing: 5) {
+                Text("🚗").font(.caption)
+                Text("picked up at \(TimeFormatting.clock(at))")
+                    .font(.caption)
+                    .foregroundStyle(AppColor.text2)
+                Spacer(minLength: 0)
+            }
+            .accessibilityElement(children: .combine)
         case .homeToday:
             HStack(spacing: 5) {
                 Text("🏡").font(.caption)

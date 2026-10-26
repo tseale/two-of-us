@@ -502,6 +502,7 @@ final class RecordMappingTests: XCTestCase {
         original.daycareGeofenceEnabled = true
         original.daycareOpenMinute = 8 * 60
         original.daycareCloseMinute = 18 * 60
+        original.daycarePickupShowMinute = 16 * 60
         original.daycareDays = [2, 3, 4]
         context.insert(original)
         try context.save()
@@ -520,6 +521,7 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertTrue(copy.daycareGeofenceEnabled)
         XCTAssertEqual(copy.daycareOpenMinute, 8 * 60)
         XCTAssertEqual(copy.daycareCloseMinute, 18 * 60)
+        XCTAssertEqual(copy.daycarePickupShowMinute, 16 * 60)
         XCTAssertEqual(copy.daycareDays, [2, 3, 4])
 
         // An older build's record (no daycare fields) keeps the local config.

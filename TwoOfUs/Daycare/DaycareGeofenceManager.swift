@@ -21,6 +21,14 @@ final class DaycareGeofenceManager: NSObject {
 
     var authorizationStatus: CLAuthorizationStatus = .notDetermined
 
+    /// Whether this phone is inside the daycare fence right now — Home reads
+    /// it to auto-expand the pick-up control on arrival. Follows the same
+    /// `CLMonitor` events the prompts do, seeded from the condition's last
+    /// recorded state on each refresh; false whenever the fence is down
+    /// (disabled, no pin, no Always permission), so it can never hold a stale
+    /// "near" across a teardown.
+    private(set) var isNearDaycare = false
+
     private let location = CLLocationManager()
     private var monitorTask: Task<CLMonitor, Never>?
     private var eventsTask: Task<Void, Never>?
@@ -68,6 +76,7 @@ final class DaycareGeofenceManager: NSObject {
               !LocalPrefs.shared.demoModeEnabled else {
             // Tear the condition down so a disabled fence can't relaunch us.
             await monitor.remove(Self.conditionIdentifier)
+            isNearDaycare = false
             return
         }
 
@@ -79,6 +88,8 @@ final class DaycareGeofenceManager: NSObject {
         // arrival, not from flipping the toggle on while standing at home.
         await monitor.add(condition, identifier: Self.conditionIdentifier,
                           assuming: .unsatisfied)
+        isNearDaycare = await monitor.record(for: Self.conditionIdentifier)?
+            .lastEvent.state == .satisfied
     }
 
     /// The one `CLMonitor` (one instance per name is the API contract),
@@ -94,8 +105,9 @@ final class DaycareGeofenceManager: NSObject {
         eventsTask = Task { [weak self] in
             do {
                 for try await event in await monitor.events {
-                    guard event.identifier == Self.conditionIdentifier,
-                          event.state == .satisfied else { continue }
+                    guard event.identifier == Self.conditionIdentifier else { continue }
+                    await self?.setNearDaycare(event.state == .satisfied)
+                    guard event.state == .satisfied else { continue }
                     await self?.handleArrival(at: event.date)
                 }
             } catch {
@@ -115,6 +127,10 @@ final class DaycareGeofenceManager: NSObject {
             locationContinuation = continuation
             location.requestLocation()
         }
+    }
+
+    private func setNearDaycare(_ near: Bool) {
+        isNearDaycare = near
     }
 
     // MARK: Arrival → prompt

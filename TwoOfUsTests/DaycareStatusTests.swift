@@ -175,4 +175,46 @@ final class DaycareStatusTests: XCTestCase {
                      (today(hour: 16), .checkOut)],
             now: today(hour: 16, minute: 5)))
     }
+
+    // MARK: Pick-up control presentation
+
+    private func pickup(now: Date, showMinute: Int = DaycareStatus.defaultPickupShowMinute,
+                        near: Bool = false, expanded: Bool = false)
+        -> DaycareStatus.PickupControl {
+        DaycareStatus.pickupControl(now: now, showMinute: showMinute,
+                                    nearDaycare: near, expanded: expanded)
+    }
+
+    func testPickupControlHiddenAllMorning() {
+        // Requirement: no pick-up button at all before the show time — a
+        // bounced phone at 10 AM must have nothing to press.
+        XCTAssertEqual(pickup(now: today(hour: 10)), .hidden)
+        XCTAssertEqual(pickup(now: today(hour: 14, minute: 59)), .hidden)
+    }
+
+    func testPickupControlCollapsesAtTheShowTime() {
+        XCTAssertEqual(pickup(now: today(hour: 15)), .collapsed,
+                       "the show minute itself counts — 3:00 PM shows the ask")
+        XCTAssertEqual(pickup(now: today(hour: 16, minute: 30)), .collapsed)
+    }
+
+    func testPickupControlConfiguredShowTimeMoves() {
+        XCTAssertEqual(pickup(now: today(hour: 15), showMinute: 16 * 60), .hidden)
+        XCTAssertEqual(pickup(now: today(hour: 16), showMinute: 16 * 60), .collapsed)
+    }
+
+    func testTapExpandsThePickupControl() {
+        XCTAssertEqual(pickup(now: today(hour: 15, minute: 30), expanded: true), .full)
+    }
+
+    func testArrivingAtTheFenceExpandsThePickupControl() {
+        XCTAssertEqual(pickup(now: today(hour: 15, minute: 30), near: true), .full)
+    }
+
+    func testTheFenceNeverRevealsThePickupControlEarly() {
+        // Standing at the daycare at noon (an early sick-day pickup) keeps
+        // Home's button hidden — that path is the geofence notification's,
+        // which asks at any hour while he's attending.
+        XCTAssertEqual(pickup(now: today(hour: 12), near: true, expanded: true), .hidden)
+    }
 }

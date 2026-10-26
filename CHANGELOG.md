@@ -10,8 +10,9 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 - The daycare is now a configured place, not hardcoded assumptions: name
   (used wherever the app said "Daycare"), classroom, phone (with a quick-dial
   row), operating hours, and operating days — all on `SharedSettings`, so one
-  parent's setup syncs to the other (schema generation 5; the ten new fields
-  are live in the CloudKit **Development** schema, Production deploy pending).
+  parent's setup syncs to the other (schema generation 5; the eleven new
+  fields are in the CloudKit **Development** schema, Production deploy
+  pending).
 - Operating hours replace the hardcoded 7 AM / 5:30 PM: the drop-off button
   appears when the doors open, and with no pick-up logged the daycare day is
   assumed over at the configured close. Operating days replace the weekday
@@ -25,6 +26,20 @@ All notable changes to Two of Us are recorded here. The format loosely follows
   works with the app closed; needs per-device "Always" location permission
   (new `NSLocation*` usage strings). One ask per direction per day, silent
   on home days and after checkout.
+
+### Added — smart pick-up button
+- The hero's Picked up button no longer sits exposed all day. Before the
+  configured "Pick-up from" time (3:00 PM until set, new `SharedSettings`
+  field `daycarePickupShowMinute`, clamped inside the operating hours) it is
+  hidden entirely; from then it rests as a quiet one-line "Ready to pick up
+  Miller?" ask that a tap expands into the real button — two deliberate taps
+  between a bounced phone and a logged checkout.
+- Arriving inside the daycare geofence (arrival prompts on, after the show
+  time) expands the ask to the full button on its own — walking in to get him
+  is the confirmation. An early sick-day pickup still gets the existing
+  arrival-prompt notification at any hour.
+- After checkout the slot shows a quiet "picked up at 4:12" receipt for the
+  rest of the day instead of vanishing.
 
 ### Changed — photo polish
 - The viewer's post-save checkmark (which read as a tappable button) is now
