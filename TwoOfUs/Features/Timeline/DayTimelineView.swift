@@ -51,19 +51,23 @@ struct DayTimelineRow: View {
             HStack(spacing: 8) {
                 Text(entry.emoji).font(.callout)
                 VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
                         titleText
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(AppColor.text)
-                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                         if entry.isFromSnoo { SnooTag() }
                         if entry.isFromDaycare { DaycareTag(color: accent) }
                     }
+                    // Notes render in full — a daycare provider's "he spat up
+                    // after the bottle…" is exactly the context this timeline
+                    // exists to carry, so the row grows rather than the text
+                    // truncating.
                     if let note = entry.notes, !note.isEmpty {
                         Text(note)
                             .font(.caption)
                             .foregroundStyle(AppColor.text2)
-                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Spacer(minLength: 8)
