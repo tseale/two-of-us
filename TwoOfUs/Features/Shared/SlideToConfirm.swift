@@ -1,28 +1,26 @@
 import SwiftUI
+import UIKit
 
-/// A slide-to-confirm capsule staged as a tiny journey: the emoji thumb (the
-/// car) sits at the start of a dashed road, the destination (the little
-/// house) waits at the far end, and the label shimmers slide-to-unlock style
-/// so the gesture explains itself. The thumb must travel the whole track
-/// before the action fires — a pocket tap, a toddler grab, or a bounced
-/// phone can never log it by accident.
+/// A slide-to-confirm pill in the slide-to-power-off family: a frosted glass
+/// capsule, a clean circular thumb (the baby's photo when there is one, a
+/// chevron otherwise), the instruction shimmering through the center, and a
+/// checkmark condensing out of the far end as the thumb approaches. The thumb
+/// must travel the whole track before the action fires — a pocket tap, a
+/// toddler grab, or a bounced phone can never log it by accident.
 ///
-/// The affordances, in order of loudness:
-/// - a shimmer sweeping through the label toward the destination,
-/// - a chevron pair riding behind the label, pointing the way,
-/// - the car itself revving — a gentle nudge forward every few seconds,
-/// - the dashed road connecting car to house.
-/// On arrival the car drives itself the last stretch, the house springs up
-/// to greet it, a sparkle pops, and only then does the action fire — the
-/// moment lands before the receipt row takes over. All idle motion respects
-/// Reduce Motion; VoiceOver sees a plain button instead of a drag.
+/// The affordances, quietest to loudest:
+/// - the tinted glass itself, reading as one interactive surface,
+/// - a shimmer sweeping through the label, slide-to-unlock style,
+/// - a chevron pair tucked behind the label, pointing the way,
+/// - the checkmark fading in ahead as progress builds.
+/// On arrival the track floods with the tint, the checkmark springs, a heavy
+/// impact lands, and only then does the action fire — the moment gets its
+/// beat before the receipt row takes over. Idle motion respects Reduce
+/// Motion; VoiceOver sees a plain button instead of a drag.
 struct SlideToConfirm: View {
-    let emoji: String
     let label: String
-    /// What the thumb is sliding home to — drawn at the track's far end.
-    var destinationEmoji: String? = nil
-    /// Most vehicle emoji face left; mirroring one makes it drive forward.
-    var mirrorThumb = false
+    /// The thumb's face — the baby's photo, falling back to a chevron disc.
+    var thumbPhotoData: Data? = nil
     var tint: Color = AppColor.accentCheck
     let onConfirm: () -> Void
 
@@ -30,12 +28,11 @@ struct SlideToConfirm: View {
     @State private var confirmed = false
     @State private var arrived = false
     @State private var shimmering = false
-    @State private var revving = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.layoutDirection) private var layoutDirection
 
-    private let height: CGFloat = 50
-    private let inset: CGFloat = 3
+    private let height: CGFloat = 56
+    private let inset: CGFloat = 4
 
     var body: some View {
         GeometryReader { geo in
@@ -44,12 +41,9 @@ struct SlideToConfirm: View {
 
             ZStack(alignment: .leading) {
                 track(progress: progress)
-                road(width: geo.size.width)
                 labelView(width: geo.size.width, progress: progress)
-                if let destinationEmoji {
-                    destination(destinationEmoji, progress: progress)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
+                checkmark(progress: progress)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 thumb(progress: progress)
                     .gesture(dragGesture(travel: travel))
             }
@@ -63,32 +57,35 @@ struct SlideToConfirm: View {
 
     // MARK: Layers
 
-    /// The glass track, filling with the tint behind the car — the road
-    /// already traveled.
+    /// The frosted pill: tinted glass with a hairline, and a soft gradient
+    /// wake filling in behind the thumb — the stretch already traveled. On
+    /// arrival the wake floods the whole track.
     private func track(progress: CGFloat) -> some View {
         Capsule()
             .fill(.clear)
-            .glassEffect(.regular.tint(AppColor.text2.opacity(0.1)), in: Capsule())
+            .glassEffect(.regular.tint(tint.opacity(0.10)), in: Capsule())
             .overlay(alignment: .leading) {
-                Capsule()
-                    .fill(tint.opacity(0.22))
+                LinearGradient(colors: [tint.opacity(0.38), tint.opacity(0.16)],
+                               startPoint: .leading, endPoint: .trailing)
                     .frame(width: height + dragX)
+            }
+            .overlay {
+                // Arrival flood — the pill turns the tint for its beat.
+                Capsule()
+                    .fill(tint.opacity(0.85))
+                    .opacity(arrived ? 1 : 0)
+                    .animation(.easeOut(duration: 0.25), value: arrived)
+            }
+            .overlay {
+                Capsule()
+                    .strokeBorder(tint.opacity(0.22), lineWidth: 1)
             }
             .clipShape(Capsule())
     }
 
-    /// The dashed center line of the road, car to house.
-    private func road(width: CGFloat) -> some View {
-        RoadDashes()
-            .stroke(style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [5, 8]))
-            .foregroundStyle(AppColor.text3.opacity(0.35))
-            .padding(.leading, height + 6)
-            .padding(.trailing, destinationEmoji == nil ? 18 : 40)
-            .allowsHitTesting(false)
-    }
-
-    /// The instruction, shimmering toward the destination with a chevron
-    /// pair tucked behind it — the classic "slide this way" cue.
+    /// The instruction, shimmering toward the checkmark with a chevron pair
+    /// tucked behind it — the classic "slide this way" cue. It thins out of
+    /// the thumb's way as the slide begins.
     private func labelView(width: CGFloat, progress: CGFloat) -> some View {
         labelContent
             .foregroundStyle(AppColor.text2)
@@ -107,11 +104,11 @@ struct SlideToConfirm: View {
                     .opacity(reduceMotion ? 0 : 1)
             }
             .frame(maxWidth: .infinity)
-        .padding(.leading, height - 6)       // optical center past the parked car
-        .padding(.trailing, destinationEmoji == nil ? 10 : 30)
-        // The words get out of the car's way as it rolls over them.
-        .opacity(1 - Double(progress) * 1.7)
-        .allowsHitTesting(false)
+            .padding(.leading, height - 10)      // optical center past the parked thumb
+            .padding(.trailing, 26)
+            // The words get out of the thumb's way as it slides over them.
+            .opacity(1 - Double(progress) * 1.7)
+            .allowsHitTesting(false)
     }
 
     private var labelContent: some View {
@@ -125,46 +122,48 @@ struct SlideToConfirm: View {
         }
     }
 
-    /// Where the journey ends: the house leans in as the car gets close,
-    /// springs up on arrival, and a sparkle pops overhead.
-    private func destination(_ destinationEmoji: String, progress: CGFloat) -> some View {
-        Text(destinationEmoji)
-            .font(.body)
-            .scaleEffect(arrived ? 1.3 : 0.9 + 0.2 * progress)
+    /// Where the slide ends: a checkmark that condenses out of the glass as
+    /// the thumb approaches, then springs white on arrival.
+    private func checkmark(progress: CGFloat) -> some View {
+        Image(systemName: "checkmark")
+            .font(.body.weight(.bold))
+            .foregroundStyle(arrived ? AnyShapeStyle(.white)
+                                     : AnyShapeStyle(tint))
+            .scaleEffect(arrived ? 1.15 : 0.5 + 0.5 * progress)
+            .opacity(arrived ? 1 : 0.15 + 0.85 * Double(progress))
             .animation(.spring(response: 0.3, dampingFraction: 0.5), value: arrived)
-            .opacity(0.65 + 0.35 * Double(progress))
-            .overlay(alignment: .top) {
-                Text("✨")
-                    .font(.caption2)
-                    .scaleEffect(arrived ? 1.2 : 0.1)
-                    .opacity(arrived ? 1 : 0)
-                    .offset(y: arrived ? -14 : -4)
-                    .animation(.spring(response: 0.35, dampingFraction: 0.55), value: arrived)
-            }
-            .padding(.trailing, 14)
+            .padding(.trailing, 20)
             .allowsHitTesting(false)
     }
 
-    /// The car: revs forward a few points every few seconds while idle, tips
-    /// onto its nose while being driven, and hops when it reaches the house.
+    /// The thumb: the baby's photo in a clean ring, or a tinted chevron
+    /// disc. It lifts slightly on arrival.
     private func thumb(progress: CGFloat) -> some View {
         ZStack {
-            Circle()
-                .fill(tint)
-                .shadow(color: .black.opacity(0.18), radius: 3, y: 1)
-            Text(emoji)
-                .font(.body)
-                .scaleEffect(x: mirrorThumb ? -1 : 1)
-                .rotationEffect(.degrees(mirrorThumb ? Double(progress) * 7
-                                                     : Double(progress) * -7))
+            if let thumbPhotoData, let image = UIImage(data: thumbPhotoData) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: height - inset * 2, height: height - inset * 2)
+                    .clipShape(Circle())
+                    .overlay {
+                        Circle().strokeBorder(.white.opacity(0.9), lineWidth: 1.5)
+                    }
+            } else {
+                Circle()
+                    .fill(LinearGradient(colors: [tint, tint.opacity(0.8)],
+                                         startPoint: .top, endPoint: .bottom))
+                Image(systemName: "chevron.right.2")
+                    .font(.body.weight(.bold))
+                    .foregroundStyle(.white)
+            }
         }
         .frame(width: height - inset * 2, height: height - inset * 2)
+        .shadow(color: tint.opacity(0.35), radius: 6, y: 2)
         .padding(inset)
-        .scaleEffect(arrived ? 1.12 : 1)
+        .scaleEffect(arrived ? 1.08 : 1)
         .animation(.spring(response: 0.28, dampingFraction: 0.5), value: arrived)
-        .offset(x: dragX + (revving && dragX == 0 && !confirmed ? 5 : 0))
-        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true).delay(1.2),
-                   value: revving)
+        .offset(x: dragX)
     }
 
     // MARK: Motion
@@ -183,7 +182,7 @@ struct SlideToConfirm: View {
                 if dragX >= travel * 0.82 {
                     finish(travel: travel)
                 } else {
-                    // Not all the way home — the car rolls back to the start.
+                    // Not all the way — the thumb settles back to the start.
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                         dragX = 0
                     }
@@ -191,8 +190,9 @@ struct SlideToConfirm: View {
             }
     }
 
-    /// Drive the last stretch, celebrate, then fire — the arrival moment
-    /// gets its beat before the slot swaps to the receipt row.
+    /// Glide the last stretch, flood the pill, land the heavy impact, then
+    /// fire — the arrival moment gets its beat before the slot swaps to the
+    /// receipt row.
     private func finish(travel: CGFloat? = nil) {
         guard !confirmed else { return }
         confirmed = true
@@ -200,7 +200,7 @@ struct SlideToConfirm: View {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { dragX = travel }
         }
         arrived = true
-        Haptics.success()
+        Haptics.heavy()
         DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0 : 0.5)) {
             onConfirm()
         }
@@ -209,22 +209,10 @@ struct SlideToConfirm: View {
     private func startIdleMotion() {
         guard !reduceMotion else { return }
         shimmering = true
-        revving = true
     }
 
     /// Shimmer travel: from just past the thumb to the track's far end.
     private func shimmerSweep(width: CGFloat) -> CGFloat {
         shimmering ? width / 2 + 35 : -(width / 2 + 35)
-    }
-}
-
-/// A straight dashed line through the vertical center — the road's lane
-/// markings.
-private struct RoadDashes: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.midY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
-        return path
     }
 }

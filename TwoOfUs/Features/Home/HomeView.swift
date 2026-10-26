@@ -125,6 +125,7 @@ struct HomeView: View {
                             // daycare day out; checkout brings them back.
                             TodayHeroCard(
                                 babyName: baby?.name ?? "Baby",
+                                babyPhotoData: baby?.photoData,
                                 marks: todayMarks,
                                 feedCount: todaySummary?.feedCount ?? 0,
                                 feedOz: todaySummary?.feedOz ?? 0,
