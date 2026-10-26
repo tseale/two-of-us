@@ -42,8 +42,7 @@ struct DaycareDaySummary: Equatable {
 /// HomeView computes this; `.hidden` collapses the slot entirely).
 enum CheckinSlot: Equatable {
     case dropOff          // weekday morning, nothing logged: Drop off + "home today"
-    case pickUp           // attending, pick-up earned: the full one-tap button
-    case pickUpCollapsed  // attending, after the show time: quiet ask, expands on tap
+    case pickUp           // attending, pick-up earned: the slide-to-confirm track
     case pickedUp(Date)   // checked out: quiet "picked up at 4:12" line
     case homeToday        // "home today" active: one quiet line with an undo
     case hidden           // non-operating day, before the show time, past the close
@@ -97,7 +96,6 @@ struct TodayHeroCard: View {
     var checkinSlot: CheckinSlot = .hidden
     var onDropOff: (() -> Void)? = nil
     var onPickUp: (() -> Void)? = nil
-    var onExpandPickup: (() -> Void)? = nil
     var onHomeToday: (() -> Void)? = nil
     var onUndoHomeToday: (() -> Void)? = nil
 
@@ -447,38 +445,15 @@ struct TodayHeroCard: View {
         case .pickUp:
             // Slide, not tap: ending the daycare day is the one check action
             // with no undo row, so it asks for a deliberate sweep — the car
-            // drives the track home.
-            SlideToConfirm(emoji: "🚗", label: "Slide to log pick-up",
+            // drives the track home to the little house. The gesture is the
+            // accident gate, so it can sit here bare, no collapsed half-step.
+            SlideToConfirm(emoji: "🚗", label: "Slide to pick up \(babyName)",
+                           destinationEmoji: "🏠", mirrorThumb: true,
                            tint: DaycareZoneStyle.base) {
                 onPickUp?()
             }
             .accessibilityHint("Logs the daycare pick-up right now")
             .transition(.opacity.combined(with: .scale(0.96, anchor: .leading)))
-        case .pickUpCollapsed:
-            // The pick-up ask at rest: one quiet line, the same voice as the
-            // "staying home" row — not a button that a bounced phone can
-            // press. The tap only REVEALS the real button (or arriving at
-            // the daycare does); logging stays its own deliberate tap.
-            Button {
-                onExpandPickup?()
-                Haptics.tap()
-            } label: {
-                HStack(spacing: 5) {
-                    Text("🚗").font(.caption)
-                    Text("Ready to pick up \(babyName)?")
-                        .font(.caption)
-                        .foregroundStyle(AppColor.text2)
-                    Image(systemName: "chevron.right")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(AppColor.text3)
-                    Spacer(minLength: 0)
-                }
-                .padding(.vertical, 10)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Ready to pick up \(babyName)?")
-            .accessibilityHint("Shows the Picked up button")
         case .pickedUp(let at):
             // The closing line of the daycare day — the button's work is
             // done, so it leaves a receipt in the staying-home row's voice.

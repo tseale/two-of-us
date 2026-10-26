@@ -179,42 +179,33 @@ final class DaycareStatusTests: XCTestCase {
     // MARK: Pick-up control presentation
 
     private func pickup(now: Date, showMinute: Int = DaycareStatus.defaultPickupShowMinute,
-                        near: Bool = false, expanded: Bool = false)
-        -> DaycareStatus.PickupControl {
-        DaycareStatus.pickupControl(now: now, showMinute: showMinute,
-                                    nearDaycare: near, expanded: expanded)
+                        near: Bool = false) -> Bool {
+        DaycareStatus.pickupVisible(now: now, showMinute: showMinute, nearDaycare: near)
     }
 
-    func testPickupControlHiddenAllMorning() {
-        // Requirement: no pick-up button at all before the show time — a
-        // bounced phone at 10 AM must have nothing to press.
-        XCTAssertEqual(pickup(now: today(hour: 10)), .hidden)
-        XCTAssertEqual(pickup(now: today(hour: 14, minute: 59)), .hidden)
+    func testPickupSlideHiddenAllMorning() {
+        // Requirement: no pick-up control at all before the show time — a
+        // bounced phone at 10 AM must have nothing to grab.
+        XCTAssertFalse(pickup(now: today(hour: 10)))
+        XCTAssertFalse(pickup(now: today(hour: 14, minute: 59)))
     }
 
-    func testPickupControlCollapsesAtTheShowTime() {
-        XCTAssertEqual(pickup(now: today(hour: 15)), .collapsed,
-                       "the show minute itself counts — 3:00 PM shows the ask")
-        XCTAssertEqual(pickup(now: today(hour: 16, minute: 30)), .collapsed)
+    func testPickupSlideSurfacesAtTheShowTime() {
+        XCTAssertTrue(pickup(now: today(hour: 15)),
+                      "the show minute itself counts — 3:00 PM shows the slide")
+        XCTAssertTrue(pickup(now: today(hour: 16, minute: 30)))
     }
 
-    func testPickupControlConfiguredShowTimeMoves() {
-        XCTAssertEqual(pickup(now: today(hour: 15), showMinute: 16 * 60), .hidden)
-        XCTAssertEqual(pickup(now: today(hour: 16), showMinute: 16 * 60), .collapsed)
+    func testPickupSlideConfiguredShowTimeMoves() {
+        XCTAssertFalse(pickup(now: today(hour: 15), showMinute: 16 * 60))
+        XCTAssertTrue(pickup(now: today(hour: 16), showMinute: 16 * 60))
     }
 
-    func testTapExpandsThePickupControl() {
-        XCTAssertEqual(pickup(now: today(hour: 15, minute: 30), expanded: true), .full)
-    }
-
-    func testArrivingAtTheFenceExpandsThePickupControl() {
-        XCTAssertEqual(pickup(now: today(hour: 15, minute: 30), near: true), .full)
-    }
-
-    func testTheFenceNeverRevealsThePickupControlEarly() {
-        // Standing at the daycare at noon (an early sick-day pickup) keeps
-        // Home's button hidden — that path is the geofence notification's,
-        // which asks at any hour while he's attending.
-        XCTAssertEqual(pickup(now: today(hour: 12), near: true, expanded: true), .hidden)
+    func testArrivingAtTheFenceSurfacesThePickupSlideEarly() {
+        // The early sick-day pickup: standing at the daycare at noon
+        // surfaces the slide right away — the sweep gesture is the gate
+        // against accidents, so the window can open wherever the fence does.
+        XCTAssertTrue(pickup(now: today(hour: 12), near: true))
+        XCTAssertTrue(pickup(now: today(hour: 15, minute: 30), near: true))
     }
 }
