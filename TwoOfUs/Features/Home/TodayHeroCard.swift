@@ -445,9 +445,15 @@ struct TodayHeroCard: View {
                 }
             }
         case .pickUp:
-            checkButton("🚗", "Picked up", action: onPickUp)
-                .accessibilityHint("Logs the daycare pick-up right now")
-                .transition(.opacity.combined(with: .scale(0.96, anchor: .leading)))
+            // Slide, not tap: ending the daycare day is the one check action
+            // with no undo row, so it asks for a deliberate sweep — the car
+            // drives the track home.
+            SlideToConfirm(emoji: "🚗", label: "Slide to log pick-up",
+                           tint: DaycareZoneStyle.base) {
+                onPickUp?()
+            }
+            .accessibilityHint("Logs the daycare pick-up right now")
+            .transition(.opacity.combined(with: .scale(0.96, anchor: .leading)))
         case .pickUpCollapsed:
             // The pick-up ask at rest: one quiet line, the same voice as the
             // "staying home" row — not a button that a bounced phone can
