@@ -451,7 +451,7 @@ struct TodayHeroCard: View {
             // The gesture is the accident gate, so no collapsed half-step.
             SlideToConfirm(label: "Pick up \(babyName)",
                            thumbPhotoData: babyPhotoData,
-                           tint: AppColor.accentSleep) {
+                           tint: DaycareZoneStyle.base) {
                 onPickUp?()
             }
             .frame(maxWidth: 300)
@@ -464,7 +464,7 @@ struct TodayHeroCard: View {
             HStack(spacing: 5) {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.caption)
-                    .foregroundStyle(AppColor.accentSleep)
+                    .foregroundStyle(DaycareZoneStyle.base)
                 Text("picked up at \(TimeFormatting.clock(at))")
                     .font(.caption)
                     .foregroundStyle(AppColor.text2)
