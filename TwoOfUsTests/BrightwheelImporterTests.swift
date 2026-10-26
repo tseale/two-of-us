@@ -273,6 +273,55 @@ final class BrightwheelImporterTests: XCTestCase {
         XCTAssertNil(data, "no cache and no link means nothing to save — never junk bytes")
     }
 
+    // MARK: Open nap never outlives checkout
+
+    private func checkoutActivity(id: String, minutesAgo: Int) throws -> BrightwheelActivity {
+        let dict: [String: Any] = [
+            "object_id": id, "action_type": "ac_checkin", "note": "Picked up by Mom",
+            "event_date": ISO8601DateFormatter()
+                .string(from: Date(timeIntervalSinceNow: -Double(minutesAgo) * 60)),
+        ]
+        return try JSONDecoder().decode(
+            BrightwheelActivity.self,
+            from: JSONSerialization.data(withJSONObject: dict))
+    }
+
+    func testCheckoutClosesANapBrightwheelNeverEnded() throws {
+        // Staff logged the fell-asleep but never the wake-up; pickup still
+        // ends the nap right then instead of letting it run forever.
+        let start = try napActivity(id: "nap-start", state: "1", minutesAgo: 90)
+        let checkout = try checkoutActivity(id: "checkout", minutesAgo: 10)
+        let summary = BrightwheelImporter(context: container.mainContext)
+            .importActivities([start, checkout])
+        XCTAssertEqual(summary.sleeps, 1, "the open nap closes at checkout")
+        XCTAssertEqual(summary.checks, 1)
+        XCTAssertNil(summary.openNapStartedAt, "nothing left running after pickup")
+
+        let nap = try XCTUnwrap(container.mainContext.fetch(FetchDescriptor<SleepEvent>()).first)
+        XCTAssertEqual(nap.startedAt.timeIntervalSince(start.when!), 0, accuracy: 1)
+        XCTAssertEqual(nap.endedAt?.timeIntervalSince(checkout.when!) ?? -1, 0, accuracy: 1)
+    }
+
+    func testCheckoutWithNoOpenNapImportsNormally() throws {
+        // The ordinary case: no nap running, checkout just logs the marker.
+        let checkout = try checkoutActivity(id: "checkout-plain", minutesAgo: 5)
+        let summary = BrightwheelImporter(context: container.mainContext)
+            .importActivities([checkout])
+        XCTAssertEqual(summary.sleeps, 0)
+        XCTAssertEqual(summary.checks, 1)
+    }
+
+    func testReimportingTheSameCheckoutDoesNotDoubleCloseTheNap() throws {
+        // A later sync re-scans the whole day again: the nap must close once,
+        // not re-import as a second sleep.
+        let start = try napActivity(id: "nap-start-2", state: "1", minutesAgo: 90)
+        let checkout = try checkoutActivity(id: "checkout-2", minutesAgo: 10)
+        let importer = BrightwheelImporter(context: container.mainContext)
+        _ = importer.importActivities([start, checkout])
+        let second = importer.importActivities([start, checkout])
+        XCTAssertEqual(second.sleeps, 0, "the closed nap dedupes like any other re-synced activity")
+    }
+
     func testCompletedNapPlusNewStartIsALiveNap() throws {
         // Morning nap done, afternoon nap under way.
         let afternoon = try napActivity(id: "nap2-start", state: "1", minutesAgo: 10)

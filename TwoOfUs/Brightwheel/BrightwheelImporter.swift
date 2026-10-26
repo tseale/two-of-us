@@ -121,6 +121,15 @@ struct BrightwheelImporter {
                 importNapHalf(activity, when: when, openStart: &openNapStart,
                               carriedStart: &carried, into: &summary)
             } else {
+                // A checkout always ends a nap Brightwheel never did — staff
+                // forget the wake-up, or he wakes up in the car. The general
+                // rule: a daycare nap can't outlive checkout.
+                if action == "ac_checkin", checkType(from: activity) == .checkOut,
+                   let napStart = openNapStart?.when ?? carried {
+                    closeNapOnCheckout(startedAt: napStart, checkoutAt: when, into: &summary)
+                    openNapStart = nil
+                    carried = nil
+                }
                 importSingle(activity, action: action, when: when, into: &summary)
             }
         }
@@ -213,6 +222,25 @@ struct BrightwheelImporter {
             summary.skippedUnmapped += 1
             AppLog.store.error("Brightwheel: unrecognized ac_nap shape at \(when, privacy: .public) (state \(activity.napState ?? "nil", privacy: .public))")
         }
+    }
+
+    /// Closes a nap Brightwheel left running when he's checked out — the
+    /// same completed-sleep write a real wake-up activity would make, just
+    /// keyed off the checkout instead. Idempotent: re-running this on a
+    /// later sync (the wake-up never does arrive) dedupes on the derived id,
+    /// same as any other re-imported activity.
+    @discardableResult
+    func closeNapOnCheckout(startedAt napStart: Date, checkoutAt: Date,
+                            into summary: inout Summary) -> Bool {
+        guard napStart < checkoutAt else { return false }
+        let id = "nap-\(Int(napStart.timeIntervalSince1970))-checkout"
+        guard !isDuplicateSleep(externalID: id, start: napStart) else { return false }
+        guard store.logCompletedSleep(startedAt: napStart, endedAt: checkoutAt,
+                                      source: .brightwheel, externalID: id) != nil else { return false }
+        summary.sleeps += 1
+        notifyDaycare(NotificationManager.DaycareText.napEnded(babyName, start: napStart, end: checkoutAt),
+                      at: checkoutAt, dedupe: id)
+        return true
     }
 
     /// The carried live-nap start, consumed if it plausibly belongs to this
