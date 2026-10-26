@@ -55,6 +55,11 @@ struct HomeView: View {
     @State private var router = DeepLinkRouter.shared
     @State private var snoo = SnooSyncCoordinator.shared
     @State private var brightwheel = BrightwheelManager.shared
+    @State private var geofence = DaycareGeofenceManager.shared
+    /// When the collapsed pick-up ask was tapped open — dated, not a Bool, so
+    /// an app that stays resident overnight collapses again the next
+    /// afternoon instead of inheriting yesterday's expansion.
+    @State private var pickupExpandedOn: Date?
     @State private var didApplyDebugScreen = false
     /// Start of the current day. Advanced by a task at midnight so the "today"
     /// ribbon, counts, and 24h window refresh even if the app sits foregrounded
@@ -146,9 +151,14 @@ struct HomeView: View {
                                 showFeed: isTracked(.feed),
                                 showSleep: isTracked(.sleep),
                                 showDiaper: isTracked(.diaper),
+                                daycareName: daycareSettings?.daycareDisplayName ?? "Daycare",
+                                daycareCloseMinute: daycareCloseMinute,
                                 checkinSlot: checkinSlot(now: ctx.date, attendance: attendance),
                                 onDropOff: { logCheck(.checkIn, toast: "Dropped off") },
                                 onPickUp: { logCheck(.checkOut, toast: "Picked up") },
+                                onExpandPickup: {
+                                    withAnimation(.snappy) { pickupExpandedOn = ctx.date }
+                                },
                                 onHomeToday: { logCheck(.notAttending, toast: "Staying home today") },
                                 onUndoHomeToday: undoHomeToday
                             )
@@ -465,13 +475,24 @@ struct HomeView: View {
 
     /// Whether Miller is at daycare right now, and since when (`DaycareStatus`
     /// — check markers first, first daycare-logged event as the fallback, with
-    /// the 5:30 PM assumed check-out). Drives the tiles-↔-strip swap and the
-    /// report card's hero placement.
+    /// the configured closing time as the assumed check-out). Drives the
+    /// tiles-↔-strip swap and the report card's hero placement.
     private func daycareAttendance(now: Date) -> DaycareStatus.Attendance? {
         DaycareStatus.attendance(
             checks: checkEvents.map { ($0.timestamp, $0.type) },
             firstDaycareEvent: firstDaycareEventToday,
-            dayStart: dayStart, now: now)
+            dayStart: dayStart, now: now,
+            closeMinute: daycareCloseMinute)
+    }
+
+    /// The shared daycare config (hours, days, name) — the canonical row, the
+    /// same pick Settings edits.
+    private var daycareSettings: SharedSettings? {
+        SharedSettings.canonical(settingsList)
+    }
+
+    private var daycareCloseMinute: Int {
+        daycareSettings?.daycareCloseMinute ?? DaycareStatus.defaultCloseMinute
     }
 
     /// The earliest daycare-sourced event of any kind today — the stand-in
@@ -995,26 +1016,51 @@ struct HomeView: View {
 
     // MARK: Manual check-in/out
 
-    /// The hero's manual check slot: weekdays only. Drop off until attendance
-    /// begins (or "home today" hides it), Pick up while he's there — manual
-    /// OR Brightwheel-implicit, so marker-less days get a real checkout —
-    /// and nothing once the day has ended (pickup logged, or the assumed
-    /// 5:30 close passed with nothing to show).
+    /// The hero's manual check slot: operating days only (Settings → Daycare;
+    /// Mon–Fri until configured). Drop off until attendance begins (or "home
+    /// today" hides it). While he's there — manual OR Brightwheel-implicit,
+    /// so marker-less days get a real checkout — the pick-up control follows
+    /// `DaycareStatus.pickupControl`: hidden until the configured show time
+    /// (3 PM until set), then a quiet collapsed ask, earning the full button
+    /// on a tap or on arrival inside the daycare geofence. After the checkout
+    /// a quiet "picked up at" receipt holds the slot; nothing once the
+    /// configured close passed with nothing to show.
     private func checkinSlot(now: Date, attendance: DaycareStatus.Attendance?) -> CheckinSlot {
-        guard !Calendar.current.isDateInWeekend(now) else { return .hidden }
-        if attendance != nil { return .pickUp }
+        let settings = daycareSettings
+        guard settings?.isDaycareDay(now) ?? !Calendar.current.isDateInWeekend(now) else {
+            return .hidden
+        }
+        if attendance != nil {
+            let expanded = pickupExpandedOn.map {
+                Calendar.current.isDate($0, inSameDayAs: now)
+            } ?? false
+            switch DaycareStatus.pickupControl(
+                now: now,
+                showMinute: settings?.daycarePickupShowMinute
+                    ?? DaycareStatus.defaultPickupShowMinute,
+                nearDaycare: geofence.isNearDaycare,
+                expanded: expanded
+            ) {
+            case .hidden: return .hidden
+            case .collapsed: return .pickUpCollapsed
+            case .full: return .pickUp
+            }
+        }
         let todays = checkEvents.filter { $0.timestamp >= dayStart && $0.timestamp <= now }
-        if todays.contains(where: { $0.type == .checkOut }) { return .hidden }
+        if let pickedUpAt = todays.filter({ $0.type == .checkOut }).map(\.timestamp).max() {
+            return .pickedUp(pickedUpAt)
+        }
         if todays.contains(where: { $0.type == .notAttending }) { return .homeToday }
-        if let assumed = Calendar.current.date(bySettingHour: DaycareStatus.assumedCheckOutHour,
-                                               minute: DaycareStatus.assumedCheckOutMinute,
-                                               second: 0, of: now), now >= assumed {
+        if let assumed = DaycareStatus.assumedCheckOut(dayStart: dayStart,
+                                                      closeMinute: daycareCloseMinute),
+           now >= assumed {
             return .hidden
         }
-        // Daycare opens at 7 — no buttons during the night shift.
-        guard Calendar.current.component(.hour, from: now) >= DaycareStatus.opensHour else {
-            return .hidden
-        }
+        // No buttons before the doors open — the night shift isn't a drop-off.
+        let openMinute = settings?.daycareOpenMinute ?? DaycareStatus.defaultOpenMinute
+        let minuteOfDay = Calendar.current.component(.hour, from: now) * 60
+            + Calendar.current.component(.minute, from: now)
+        guard minuteOfDay >= openMinute else { return .hidden }
         return .dropOff
     }
 

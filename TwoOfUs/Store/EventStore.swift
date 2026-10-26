@@ -916,6 +916,52 @@ struct EventStore {
         }
     }
 
+    /// Updates the shared daycare configuration and syncs it. Nil fields stay
+    /// as-is; `location: .some(nil)` clears the pin (written as "" so the
+    /// clear travels — see `SharedSettings.daycareLocationRaw`), `.none` (the
+    /// default) leaves it untouched.
+    func updateDaycare(name: String? = nil, room: String? = nil, phone: String? = nil,
+                       address: String? = nil,
+                       location: (latitude: Double, longitude: Double)?? = .none,
+                       geofenceRadiusMeters: Double? = nil, geofenceEnabled: Bool? = nil,
+                       openMinute: Int? = nil, closeMinute: Int? = nil,
+                       pickupShowMinute: Int? = nil,
+                       days: Set<Int>? = nil) {
+        guard let settings else { return }
+        // All-nil is a no-op (the settings page commits on exit whether or
+        // not anything was typed) — don't mint a save/sync for it.
+        guard name != nil || room != nil || phone != nil || address != nil
+            || location != nil || geofenceRadiusMeters != nil || geofenceEnabled != nil
+            || openMinute != nil || closeMinute != nil || pickupShowMinute != nil
+            || days != nil else { return }
+        if let name { settings.daycareName = EventBounds.cleanNote(name) ?? "" }
+        if let room { settings.daycareRoom = EventBounds.cleanNote(room) ?? "" }
+        if let phone { settings.daycarePhone = EventBounds.cleanNote(phone) ?? "" }
+        if let address { settings.daycareAddress = EventBounds.cleanNote(address) ?? "" }
+        if case let .some(value) = location { settings.daycareCoordinate = value }
+        if let geofenceRadiusMeters {
+            settings.daycareGeofenceRadiusMeters = geofenceRadiusMeters
+        }
+        if let geofenceEnabled { settings.daycareGeofenceEnabled = geofenceEnabled }
+        if let openMinute { settings.daycareOpenMinute = openMinute }
+        if let closeMinute { settings.daycareCloseMinute = closeMinute }
+        if let pickupShowMinute { settings.daycarePickupShowMinute = pickupShowMinute }
+        if let days { settings.daycareDays = days }
+        // Open must stay before close — a crossed pair would hide the drop-off
+        // button all day and close the daycare day at its open.
+        if settings.daycareCloseMinute <= settings.daycareOpenMinute {
+            settings.daycareCloseMinute = min(settings.daycareOpenMinute + 60, 24 * 60 - 1)
+        }
+        // The pick-up show time must sit inside the day's hours: before the
+        // open it's meaningless, and at/after the close the control could
+        // never appear — attendance itself ends at the assumed close.
+        settings.daycarePickupShowMinute = min(
+            max(settings.daycarePickupShowMinute, settings.daycareOpenMinute),
+            settings.daycareCloseMinute - 1)
+        save()
+        sync(save: [settings.id])
+    }
+
     /// Publishes (or clears, with nil) the household SNOO connection on the
     /// shared settings record (`SnooSharedCredentials` JSON — the refresh
     /// token, deliberately shared with every participant in the zone; never

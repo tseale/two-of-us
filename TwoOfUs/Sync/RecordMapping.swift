@@ -222,6 +222,22 @@ enum RecordMapping {
             if let brightwheelStatus = m.brightwheelStatus {
                 r["brightwheelStatus"] = brightwheelStatus
             }
+            r["daycareName"] = m.daycareName
+            r["daycareRoom"] = m.daycareRoom
+            r["daycarePhone"] = m.daycarePhone
+            r["daycareAddress"] = m.daycareAddress
+            // Same three-state contract as snooCredentials: nil (never set)
+            // writes NO field so it can't stomp another device's pin; "" is
+            // the explicit clear that must travel.
+            if let daycareLocation = m.daycareLocationRaw {
+                r["daycareLocation"] = daycareLocation
+            }
+            r["daycareGeofenceRadiusMeters"] = m.daycareGeofenceRadiusMeters
+            r["daycareGeofenceEnabled"] = m.daycareGeofenceEnabled ? 1 : 0
+            r["daycareOpenMinute"] = m.daycareOpenMinute
+            r["daycareCloseMinute"] = m.daycareCloseMinute
+            r["daycarePickupShowMinute"] = m.daycarePickupShowMinute
+            r["daycareDaysRaw"] = m.daycareDaysRaw
             return r
         }
         if let m = PlanSlot.fetchByID(uuid, in: context) {
@@ -730,6 +746,23 @@ enum RecordMapping {
         // (never set); absent (an older build's record) keeps the local value.
         if let s = r["snooCredentials"] as? String { m.snooCredentials = s }
         if let s = r["brightwheelStatus"] as? String { m.brightwheelStatus = s }
+        // Absent fields (a record written pre-daycare-settings) keep the
+        // local defaults; daycareLocation keeps the snooCredentials contract
+        // ("" is the explicit clear, absent keeps the local value).
+        m.daycareName = r["daycareName"] as? String ?? m.daycareName
+        m.daycareRoom = r["daycareRoom"] as? String ?? m.daycareRoom
+        m.daycarePhone = r["daycarePhone"] as? String ?? m.daycarePhone
+        m.daycareAddress = r["daycareAddress"] as? String ?? m.daycareAddress
+        if let s = r["daycareLocation"] as? String { m.daycareLocationRaw = s }
+        m.daycareGeofenceRadiusMeters = r["daycareGeofenceRadiusMeters"] as? Double
+            ?? m.daycareGeofenceRadiusMeters
+        m.daycareGeofenceEnabled = (r["daycareGeofenceEnabled"] as? Int).map { $0 != 0 }
+            ?? m.daycareGeofenceEnabled
+        m.daycareOpenMinute = r["daycareOpenMinute"] as? Int ?? m.daycareOpenMinute
+        m.daycareCloseMinute = r["daycareCloseMinute"] as? Int ?? m.daycareCloseMinute
+        m.daycarePickupShowMinute = r["daycarePickupShowMinute"] as? Int
+            ?? m.daycarePickupShowMinute
+        m.daycareDaysRaw = r["daycareDaysRaw"] as? String ?? m.daycareDaysRaw
     }
 
     private static func applyPlanSlot(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {

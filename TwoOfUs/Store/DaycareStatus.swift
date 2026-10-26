@@ -16,23 +16,58 @@ enum DaycareStatus {
         let basis: Basis
     }
 
-    /// With no check-out recorded, the daycare day is assumed over at 5:30 PM
-    /// — pickup time with margin. Fallback only: an explicit check-out ends
-    /// the day whenever it lands, and an explicit check-in placed after 5:30
-    /// (a real, if odd, marker) is honored until midnight.
-    static let assumedCheckOutHour = 17
-    static let assumedCheckOutMinute = 30
+    /// Defaults until the Daycare settings page configures the real hours —
+    /// minutes from midnight, the night-window convention. Close is pickup
+    /// time with margin: with no check-out recorded, the daycare day is
+    /// assumed over then. Fallback only: an explicit check-out ends the day
+    /// whenever it lands, and an explicit check-in placed after close (a
+    /// real, if odd, marker) is honored until midnight. Open hides the manual
+    /// Drop off button through the night shift.
+    static let defaultOpenMinute = 7 * 60            // 7:00 AM
+    static let defaultCloseMinute = 17 * 60 + 30     // 5:30 PM
+    static let defaultPickupShowMinute = 15 * 60     // pick-up control from 3:00 PM
 
-    /// Daycare opens at 7 AM — the manual Drop off button stays hidden
-    /// before then. (Someday a Daycare settings page can own these hours.)
-    static let opensHour = 7
+    /// How the hero's pick-up control presents while he's at daycare. The
+    /// morning and midday answer is `hidden` — pick-up isn't on anyone's
+    /// mind yet, and a bare always-there button is exactly how a bounced
+    /// phone logs a 10 AM checkout. From `showMinute` the control surfaces
+    /// collapsed (a quiet one-line ask that expands on tap — two steps, no
+    /// accidents); standing at the daycare (`nearDaycare`, the geofence) or
+    /// having tapped the collapsed ask (`expanded`) earns the full button.
+    enum PickupControl: Equatable {
+        case hidden      // before the show time: nothing at all
+        case collapsed   // quiet "Ready to pick up?" line, expands on tap
+        case full        // the real one-tap Picked up button
+    }
+
+    static func pickupControl(
+        now: Date,
+        showMinute: Int = defaultPickupShowMinute,
+        nearDaycare: Bool,
+        expanded: Bool,
+        calendar: Calendar = .current
+    ) -> PickupControl {
+        let minuteOfDay = calendar.component(.hour, from: now) * 60
+            + calendar.component(.minute, from: now)
+        guard minuteOfDay >= showMinute else { return .hidden }
+        return (expanded || nearDaycare) ? .full : .collapsed
+    }
+
+    /// When the day is assumed over with no check-out marker: the configured
+    /// close on `dayStart`'s calendar day. `bySettingHour` (not minute
+    /// arithmetic) so a DST transition day still closes at the wall-clock time.
+    static func assumedCheckOut(dayStart: Date, closeMinute: Int = defaultCloseMinute,
+                                calendar: Calendar = .current) -> Date? {
+        calendar.date(bySettingHour: closeMinute / 60, minute: closeMinute % 60,
+                      second: 0, of: dayStart)
+    }
 
     /// Nil = not at daycare. The check events are the primary source: today's
     /// latest marker decides (check-out always wins). When today has no
     /// markers at all, the first daycare-sourced event of any kind stands in
     /// for the missing check-in — if daycare is logging bottles, he's there.
     /// Fallbacks keep a missed tap from wedging Home:
-    /// - no check-out by `assumedCheckOut` → considered checked out then;
+    /// - no check-out by the assumed close → considered checked out then;
     /// - everything is scoped to today, so midnight clears any leftover state;
     /// - future-dated events (backdate typos) don't count until their time.
     static func attendance(
@@ -40,6 +75,7 @@ enum DaycareStatus {
         firstDaycareEvent: Date?,
         dayStart: Date,
         now: Date = .now,
+        closeMinute: Int = defaultCloseMinute,
         calendar: Calendar = .current
     ) -> Attendance? {
         func isLive(_ t: Date) -> Bool { t >= dayStart && t <= now }
@@ -61,9 +97,8 @@ enum DaycareStatus {
         }
         guard let candidate else { return nil }
 
-        if let assumedOut = calendar.date(bySettingHour: assumedCheckOutHour,
-                                          minute: assumedCheckOutMinute,
-                                          second: 0, of: dayStart),
+        if let assumedOut = assumedCheckOut(dayStart: dayStart, closeMinute: closeMinute,
+                                            calendar: calendar),
            now >= assumedOut, candidate.since < assumedOut {
             return nil
         }

@@ -121,6 +121,27 @@ final class DaycareStatusTests: XCTestCase {
         XCTAssertEqual(result?.since, today(hour: 17, minute: 45))
     }
 
+    // MARK: Configured hours (Daycare settings)
+
+    func testConfiguredCloseMovesTheAssumedCheckOut() {
+        // A 6:00 PM daycare: 5:31 is still mid-attendance, 6:00 clears it.
+        let checks: [(Date, CheckType)] = [(today(hour: 7, minute: 30), .checkIn)]
+        XCTAssertNotNil(DaycareStatus.attendance(
+            checks: checks, firstDaycareEvent: nil, dayStart: dayStart,
+            now: today(hour: 17, minute: 31), closeMinute: 18 * 60))
+        XCTAssertNil(DaycareStatus.attendance(
+            checks: checks, firstDaycareEvent: nil, dayStart: dayStart,
+            now: today(hour: 18), closeMinute: 18 * 60))
+    }
+
+    func testEarlierConfiguredCloseClearsSooner() {
+        // A 4:00 PM close must end the day before the old 5:30 default.
+        let checks: [(Date, CheckType)] = [(today(hour: 7, minute: 30), .checkIn)]
+        XCTAssertNil(DaycareStatus.attendance(
+            checks: checks, firstDaycareEvent: nil, dayStart: dayStart,
+            now: today(hour: 16, minute: 30), closeMinute: 16 * 60))
+    }
+
     // MARK: "Home today" markers (manual check-in feature)
 
     func testHomeTodayMarkerIsNotACheckIn() {
@@ -153,5 +174,47 @@ final class DaycareStatusTests: XCTestCase {
             checks: [(today(hour: 7, minute: 48), .checkIn),
                      (today(hour: 16), .checkOut)],
             now: today(hour: 16, minute: 5)))
+    }
+
+    // MARK: Pick-up control presentation
+
+    private func pickup(now: Date, showMinute: Int = DaycareStatus.defaultPickupShowMinute,
+                        near: Bool = false, expanded: Bool = false)
+        -> DaycareStatus.PickupControl {
+        DaycareStatus.pickupControl(now: now, showMinute: showMinute,
+                                    nearDaycare: near, expanded: expanded)
+    }
+
+    func testPickupControlHiddenAllMorning() {
+        // Requirement: no pick-up button at all before the show time — a
+        // bounced phone at 10 AM must have nothing to press.
+        XCTAssertEqual(pickup(now: today(hour: 10)), .hidden)
+        XCTAssertEqual(pickup(now: today(hour: 14, minute: 59)), .hidden)
+    }
+
+    func testPickupControlCollapsesAtTheShowTime() {
+        XCTAssertEqual(pickup(now: today(hour: 15)), .collapsed,
+                       "the show minute itself counts — 3:00 PM shows the ask")
+        XCTAssertEqual(pickup(now: today(hour: 16, minute: 30)), .collapsed)
+    }
+
+    func testPickupControlConfiguredShowTimeMoves() {
+        XCTAssertEqual(pickup(now: today(hour: 15), showMinute: 16 * 60), .hidden)
+        XCTAssertEqual(pickup(now: today(hour: 16), showMinute: 16 * 60), .collapsed)
+    }
+
+    func testTapExpandsThePickupControl() {
+        XCTAssertEqual(pickup(now: today(hour: 15, minute: 30), expanded: true), .full)
+    }
+
+    func testArrivingAtTheFenceExpandsThePickupControl() {
+        XCTAssertEqual(pickup(now: today(hour: 15, minute: 30), near: true), .full)
+    }
+
+    func testTheFenceNeverRevealsThePickupControlEarly() {
+        // Standing at the daycare at noon (an early sick-day pickup) keeps
+        // Home's button hidden — that path is the geofence notification's,
+        // which asks at any hour while he's attending.
+        XCTAssertEqual(pickup(now: today(hour: 12), near: true, expanded: true), .hidden)
     }
 }

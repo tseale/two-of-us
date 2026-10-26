@@ -10,6 +10,7 @@ struct IntegrationsSettingsView: View {
 
     var body: some View {
         Form {
+            daycareSection
             SnooSettingsSection(login: $snooLogin)
             BrightwheelSettingsSection(showLogin: $showBrightwheelLogin)
         }
@@ -20,6 +21,20 @@ struct IntegrationsSettingsView: View {
         }
         .sheet(isPresented: $showBrightwheelLogin) {
             BrightwheelLoginSheet()
+        }
+    }
+
+    /// The daycare itself — name, hours, days, location, arrival prompts.
+    /// Lives with the Brightwheel row because that's where daycare already is
+    /// in the settings mental map, even though it's config, not a connection.
+    private var daycareSection: some View {
+        Section {
+            NavigationLink {
+                DaycareSettingsView()
+            } label: {
+                SettingsIconLabel(title: "Daycare", systemImage: "building.2.fill",
+                                  tint: AppColor.accentCheck)
+            }
         }
     }
 }

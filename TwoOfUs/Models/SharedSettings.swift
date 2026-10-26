@@ -60,6 +60,33 @@ final class SharedSettings {
     /// optional) so pre-upgrade stores and records that predate the field
     /// read as "on".
     var aiPredictionsEnabled: Bool = true
+    // The daycare itself — the place and its rhythm, shared so one parent's
+    // setup reaches the other's phone. Strings defaulted (not optional) so
+    // pre-upgrade stores and records that predate the fields read as "unset";
+    // minutes-from-midnight for the hours (same convention as the night
+    // window) so they survive DST and render identically on both phones.
+    var daycareName: String = ""
+    var daycareRoom: String = ""
+    var daycarePhone: String = ""
+    var daycareAddress: String = ""
+    /// The pinned location as "lat,lon" — three-state like brightwheelStatus:
+    /// nil = never set (the field must not stomp another device's copy),
+    /// "" = explicitly cleared, "37.3349,-122.0090" = pinned.
+    var daycareLocationRaw: String?
+    var daycareGeofenceRadiusMeters: Double = 200
+    /// Arrival prompts ("Drop off Miller?" / "Pick up Miller?") — shared
+    /// policy; each phone still needs its own Always location permission.
+    var daycareGeofenceEnabled: Bool = false
+    var daycareOpenMinute: Int = 420           // doors open 7:00 AM
+    var daycareCloseMinute: Int = 1050         // doors close 5:30 PM
+    /// Earliest wall-clock minute the hero's pick-up control may appear.
+    /// Before it the control is hidden entirely — a stray thumb at 10 AM
+    /// can't log a checkout. Defaulted so pre-upgrade records read 3:00 PM.
+    var daycarePickupShowMinute: Int = 900     // pick-up control from 3:00 PM
+    /// Operating days as CSV of `Calendar` weekday numbers (1 = Sunday … 7 =
+    /// Saturday) — "2,3,4,5,6" is Mon–Fri. CSV, not a bitmask, so the synced
+    /// value reads in the Console and degrades predictably on older builds.
+    var daycareDaysRaw: String = SharedSettings.defaultDaycareDaysRaw
     var ckSystemFields: Data?                  // archived CKRecord system fields (see Baby.ckSystemFields)
 
     init(
@@ -176,5 +203,52 @@ final class SharedSettings {
     /// nothing to log is a brick — and `EventStore.updateSettings` backstops it.
     var enabledTrackerCount: Int {
         EventKind.allCases.count(where: isEnabled)
+    }
+
+    // MARK: Daycare
+
+    static let defaultDaycareDaysRaw = "2,3,4,5,6"   // Mon–Fri
+
+    /// What the app calls the place — the configured name, or the generic
+    /// word until one is set.
+    var daycareDisplayName: String {
+        daycareName.isEmpty ? "Daycare" : daycareName
+    }
+
+    /// Operating days as `Calendar` weekday numbers. A raw value that parses
+    /// to nothing (future build, corrupted write) reads as the Mon–Fri
+    /// default rather than making every day a home day.
+    var daycareDays: Set<Int> {
+        get {
+            let days = Set(daycareDaysRaw.split(separator: ",").compactMap { Int($0) }
+                .filter { (1...7).contains($0) })
+            return days.isEmpty ? Set([2, 3, 4, 5, 6]) : days
+        }
+        set {
+            daycareDaysRaw = newValue.filter { (1...7).contains($0) }.sorted()
+                .map(String.init).joined(separator: ",")
+        }
+    }
+
+    func isDaycareDay(_ date: Date, calendar: Calendar = .current) -> Bool {
+        daycareDays.contains(calendar.component(.weekday, from: date))
+    }
+
+    /// The pinned location, decoded from `daycareLocationRaw`. Nil while
+    /// unset/cleared or when the raw value doesn't parse.
+    var daycareCoordinate: (latitude: Double, longitude: Double)? {
+        get {
+            guard let raw = daycareLocationRaw, !raw.isEmpty else { return nil }
+            let parts = raw.split(separator: ",")
+            guard parts.count == 2,
+                  let lat = Double(parts[0]), let lon = Double(parts[1]),
+                  abs(lat) <= 90, abs(lon) <= 180 else { return nil }
+            return (lat, lon)
+        }
+        set {
+            // Setting nil writes "" (the explicit clear that must travel),
+            // never back to the untouched nil state.
+            daycareLocationRaw = newValue.map { "\($0.latitude),\($0.longitude)" } ?? ""
+        }
     }
 }

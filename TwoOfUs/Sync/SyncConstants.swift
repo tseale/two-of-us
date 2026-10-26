@@ -52,7 +52,9 @@ enum SyncConstants {
         /// types, so `all` growing detects them — no generation bump needed.)
         /// Generation 4: SharedSettings.brightwheelStatus (household
         /// Brightwheel connection status).
-        static let schemaGeneration = 4
+        /// Generation 5: the SharedSettings daycare fields (name, room,
+        /// phone, address, location, geofence, hours, days).
+        static let schemaGeneration = 5
 
         static let all: Set<String> = [
             baby, feed, sleep, diaper, note, participant, settings, planSlot, planOverride,

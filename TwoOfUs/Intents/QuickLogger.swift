@@ -329,6 +329,44 @@ struct QuickLogger {
         return event
     }
 
+    /// One-tap daycare marker from a notification action (the geofence
+    /// prompts). Mirrors `EventStore.logCheck`: `sourceRaw` stays nil (the
+    /// hand-logged convention) and `byName` carries the logger. No tracker
+    /// gate — check markers have no toggle.
+    @discardableResult
+    func logCheck(_ type: CheckType) -> CheckEvent? {
+        guard let owner else {
+            Self.log.error("logCheck refused: no participant to attribute the event to")
+            return nil
+        }
+        // Same idempotency window as feeds/diapers: a mashed action button is
+        // one marker, not two.
+        if let recent = lastCheck, recent.type == type,
+           Date.now.timeIntervalSince(recent.timestamp) < Self.duplicateWriteWindow {
+            Self.log.log("logCheck absorbed a duplicate tap (identical marker \(recent.timestamp, privacy: .public))")
+            return recent
+        }
+        let event = CheckEvent(
+            baby: baby, type: type, timestamp: .now,
+            byName: owner.displayName,
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex
+        )
+        context.insert(event)
+        commit(syncing: [event.id])
+        return event
+    }
+
+    private var lastCheck: CheckEvent? {
+        var d = FetchDescriptor<CheckEvent>(
+            predicate: #Predicate { $0.deletedAt == nil },
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        d.fetchLimit = 1
+        return (try? context.fetch(d))?.first
+    }
+
     /// Soft-deletes the single most-recent live event across all three kinds.
     /// Mirrors the app's append-only model (sets `deletedAt`, never hard-deletes).
     /// - Returns: a human label of what was removed, or nil if there was nothing.
