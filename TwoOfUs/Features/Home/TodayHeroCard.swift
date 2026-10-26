@@ -52,6 +52,8 @@ struct TodayHeroCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let babyName: String
+    /// The baby's photo — the slide-to-confirm thumb wears it.
+    var babyPhotoData: Data? = nil
     /// Today's events — home and daycare together — for the day-flow strip.
     let marks: [RibbonMark]
     /// Whole-day totals (home + daycare).
@@ -444,21 +446,25 @@ struct TodayHeroCard: View {
             }
         case .pickUp:
             // Slide, not tap: ending the daycare day is the one check action
-            // with no undo row, so it asks for a deliberate sweep — the car
-            // drives the track home to the little house. The gesture is the
-            // accident gate, so it can sit here bare, no collapsed half-step.
-            SlideToConfirm(emoji: "🚗", label: "Slide to pick up \(babyName)",
-                           destinationEmoji: "🏠", mirrorThumb: true,
-                           tint: DaycareZoneStyle.base) {
+            // with no undo row, so it asks for a deliberate sweep. The pill
+            // sits narrower than the card, centered — a control, not a row.
+            // The gesture is the accident gate, so no collapsed half-step.
+            SlideToConfirm(label: "Pick up \(babyName)",
+                           thumbPhotoData: babyPhotoData,
+                           tint: AppColor.accentSleep) {
                 onPickUp?()
             }
+            .frame(maxWidth: 300)
+            .frame(maxWidth: .infinity)
             .accessibilityHint("Logs the daycare pick-up right now")
-            .transition(.opacity.combined(with: .scale(0.96, anchor: .leading)))
+            .transition(.opacity.combined(with: .scale(0.96, anchor: .center)))
         case .pickedUp(let at):
             // The closing line of the daycare day — the button's work is
             // done, so it leaves a receipt in the staying-home row's voice.
             HStack(spacing: 5) {
-                Text("🚗").font(.caption)
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(AppColor.accentSleep)
                 Text("picked up at \(TimeFormatting.clock(at))")
                     .font(.caption)
                     .foregroundStyle(AppColor.text2)
