@@ -27,30 +27,23 @@ enum DaycareStatus {
     static let defaultCloseMinute = 17 * 60 + 30     // 5:30 PM
     static let defaultPickupShowMinute = 15 * 60     // pick-up control from 3:00 PM
 
-    /// How the hero's pick-up control presents while he's at daycare. The
-    /// morning and midday answer is `hidden` — pick-up isn't on anyone's
-    /// mind yet, and a bare always-there button is exactly how a bounced
-    /// phone logs a 10 AM checkout. From `showMinute` the control surfaces
-    /// collapsed (a quiet one-line ask that expands on tap — two steps, no
-    /// accidents); standing at the daycare (`nearDaycare`, the geofence) or
-    /// having tapped the collapsed ask (`expanded`) earns the full button.
-    enum PickupControl: Equatable {
-        case hidden      // before the show time: nothing at all
-        case collapsed   // quiet "Ready to pick up?" line, expands on tap
-        case full        // the real one-tap Picked up button
-    }
-
-    static func pickupControl(
+    /// Whether the hero's pick-up slide shows while he's at daycare. The
+    /// morning and midday answer is false — pick-up isn't on anyone's mind
+    /// yet. From `showMinute` it surfaces, and standing inside the daycare
+    /// geofence (`nearDaycare`) surfaces it at any hour — the early sick-day
+    /// pickup. The slide gesture itself is the accident gate (a bounced
+    /// phone can't sweep a thumb across a track), so there's no collapsed
+    /// half-step anymore.
+    static func pickupVisible(
         now: Date,
         showMinute: Int = defaultPickupShowMinute,
         nearDaycare: Bool,
-        expanded: Bool,
         calendar: Calendar = .current
-    ) -> PickupControl {
+    ) -> Bool {
+        if nearDaycare { return true }
         let minuteOfDay = calendar.component(.hour, from: now) * 60
             + calendar.component(.minute, from: now)
-        guard minuteOfDay >= showMinute else { return .hidden }
-        return (expanded || nearDaycare) ? .full : .collapsed
+        return minuteOfDay >= showMinute
     }
 
     /// When the day is assumed over with no check-out marker: the configured

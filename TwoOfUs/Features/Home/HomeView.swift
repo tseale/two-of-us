@@ -56,10 +56,6 @@ struct HomeView: View {
     @State private var snoo = SnooSyncCoordinator.shared
     @State private var brightwheel = BrightwheelManager.shared
     @State private var geofence = DaycareGeofenceManager.shared
-    /// When the collapsed pick-up ask was tapped open — dated, not a Bool, so
-    /// an app that stays resident overnight collapses again the next
-    /// afternoon instead of inheriting yesterday's expansion.
-    @State private var pickupExpandedOn: Date?
     @State private var didApplyDebugScreen = false
     /// Start of the current day. Advanced by a task at midnight so the "today"
     /// ribbon, counts, and 24h window refresh even if the app sits foregrounded
@@ -156,9 +152,6 @@ struct HomeView: View {
                                 checkinSlot: checkinSlot(now: ctx.date, attendance: attendance),
                                 onDropOff: { logCheck(.checkIn, toast: "Dropped off") },
                                 onPickUp: { logCheck(.checkOut, toast: "Picked up") },
-                                onExpandPickup: {
-                                    withAnimation(.snappy) { pickupExpandedOn = ctx.date }
-                                },
                                 onHomeToday: { logCheck(.notAttending, toast: "Staying home today") },
                                 onUndoHomeToday: undoHomeToday
                             )
@@ -1019,32 +1012,24 @@ struct HomeView: View {
     /// The hero's manual check slot: operating days only (Settings → Daycare;
     /// Mon–Fri until configured). Drop off until attendance begins (or "home
     /// today" hides it). While he's there — manual OR Brightwheel-implicit,
-    /// so marker-less days get a real checkout — the pick-up control follows
-    /// `DaycareStatus.pickupControl`: hidden until the configured show time
-    /// (3 PM until set), then a quiet collapsed ask, earning the full button
-    /// on a tap or on arrival inside the daycare geofence. After the checkout
-    /// a quiet "picked up at" receipt holds the slot; nothing once the
-    /// configured close passed with nothing to show.
+    /// so marker-less days get a real checkout — the pick-up slide follows
+    /// `DaycareStatus.pickupVisible`: hidden until the configured show time
+    /// (3 PM until set) or until a phone enters the daycare geofence, then
+    /// the slide-to-confirm track, whose sweep gesture is its own accident
+    /// gate. After the checkout a quiet "picked up at" receipt holds the
+    /// slot; nothing once the configured close passed with nothing to show.
     private func checkinSlot(now: Date, attendance: DaycareStatus.Attendance?) -> CheckinSlot {
         let settings = daycareSettings
         guard settings?.isDaycareDay(now) ?? !Calendar.current.isDateInWeekend(now) else {
             return .hidden
         }
         if attendance != nil {
-            let expanded = pickupExpandedOn.map {
-                Calendar.current.isDate($0, inSameDayAs: now)
-            } ?? false
-            switch DaycareStatus.pickupControl(
+            return DaycareStatus.pickupVisible(
                 now: now,
                 showMinute: settings?.daycarePickupShowMinute
                     ?? DaycareStatus.defaultPickupShowMinute,
-                nearDaycare: geofence.isNearDaycare,
-                expanded: expanded
-            ) {
-            case .hidden: return .hidden
-            case .collapsed: return .pickUpCollapsed
-            case .full: return .pickUp
-            }
+                nearDaycare: geofence.isNearDaycare
+            ) ? .pickUp : .hidden
         }
         let todays = checkEvents.filter { $0.timestamp >= dayStart && $0.timestamp <= now }
         if let pickedUpAt = todays.filter({ $0.type == .checkOut }).map(\.timestamp).max() {

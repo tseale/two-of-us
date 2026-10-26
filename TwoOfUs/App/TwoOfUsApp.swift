@@ -95,6 +95,16 @@ struct TwoOfUsApp: App {
                                   loggedByColorHex: "4EC9D9"))
             try? ctx.save()
         }
+        // Dev-only: `-seedPickupWindowOpen` moves "Pick-up from" to midnight
+        // (straight onto the model, past updateDaycare's clamp) so the
+        // after-3 PM pick-up control is reachable for QA at any hour.
+        if ProcessInfo.processInfo.arguments.contains("-seedPickupWindowOpen") {
+            let ctx = realContainer.mainContext
+            if let settings = SharedSettings.canonical((try? ctx.fetch(FetchDescriptor<SharedSettings>())) ?? []) {
+                settings.daycarePickupShowMinute = 0
+                try? ctx.save()
+            }
+        }
         // Dev-only: `-seedHomeToday` marks today "home today", so the check
         // slot's quiet undo line is reachable for QA/screenshots.
         if ProcessInfo.processInfo.arguments.contains("-seedHomeToday") {

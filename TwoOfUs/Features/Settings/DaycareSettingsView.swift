@@ -6,6 +6,10 @@ import MapKit
 /// its rhythm (hours, days), where it is (map pin), and the geofence arrival
 /// prompts. Everything but the location permission is shared — one parent
 /// sets it up, the other's phone gets it through sync.
+///
+/// Laid out Apple-Settings style: a profile card up top, tinted icon squares
+/// on every row, quiet captions under the toggles, and a slider for the
+/// geofence radius.
 struct DaycareSettingsView: View {
     @Environment(\.modelContext) private var context
     @Query private var settingsList: [SharedSettings]
@@ -22,6 +26,10 @@ struct DaycareSettingsView: View {
     @State private var address = ""
     @State private var loaded = false
 
+    // The slider moves locally and commits on release — a sync save per
+    // drag tick would spam CloudKit (and the geofence re-registration).
+    @State private var radius: Double = 200
+
     @State private var camera: MapCameraPosition = .automatic
     @State private var isSearching = false
     @State private var searchError: String?
@@ -34,11 +42,10 @@ struct DaycareSettingsView: View {
         (participants.first { $0.id == prefs.myParticipantID }?.role ?? .full) == .full
     }
 
-    private let radiusOptions: [Double] = [100, 200, 500]
-
     var body: some View {
         Form {
             if let settings, canEditShared {
+                profileSection(settings)
                 placeSection(settings)
                 hoursSection(settings)
                 daysSection(settings)
@@ -46,41 +53,101 @@ struct DaycareSettingsView: View {
                 remindersSection(settings)
             }
         }
+        .listStyle(.insetGrouped)
+        .tint(AppColor.accentCheck)
         .navigationTitle("Daycare")
         .navigationBarTitleDisplayMode(.inline)
         .scrollDismissesKeyboard(.immediately)
         .onAppear(perform: load)
         .onDisappear(perform: commitTextFields)
+        .onChange(of: settings?.daycareGeofenceRadiusMeters) { _, new in
+            // Keep the slider honest when the other phone moves it.
+            if let new { radius = new }
+        }
+    }
+
+    // MARK: Profile card
+
+    /// The place as a contact card — icon, name, room, address, one-tap call —
+    /// so the page opens on *who this is about*, not a wall of fields.
+    private func profileSection(_ settings: SharedSettings) -> some View {
+        Section {
+            VStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(AppColor.accentCheck.gradient)
+                        .frame(width: 64, height: 64)
+                    Image(systemName: "building.2.fill")
+                        .font(.system(size: 27, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+                VStack(spacing: 2) {
+                    Text(settings.daycareDisplayName)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(AppColor.text)
+                        .multilineTextAlignment(.center)
+                    if !settings.daycareRoom.isEmpty {
+                        Text("Room: \(settings.daycareRoom)")
+                            .font(.subheadline)
+                            .foregroundStyle(AppColor.text2)
+                    }
+                    if !settings.daycareAddress.isEmpty {
+                        Text(settings.daycareAddress)
+                            .font(.footnote)
+                            .foregroundStyle(AppColor.text3)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                if let url = dialURL(settings.daycarePhone) {
+                    Link(destination: url) {
+                        Label("Call", systemImage: "phone.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 7)
+                            .background(AppColor.accentCheck.opacity(0.14),
+                                        in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(AppColor.accentCheck)
+                    .accessibilityLabel("Call \(settings.daycareDisplayName)")
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .listRowBackground(Color.clear)
+        }
     }
 
     // MARK: The place
 
     private func placeSection(_ settings: SharedSettings) -> some View {
         Section {
-            LabeledContent("Name") {
+            LabeledContent {
                 TextField("Little Owls Daycare", text: $name)
                     .multilineTextAlignment(.trailing)
                     .textInputAutocapitalization(.words)
                     .onSubmit(commitTextFields)
+            } label: {
+                SettingsIconLabel(title: "Name", systemImage: "building.2.fill",
+                                  tint: AppColor.accentCheck)
             }
-            LabeledContent("Room") {
+            LabeledContent {
                 TextField("Owls", text: $room)
                     .multilineTextAlignment(.trailing)
                     .textInputAutocapitalization(.words)
                     .onSubmit(commitTextFields)
+            } label: {
+                SettingsIconLabel(title: "Room", systemImage: "door.left.hand.open",
+                                  tint: AppColor.accentActivity)
             }
-            LabeledContent("Phone") {
+            LabeledContent {
                 TextField("(555) 123-4567", text: $phone)
                     .multilineTextAlignment(.trailing)
                     .keyboardType(.phonePad)
                     .onSubmit(commitTextFields)
-            }
-            if let url = dialURL(settings.daycarePhone) {
-                Link(destination: url) {
-                    SettingsIconLabel(title: "Call \(settings.daycareDisplayName)",
-                                      systemImage: "phone.fill",
-                                      tint: AppColor.accentCheck)
-                }
+            } label: {
+                SettingsIconLabel(title: "Phone", systemImage: "phone.fill",
+                                  tint: AppColor.accentHealth)
             }
         } header: {
             Text("The Place")
@@ -93,27 +160,30 @@ struct DaycareSettingsView: View {
 
     private func hoursSection(_ settings: SharedSettings) -> some View {
         Section {
-            DatePicker("Opens",
-                       selection: minuteBinding(settings.daycareOpenMinute) {
-                           store.updateDaycare(openMinute: $0)
-                           geofence.refreshMonitoring()
-                       },
-                       displayedComponents: .hourAndMinute)
-            DatePicker("Closes",
-                       selection: minuteBinding(settings.daycareCloseMinute) {
-                           store.updateDaycare(closeMinute: $0)
-                           geofence.refreshMonitoring()
-                       },
-                       displayedComponents: .hourAndMinute)
-            DatePicker("Pick-up from",
-                       selection: minuteBinding(settings.daycarePickupShowMinute) {
-                           store.updateDaycare(pickupShowMinute: $0)
-                       },
-                       displayedComponents: .hourAndMinute)
+            DatePicker(selection: minuteBinding(settings.daycareOpenMinute) {
+                store.updateDaycare(openMinute: $0)
+                geofence.refreshMonitoring()
+            }, displayedComponents: .hourAndMinute) {
+                SettingsIconLabel(title: "Opens", systemImage: "sunrise.fill",
+                                  tint: AppColor.accentDiaper)
+            }
+            DatePicker(selection: minuteBinding(settings.daycareCloseMinute) {
+                store.updateDaycare(closeMinute: $0)
+                geofence.refreshMonitoring()
+            }, displayedComponents: .hourAndMinute) {
+                SettingsIconLabel(title: "Closes", systemImage: "sunset.fill",
+                                  tint: AppColor.accentSleep)
+            }
+            DatePicker(selection: minuteBinding(settings.daycarePickupShowMinute) {
+                store.updateDaycare(pickupShowMinute: $0)
+            }, displayedComponents: .hourAndMinute) {
+                SettingsIconLabel(title: "Pick-up from", systemImage: "car.fill",
+                                  tint: AppColor.accentCheck)
+            }
         } header: {
             Text("Hours")
         } footer: {
-            Text("The drop-off button appears when the doors open. The pick-up button stays hidden until \"Pick-up from\" — then a quiet ask that expands on a tap, or on arriving at \(settings.daycareDisplayName) with arrival prompts on. With no pick-up logged, the daycare day is assumed over at closing time.")
+            Text("The drop-off button appears when the doors open. The pick-up slider stays hidden until \"Pick-up from\" — or shows up early when a phone arrives at \(settings.daycareDisplayName) with arrival prompts on. With no pick-up logged, the daycare day is assumed over at closing time.")
         }
     }
 
@@ -160,6 +230,9 @@ struct DaycareSettingsView: View {
     private func locationSection(_ settings: SharedSettings) -> some View {
         Section {
             HStack {
+                SettingsIconLabel(title: "", systemImage: "mappin.and.ellipse",
+                                  tint: AppColor.accentMedication)
+                    .labelStyle(.iconOnly)
                 TextField("Address", text: $address)
                     .textInputAutocapitalization(.words)
                     .onSubmit { search(settings) }
@@ -189,7 +262,10 @@ struct DaycareSettingsView: View {
                     store.updateDaycare(location: .some(nil))
                     geofence.refreshMonitoring()
                 } label: {
-                    Text("Remove Pin")
+                    SettingsIconLabel(title: "Remove Pin",
+                                      systemImage: "mappin.slash.fill",
+                                      tint: AppColor.urgencyRed)
+                        .foregroundStyle(AppColor.urgencyRed)
                 }
             }
         } header: {
@@ -242,24 +318,31 @@ struct DaycareSettingsView: View {
                     geofence.refreshMonitoring()
                 }
             )) {
-                SettingsIconLabel(title: "Arrival Prompts", systemImage: "location.circle.fill",
-                                  tint: AppColor.accentCheck)
+                SettingsIconLabel(title: "Arrival Prompts",
+                                  systemImage: "location.circle.fill",
+                                  tint: AppColor.accentCheck,
+                                  subtitle: "Ask to log the drop-off or pick-up when a phone arrives")
             }
             .disabled(settings.daycareCoordinate == nil)
 
             if settings.daycareGeofenceEnabled {
-                Picker("Radius", selection: Binding(
-                    get: { nearestRadius(settings.daycareGeofenceRadiusMeters) },
-                    set: {
-                        store.updateDaycare(geofenceRadiusMeters: $0)
-                        geofence.refreshMonitoring()
+                VStack(spacing: 6) {
+                    HStack {
+                        Text("Radius")
+                        Spacer()
+                        Text("\(Int(radius)) m")
+                            .foregroundStyle(AppColor.text2)
+                            .monospacedDigit()
                     }
-                )) {
-                    ForEach(radiusOptions, id: \.self) { r in
-                        Text("\(Int(r)) m").tag(r)
+                    Slider(value: $radius, in: 100...500, step: 25) { editing in
+                        if !editing {
+                            store.updateDaycare(geofenceRadiusMeters: radius)
+                            geofence.refreshMonitoring()
+                        }
                     }
+                    .accessibilityLabel("Geofence radius")
+                    .accessibilityValue("\(Int(radius)) meters")
                 }
-                .pickerStyle(.segmented)
 
                 if !geofence.hasAlwaysPermission {
                     permissionRow
@@ -304,6 +387,7 @@ struct DaycareSettingsView: View {
         room = settings.daycareRoom
         phone = settings.daycarePhone
         address = settings.daycareAddress
+        radius = settings.daycareGeofenceRadiusMeters
         if let c = settings.daycareCoordinate {
             camera = .region(MKCoordinateRegion(
                 center: CLLocationCoordinate2D(latitude: c.latitude, longitude: c.longitude),
@@ -379,10 +463,6 @@ struct DaycareSettingsView: View {
                 set((c.hour ?? 0) * 60 + (c.minute ?? 0))
             }
         )
-    }
-
-    private func nearestRadius(_ value: Double) -> Double {
-        radiusOptions.min { abs($0 - value) < abs($1 - value) } ?? 200
     }
 
     private func dialURL(_ raw: String) -> URL? {
