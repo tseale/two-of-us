@@ -2,8 +2,7 @@ import SwiftUI
 import UIKit
 
 /// A slide-to-confirm pill in the slide-to-power-off family: a frosted glass
-/// capsule, a clean circular thumb (the baby's photo when there is one, a
-/// chevron otherwise), the instruction shimmering through the center, and a
+/// capsule, a clean circular thumb (a tinted disc with a single glyph), the instruction shimmering through the center, and a
 /// checkmark condensing out of the far end as the thumb approaches. The thumb
 /// must travel the whole track before the action fires — a pocket tap, a
 /// toddler grab, or a bounced phone can never log it by accident.
@@ -19,10 +18,8 @@ import UIKit
 /// Motion; VoiceOver sees a plain button instead of a drag.
 struct SlideToConfirm: View {
     let label: String
-    /// The thumb's face — the baby's photo, falling back to a chevron disc.
-    var thumbPhotoData: Data? = nil
     var tint: Color = AppColor.accentCheck
-    /// The thumb's glyph when there is no photo.
+    /// The glyph on the thumb's tinted disc.
     var thumbSymbol: String = "chevron.right.2"
     let onConfirm: () -> Void
 
@@ -142,27 +139,15 @@ struct SlideToConfirm: View {
             .allowsHitTesting(false)
     }
 
-    /// The thumb: the baby's photo in a clean ring, or a tinted chevron
-    /// disc. It lifts slightly on arrival.
+    /// The thumb: a tinted disc with a glyph. It lifts slightly on arrival.
     private func thumb(progress: CGFloat) -> some View {
         ZStack {
-            if let thumbPhotoData, let image = UIImage(data: thumbPhotoData) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: height - inset * 2, height: height - inset * 2)
-                    .clipShape(Circle())
-                    .overlay {
-                        Circle().strokeBorder(.white.opacity(0.9), lineWidth: 1.5)
-                    }
-            } else {
-                Circle()
-                    .fill(LinearGradient(colors: [tint, tint.opacity(0.8)],
-                                         startPoint: .top, endPoint: .bottom))
-                Image(systemName: thumbSymbol)
-                    .font(.body.weight(.bold))
-                    .foregroundStyle(.white)
-            }
+            Circle()
+                .fill(LinearGradient(colors: [tint, tint.opacity(0.8)],
+                                     startPoint: .top, endPoint: .bottom))
+            Image(systemName: thumbSymbol)
+                .font(.body.weight(.bold))
+                .foregroundStyle(.white)
         }
         .frame(width: height - inset * 2, height: height - inset * 2)
         .shadow(color: tint.opacity(0.35), radius: 6, y: 2)

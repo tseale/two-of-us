@@ -427,7 +427,7 @@ struct TodayHeroCard: View {
     // MARK: Manual check slot
 
     /// The check slot: every check action confirms by the same deliberate
-    /// sweep — drop-off in the daycare blue, pick-up in its purple (wake-up,
+    /// sweep — drop-off and pick-up in the daycare blue (wake-up,
     /// on the sleep card, wears sleep's lavender) — one gesture family,
     /// three distinct jobs. No "staying home" button: home is the default
     /// state, and geofencing notices daycare on its own.
@@ -443,7 +443,7 @@ struct TodayHeroCard: View {
             // Ending the daycare day is the one check action with no undo
             // row, so the gesture is the accident gate — no collapsed
             // half-step.
-            checkSlide(label: "Pick up \(babyName)", tint: AppColor.accentPickup,
+            checkSlide(label: "Pick up \(babyName)", tint: DaycareZoneStyle.base,
                        hint: "Logs the daycare pick-up right now",
                        action: onPickUp)
         case .pickedUp:
@@ -475,8 +475,8 @@ struct TodayHeroCard: View {
     private func checkSlide(label: String, tint: Color, hint: String,
                             action: (() -> Void)?) -> some View {
         SlideToConfirm(label: label,
-                       thumbPhotoData: babyPhotoData,
-                       tint: tint) {
+                       tint: tint,
+                       thumbSymbol: "house.fill") {
             action?()
         }
         .frame(maxWidth: 300)
