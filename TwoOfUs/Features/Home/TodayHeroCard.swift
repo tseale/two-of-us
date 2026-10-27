@@ -43,7 +43,7 @@ struct DaycareDaySummary: Equatable {
 enum CheckinSlot: Equatable {
     case dropOff          // weekday morning, nothing logged: Drop off + "home today"
     case pickUp           // attending, pick-up earned: the slide-to-confirm track
-    case pickedUp(Date)   // checked out: quiet "picked up at 4:12" line
+    case pickedUp(Date)   // checked out: renders nothing (the daycare row shows the times)
     case homeToday        // "home today" active: one quiet line with an undo
     case hidden           // non-operating day, before the show time, past the close
 }
@@ -458,19 +458,9 @@ struct TodayHeroCard: View {
             .frame(maxWidth: .infinity)
             .accessibilityHint("Logs the daycare pick-up right now")
             .transition(.opacity.combined(with: .scale(0.96, anchor: .center)))
-        case .pickedUp(let at):
-            // The closing line of the daycare day — the button's work is
-            // done, so it leaves a receipt in the staying-home row's voice.
-            HStack(spacing: 5) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(DaycareZoneStyle.base)
-                Text("picked up at \(TimeFormatting.clock(at))")
-                    .font(.caption)
-                    .foregroundStyle(AppColor.text2)
-                Spacer(minLength: 0)
-            }
-            .accessibilityElement(children: .combine)
+        case .pickedUp:
+            // The daycare row already carries the in/out times.
+            EmptyView()
         case .homeToday:
             HStack(spacing: 5) {
                 Text("🏡").font(.caption)
