@@ -61,6 +61,46 @@ final class DaycareSettingsTests: XCTestCase {
         XCTAssertNil(s.daycareCoordinate, "an unparseable pin reads as no pin")
     }
 
+    // MARK: Daycare presence (the multi-device slider gate)
+
+    func testPresenceRoundTripsThroughJSON() throws {
+        let presence = DaycarePresence(deviceID: UUID(),
+                                       timestamp: today(hour: 7, minute: 48),
+                                       type: .arrival)
+        let decoded = try XCTUnwrap(DaycarePresence.decode(presence.encoded))
+        XCTAssertEqual(decoded.deviceID, presence.deviceID)
+        XCTAssertEqual(decoded.type, .arrival)
+        XCTAssertEqual(decoded.timestamp.timeIntervalSince1970,
+                       presence.timestamp.timeIntervalSince1970, accuracy: 1,
+                       "ISO-8601 keeps the crossing's second")
+        XCTAssertNil(DaycarePresence.decode(nil))
+        XCTAssertNil(DaycarePresence.decode("garbage"), "an unparseable value reads as no presence")
+    }
+
+    func testPartnerAtDaycareNeedsTheOtherPhonesArrivalToday() {
+        let mine = UUID(), theirs = UUID()
+        let arrival = DaycarePresence(deviceID: theirs, timestamp: today(hour: 7, minute: 50),
+                                      type: .arrival)
+        // Requirement: the phone NOT at daycare sees "someone's there"…
+        XCTAssertTrue(arrival.isPartnerAtDaycare(myDeviceID: mine, now: today(hour: 8)))
+        // …but a phone never reads its OWN crossing as a partner's.
+        XCTAssertFalse(arrival.isPartnerAtDaycare(myDeviceID: theirs, now: today(hour: 8)))
+    }
+
+    func testPartnerPresenceClearsOnDepartureAndAtMidnight() {
+        let mine = UUID()
+        let departure = DaycarePresence(deviceID: UUID(), timestamp: today(hour: 8),
+                                        type: .departure)
+        XCTAssertFalse(departure.isPartnerAtDaycare(myDeviceID: mine, now: today(hour: 9)))
+        // A phone that died inside the fence yesterday mustn't read as
+        // "someone's at daycare" forever — the day scopes it.
+        let stale = DaycarePresence(
+            deviceID: UUID(),
+            timestamp: calendar.date(byAdding: .day, value: -1, to: today(hour: 8))!,
+            type: .arrival)
+        XCTAssertFalse(stale.isPartnerAtDaycare(myDeviceID: mine, now: today(hour: 8)))
+    }
+
     // MARK: Geofence planner
 
     private func prompt(now: Date,

@@ -107,6 +107,8 @@ final class DaycareGeofenceManager: NSObject {
                 for try await event in await monitor.events {
                     guard event.identifier == Self.conditionIdentifier else { continue }
                     await self?.setNearDaycare(event.state == .satisfied)
+                    await self?.publishPresence(near: event.state == .satisfied,
+                                                at: event.date)
                     guard event.state == .satisfied else { continue }
                     await self?.handleArrival(at: event.date)
                 }
@@ -131,6 +133,19 @@ final class DaycareGeofenceManager: NSObject {
 
     private func setNearDaycare(_ near: Bool) {
         isNearDaycare = near
+    }
+
+    /// Shares the crossing on the settings record, so the co-parent's phone
+    /// can say "someone's at daycare" — and knows never to show its own
+    /// slider. Crossings only (the monitor delivers transitions, not ticks),
+    /// and `publishDaycarePresence` drops a no-change rewrite.
+    private func publishPresence(near: Bool, at when: Date) {
+        guard !LocalPrefs.shared.demoModeEnabled,
+              canonicalSettings()?.daycareGeofenceEnabled == true else { return }
+        EventStore(context: AppModelContainer.shared.mainContext).publishDaycarePresence(
+            DaycarePresence(deviceID: LocalPrefs.shared.deviceID,
+                            timestamp: when,
+                            type: near ? .arrival : .departure))
     }
 
     // MARK: Arrival → prompt

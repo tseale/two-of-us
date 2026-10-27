@@ -962,6 +962,19 @@ struct EventStore {
         sync(save: [settings.id])
     }
 
+    /// Publishes this phone's latest daycare-geofence crossing on the shared
+    /// settings record (`DaycarePresence` JSON) — how the OTHER phone learns
+    /// "someone's at daycare" without showing its own slider. Background-only
+    /// (a geofence event, never a tap), so failures just log: the next
+    /// crossing rewrites the whole value anyway.
+    func publishDaycarePresence(_ presence: DaycarePresence) {
+        guard !demo, let settings, let json = presence.encoded else { return }
+        guard settings.daycarePresenceRaw != json else { return }
+        settings.daycarePresenceRaw = json
+        save()
+        sync(save: [settings.id])
+    }
+
     /// Publishes (or clears, with nil) the household SNOO connection on the
     /// shared settings record (`SnooSharedCredentials` JSON — the refresh
     /// token, deliberately shared with every participant in the zone; never

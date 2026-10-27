@@ -290,6 +290,7 @@ DEFINE SCHEMA
         daycareOpenMinute INT64,
         daycarePhone STRING,
         daycarePickupShowMinute INT64,
+        daycarePresence STRING,
         daycareRoom STRING,
         defaultFeedOz DOUBLE,
         diaperLoggingEnabled INT64,

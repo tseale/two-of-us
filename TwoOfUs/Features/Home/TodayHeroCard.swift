@@ -41,11 +41,12 @@ struct DaycareDaySummary: Equatable {
 /// What the hero's manual check slot offers right now (weekdays only —
 /// HomeView computes this; `.hidden` collapses the slot entirely).
 enum CheckinSlot: Equatable {
-    case dropOff          // weekday morning, nothing logged: the drop-off slide
+    case dropOff          // this phone may log the drop-off: the drop-off slide
     case pickUp           // attending, pick-up earned: the slide-to-confirm track
     case pickedUp(Date)   // checked out: renders nothing (the daycare row shows the times)
     case homeToday        // "home today" active: one quiet line with an undo
-    case hidden           // non-operating day, before the show time, past the close
+    case partnerAtDaycare // the OTHER phone is inside the fence: status line, no slider
+    case hidden           // non-operating day, outside the fence/window, past the close
 }
 
 struct TodayHeroCard: View {
@@ -451,6 +452,20 @@ struct TodayHeroCard: View {
         case .pickedUp:
             // The daycare row already carries the in/out times.
             EmptyView()
+        case .partnerAtDaycare:
+            // The co-parent's phone is inside the fence — this one gets the
+            // status, never the slider: only the phone AT daycare can log.
+            HStack(spacing: 5) {
+                Image(systemName: "location.fill")
+                    .font(.caption2)
+                    .foregroundStyle(DaycareZoneStyle.base)
+                Text("someone's at \(daycareName)")
+                    .font(.caption)
+                    .foregroundStyle(AppColor.text2)
+                Spacer(minLength: 0)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Someone is at \(daycareName) right now")
         case .homeToday:
             HStack(spacing: 5) {
                 Text("🏡").font(.caption)

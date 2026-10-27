@@ -42,6 +42,16 @@ struct DaycareSettingsView: View {
         (participants.first { $0.id == prefs.myParticipantID }?.role ?? .full) == .full
     }
 
+    /// Whether the sliders run in geofence mode ON THIS PHONE (mirrors
+    /// `HomeView.geofenceSliderMode`): fence configured and enabled, Always
+    /// location granted here. Decides which of the two modes this page
+    /// explains — and hides the time-based pick-up setting the fence replaces.
+    private var geofenceModeActive: Bool {
+        settings?.daycareGeofenceEnabled == true
+            && settings?.daycareCoordinate != nil
+            && geofence.hasAlwaysPermission
+    }
+
     var body: some View {
         Form {
             if let settings, canEditShared {
@@ -174,16 +184,23 @@ struct DaycareSettingsView: View {
                 SettingsIconLabel(title: "Closes", systemImage: "sunset.fill",
                                   tint: AppColor.accentSleep)
             }
-            DatePicker(selection: minuteBinding(settings.daycarePickupShowMinute) {
-                store.updateDaycare(pickupShowMinute: $0)
-            }, displayedComponents: .hourAndMinute) {
-                SettingsIconLabel(title: "Pick-up from", systemImage: "car.fill",
-                                  tint: AppColor.accentCheck)
+            // The time-based pick-up setting is the fence's fallback: with
+            // the fence running on this phone, arrival is what surfaces the
+            // slider, and a redundant clock row would only invite confusion.
+            if !geofenceModeActive {
+                DatePicker(selection: minuteBinding(settings.daycarePickupShowMinute) {
+                    store.updateDaycare(pickupShowMinute: $0)
+                }, displayedComponents: .hourAndMinute) {
+                    SettingsIconLabel(title: "Pick-up from", systemImage: "car.fill",
+                                      tint: AppColor.accentCheck)
+                }
             }
         } header: {
             Text("Hours")
         } footer: {
-            Text("The drop-off button appears when the doors open. The pick-up slider stays hidden until \"Pick-up from\" — or shows up early when a phone arrives at \(settings.daycareDisplayName) with arrival prompts on. With no pick-up logged, the daycare day is assumed over at closing time.")
+            Text(geofenceModeActive
+                 ? "Opening and closing times bound the arrival sliders: an evening visit (a parents' night) shows nothing. With no pick-up logged, the daycare day is assumed over at closing time."
+                 : "Without arrival detection, the clock decides: the drop-off slider appears when the doors open, and the pick-up slider from \"Pick-up from\". With no pick-up logged, the daycare day is assumed over at closing time.")
         }
     }
 
@@ -349,12 +366,33 @@ struct DaycareSettingsView: View {
                 }
             }
         } header: {
-            Text("Arrival Prompts")
+            Text("Arrival Detection")
         } footer: {
-            Text(settings.daycareCoordinate == nil
-                 ? "Place the pin above first."
-                 : "Arriving at \(settings.daycareDisplayName) in the morning asks to log the drop-off; arriving while \(babyName) is there asks about the pick-up. Needs \"Always\" location access so the prompt can fire with the app closed — your location never leaves this phone.")
+            Text(footerText(settings))
         }
+    }
+
+    /// The two modes, spelled out where the toggle lives: with the fence,
+    /// arrival drives everything and a home day is implicit silence; without
+    /// it, the times above take over.
+    private func footerText(_ settings: SharedSettings) -> String {
+        guard settings.daycareCoordinate != nil else {
+            return "Place the pin above first. Until then, the drop-off and "
+                + "pick-up sliders follow the times in Hours."
+        }
+        let place = settings.daycareDisplayName
+        if geofenceModeActive {
+            return "Arrival mode is on: the drop-off and pick-up sliders appear "
+                + "only on the phone that's actually at \(place) (during its hours), "
+                + "plus a lock-screen prompt — the other phone just sees that "
+                + "someone's there. On a day no phone visits, nothing shows at all: "
+                + "weekends and sick days stay quiet, no button needed. "
+                + "Your location never leaves this phone."
+        }
+        return "With this on and \"Always\" location allowed, the sliders appear "
+            + "only when a phone actually arrives at \(place) — and days with no "
+            + "visit stay quiet. Until then, they follow the times in Hours "
+            + "(time mode). Your location never leaves this phone."
     }
 
     @ViewBuilder private var permissionRow: some View {

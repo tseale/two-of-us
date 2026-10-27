@@ -104,15 +104,20 @@ struct SleepActiveCard: View {
                     .accessibilityLabel(statusLabel)
             }
 
-            SlideToConfirmView(label: "Slide to wake up",
-                               tintColor: AppColor.accentSleep,
-                               thumbIcon: "sun.max",
-                               completionMessage: { "Woke up at \(TimeFormatting.clock($0))" }) {
-                withAnimation { wokeAt = .now }
-                onWake()
+            // Manual sleeps only: a SNOO session ends itself when the device
+            // reports the wake, so its card never needs — or shows — the
+            // wake-up slide. (The SnooTag above already says whose timer it is.)
+            if !sleep.isFromSnoo {
+                SlideToConfirmView(label: "Slide to wake up",
+                                   tintColor: AppColor.accentSleep,
+                                   thumbIcon: "sun.max",
+                                   completionMessage: { "Woke up at \(TimeFormatting.clock($0))" }) {
+                    withAnimation { wokeAt = .now }
+                    onWake()
+                }
+                .padding(.top, 8)
+                .accessibilityHint("Ends the sleep timer")
             }
-            .padding(.top, 8)
-            .accessibilityHint("Ends the sleep timer")
         }
         .frame(maxWidth: .infinity)
         .padding(20)

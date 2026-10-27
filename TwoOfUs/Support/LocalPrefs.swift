@@ -53,6 +53,7 @@ final class LocalPrefs {
         static let quietHoursEnd = "notify.quietHours.end"
         static let appearance = "ui.appearance"
         static let myParticipantID = "sync.myParticipantID"
+        static let deviceID = "sync.deviceID"
         static let syncRole = "sync.role"
         static let demoMode = "demo.enabled"
     }
@@ -67,6 +68,12 @@ final class LocalPrefs {
     var appearance: Appearance {
         didSet { defaults.set(appearance.rawValue, forKey: Key.appearance) }
     }
+
+    /// This phone's stable identity for the shared daycare-presence value —
+    /// per-PHONE where `myParticipantID` is per-parent, minted once and never
+    /// synced. Lets each device tell its own geofence crossing from the
+    /// co-parent's ("someone's at daycare" vs. "that was me").
+    let deviceID: UUID
 
     /// The local user's own Participant id — used to stamp logger identity and to
     /// resolve "me" once two participants exist. Stored in the App Group suite so
@@ -157,6 +164,12 @@ final class LocalPrefs {
         quietHoursEndMinutes = defaults.object(forKey: Key.quietHoursEnd) as? Int ?? (7 * 60)
         appearance = Appearance(rawValue: defaults.string(forKey: Key.appearance) ?? "") ?? .system
         myParticipantID = (AppGroup.userDefaults?.string(forKey: Key.myParticipantID)).flatMap(UUID.init)
+        if let stored = defaults.string(forKey: Key.deviceID).flatMap(UUID.init) {
+            deviceID = stored
+        } else {
+            deviceID = UUID()
+            defaults.set(deviceID.uuidString, forKey: Key.deviceID)
+        }
         syncRole = SyncRole(rawValue: defaults.string(forKey: Key.syncRole) ?? "") ?? .solo
         demoModeEnabled = defaults.object(forKey: Key.demoMode) as? Bool ?? false
     }

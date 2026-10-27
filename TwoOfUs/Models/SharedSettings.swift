@@ -13,6 +13,48 @@ enum NightRotation: String, CaseIterable {
     case none
 }
 
+/// One phone's latest daycare-geofence crossing, shared through
+/// `SharedSettings.daycarePresenceRaw` so the OTHER phone can say "someone's
+/// already at daycare" without ever showing its own slider. Latest-state only
+/// (not a log): each crossing overwrites the last, the way
+/// `brightwheelStatus` travels. ISO-8601 JSON so the synced value reads in
+/// the CloudKit Console.
+struct DaycarePresence: Codable, Equatable {
+    enum Kind: String, Codable {
+        case arrival
+        case departure
+    }
+
+    /// `LocalPrefs.deviceID` of the phone that crossed the fence — presence
+    /// is per-PHONE (the thing that is or isn't at daycare), not per-parent.
+    var deviceID: UUID
+    var timestamp: Date
+    var type: Kind
+
+    static func decode(_ raw: String?) -> DaycarePresence? {
+        guard let raw, let data = raw.data(using: .utf8) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try? decoder.decode(DaycarePresence.self, from: data)
+    }
+
+    var encoded: String? {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = .sortedKeys
+        return (try? encoder.encode(self)).flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    /// Whether ANOTHER phone is standing at daycare right now: its arrival,
+    /// today, with no departure since. Scoped to today so a stale arrival
+    /// (a phone that died inside the fence yesterday) clears at midnight.
+    func isPartnerAtDaycare(myDeviceID: UUID, now: Date,
+                            calendar: Calendar = .current) -> Bool {
+        type == .arrival && deviceID != myDeviceID
+            && timestamp <= now && calendar.isDate(timestamp, inSameDayAs: now)
+    }
+}
+
 /// App-wide settings that are shared between all participants (synced in
 /// Increment 2). Stored as a single record.
 @Model
@@ -87,6 +129,10 @@ final class SharedSettings {
     /// Saturday) — "2,3,4,5,6" is Mon–Fri. CSV, not a bitmask, so the synced
     /// value reads in the Console and degrades predictably on older builds.
     var daycareDaysRaw: String = SharedSettings.defaultDaycareDaysRaw
+    /// The last geofence crossing any phone reported (`DaycarePresence` JSON;
+    /// nil = never set) — how the phone NOT at daycare knows someone's there.
+    /// Three-state like `brightwheelStatus` so an old record can't stomp it.
+    var daycarePresenceRaw: String?
     var ckSystemFields: Data?                  // archived CKRecord system fields (see Baby.ckSystemFields)
 
     init(
@@ -232,6 +278,11 @@ final class SharedSettings {
 
     func isDaycareDay(_ date: Date, calendar: Calendar = .current) -> Bool {
         daycareDays.contains(calendar.component(.weekday, from: date))
+    }
+
+    /// The last geofence crossing, decoded — nil while unset or unparseable.
+    var daycarePresence: DaycarePresence? {
+        DaycarePresence.decode(daycarePresenceRaw)
     }
 
     /// The pinned location, decoded from `daycareLocationRaw`. Nil while

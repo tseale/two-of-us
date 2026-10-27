@@ -19,7 +19,9 @@ enum NotificationID {
         /// Informational "the daycare just logged something" notifications.
         static let daycare = "DAYCARE"
         /// Geofence arrival prompts — split by direction so the morning ask
-        /// offers Drop off + Staying home and the afternoon ask offers Pick up.
+        /// offers Dropped off and the afternoon ask offers Picked up. (No
+        /// "Staying home": the prompt only fires INSIDE the fence, and a day
+        /// that never reaches it is a home day by silence.)
         static let geofenceDropOff = "GEOFENCE_DROPOFF"
         static let geofencePickUp = "GEOFENCE_PICKUP"
     }
@@ -33,7 +35,6 @@ enum NotificationID {
         static let snooze = "SNOOZE"
         static let logCheckIn = "LOG_CHECKIN"
         static let logCheckOut = "LOG_CHECKOUT"
-        static let logHomeToday = "LOG_HOME_TODAY"
     }
 
     /// Request identifiers. Scheduled reminders use a stable id so a reschedule

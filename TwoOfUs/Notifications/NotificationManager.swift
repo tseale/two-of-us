@@ -108,12 +108,6 @@ enum NotificationManager {
             options: [],
             icon: UNNotificationActionIcon(systemImageName: "backpack.fill")
         )
-        let homeToday = UNNotificationAction(
-            identifier: NotificationID.Action.logHomeToday,
-            title: "Staying home",
-            options: [],
-            icon: UNNotificationActionIcon(systemImageName: "house.fill")
-        )
         let checkOut = UNNotificationAction(
             identifier: NotificationID.Action.logCheckOut,
             title: "Picked up",
@@ -122,7 +116,7 @@ enum NotificationManager {
         )
         let geofenceDropOff = UNNotificationCategory(
             identifier: NotificationID.Category.geofenceDropOff,
-            actions: [checkIn, homeToday],
+            actions: [checkIn],
             intentIdentifiers: [],
             options: []
         )
@@ -571,9 +565,6 @@ enum NotificationManager {
             flushAndRearm()
         case NotificationID.Action.logCheckOut:
             QuickLogger.make()?.logCheck(.checkOut)
-            flushAndRearm()
-        case NotificationID.Action.logHomeToday:
-            QuickLogger.make()?.logCheck(.notAttending)
             flushAndRearm()
         default:
             // Default tap on a slot reminder lands on the Schedule tab; every
