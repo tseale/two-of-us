@@ -4,6 +4,8 @@ import UIKit
 /// Shown on Home while a sleep timer is running. Elapsed is computed from
 /// `startedAt` (never a stored ticking counter), so it survives backgrounding.
 struct SleepActiveCard: View {
+    @State private var wokeAt: Date?
+
     let sleep: SleepEvent
     let now: Date
     let onWake: () -> Void
@@ -102,19 +104,26 @@ struct SleepActiveCard: View {
                     .accessibilityLabel(statusLabel)
             }
 
-            Button(action: {
-                onWake()
-                Haptics.success()
-            }) {
-                Text("Wake up")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
+            if let wokeAt {
+                HStack(spacing: 6) {
+                    Image(systemName: "sun.max.fill")
+                    Text("Woke up at \(TimeFormatting.clock(wokeAt))")
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppColor.text2)
+                .frame(maxWidth: .infinity, minHeight: 56)
+                .padding(.top, 8)
+                .transition(.opacity)
+            } else {
+                SlideToConfirm(label: "Slide to wake up",
+                               tint: AppColor.accentSleep,
+                               thumbSymbol: "sun.max.fill") {
+                    withAnimation { wokeAt = .now }
+                    onWake()
+                }
+                .padding(.top, 8)
+                .accessibilityHint("Ends the sleep timer")
             }
-            .background(AppColor.accentSleep, in: RoundedRectangle(cornerRadius: 16))
-            .foregroundStyle(.white)
-            .padding(.top, 8)
-            .accessibilityHint("Ends the sleep timer")
         }
         .frame(maxWidth: .infinity)
         .padding(20)

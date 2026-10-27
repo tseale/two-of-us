@@ -22,6 +22,8 @@ struct SlideToConfirm: View {
     /// The thumb's face — the baby's photo, falling back to a chevron disc.
     var thumbPhotoData: Data? = nil
     var tint: Color = AppColor.accentCheck
+    /// The thumb's glyph when there is no photo.
+    var thumbSymbol: String = "chevron.right.2"
     let onConfirm: () -> Void
 
     @State private var dragX: CGFloat = 0
@@ -153,7 +155,7 @@ struct SlideToConfirm: View {
                 Circle()
                     .fill(LinearGradient(colors: [tint, tint.opacity(0.8)],
                                          startPoint: .top, endPoint: .bottom))
-                Image(systemName: "chevron.right.2")
+                Image(systemName: thumbSymbol)
                     .font(.body.weight(.bold))
                     .foregroundStyle(.white)
             }
