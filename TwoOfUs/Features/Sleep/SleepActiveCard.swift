@@ -104,26 +104,15 @@ struct SleepActiveCard: View {
                     .accessibilityLabel(statusLabel)
             }
 
-            if let wokeAt {
-                HStack(spacing: 6) {
-                    Image(systemName: "sun.max.fill")
-                    Text("Woke up at \(TimeFormatting.clock(wokeAt))")
-                }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppColor.text2)
-                .frame(maxWidth: .infinity, minHeight: 56)
-                .padding(.top, 8)
-                .transition(.opacity)
-            } else {
-                SlideToConfirm(label: "Slide to wake up",
-                               tint: AppColor.accentSleep,
-                               thumbSymbol: "sun.max.fill") {
-                    withAnimation { wokeAt = .now }
-                    onWake()
-                }
-                .padding(.top, 8)
-                .accessibilityHint("Ends the sleep timer")
+            SlideToConfirmView(label: "Slide to wake up",
+                               tintColor: AppColor.accentSleep,
+                               thumbIcon: "sun.max",
+                               completionMessage: { "Woke up at \(TimeFormatting.clock($0))" }) {
+                withAnimation { wokeAt = .now }
+                onWake()
             }
+            .padding(.top, 8)
+            .accessibilityHint("Ends the sleep timer")
         }
         .frame(maxWidth: .infinity)
         .padding(20)
