@@ -436,14 +436,16 @@ struct TodayHeroCard: View {
         case .hidden:
             EmptyView()
         case .dropOff:
-            checkSlide(label: "Slide to drop off", tint: DaycareZoneStyle.base,
+            checkSlide(label: "Slide to drop off", icon: "building.2",
+                       message: "Dropped off at",
                        hint: "Logs the daycare drop-off right now",
                        action: onDropOff)
         case .pickUp:
             // Ending the daycare day is the one check action with no undo
             // row, so the gesture is the accident gate — no collapsed
             // half-step.
-            checkSlide(label: "Pick up \(babyName)", tint: DaycareZoneStyle.base,
+            checkSlide(label: "Pick up \(babyName)", icon: "house",
+                       message: "Picked up at",
                        hint: "Logs the daycare pick-up right now",
                        action: onPickUp)
         case .pickedUp:
@@ -472,15 +474,14 @@ struct TodayHeroCard: View {
 
     /// One check slide: the pill sits narrower than the card, centered —
     /// a control, not a row.
-    private func checkSlide(label: String, tint: Color, hint: String,
+    private func checkSlide(label: String, icon: String, message: String, hint: String,
                             action: (() -> Void)?) -> some View {
-        SlideToConfirm(label: label,
-                       tint: tint,
-                       thumbSymbol: "house.fill") {
+        SlideToConfirmView(label: label,
+                           tintColor: DaycareZoneStyle.base,
+                           thumbIcon: icon,
+                           completionMessage: { "\(message) \(TimeFormatting.clock($0))" }) {
             action?()
         }
-        .frame(maxWidth: 300)
-        .frame(maxWidth: .infinity)
         .accessibilityHint(hint)
         .transition(.opacity.combined(with: .scale(0.96, anchor: .center)))
     }

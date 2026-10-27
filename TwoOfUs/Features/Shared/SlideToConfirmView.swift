@@ -16,12 +16,17 @@ import UIKit
 /// impact lands, and only then does the action fire — the moment gets its
 /// beat before the receipt row takes over. Idle motion respects Reduce
 /// Motion; VoiceOver sees a plain button instead of a drag.
-struct SlideToConfirm: View {
+struct SlideToConfirmView: View {
     let label: String
-    var tint: Color = AppColor.accentCheck
-    /// The glyph on the thumb's tinted disc.
-    var thumbSymbol: String = "chevron.right.2"
+    let tintColor: Color
+    /// The SF Symbol on the thumb's tinted disc.
+    let thumbIcon: String
+    /// Shown in the pill once the slide lands, given the moment of confirmation.
+    let completionMessage: (Date) -> String
     let onConfirm: () -> Void
+
+    private var tint: Color { tintColor }
+    @State private var completedAt: Date?
 
     @State private var dragX: CGFloat = 0
     @State private var confirmed = false
@@ -33,19 +38,26 @@ struct SlideToConfirm: View {
     private let height: CGFloat = 56
     private let inset: CGFloat = 4
 
+    /// Every slide is the same width: 80% of its parent, centered.
+    private let widthFraction: CGFloat = 0.8
+
     var body: some View {
         GeometryReader { geo in
-            let travel = max(geo.size.width - height, 1)
+            let width = geo.size.width * widthFraction
+            let travel = max(width - height, 1)
             let progress = min(max(dragX / travel, 0), 1)
 
             ZStack(alignment: .leading) {
                 track(progress: progress)
                 labelView(progress: progress)
+                completionView
                 checkmark(progress: progress)
                     .frame(maxWidth: .infinity, alignment: .trailing)
                 thumb(progress: progress)
                     .gesture(dragGesture(travel: travel))
             }
+            .frame(width: width, height: height)
+            .frame(maxWidth: .infinity)
             .onAppear { startIdleMotion() }
         }
         .frame(height: height)
@@ -90,6 +102,7 @@ struct SlideToConfirm: View {
     private func labelView(progress: CGFloat) -> some View {
         labelContent
             .foregroundStyle(AppColor.text2)
+            .opacity(arrived ? 0 : 1)
             .overlay {
                 // One bright band sweeping across the label's own bounds,
                 // masked by the label itself — a single layer of text.
@@ -111,6 +124,20 @@ struct SlideToConfirm: View {
             .padding(.trailing, 26)
             // The words get out of the thumb's way as it slides over them.
             .opacity(1 - Double(progress) * 1.7)
+            .allowsHitTesting(false)
+    }
+
+    private var completionView: some View {
+        Text(completedAt.map(completionMessage) ?? "")
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .frame(maxWidth: .infinity)
+            .padding(.leading, height)
+            .padding(.trailing, 44)
+            .opacity(arrived ? 1 : 0)
+            .animation(.easeOut(duration: 0.25), value: arrived)
             .allowsHitTesting(false)
     }
 
@@ -145,7 +172,7 @@ struct SlideToConfirm: View {
             Circle()
                 .fill(LinearGradient(colors: [tint, tint.opacity(0.8)],
                                      startPoint: .top, endPoint: .bottom))
-            Image(systemName: thumbSymbol)
+            Image(systemName: thumbIcon)
                 .font(.body.weight(.bold))
                 .foregroundStyle(.white)
         }
@@ -190,6 +217,7 @@ struct SlideToConfirm: View {
         if let travel {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { dragX = travel }
         }
+        completedAt = .now
         arrived = true
         Haptics.heavy()
         DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0 : 0.5)) {
