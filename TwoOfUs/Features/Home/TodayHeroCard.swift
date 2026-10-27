@@ -533,36 +533,49 @@ struct TodayHeroCard: View {
                     }
                 }
                 .frame(width: 60, alignment: .leading)
-                HStack(spacing: 12) {
-                    if daycare.feedCount > 0 {
-                        emojiItem("🍼",
-                                  "\(OzFormat.string(daycare.feedOz)) oz (\(daycare.feedCount))")
-                    }
-                    if daycare.diaperCount > 0 {
-                        // Both kinds compact to a total — "1 wet · 1 dirty"
-                        // overflows the one line; the whole-day split is
-                        // already in the diaper total's caption above.
-                        emojiItem("💧",
-                                  daycare.wetCount > 0 && daycare.dirtyCount > 0
-                                      ? "\(daycare.diaperCount)"
-                                      : daycareDiaperWords)
-                    }
-                    if daycare.napSeconds + liveNapSeconds > 0 {
-                        emojiItem("💤",
-                                  TimeFormatting.duration(minutes: Int((daycare.napSeconds + liveNapSeconds) / 60)))
-                    }
-                    // Photos only — activities live on the timeline; the
-                    // recap keeps its one-line promise.
-                    if daycare.photoCount > 0 {
-                        emojiItem("📸", "\(daycare.photoCount)")
-                    }
-                }
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                recapItems
                 Spacer(minLength: 0)
             }
             medsRow
         }
+    }
+
+    /// The recap metrics at full size: one line when they fit, otherwise
+    /// split across two rather than shrinking the type.
+    private var recapItems: some View {
+        var items: [(String, String)] = []
+        if daycare.feedCount > 0 {
+            items.append(("🍼", "\(OzFormat.string(daycare.feedOz)) oz (\(daycare.feedCount))"))
+        }
+        if daycare.diaperCount > 0 {
+            // Both kinds compact to a total — the whole-day split is already
+            // in the diaper total's caption above.
+            items.append(("💧", daycare.wetCount > 0 && daycare.dirtyCount > 0
+                          ? "\(daycare.diaperCount)" : daycareDiaperWords))
+        }
+        if daycare.napSeconds + liveNapSeconds > 0 {
+            items.append(("💤", TimeFormatting.duration(
+                minutes: Int((daycare.napSeconds + liveNapSeconds) / 60))))
+        }
+        // Photos only — activities live on the timeline.
+        if daycare.photoCount > 0 {
+            items.append(("📸", "\(daycare.photoCount)"))
+        }
+        let split = (items.count + 1) / 2
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                ForEach(items, id: \.0) { emojiItem($0.0, $0.1) }
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 12) {
+                    ForEach(items.prefix(split), id: \.0) { emojiItem($0.0, $0.1) }
+                }
+                HStack(spacing: 12) {
+                    ForEach(items.dropFirst(split), id: \.0) { emojiItem($0.0, $0.1) }
+                }
+            }
+        }
+        .lineLimit(1)
     }
 
     @ViewBuilder private var medsRow: some View {

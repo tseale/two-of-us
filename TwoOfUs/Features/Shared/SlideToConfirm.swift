@@ -43,7 +43,7 @@ struct SlideToConfirm: View {
 
             ZStack(alignment: .leading) {
                 track(progress: progress)
-                labelView(width: geo.size.width, progress: progress)
+                labelView(progress: progress)
                 checkmark(progress: progress)
                     .frame(maxWidth: .infinity, alignment: .trailing)
                 thumb(progress: progress)
@@ -67,8 +67,10 @@ struct SlideToConfirm: View {
             .fill(.clear)
             .glassEffect(.regular.tint(tint.opacity(0.10)), in: Capsule())
             .overlay(alignment: .leading) {
-                LinearGradient(colors: [tint.opacity(0.38), tint.opacity(0.16)],
-                               startPoint: .leading, endPoint: .trailing)
+                // A capsule, so the leading edge curves around the thumb.
+                Capsule()
+                    .fill(LinearGradient(colors: [tint.opacity(0.38), tint.opacity(0.16)],
+                                         startPoint: .leading, endPoint: .trailing))
                     .frame(width: height + dragX)
             }
             .overlay {
@@ -88,17 +90,19 @@ struct SlideToConfirm: View {
     /// The instruction, shimmering toward the checkmark with a chevron pair
     /// tucked behind it — the classic "slide this way" cue. It thins out of
     /// the thumb's way as the slide begins.
-    private func labelView(width: CGFloat, progress: CGFloat) -> some View {
+    private func labelView(progress: CGFloat) -> some View {
         labelContent
             .foregroundStyle(AppColor.text2)
             .overlay {
+                // One bright band sweeping across the label's own bounds,
+                // masked by the label itself — a single layer of text.
                 // Always in the hierarchy: were it inserted the moment
                 // `shimmering` flips, the repeatForever animation would
                 // land in the same transaction and never attach.
-                LinearGradient(colors: [.clear, .white.opacity(0.85), .clear],
-                               startPoint: .leading, endPoint: .trailing)
-                    .frame(width: 70)
-                    .offset(x: shimmerSweep(width: width))
+                Rectangle()
+                    .fill(LinearGradient(colors: [.clear, .white.opacity(0.85), .clear],
+                                         startPoint: UnitPoint(x: shimmerPhase - 1, y: 0.5),
+                                         endPoint: UnitPoint(x: shimmerPhase, y: 0.5)))
                     .animation(.linear(duration: 2.4).repeatForever(autoreverses: false)
                                    .delay(0.6),
                                value: shimmering)
@@ -213,8 +217,6 @@ struct SlideToConfirm: View {
         shimmering = true
     }
 
-    /// Shimmer travel: from just past the thumb to the track's far end.
-    private func shimmerSweep(width: CGFloat) -> CGFloat {
-        shimmering ? width / 2 + 35 : -(width / 2 + 35)
-    }
+    /// Shimmer position: the band's trailing edge, from before the label to past it.
+    private var shimmerPhase: CGFloat { shimmering ? 2 : 0 }
 }
