@@ -94,6 +94,18 @@ final class BrightwheelManager {
         eventStore.updateBrightwheelStatus(json)
     }
 
+    /// A phone that signed in before status sharing existed (or whose publish
+    /// was dropped) never advertised its connection, so the co-parent saw "Not
+    /// connected" indefinitely. Re-publish once whenever this phone is
+    /// connected and the shared record has no status.
+    func backfillHouseholdStatusIfMissing(context: ModelContext) {
+        guard isConnected else { return }
+        let eventStore = EventStore(context: context)
+        guard let settings = eventStore.settings,
+              settings.brightwheelStatus?.isEmpty ?? true else { return }
+        publishHouseholdStatus(context: context)
+    }
+
     func disconnect(context: ModelContext) {
         let mine = session
         store.clear()
@@ -119,6 +131,7 @@ final class BrightwheelManager {
     /// whatever is new. Throttled; failures are logged and left alone — the
     /// next foreground retries, and Settings' debug fetch diagnoses.
     func syncOnForeground(context: ModelContext) {
+        backfillHouseholdStatusIfMissing(context: context)
         guard isConnected, autoImport, !isSyncing else { return }
         if let last = lastSyncAt, Date.now.timeIntervalSince(last) < Self.syncInterval { return }
         Task { await syncNow(context: context) }
