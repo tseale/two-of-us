@@ -41,7 +41,7 @@ struct DaycareDaySummary: Equatable {
 /// What the hero's manual check slot offers right now (weekdays only —
 /// HomeView computes this; `.hidden` collapses the slot entirely).
 enum CheckinSlot: Equatable {
-    case dropOff          // weekday morning, nothing logged: Drop off + "home today"
+    case dropOff          // weekday morning, nothing logged: the drop-off slide
     case pickUp           // attending, pick-up earned: the slide-to-confirm track
     case pickedUp(Date)   // checked out: renders nothing (the daycare row shows the times)
     case homeToday        // "home today" active: one quiet line with an undo
@@ -98,7 +98,6 @@ struct TodayHeroCard: View {
     var checkinSlot: CheckinSlot = .hidden
     var onDropOff: (() -> Void)? = nil
     var onPickUp: (() -> Void)? = nil
-    var onHomeToday: (() -> Void)? = nil
     var onUndoHomeToday: (() -> Void)? = nil
 
     private enum Stat { case feed, diaper, sleep }
@@ -213,9 +212,10 @@ struct TodayHeroCard: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(accessibilitySummary)
 
-            // Manual check-in/out, weekdays only: Drop off → Pick up →
-            // gone for the day, with a featherweight "home today" escape
-            // hatch. One tap, no sheets — you're holding a baby and a bag.
+            // Manual check-in/out, weekdays only: the drop-off slide →
+            // the pick-up slide → gone for the day. Each confirms by one
+            // deliberate sweep — you're holding a baby and a bag, and a
+            // pocket tap must never log a check.
             if checkinSlot != .hidden {
                 checkSlot
                     .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
@@ -426,38 +426,26 @@ struct TodayHeroCard: View {
 
     // MARK: Manual check slot
 
-    /// The one-tap drop-off/pick-up row: twin glass capsules in one
-    /// GlassEffectContainer (they read as a liquid pair, like the log
-    /// tiles), tinted a whisper of the daycare gray — a place, not an
-    /// event, so they stay out of the accent families. The wording keeps
-    /// the app's storybook voice: the morning ritual, not a transaction.
+    /// The check slot: every check action confirms by the same deliberate
+    /// sweep — drop-off in the daycare blue, pick-up in its purple (wake-up,
+    /// on the sleep card, wears sleep's lavender) — one gesture family,
+    /// three distinct jobs. No "staying home" button: home is the default
+    /// state, and geofencing notices daycare on its own.
     @ViewBuilder private var checkSlot: some View {
         switch checkinSlot {
         case .hidden:
             EmptyView()
         case .dropOff:
-            GlassEffectContainer(spacing: 12) {
-                HStack(spacing: 12) {
-                    checkButton("🎒", "Dropped off", action: onDropOff)
-                        .accessibilityHint("Logs the daycare drop-off right now")
-                    checkButton("🏡", "Staying home", action: onHomeToday)
-                        .accessibilityHint("No daycare today — hides these buttons")
-                }
-            }
+            checkSlide(label: "Slide to drop off", tint: DaycareZoneStyle.base,
+                       hint: "Logs the daycare drop-off right now",
+                       action: onDropOff)
         case .pickUp:
-            // Slide, not tap: ending the daycare day is the one check action
-            // with no undo row, so it asks for a deliberate sweep. The pill
-            // sits narrower than the card, centered — a control, not a row.
-            // The gesture is the accident gate, so no collapsed half-step.
-            SlideToConfirm(label: "Pick up \(babyName)",
-                           thumbPhotoData: babyPhotoData,
-                           tint: DaycareZoneStyle.base) {
-                onPickUp?()
-            }
-            .frame(maxWidth: 300)
-            .frame(maxWidth: .infinity)
-            .accessibilityHint("Logs the daycare pick-up right now")
-            .transition(.opacity.combined(with: .scale(0.96, anchor: .center)))
+            // Ending the daycare day is the one check action with no undo
+            // row, so the gesture is the accident gate — no collapsed
+            // half-step.
+            checkSlide(label: "Pick up \(babyName)", tint: AppColor.accentPickup,
+                       hint: "Logs the daycare pick-up right now",
+                       action: onPickUp)
         case .pickedUp:
             // The daycare row already carries the in/out times.
             EmptyView()
@@ -482,26 +470,19 @@ struct TodayHeroCard: View {
         }
     }
 
-    private func checkButton(_ emoji: String, _ title: String,
-                             action: (() -> Void)?) -> some View {
-        Button { action?(); Haptics.tap() } label: {
-            HStack(spacing: 7) {
-                Text(emoji).font(.body)
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 13)
-            // A whisper of the daycare gray through true-capsule glass —
-            // the surface glows through instead of painting a slab.
-            .glassEffect(.regular.tint(AppColor.text2.opacity(0.1)).interactive(),
-                         in: Capsule())
-            .contentShape(Capsule())
-            .foregroundStyle(AppColor.text)
+    /// One check slide: the pill sits narrower than the card, centered —
+    /// a control, not a row.
+    private func checkSlide(label: String, tint: Color, hint: String,
+                            action: (() -> Void)?) -> some View {
+        SlideToConfirm(label: label,
+                       thumbPhotoData: babyPhotoData,
+                       tint: tint) {
+            action?()
         }
-        .buttonStyle(PressableTileStyle())
+        .frame(maxWidth: 300)
+        .frame(maxWidth: .infinity)
+        .accessibilityHint(hint)
+        .transition(.opacity.combined(with: .scale(0.96, anchor: .center)))
     }
 
     // MARK: Daycare recap
@@ -533,16 +514,26 @@ struct TodayHeroCard: View {
                     }
                 }
                 .frame(width: 60, alignment: .leading)
-                recapItems
+                if !recapData.isEmpty {
+                    recapItems
+                } else if attendingSince != nil {
+                    // He's there but Brightwheel hasn't sent anything yet —
+                    // say so, instead of a bare "since 7:51" floating alone.
+                    Text("No updates from daycare yet")
+                        .font(.footnote.italic())
+                        .foregroundStyle(AppColor.text3)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
                 Spacer(minLength: 0)
             }
             medsRow
         }
     }
 
-    /// The recap metrics at full size: one line when they fit, otherwise
-    /// split across two rather than shrinking the type.
-    private var recapItems: some View {
+    /// The recap metrics as (emoji, value) pairs — empty right after
+    /// drop-off, before Brightwheel's first import lands.
+    private var recapData: [(String, String)] {
         var items: [(String, String)] = []
         if daycare.feedCount > 0 {
             items.append(("🍼", "\(OzFormat.string(daycare.feedOz)) oz (\(daycare.feedCount))"))
@@ -561,6 +552,13 @@ struct TodayHeroCard: View {
         if daycare.photoCount > 0 {
             items.append(("📸", "\(daycare.photoCount)"))
         }
+        return items
+    }
+
+    /// The recap metrics at full size: one line when they fit, otherwise
+    /// split across two rather than shrinking the type.
+    private var recapItems: some View {
+        let items = recapData
         let split = (items.count + 1) / 2
         return ViewThatFits(in: .horizontal) {
             HStack(spacing: 12) {
@@ -978,6 +976,27 @@ private func previewMarks() -> [RibbonMark] {
         attendingSince: .now.addingTimeInterval(-69 * 60),
         liveNapStartedAt: .now.addingTimeInterval(-12 * 60),
         now: .now
+    )
+    .padding()
+    .background(AppColor.bg)
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Hero, dropped off, no updates yet") {
+    TodayHeroCard(
+        babyName: "Miller",
+        marks: previewMarks(),
+        feedCount: 2, feedOz: 5, diaperCount: 2, wetCount: 2, dirtyCount: 0,
+        sleepSeconds: 10 * 3600,
+        daycare: {
+            var d = DaycareDaySummary()
+            d.checkIn = .now.addingTimeInterval(-9 * 60)
+            return d
+        }(),
+        attendingSince: .now.addingTimeInterval(-9 * 60),
+        liveNapStartedAt: nil,
+        now: .now,
+        checkinSlot: .dropOff
     )
     .padding()
     .background(AppColor.bg)

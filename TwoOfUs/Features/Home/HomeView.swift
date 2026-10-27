@@ -43,6 +43,7 @@ struct HomeView: View {
     private var planOverrides: [PlanOverride]
 
     @State private var activeSheet: ActiveSheet?
+    @State private var dropoffBoard: DropoffBoardInfo?
     @State private var editing: TimelineEntry?
     @State private var viewingMedia: MediaViewing?
     @State private var editingSleepStart = false
@@ -151,9 +152,15 @@ struct HomeView: View {
                                 daycareName: daycareSettings?.daycareDisplayName ?? "Daycare",
                                 daycareCloseMinute: daycareCloseMinute,
                                 checkinSlot: checkinSlot(now: ctx.date, attendance: attendance),
-                                onDropOff: { logCheck(.checkIn, toast: "Dropped off") },
+                                onDropOff: {
+                                    // The whiteboard card reads the data BEFORE
+                                    // the marker lands — its answers are the
+                                    // morning's, not the drop-off's.
+                                    let board = dropoffBoardInfo()
+                                    logCheck(.checkIn, toast: "Dropped off")
+                                    dropoffBoard = board
+                                },
                                 onPickUp: { logCheck(.checkOut, toast: "Picked up") },
-                                onHomeToday: { logCheck(.notAttending, toast: "Staying home today") },
                                 onUndoHomeToday: undoHomeToday
                             )
                             if attendance == nil {
@@ -281,6 +288,9 @@ struct HomeView: View {
             }
             .sheet(item: $editing) { entry in
                 EditEventSheet(entry: entry)
+            }
+            .sheet(item: $dropoffBoard) { board in
+                DropoffBoardSheet(info: board)
             }
             .sheet(item: $viewingMedia) { viewing in
                 MediaViewerSheet(events: viewing.events)
@@ -1011,8 +1021,8 @@ struct HomeView: View {
     // MARK: Manual check-in/out
 
     /// The hero's manual check slot: operating days only (Settings → Daycare;
-    /// Mon–Fri until configured). Drop off until attendance begins (or "home
-    /// today" hides it). While he's there — manual OR Brightwheel-implicit,
+    /// Mon–Fri until configured). The drop-off slide until attendance begins
+    /// (a synced "home today" marker still hides it). While he's there — manual OR Brightwheel-implicit,
     /// so marker-less days get a real checkout — the pick-up slide follows
     /// `DaycareStatus.pickupVisible`: hidden until the configured show time
     /// (3 PM until set) or until a phone enters the daycare geofence, then
@@ -1060,6 +1070,52 @@ struct HomeView: View {
             brightwheel.closeLiveNapOnCheckout(at: event.timestamp, context: context)
         }
         showToast(message, accent: AppColor.accentCheck) { store.softDelete(event) }
+    }
+
+    /// The whiteboard cheat sheet's answers, from the same queries the tiles
+    /// use. "Overnight" is the configured night window ending this morning;
+    /// notes are the parents' own since that window opened (the daycare's
+    /// notes came FROM the daycare — nothing to tell them back).
+    private func dropoffBoardInfo() -> DropoffBoardInfo {
+        let s = settingsList.first
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: dayStart) ?? dayStart
+        let windowStart = yesterday.addingTimeInterval(TimeInterval((s?.nightStartMinute ?? 1200) * 60))
+        let windowEnd = dayStart.addingTimeInterval(TimeInterval((s?.nightEndMinute ?? 480) * 60))
+
+        let bottle = feeds.first.map {
+            "\(TimeFormatting.clock($0.timestamp)) · \(OzFormat.string($0.amountOz)) oz"
+        }
+        let diaper = diapers.first.map {
+            "\(TimeFormatting.clock($0.timestamp)) · \($0.type.label.lowercased())"
+        }
+
+        // Overnight total: every sleep's overlap with the night window — the
+        // 10 PM–6 AM stretch whole, a 5 AM catnap's share, nothing from
+        // yesterday's daytime naps.
+        let overnightSeconds = sleeps.reduce(TimeInterval(0)) { total, sleep in
+            let end = sleep.endedAt ?? .now
+            let overlap = min(end, windowEnd).timeIntervalSince(max(sleep.startedAt, windowStart))
+            return total + max(0, overlap)
+        }
+        let overnight: String? = overnightSeconds >= 60 ? {
+            let quality = overnightSeconds >= 9 * 3600 ? "slept well"
+                : overnightSeconds >= 7 * 3600 ? "slept okay" : "a restless night"
+            return "\(TimeFormatting.duration(minutes: Int(overnightSeconds / 60))) — \(quality)"
+        }() : nil
+
+        let noteTexts = noteEvents
+            .prefix(while: { $0.timestamp >= windowStart })
+            .filter { !$0.isFromDaycare && !$0.text.isEmpty }
+            .map(\.text)
+
+        return DropoffBoardInfo(
+            name: baby?.name ?? "Baby",
+            lastBottle: bottle,
+            lastDiaper: diaper,
+            wokeUpAt: lastSleepEnd.map(TimeFormatting.clock),
+            overnightSleep: overnight,
+            // Oldest first — the order they were written in.
+            notes: noteTexts.isEmpty ? nil : noteTexts.reversed().joined(separator: " · "))
     }
 
     /// "Actually, taking him in" — clears today's home-today marker(s).

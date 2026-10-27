@@ -82,6 +82,10 @@ enum AppColor {
     /// Daycare disc all wear it, so "daycare" reads as one system. (Was a
     /// teal-cyan that sat indistinguishably close to feed's teal-green.)
     static let accentCheck      = Color(hex: "3887DC")
+    /// Pick-up purple — the going-home slide. The three confirm slides read
+    /// as one family with three distinct jobs: drop-off in the daycare blue,
+    /// wake-up in sleep's lavender, pick-up in this deeper purple.
+    static let accentPickup     = Color(hex: "9D6BE8")
     static let accentMedication = Color(hex: "FF6B6B")   // red — the one row that demands attention
     static let accentHealth     = Color(hex: "5AD17E")   // mint
     static let accentMood       = Color(hex: "FF8FA3")   // soft pink
