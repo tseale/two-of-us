@@ -1020,27 +1020,57 @@ struct HomeView: View {
 
     // MARK: Manual check-in/out
 
+    /// Whether the sliders run in geofence mode ON THIS PHONE: the fence is
+    /// configured and enabled (shared), and this device holds Always location
+    /// (per-device). In geofence mode the sliders never show by default —
+    /// only the phone standing at the daycare gets one, and a day that never
+    /// touches the fence (weekend, sick day) stays silent: home is implicit.
+    /// Without all three, Home falls back to the time-based schedule.
+    private var geofenceSliderMode: Bool {
+        daycareSettings?.daycareGeofenceEnabled == true
+            && daycareSettings?.daycareCoordinate != nil
+            && geofence.hasAlwaysPermission
+    }
+
+    /// Whether the co-parent's phone is standing at the daycare right now,
+    /// from the synced presence value — this phone then shows the quiet
+    /// "someone's at daycare" line instead of a slider.
+    private func partnerAtDaycare(now: Date) -> Bool {
+        daycareSettings?.daycarePresence?.isPartnerAtDaycare(
+            myDeviceID: LocalPrefs.shared.deviceID, now: now) ?? false
+    }
+
     /// The hero's manual check slot: operating days only (Settings → Daycare;
-    /// Mon–Fri until configured). The drop-off slide until attendance begins
-    /// (a synced "home today" marker still hides it). While he's there — manual OR Brightwheel-implicit,
-    /// so marker-less days get a real checkout — the pick-up slide follows
-    /// `DaycareStatus.pickupVisible`: hidden until the configured show time
-    /// (3 PM until set) or until a phone enters the daycare geofence, then
-    /// the slide-to-confirm track, whose sweep gesture is its own accident
-    /// gate. After the checkout a quiet "picked up at" receipt holds the
-    /// slot; nothing once the configured close passed with nothing to show.
+    /// Mon–Fri until configured).
+    ///
+    /// In geofence mode (`geofenceSliderMode`) the fence drives everything:
+    /// the drop-off slide exists only while THIS phone stands at the daycare
+    /// inside the operating window, the pick-up slide only while this phone
+    /// returns there with him checked in — and a phone elsewhere shows the
+    /// quiet "someone's at daycare" line when the co-parent's is inside the
+    /// fence. A day that never touches the fence shows nothing at all.
+    ///
+    /// Without the fence (location denied, no pin), the clock decides, as
+    /// before: the drop-off slide from doors-open, the pick-up slide from the
+    /// configured show time. Either way the sweep gesture is its own accident
+    /// gate; after checkout a quiet "picked up at" receipt holds the slot.
     private func checkinSlot(now: Date, attendance: DaycareStatus.Attendance?) -> CheckinSlot {
         let settings = daycareSettings
         guard settings?.isDaycareDay(now) ?? !Calendar.current.isDateInWeekend(now) else {
             return .hidden
         }
+        let geofenceMode = geofenceSliderMode
         if attendance != nil {
-            return DaycareStatus.pickupVisible(
+            if DaycareStatus.pickupVisible(
                 now: now,
                 showMinute: settings?.daycarePickupShowMinute
                     ?? DaycareStatus.defaultPickupShowMinute,
+                geofenceMode: geofenceMode,
                 nearDaycare: geofence.isNearDaycare
-            ) ? .pickUp : .hidden
+            ) {
+                return .pickUp
+            }
+            return geofenceMode && partnerAtDaycare(now: now) ? .partnerAtDaycare : .hidden
         }
         let todays = checkEvents.filter { $0.timestamp >= dayStart && $0.timestamp <= now }
         if let pickedUpAt = todays.filter({ $0.type == .checkOut }).map(\.timestamp).max() {
@@ -1052,12 +1082,16 @@ struct HomeView: View {
            now >= assumed {
             return .hidden
         }
-        // No buttons before the doors open — the night shift isn't a drop-off.
-        let openMinute = settings?.daycareOpenMinute ?? DaycareStatus.defaultOpenMinute
-        let minuteOfDay = Calendar.current.component(.hour, from: now) * 60
-            + Calendar.current.component(.minute, from: now)
-        guard minuteOfDay >= openMinute else { return .hidden }
-        return .dropOff
+        if DaycareStatus.dropoffVisible(
+            now: now,
+            openMinute: settings?.daycareOpenMinute ?? DaycareStatus.defaultOpenMinute,
+            closeMinute: settings?.daycareCloseMinute ?? DaycareStatus.defaultCloseMinute,
+            geofenceMode: geofenceMode,
+            nearDaycare: geofence.isNearDaycare
+        ) {
+            return .dropOff
+        }
+        return geofenceMode && partnerAtDaycare(now: now) ? .partnerAtDaycare : .hidden
     }
 
     /// One-tap marker + the app-standard Undo toast (undo soft-deletes the

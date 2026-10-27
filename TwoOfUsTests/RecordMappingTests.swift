@@ -504,6 +504,8 @@ final class RecordMappingTests: XCTestCase {
         original.daycareCloseMinute = 18 * 60
         original.daycarePickupShowMinute = 16 * 60
         original.daycareDays = [2, 3, 4]
+        let presence = DaycarePresence(deviceID: UUID(), timestamp: .now, type: .arrival)
+        original.daycarePresenceRaw = presence.encoded
         context.insert(original)
         try context.save()
 
@@ -523,6 +525,9 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertEqual(copy.daycareCloseMinute, 18 * 60)
         XCTAssertEqual(copy.daycarePickupShowMinute, 16 * 60)
         XCTAssertEqual(copy.daycareDays, [2, 3, 4])
+        XCTAssertEqual(copy.daycarePresence?.deviceID, presence.deviceID,
+                       "the geofence crossing travels — ISO-8601 JSON intact")
+        XCTAssertEqual(copy.daycarePresence?.type, .arrival)
 
         // An older build's record (no daycare fields) keeps the local config.
         let old = CKRecord(recordType: SyncConstants.RecordType.settings, recordID: recordID(original.id))

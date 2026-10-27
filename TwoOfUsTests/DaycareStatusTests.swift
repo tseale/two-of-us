@@ -179,8 +179,16 @@ final class DaycareStatusTests: XCTestCase {
     // MARK: Pick-up control presentation
 
     private func pickup(now: Date, showMinute: Int = DaycareStatus.defaultPickupShowMinute,
-                        near: Bool = false) -> Bool {
-        DaycareStatus.pickupVisible(now: now, showMinute: showMinute, nearDaycare: near)
+                        geofenceMode: Bool = false, near: Bool = false) -> Bool {
+        DaycareStatus.pickupVisible(now: now, showMinute: showMinute,
+                                    geofenceMode: geofenceMode, nearDaycare: near)
+    }
+
+    private func dropoff(now: Date, open: Int = DaycareStatus.defaultOpenMinute,
+                         close: Int = DaycareStatus.defaultCloseMinute,
+                         geofenceMode: Bool, near: Bool = false) -> Bool {
+        DaycareStatus.dropoffVisible(now: now, openMinute: open, closeMinute: close,
+                                     geofenceMode: geofenceMode, nearDaycare: near)
     }
 
     func testPickupSlideHiddenAllMorning() {
@@ -207,5 +215,39 @@ final class DaycareStatusTests: XCTestCase {
         // against accidents, so the window can open wherever the fence does.
         XCTAssertTrue(pickup(now: today(hour: 12), near: true))
         XCTAssertTrue(pickup(now: today(hour: 15, minute: 30), near: true))
+    }
+
+    // MARK: Geofence mode — the fence IS the visibility rule
+
+    func testGeofenceModePickupFollowsTheFenceAlone() {
+        // Requirement: in geofence mode the slider shows ONLY on the phone at
+        // daycare — the one at work sees nothing, even late afternoon when
+        // the time-based show minute has long passed.
+        XCTAssertTrue(pickup(now: today(hour: 10), geofenceMode: true, near: true),
+                      "arrival surfaces the slide whatever the clock says")
+        XCTAssertFalse(pickup(now: today(hour: 16), geofenceMode: true, near: false),
+                       "the show minute is the fallback's rule, not the fence's")
+    }
+
+    func testGeofenceModeDropoffNeedsTheFence() {
+        // Requirement: sliders never show by default — a weekday morning at
+        // home shows nothing until a phone actually reaches the daycare.
+        XCTAssertFalse(dropoff(now: today(hour: 8), geofenceMode: true, near: false))
+        XCTAssertTrue(dropoff(now: today(hour: 8), geofenceMode: true, near: true))
+    }
+
+    func testGeofenceModeDropoffRespectsOperatingHours() {
+        // Requirement: an 8 PM arrival (a parents' event) is not a drop-off.
+        XCTAssertFalse(dropoff(now: today(hour: 20), geofenceMode: true, near: true))
+        // The grace hour before the doors open counts (parents arrive early)…
+        XCTAssertTrue(dropoff(now: today(hour: 6, minute: 15), geofenceMode: true, near: true))
+        // …but the night shift before it doesn't.
+        XCTAssertFalse(dropoff(now: today(hour: 5, minute: 45), geofenceMode: true, near: true))
+    }
+
+    func testTimeModeDropoffFollowsTheDoors() {
+        // The fallback (location off): doors-open is the gate, fence ignored.
+        XCTAssertFalse(dropoff(now: today(hour: 6, minute: 59), geofenceMode: false))
+        XCTAssertTrue(dropoff(now: today(hour: 7), geofenceMode: false))
     }
 }

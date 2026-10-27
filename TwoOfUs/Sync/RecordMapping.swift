@@ -238,6 +238,9 @@ enum RecordMapping {
             r["daycareCloseMinute"] = m.daycareCloseMinute
             r["daycarePickupShowMinute"] = m.daycarePickupShowMinute
             r["daycareDaysRaw"] = m.daycareDaysRaw
+            if let daycarePresence = m.daycarePresenceRaw {
+                r["daycarePresence"] = daycarePresence
+            }
             return r
         }
         if let m = PlanSlot.fetchByID(uuid, in: context) {
@@ -763,6 +766,7 @@ enum RecordMapping {
         m.daycarePickupShowMinute = r["daycarePickupShowMinute"] as? Int
             ?? m.daycarePickupShowMinute
         m.daycareDaysRaw = r["daycareDaysRaw"] as? String ?? m.daycareDaysRaw
+        if let s = r["daycarePresence"] as? String { m.daycarePresenceRaw = s }
     }
 
     private static func applyPlanSlot(_ r: CKRecord, uuid: UUID, in context: ModelContext) throws {

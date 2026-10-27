@@ -54,7 +54,9 @@ enum SyncConstants {
         /// Brightwheel connection status).
         /// Generation 5: the SharedSettings daycare fields (name, room,
         /// phone, address, location, geofence, hours, days).
-        static let schemaGeneration = 5
+        /// Generation 6: SharedSettings.daycarePresence (which phone last
+        /// crossed the daycare geofence — the multi-device slider gate).
+        static let schemaGeneration = 6
 
         static let all: Set<String> = [
             baby, feed, sleep, diaper, note, participant, settings, planSlot, planOverride,

@@ -107,13 +107,18 @@ struct SlideToConfirmView: View {
                 // One bright band sweeping across the label's own bounds,
                 // masked by the label itself — a single layer of text.
                 // Always in the hierarchy: were it inserted the moment
-                // `shimmering` flips, the repeatForever animation would
+                // `shimmering` flips, the repeating animation would
                 // land in the same transaction and never attach.
+                // Three sweeps, then still: the shimmer is an introduction,
+                // not an alarm — once it's said "slide this way", the label
+                // and chevrons carry the message. (Each pass ends with the
+                // band past the trailing edge, so stopping there is clean.)
                 Rectangle()
                     .fill(LinearGradient(colors: [.clear, .white.opacity(0.85), .clear],
                                          startPoint: UnitPoint(x: shimmerPhase - 1, y: 0.5),
                                          endPoint: UnitPoint(x: shimmerPhase, y: 0.5)))
-                    .animation(.linear(duration: 2.4).repeatForever(autoreverses: false)
+                    .animation(.linear(duration: 2.4)
+                                   .repeatCount(3, autoreverses: false)
                                    .delay(0.6),
                                value: shimmering)
                     .mask(labelContent)

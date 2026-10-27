@@ -6,6 +6,28 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Changed — geofence-driven sliders (arrival mode)
+- With arrival detection on (pin placed, toggle on, "Always" location granted
+  on that phone), the drop-off and pick-up sliders never show by default:
+  only the phone standing inside the daycare fence gets one — drop-off on a
+  morning arrival inside operating hours, pick-up on a return while he's
+  checked in. A day no phone visits shows nothing at all: weekends and sick
+  days are home days by silence, so the "Staying home" notification action is
+  gone too.
+- Multi-device: each geofence crossing syncs as a latest-state
+  `daycarePresence` value on `SharedSettings` (`{deviceID, timestamp,
+  arrival/departure}` — schema generation 6, new field pending CloudKit
+  deploy), so the phone that stayed at work shows a quiet "someone's at
+  daycare" line instead of a slider.
+- Fallback: with location off or no pin, the sliders follow the clock as
+  before (drop-off from doors-open, pick-up from "Pick-up from"). The
+  settings page now explains both modes and hides the redundant "Pick-up
+  from" time while arrival mode is active on that phone.
+- The slide-to-confirm shimmer sweeps three times and stops — it's an
+  introduction, not an alarm.
+- The wake-up slide only shows for manually started sleeps: a SNOO session
+  ends itself when the device reports the wake.
+
 ### Added — Daycare settings page (Settings → Integrations → Daycare)
 - The daycare is now a configured place, not hardcoded assumptions: name
   (used wherever the app said "Daycare"), classroom, phone (with a quick-dial

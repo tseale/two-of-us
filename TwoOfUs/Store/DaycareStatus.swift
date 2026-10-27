@@ -27,23 +27,59 @@ enum DaycareStatus {
     static let defaultCloseMinute = 17 * 60 + 30     // 5:30 PM
     static let defaultPickupShowMinute = 15 * 60     // pick-up control from 3:00 PM
 
-    /// Whether the hero's pick-up slide shows while he's at daycare. The
-    /// morning and midday answer is false — pick-up isn't on anyone's mind
-    /// yet. From `showMinute` it surfaces, and standing inside the daycare
-    /// geofence (`nearDaycare`) surfaces it at any hour — the early sick-day
-    /// pickup. The slide gesture itself is the accident gate (a bounced
-    /// phone can't sweep a thumb across a track), so there's no collapsed
-    /// half-step anymore.
+    /// Whether the hero's pick-up slide shows while he's at daycare.
+    ///
+    /// In geofence mode (`geofenceMode`: the fence is configured, enabled,
+    /// and THIS phone holds Always location) the fence is the whole answer:
+    /// the slide exists only while this phone stands at the daycare —
+    /// whatever the clock says (the early sick-day pickup), and never on the
+    /// phone that stayed at work. The configured show time is redundant there
+    /// and ignored.
+    ///
+    /// Without the fence (location denied, no pin) the clock decides: hidden
+    /// until `showMinute` — pick-up isn't on anyone's mind at noon — then
+    /// shown. The slide gesture itself is the accident gate either way (a
+    /// bounced phone can't sweep a thumb across a track).
     static func pickupVisible(
         now: Date,
         showMinute: Int = defaultPickupShowMinute,
+        geofenceMode: Bool = false,
         nearDaycare: Bool,
         calendar: Calendar = .current
     ) -> Bool {
+        if geofenceMode { return nearDaycare }
         if nearDaycare { return true }
         let minuteOfDay = calendar.component(.hour, from: now) * 60
             + calendar.component(.minute, from: now)
         return minuteOfDay >= showMinute
+    }
+
+    /// Whether the hero's drop-off slide shows before attendance begins.
+    ///
+    /// In geofence mode the slide appears only while this phone stands at the
+    /// daycare AND the clock is plausibly a drop-off: a grace hour before the
+    /// doors open (parents arrive early) through close — the same window the
+    /// arrival prompt uses, so an 8 PM parents'-night visit shows nothing.
+    /// A phone that never enters the fence never sees the slide: a home day
+    /// needs no button to say so.
+    ///
+    /// Without the fence, the clock alone decides: from doors-open onward
+    /// (the caller's assumed-close check already ends the day).
+    static func dropoffVisible(
+        now: Date,
+        openMinute: Int = defaultOpenMinute,
+        closeMinute: Int = defaultCloseMinute,
+        geofenceMode: Bool,
+        nearDaycare: Bool,
+        calendar: Calendar = .current
+    ) -> Bool {
+        let minuteOfDay = calendar.component(.hour, from: now) * 60
+            + calendar.component(.minute, from: now)
+        if geofenceMode {
+            return nearDaycare && minuteOfDay >= openMinute - 60
+                && minuteOfDay < closeMinute
+        }
+        return minuteOfDay >= openMinute
     }
 
     /// When the day is assumed over with no check-out marker: the configured
