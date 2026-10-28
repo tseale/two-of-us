@@ -103,6 +103,9 @@ struct TodayHeroCard: View {
 
     private enum Stat { case feed, diaper, sleep }
     @State private var popped: Set<Stat> = []
+    /// The Daycare row's label column, measured: the Meds row below pins
+    /// its title to the same width so the recap rows stay aligned.
+    @State private var recapLabelWidth: CGFloat = 60
     @State private var breathing = false
 
     /// Any sleep in progress — Brightwheel's or a parent-logged one.
@@ -512,12 +515,18 @@ struct TodayHeroCard: View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 9) {
                 iconDisc("building.2.fill", tint: DaycareZoneStyle.base, bordered: true)
+                // The label column sizes to its own text, never the other
+                // way round: a fixed 60pt slot was narrower than
+                // "7:16 – 5:11" in monospaced digits, so the window (and at
+                // larger type, the name) scaled down while the metrics
+                // beside them stayed full-size. Layout priority hands the
+                // column its full width first; the recap takes what's left
+                // and already wraps to two lines before it would shrink.
                 VStack(alignment: .leading, spacing: 1) {
                     Text(daycareName)
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(AppColor.text)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
                     // The attendance window, under its own roof: "since 7:51"
                     // while he's there, "7:51 – 4:15" once he's home.
                     if let daycareWindowText {
@@ -526,10 +535,13 @@ struct TodayHeroCard: View {
                             .foregroundStyle(AppColor.text2)
                             .monospacedDigit()
                             .lineLimit(1)
-                            .minimumScaleFactor(0.8)
                     }
                 }
-                .frame(width: 60, alignment: .leading)
+                .frame(minWidth: 60, alignment: .leading)
+                .layoutPriority(1)
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: {
+                    recapLabelWidth = $0
+                }
                 if !recapData.isEmpty {
                     recapItems
                 } else if attendingSince != nil {
@@ -636,8 +648,9 @@ struct TodayHeroCard: View {
         }
     }
 
-    /// One labeled row: a small tinted icon disc, a fixed-width title so
-    /// the recap rows align, and the values on one quiet line.
+    /// One labeled row: a small tinted icon disc, a title pinned to the
+    /// Daycare row's measured label width so the recap rows align, and the
+    /// values on one quiet line.
     private func splitRow(systemImage: String, tint: Color, title: String,
                           text: String, textTint: Color) -> some View {
         HStack(spacing: 9) {
@@ -645,7 +658,7 @@ struct TodayHeroCard: View {
             Text(title)
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(AppColor.text)
-                .frame(width: 60, alignment: .leading)
+                .frame(width: recapLabelWidth, alignment: .leading)
             Text(text)
                 .font(.footnote)
                 .foregroundStyle(textTint)
