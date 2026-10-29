@@ -1,32 +1,6 @@
 import SwiftUI
 import UIKit
 
-/// The drop-off whiteboard's answers, pre-computed by HomeView from the
-/// app's own data the moment the drop-off slide confirms. Display strings,
-/// not raw events — the sheet is a reference card, not a browser.
-struct DropoffBoardInfo: Identifiable {
-    let id = UUID()
-    let name: String
-    let lastBottle: String?       // "6:45 AM · 4 oz"
-    let lastDiaper: String?       // "7:10 AM · wet"
-    let wokeUpAt: String?         // "6:30 AM"
-    let overnightSleep: String?   // "10h 2m — slept well"
-    let notes: String?            // recent parent notes; nil reads "None"
-
-    /// The whole card as plain text, for the Copy button — the same rows,
-    /// one per line, pasteable into a message to the daycare too.
-    var clipboardText: String {
-        """
-        \(name)
-        Last bottle: \(lastBottle ?? "—")
-        Last diaper: \(lastDiaper ?? "—")
-        Woke up at: \(wokeUpAt ?? "—")
-        Sleep: \(overnightSleep ?? "—")
-        Notes: \(notes ?? "None")
-        """
-    }
-}
-
 /// The whiteboard cheat sheet: at drop-off the daycare asks for last bottle,
 /// last diaper, wake time, sleep quality, and notes on a whiteboard — the
 /// exact numbers a sleep-deprived parent reconstructs from memory at 7 AM

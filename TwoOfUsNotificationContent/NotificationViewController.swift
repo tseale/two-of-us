@@ -14,7 +14,9 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         let card = NotificationCardView(
             style: NotificationCardView.Style(categoryID: content.categoryIdentifier),
             title: content.title,
-            message: content.body
+            subtitle: content.subtitle,
+            message: content.body,
+            userInfo: content.userInfo
         )
 
         if let host {

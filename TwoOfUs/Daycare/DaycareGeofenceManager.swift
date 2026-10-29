@@ -183,10 +183,10 @@ final class DaycareGeofenceManager: NSObject {
         guard UserDefaults.standard.string(forKey: Self.lastPromptKey) != dedupeKey else { return }
         UserDefaults.standard.set(dedupeKey, forKey: Self.lastPromptKey)
 
-        await post(prompt, settings: settings, in: context)
+        await post(prompt, at: when, settings: settings, in: context)
     }
 
-    private func post(_ prompt: DaycareGeofencePlanner.Prompt,
+    private func post(_ prompt: DaycareGeofencePlanner.Prompt, at when: Date,
                       settings: SharedSettings, in context: ModelContext) async {
         guard await NotificationManager.requestAuthorization() else { return }
         let babyName = (try? context.fetch(FetchDescriptor<Baby>()))?.first
@@ -197,8 +197,19 @@ final class DaycareGeofenceManager: NSObject {
         content.interruptionLevel = .timeSensitive
         switch prompt {
         case .dropOff:
+            // The banner IS the whiteboard: the daycare's morning questions
+            // (last bottle, last diaper, wake time, overnight sleep, notes)
+            // answered in the body, with Dropped off as the action — the
+            // phone never has to leave the pocket. Computed now, before
+            // the marker lands, exactly like Home's card; the same rows ride
+            // along in userInfo so the long-press card can show them big.
+            let board = DropoffBoard.load(from: context, now: when)
             content.title = "Drop off \(babyName)?"
-            content.body = "You're at \(place) — log the drop-off with one tap."
+            content.subtitle = "You're at \(place)"
+            content.body = board.notificationBody.isEmpty
+                ? "Log the drop-off with one tap."
+                : board.notificationBody
+            content.userInfo = board.userInfo
             content.categoryIdentifier = NotificationID.Category.geofenceDropOff
         case .pickUp:
             content.title = "Pick up \(babyName)?"

@@ -131,15 +131,42 @@ target. (If the export *still* fails after this, the App Group capability also
 needs confirming on the `…twoofus` and `…twoofus.widgets` App IDs, but those have
 signed since the original setup.)
 
+## Daycare arrival prompts (geofence)
+
+With the daycare geofence on (`DaycareGeofenceManager`, `CLMonitor`, Always
+location on that phone), entering the fence posts one Time Sensitive prompt
+per direction per day, decided by `DaycareGeofencePlanner` off the same store
+state Home reads:
+
+- **Morning — `GEOFENCE_DROPOFF`** · title "Drop off Miller?", subtitle
+  "You're at <daycare>", and the body is the **drop-off whiteboard**: the
+  questions the daycare asks at the door, answered one per line from the
+  app's own data (`DropoffBoard.load`) — `🍼 Last bottle 6:45 AM · 4 oz`,
+  `💧 Last diaper 7:10 AM · wet`, `☀️ Woke 6:30 AM · 💤 10h 2m — slept well`,
+  `📝 <parents' notes since last night>`. Rows with nothing logged are
+  dropped rather than shown as "—", so the four core answers fit the lock
+  screen banner. The one action, **Dropped off** (`LOG_CHECKIN`), logs the
+  `CheckEvent` through `QuickLogger` without opening the app — the phone
+  never has to leave the pocket.
+- **Afternoon — `GEOFENCE_PICKUP`** · "Pick up Miller?" with **Picked up**
+  (`LOG_CHECKOUT`).
+
+The whiteboard rows also ride in `userInfo` (`DropoffBoardInfo.userInfo`) for
+the content extension below; Home's slide-to-drop-off shows the same rows as
+a full-screen card (`DropoffBoardSheet`) through the same `DropoffBoard.compute`.
+
 ## Rich expanded UI (Notification Content Extension)
 
 Long-pressing / pulling down a notification shows a custom card rendered by the
 **`TwoOfUsNotificationContent`** app extension (`NotificationViewController` hosts
 the SwiftUI `NotificationCardView`). It's registered for the daily summary,
-co-parent, and both reminder categories (`UNNotificationExtensionCategory` in the
-extension's Info.plist). The card reads **live** state from `QuickLogger`
+co-parent, both reminder categories, the schedule slots, and the geofence
+drop-off prompt (`UNNotificationExtensionCategory` in the extension's
+Info.plist). The card reads **live** state from `QuickLogger`
 (today's counts/sleep for the summary; last-feed/diaper/sleep "time since" for
-co-parent/reminders) so it's accurate even if the notification was posted earlier.
+co-parent/reminders; the five whiteboard rows at display scale for the
+drop-off prompt, falling back to the rows carried in `userInfo` if the App
+Group store won't open) so it's accurate even if the notification was posted earlier.
 Action buttons still render below, supplied by the category. The extension shares
 `QuickLogger`, the models, and the design system via `project.yml` sources (like
 the widget target).
