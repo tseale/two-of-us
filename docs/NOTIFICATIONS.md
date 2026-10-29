@@ -148,20 +148,12 @@ state Home reads:
   are dropped rather than shown as "—", wake + overnight share a line, and the
   notes line is capped (`DropoffBoardInfo.bannerNoteLimit`) so the banner's
   four body lines always hold the core answers.
-  Holding the banner opens the **interactive whiteboard card** (content
-  extension, `UNNotificationExtensionUserInteractionEnabled`): the five rows
-  at reading size plus its own **Dropped off** (writes the `CheckEvent`
-  through `QuickLogger`, then turns into a "✓ Dropped off 7:48 AM" line with
-  the card still up) and **Copy** (the rows to the clipboard). The system
-  action row beneath offers **Add a note for the daycare** (a
-  `UNTextInputNotificationAction`; the card absorbs it, saves the note via
-  `QuickLogger.logNote`, and refreshes its Notes row) and **Open in app**
-  (`.foreground` — an interactive card no longer opens the app on tap, so this
-  is the way in). On the Apple Watch mirror only the system actions show; a
-  note typed there reaches the app's handler instead.
-  Card writes sync like widget writes: queued in the App Group and pushed by
-  `SyncManager.drainExtensionQueue` when the app next opens; the geofence
-  crossing already published `daycarePresence` to the co-parent on arrival.
+  Holding the banner opens the whiteboard card (content extension): the five
+  rows at reading size, re-read live from the App Group store, with the one
+  action beneath — **Dropped off** (`LOG_CHECKIN`), which logs the
+  `CheckEvent` through `QuickLogger` in the app's background handler and
+  drains it to CloudKit at once; the phone never has to leave the pocket.
+  Deliberately the only button: the card is a reference, not a menu.
 - **Afternoon — `GEOFENCE_PICKUP`** · "Pick up Miller?" with **Picked up**
   (`LOG_CHECKOUT`).
 

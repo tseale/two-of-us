@@ -35,11 +35,6 @@ enum NotificationID {
         static let snooze = "SNOOZE"
         static let logCheckIn = "LOG_CHECKIN"
         static let logCheckOut = "LOG_CHECKOUT"
-        /// Drop-off prompt extras: a typed note for the daycare (text-input
-        /// action, background) and an explicit "Open in app" — needed because
-        /// the interactive whiteboard card swallows the default tap.
-        static let addNote = "ADD_NOTE"
-        static let openApp = "OPEN_APP"
     }
 
     /// Request identifiers. Scheduled reminders use a stable id so a reschedule

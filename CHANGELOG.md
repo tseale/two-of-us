@@ -14,20 +14,12 @@ All notable changes to Two of Us are recorded here. The format loosely follows
   long-press. Empty rows are left out and a long note is capped to a line so
   the banner's four lines always hold the core answers; the subtitle says
   "Hold to log it".
-- Holding the banner opens an interactive whiteboard card (the content
-  extension now handles `GEOFENCE_DROPOFF` with user interaction on): the
-  five rows at reading size, a **Dropped off** button that logs the check-in
-  and turns into a "✓ Dropped off 7:48 AM" line with the card still up, and
-  **Copy**. Beneath it, **Add a note for the daycare** (typed right into the
-  notification, saved and shown on the card's Notes row) and **Open in app**.
-  The rows are re-read live from the shared store, so a bottle logged in the
-  car after the prompt fired still shows.
+- Holding the banner shows the same five rows at reading size (the content
+  extension now handles `GEOFENCE_DROPOFF`), re-read live from the shared
+  store so a bottle logged in the car after the prompt fired still shows,
+  with the one **Dropped off** button beneath it as before.
 - Home's slide-to-drop-off card and the notification share one builder
-  (`DropoffBoard`), so they can't disagree. Card writes sync like widget
-  writes — when the app next opens.
-- Trade-off: the Apple Watch mirror of the prompt no longer has a one-tap
-  "Dropped off" (the card doesn't render there); it keeps Add a note and
-  Open in app. The pick-up prompt is unchanged.
+  (`DropoffBoard`), so they can't disagree.
 
 ### Changed — geofence-driven sliders (arrival mode)
 - With arrival detection on (pin placed, toggle on, "Always" location granted

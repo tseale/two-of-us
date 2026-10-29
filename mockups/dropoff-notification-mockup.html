@@ -126,10 +126,10 @@
     </div>
 
     <div>
-      <p class="lbl">2 · Hold the banner <span>the whiteboard card, with its buttons</span></p>
+      <p class="lbl">2 · Hold the banner <span>the whiteboard card + Dropped off</span></p>
       <div class="phone dim">
         <div class="notch"></div>
-        <div style="height:24px"></div>
+        <div style="height:34px"></div>
         <div class="card">
           <div class="top"><div class="app">👶</div><div class="name">Two of Us</div><div class="x">✕</div></div>
           <div class="board">
@@ -140,38 +140,9 @@
             <div class="row sleep"><div class="e">☀️</div><div><div class="l">Woke up at</div><div class="v">6:30 AM</div></div></div>
             <div class="row sleep"><div class="e">💤</div><div><div class="l">Sleep</div><div class="v">10h 2m — slept well</div></div></div>
             <div class="row note"><div class="e">📝</div><div><div class="l">Notes</div><div class="v">A little congested overnight</div></div></div>
-            <div class="btnrow">
-              <div class="btn primary">🎒 Dropped off</div>
-              <div class="btn secondary" style="flex:0 0 auto;padding-inline:18px">Copy</div>
-            </div>
           </div>
         </div>
-        <div class="action input"><span>Add a note for the daycare</span><span class="ico">✏️</span></div>
-        <div class="action"><span>Open in app</span><span class="ico">↗︎</span></div>
-      </div>
-    </div>
-
-    <div>
-      <p class="lbl">2b · After tapping Dropped off <span>card stays up while you write</span></p>
-      <div class="phone dim">
-        <div class="notch"></div>
-        <div style="height:24px"></div>
-        <div class="card">
-          <div class="top"><div class="app">👶</div><div class="name">Two of Us</div><div class="x">✕</div></div>
-          <div class="board">
-            <div class="bhead"><b>Miller</b><span>for the whiteboard</span></div>
-            <div class="divider"></div>
-            <div class="done"><span>✓ Dropped off</span><span>7:48 AM</span></div>
-            <div class="row feed"><div class="e">🍼</div><div><div class="l">Last bottle</div><div class="v">6:45 AM · 4 oz</div></div></div>
-            <div class="row diaper"><div class="e">💧</div><div><div class="l">Last diaper</div><div class="v">7:10 AM · wet</div></div></div>
-            <div class="row sleep"><div class="e">☀️</div><div><div class="l">Woke up at</div><div class="v">6:30 AM</div></div></div>
-            <div class="row sleep"><div class="e">💤</div><div><div class="l">Sleep</div><div class="v">10h 2m — slept well</div></div></div>
-            <div class="row note"><div class="e">📝</div><div><div class="l">Notes</div><div class="v">A little congested overnight</div></div></div>
-            <div class="btnrow"><div class="btn secondary">Copied ✓</div></div>
-          </div>
-        </div>
-        <div class="action input"><span>Add a note for the daycare</span><span class="ico">✏️</span></div>
-        <div class="action"><span>Open in app</span><span class="ico">↗︎</span></div>
+        <div class="action" style="background:rgba(56,135,220,.55)"><span>Dropped off</span><span class="ico">🎒</span></div>
       </div>
     </div>
 
@@ -208,26 +179,17 @@
     <div class="note">
       <h2>Banner: the whiteboard, above the fold</h2>
       <ul>
-        <li>Title, a one-line hint that holding it reveals the buttons, then the rows: last bottle, last diaper, wake time with the overnight total, your notes since last night.</li>
+        <li>Title, a one-line hint that holding it reveals the button, then the rows: last bottle, last diaper, wake time with the overnight total, your notes since last night.</li>
         <li>iOS shows four body lines on the lock screen, so empty rows are left out rather than dashed, wake and overnight share a line, and a long note is cut to about one line with an ellipsis. The full note is on the card.</li>
         <li>With other notifications stacked, iOS collapses every app's body to two lines; tapping the stack brings the full banner back. That's a system behaviour, not ours.</li>
       </ul>
     </div>
     <div class="note">
-      <h2>Card: buttons where you're already looking</h2>
+      <h2>Card: the rows big, one button</h2>
       <ul>
-        <li><b>Dropped off</b> logs the check-in right there. The button becomes a "✓ Dropped off 7:48 AM" line and the card stays open while you write on the board.</li>
-        <li><b>Copy</b> puts the five rows on the clipboard, one per line, for a text to the daycare.</li>
-        <li><b>Add a note for the daycare</b> opens the keyboard; what you type is saved and appears in the Notes row without leaving the card.</li>
-        <li><b>Open in app</b> is there because an interactive card no longer opens the app when tapped.</li>
+        <li>Holding the banner shows the same five rows at reading size, re-read live from the shared store, so a bottle logged in the car after the prompt fired still shows.</li>
+        <li><b>Dropped off</b> is the only button. It logs the check-in in the background, syncs it to the other phone right away, and dismisses the notification. The app never opens. Tapping the card itself opens the app as before.</li>
         <li>The pick-up prompt is unchanged: a plain "Picked up" button.</li>
-      </ul>
-    </div>
-    <div class="note">
-      <h2>Trade-offs</h2>
-      <ul>
-        <li>Writes from the card go into the shared store like the widget buttons do, and reach the other phone the next time the app is opened. The geofence itself already tells the other phone someone is at daycare the moment you arrive.</li>
-        <li>The Apple Watch mirror of this notification shows the system actions (Add a note, Open in app) but not the card, so the Watch loses its one-tap Dropped off. Say the word and it comes back as a third system action.</li>
       </ul>
     </div>
   </div>

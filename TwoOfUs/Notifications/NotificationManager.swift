@@ -100,25 +100,15 @@ enum NotificationManager {
             identifier: NotificationID.Category.daycare,
             actions: [], intentIdentifiers: [], options: []
         )
-        // Geofence arrival prompts. Drop-off: the whiteboard card (content
-        // extension, interactive) carries its own Dropped off + Copy buttons,
-        // so the system row underneath offers what the card can't — a typed
-        // note for the daycare, and Open in app (the interactive card swallows
-        // the default tap, so without this there'd be no way into the app).
-        // Pick-up keeps the one-tap marker as a plain system action.
-        let addNote = UNTextInputNotificationAction(
-            identifier: NotificationID.Action.addNote,
-            title: "Add a note for the daycare",
+        // Geofence arrival prompts: the one-tap check markers, straight from
+        // the lock screen — the hero card's check slot, without opening the app.
+        // Drop-off's banner carries the whiteboard rows and its held card shows
+        // them big; Dropped off is deliberately the ONLY button under it.
+        let checkIn = UNNotificationAction(
+            identifier: NotificationID.Action.logCheckIn,
+            title: "Dropped off",
             options: [],
-            icon: UNNotificationActionIcon(systemImageName: "square.and.pencil"),
-            textInputButtonTitle: "Save",
-            textInputPlaceholder: "e.g. a little congested overnight"
-        )
-        let openApp = UNNotificationAction(
-            identifier: NotificationID.Action.openApp,
-            title: "Open in app",
-            options: [.foreground],
-            icon: UNNotificationActionIcon(systemImageName: "arrow.up.forward.app")
+            icon: UNNotificationActionIcon(systemImageName: "backpack.fill")
         )
         let checkOut = UNNotificationAction(
             identifier: NotificationID.Action.logCheckOut,
@@ -128,7 +118,7 @@ enum NotificationManager {
         )
         let geofenceDropOff = UNNotificationCategory(
             identifier: NotificationID.Category.geofenceDropOff,
-            actions: [addNote, openApp],
+            actions: [checkIn],
             intentIdentifiers: [],
             options: []
         )
@@ -578,13 +568,6 @@ enum NotificationManager {
         case NotificationID.Action.logCheckOut:
             QuickLogger.make()?.logCheck(.checkOut)
             flushAndRearm()
-        case NotificationID.Action.addNote:
-            // Reaches the app only when the whiteboard card didn't absorb it
-            // (Apple Watch mirror, or the content extension failed to load).
-            if let text = (response as? UNTextInputNotificationResponse)?.userText {
-                QuickLogger.make()?.logNote(text)
-                flushAndRearm()
-            }
         default:
             // Default tap on a slot reminder lands on the Schedule tab; every
             // other notification just opens the app.

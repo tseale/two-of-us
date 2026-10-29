@@ -420,10 +420,6 @@ targets:
               - GEOFENCE_DROPOFF
             UNNotificationExtensionInitialContentSizeRatio: 0.4
             UNNotificationExtensionDefaultContentHidden: true
-            # The drop-off whiteboard card has its own Dropped off / Copy
-            # buttons. (Side effect: tapping the card no longer opens the app,
-            # hence the "Open in app" system action on that category.)
-            UNNotificationExtensionUserInteractionEnabled: true
     entitlements:
       path: TwoOfUsNotificationContent/TwoOfUsNotificationContent.entitlements
       properties:
