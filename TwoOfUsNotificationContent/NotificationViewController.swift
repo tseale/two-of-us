@@ -14,7 +14,9 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         let card = NotificationCardView(
             style: NotificationCardView.Style(categoryID: content.categoryIdentifier),
             title: content.title,
-            message: content.body
+            subtitle: content.subtitle,
+            message: content.body,
+            userInfo: content.userInfo
         )
 
         if let host {
@@ -23,6 +25,10 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
             let host = UIHostingController(rootView: card)
             host.view.backgroundColor = .clear
             host.view.translatesAutoresizingMaskIntoConstraints = false
+            // Report the SwiftUI content's own height so the notification
+            // sizes to the card (the five whiteboard rows outgrow the fixed
+            // initial ratio) instead of clipping.
+            host.sizingOptions = .intrinsicContentSize
             addChild(host)
             view.addSubview(host.view)
             NSLayoutConstraint.activate([

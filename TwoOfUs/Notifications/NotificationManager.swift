@@ -102,6 +102,8 @@ enum NotificationManager {
         )
         // Geofence arrival prompts: the one-tap check markers, straight from
         // the lock screen — the hero card's check slot, without opening the app.
+        // Drop-off's banner carries the whiteboard rows and its held card shows
+        // them big; Dropped off is deliberately the ONLY button under it.
         let checkIn = UNNotificationAction(
             identifier: NotificationID.Action.logCheckIn,
             title: "Dropped off",

@@ -6,6 +6,21 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Changed — the drop-off notification is the whiteboard
+- The morning geofence prompt ("Drop off Miller?") now carries the daycare
+  whiteboard in its body — last bottle, last diaper, wake time with the
+  overnight total, and any notes the parents wrote since last night — so
+  every answer is on the lock screen banner itself, nothing behind a
+  long-press. Empty rows are left out and a long note is capped to a line so
+  the banner's four lines always hold the core answers; the subtitle says
+  "Hold to log it".
+- Holding the banner shows the same five rows at reading size (the content
+  extension now handles `GEOFENCE_DROPOFF`), re-read live from the shared
+  store so a bottle logged in the car after the prompt fired still shows,
+  with the one **Dropped off** button beneath it as before.
+- Home's slide-to-drop-off card and the notification share one builder
+  (`DropoffBoard`), so they can't disagree.
+
 ### Changed — geofence-driven sliders (arrival mode)
 - With arrival detection on (pin placed, toggle on, "Always" location granted
   on that phone), the drop-off and pick-up sliders never show by default:

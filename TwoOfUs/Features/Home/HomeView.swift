@@ -1106,50 +1106,21 @@ struct HomeView: View {
         showToast(message, accent: AppColor.accentCheck) { store.softDelete(event) }
     }
 
-    /// The whiteboard cheat sheet's answers, from the same queries the tiles
-    /// use. "Overnight" is the configured night window ending this morning;
-    /// notes are the parents' own since that window opened (the daycare's
-    /// notes came FROM the daycare — nothing to tell them back).
+    /// The whiteboard cheat sheet's answers, from the same @Query arrays the
+    /// tiles use (newest first), through the builder the geofence drop-off
+    /// notification shares — so the card and the banner never disagree.
     private func dropoffBoardInfo() -> DropoffBoardInfo {
         let s = settingsList.first
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: dayStart) ?? dayStart
-        let windowStart = yesterday.addingTimeInterval(TimeInterval((s?.nightStartMinute ?? 1200) * 60))
-        let windowEnd = dayStart.addingTimeInterval(TimeInterval((s?.nightEndMinute ?? 480) * 60))
-
-        let bottle = feeds.first.map {
-            "\(TimeFormatting.clock($0.timestamp)) · \(OzFormat.string($0.amountOz)) oz"
-        }
-        let diaper = diapers.first.map {
-            "\(TimeFormatting.clock($0.timestamp)) · \($0.type.label.lowercased())"
-        }
-
-        // Overnight total: every sleep's overlap with the night window — the
-        // 10 PM–6 AM stretch whole, a 5 AM catnap's share, nothing from
-        // yesterday's daytime naps.
-        let overnightSeconds = sleeps.reduce(TimeInterval(0)) { total, sleep in
-            let end = sleep.endedAt ?? .now
-            let overlap = min(end, windowEnd).timeIntervalSince(max(sleep.startedAt, windowStart))
-            return total + max(0, overlap)
-        }
-        let overnight: String? = overnightSeconds >= 60 ? {
-            let quality = overnightSeconds >= 9 * 3600 ? "slept well"
-                : overnightSeconds >= 7 * 3600 ? "slept okay" : "a restless night"
-            return "\(TimeFormatting.duration(minutes: Int(overnightSeconds / 60))) — \(quality)"
-        }() : nil
-
-        let noteTexts = noteEvents
-            .prefix(while: { $0.timestamp >= windowStart })
-            .filter { !$0.isFromDaycare && !$0.text.isEmpty }
-            .map(\.text)
-
-        return DropoffBoardInfo(
+        return DropoffBoard.compute(
             name: baby?.name ?? "Baby",
-            lastBottle: bottle,
-            lastDiaper: diaper,
-            wokeUpAt: lastSleepEnd.map(TimeFormatting.clock),
-            overnightSleep: overnight,
-            // Oldest first — the order they were written in.
-            notes: noteTexts.isEmpty ? nil : noteTexts.reversed().joined(separator: " · "))
+            feeds: feeds.map { .init(timestamp: $0.timestamp, amountOz: $0.amountOz) },
+            diapers: diapers.map { .init(timestamp: $0.timestamp, typeLabel: $0.type.label) },
+            sleeps: sleeps.map { .init(startedAt: $0.startedAt, endedAt: $0.endedAt) },
+            notes: noteEvents.map { .init(timestamp: $0.timestamp, text: $0.text,
+                                          isFromDaycare: $0.isFromDaycare) },
+            nightStartMinute: s?.nightStartMinute ?? 1200,
+            nightEndMinute: s?.nightEndMinute ?? 480,
+            dayStart: dayStart)
     }
 
     /// "Actually, taking him in" — clears today's home-today marker(s).
