@@ -27,10 +27,12 @@ struct DropoffBoardInfo: Identifiable {
     }
 
     /// The rows as a notification body: one line per answer the daycare
-    /// asks for, so the lock-screen banner IS the whiteboard. Empty rows
-    /// are dropped rather than shown as "—" (the banner has four lines of
-    /// room; a dash wastes one), and wake time shares a line with the
-    /// overnight total so the four core answers fit even on a full morning.
+    /// asks for, so the lock-screen banner IS the whiteboard — every answer
+    /// above the fold, no long-press needed. The banner shows four body
+    /// lines, so: empty rows are dropped rather than shown as "—", wake time
+    /// shares a line with the overnight total, and the notes line (last) is
+    /// capped so a long note can't wrap the bottle off the screen; the
+    /// expanded card has the whole note.
     var notificationBody: String {
         var lines: [String] = []
         if let lastBottle { lines.append("🍼 Last bottle \(lastBottle)") }
@@ -38,9 +40,17 @@ struct DropoffBoardInfo: Identifiable {
         let sleep = [wokeUpAt.map { "☀️ Woke \($0)" },
                      overnightSleep.map { "💤 \($0)" }].compactMap { $0 }
         if !sleep.isEmpty { lines.append(sleep.joined(separator: " · ")) }
-        if let notes { lines.append("📝 \(notes)") }
+        if let notes {
+            let short = notes.count > Self.bannerNoteLimit
+                ? notes.prefix(Self.bannerNoteLimit - 1).trimmingCharacters(in: .whitespaces) + "…"
+                : notes
+            lines.append("📝 \(short)")
+        }
         return lines.joined(separator: "\n")
     }
+
+    /// About one banner line at the default text size.
+    static let bannerNoteLimit = 60
 
     // MARK: Notification userInfo
 

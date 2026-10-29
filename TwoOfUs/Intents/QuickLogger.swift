@@ -358,6 +358,35 @@ struct QuickLogger {
         return event
     }
 
+    /// A typed note from the drop-off prompt's text-input action. Mirrors
+    /// `EventStore.logNote`: owner-attributed, hand-logged (`sourceRaw` nil),
+    /// no tracker gate; blank text is refused and over-long text capped, the
+    /// same bounds `EventBounds.cleanNote` applies in the app.
+    @discardableResult
+    func logNote(_ text: String) -> NoteEvent? {
+        guard let owner else {
+            Self.log.error("logNote refused: no participant to attribute the event to")
+            return nil
+        }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            Self.log.error("logNote refused: note text is empty")
+            return nil
+        }
+        let event = NoteEvent(
+            baby: baby, text: String(trimmed.prefix(Self.noteMaxLength)), timestamp: .now,
+            loggedByID: owner.id,
+            loggedByName: owner.displayName,
+            loggedByColorHex: owner.colorHex
+        )
+        context.insert(event)
+        commit(syncing: [event.id])
+        return event
+    }
+
+    /// Same cap as `EventBounds.noteEventMaxLength` (app-only type).
+    static let noteMaxLength = 500
+
     private var lastCheck: CheckEvent? {
         var d = FetchDescriptor<CheckEvent>(
             predicate: #Predicate { $0.deletedAt == nil },

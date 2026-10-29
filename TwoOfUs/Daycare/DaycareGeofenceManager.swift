@@ -205,7 +205,8 @@ final class DaycareGeofenceManager: NSObject {
             // along in userInfo so the long-press card can show them big.
             let board = DropoffBoard.load(from: context, now: when)
             content.title = "Drop off \(babyName)?"
-            content.subtitle = "You're at \(place)"
+            // The buttons only exist once the banner is held — say so.
+            content.subtitle = "Hold to log it · You're at \(place)"
             content.body = board.notificationBody.isEmpty
                 ? "Log the drop-off with one tap."
                 : board.notificationBody

@@ -26,8 +26,8 @@ struct NotificationCardView: View {
     let title: String
     var subtitle: String = ""
     let message: String
-    /// The posted notification's payload — the drop-off board rides here.
-    var userInfo: [AnyHashable: Any] = [:]
+    /// The interactive drop-off card's state; nil for every other style.
+    var dropoff: DropoffCardModel?
 
     private var logger: QuickLogger? { QuickLogger.make() }
 
@@ -61,41 +61,97 @@ struct NotificationCardView: View {
 
     // MARK: Drop-off — the whiteboard, big enough to read while writing
 
-    /// Live when the App Group store opens (a bottle logged in the car after
-    /// the prompt fired still shows), else the rows the notification carried.
-    private var board: DropoffBoardInfo? {
-        if let logger { return DropoffBoard.load(from: logger.context) }
-        return DropoffBoardInfo(userInfo: userInfo)
-    }
-
     private var boardHeader: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(title)
+            Text(dropoff?.droppedOffAt == nil ? title : (dropoff?.board?.name ?? title))
                 .font(.headline)
                 .foregroundStyle(AppColor.text)
             Spacer()
-            if !subtitle.isEmpty {
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(AppColor.text3)
-            }
+            Text(dropoff?.droppedOffAt == nil ? subtitle : "for the whiteboard")
+                .font(.caption)
+                .foregroundStyle(AppColor.text3)
         }
     }
 
     @ViewBuilder private var boardRows: some View {
-        if let board {
+        if let dropoff, let board = dropoff.board {
             VStack(spacing: 10) {
+                if let at = dropoff.droppedOffAt {
+                    droppedOffBanner(at)
+                }
                 boardRow("🍼", "Last bottle", board.lastBottle, AppColor.accentFeed)
                 boardRow("💧", "Last diaper", board.lastDiaper, AppColor.accentDiaper)
                 boardRow("☀️", "Woke up at", board.wokeUpAt, AppColor.accentSleep)
                 boardRow("💤", "Sleep", board.overnightSleep, AppColor.accentSleep)
                 boardRow("📝", "Notes", board.notes ?? "None", AppColor.accentNote)
+                boardButtons(dropoff)
             }
         } else {
             Text(message)
                 .font(.subheadline)
                 .foregroundStyle(AppColor.text2)
         }
+    }
+
+    /// Dropped off + Copy. After the marker lands the button becomes the
+    /// confirmation above the rows and the card stays up — you're still
+    /// reading it while you write on the board.
+    @ViewBuilder private func boardButtons(_ dropoff: DropoffCardModel) -> some View {
+        HStack(spacing: 10) {
+            if dropoff.droppedOffAt == nil {
+                Button {
+                    dropoff.dropOff()
+                } label: {
+                    Label("Dropped off", systemImage: "backpack.fill")
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(AppColor.accentCheck, in: Capsule())
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Logs the drop-off without opening the app")
+            }
+            Button {
+                dropoff.copyToClipboard()
+            } label: {
+                Label(dropoff.copied ? "Copied" : "Copy",
+                      systemImage: dropoff.copied ? "checkmark" : "doc.on.doc")
+                    .font(.body.weight(.medium))
+                    .frame(maxWidth: dropoff.droppedOffAt == nil ? nil : CGFloat.infinity)
+                    .padding(.vertical, 13)
+                    .padding(.horizontal, 18)
+                    .background(AppColor.card2, in: Capsule())
+                    .foregroundStyle(AppColor.text)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(dropoff.copied ? "Copied to clipboard" : "Copy for the whiteboard")
+        }
+        .padding(.top, 4)
+        if dropoff.dropOffFailed {
+            Text("Couldn't log it from here — open the app to drop off.")
+                .font(.caption)
+                .foregroundStyle(AppColor.urgencyRedText)
+        }
+    }
+
+    private func droppedOffBanner(_ at: Date) -> some View {
+        HStack {
+            Label("Dropped off", systemImage: "checkmark")
+                .font(.subheadline.weight(.semibold))
+            Spacer()
+            Text(TimeFormatting.clock(at))
+                .font(.subheadline)
+                .foregroundStyle(AppColor.text2)
+        }
+        .foregroundStyle(AppColor.text)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(AppColor.accentCheck.opacity(0.18),
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .strokeBorder(AppColor.accentCheck.opacity(0.5)))
+        .accessibilityElement(children: .combine)
     }
 
     /// One whiteboard column: quiet caption, the answer at display scale.

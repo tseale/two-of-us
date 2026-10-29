@@ -79,6 +79,15 @@
   /* Narrow "stack" state */
   .stack .nbody { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
+  .btn { display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; padding: 14px; font-size: 17px; font-weight: 600; }
+  .btn.primary { background: var(--check); color: #fff; }
+  .btn.secondary { background: rgba(255,255,255,.12); color: #fff; font-weight: 500; }
+  .btnrow { display: flex; gap: 10px; margin-top: 4px; }
+  .btnrow .btn { flex: 1; }
+  .done { background: rgba(56,135,220,.18); border: 1px solid rgba(56,135,220,.5); color: #fff; border-radius: 12px; padding: 10px 14px; font-size: 15px; font-weight: 500; display: flex; justify-content: space-between; }
+  .action + .action { margin-top: 6px; }
+  .action.input { color: rgba(255,255,255,.7); font-weight: 400; }
+  h2.sec { font-size: 18px; font-weight: 650; margin: 44px 0 4px; letter-spacing: -0.01em; }
   .notes { margin-top: 36px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
   .note { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; min-width: 0; }
   .note h2 { font-size: 14px; font-weight: 650; margin: 0 0 8px; }
@@ -92,12 +101,12 @@
 
 <div class="wrap">
   <h1>Drop-off notification, with the whiteboard in it</h1>
-  <p class="sub">What the morning geofence prompt looks like once it carries the whiteboard rows. Example data: a Thursday arrival at 7:48 AM with the daycare left unnamed in Settings, so the subtitle reads "Daycare". Same notification, three states.</p>
+  <p class="sub">The morning geofence prompt with the whiteboard in it. Every answer is on the banner itself; holding it opens the card with the buttons. Example data: a Thursday arrival at 7:48 AM with the daycare left unnamed in Settings, so the place reads "Daycare".</p>
 
   <div class="grid">
 
     <div>
-      <p class="lbl">1 · Lock screen on arrival <span>what you see pulling the phone out</span></p>
+      <p class="lbl">1 · Lock screen on arrival <span>every answer above the fold, nothing to tap</span></p>
       <div class="phone">
         <div class="notch"></div>
         <div class="clock"><div class="date">Thursday, October 30</div><div class="time">7:48</div></div>
@@ -105,7 +114,7 @@
           <div class="app">👶</div>
           <div class="ntext">
             <div class="nhead"><div class="ntitle">Drop off Miller?</div><div class="nwhen">now</div></div>
-            <div class="nsubtitle">You're at Daycare</div>
+            <div class="nsubtitle">Hold to log it · You're at Daycare</div>
             <div class="nbody clip">🍼 Last bottle 6:45 AM · 4 oz
 💧 Last diaper 7:10 AM · wet
 ☀️ Woke 6:30 AM · 💤 10h 2m — slept well
@@ -117,23 +126,52 @@
     </div>
 
     <div>
-      <p class="lbl">2 · Long-press <span>expanded card + Dropped off</span></p>
+      <p class="lbl">2 · Hold the banner <span>the whiteboard card, with its buttons</span></p>
       <div class="phone dim">
         <div class="notch"></div>
-        <div style="height:34px"></div>
+        <div style="height:24px"></div>
         <div class="card">
           <div class="top"><div class="app">👶</div><div class="name">Two of Us</div><div class="x">✕</div></div>
           <div class="board">
-            <div class="bhead"><b>Drop off Miller?</b><span>You're at Daycare</span></div>
+            <div class="bhead"><b>Drop off Miller?</b><span>Hold to log it · You're at Daycare</span></div>
             <div class="divider"></div>
             <div class="row feed"><div class="e">🍼</div><div><div class="l">Last bottle</div><div class="v">6:45 AM · 4 oz</div></div></div>
             <div class="row diaper"><div class="e">💧</div><div><div class="l">Last diaper</div><div class="v">7:10 AM · wet</div></div></div>
             <div class="row sleep"><div class="e">☀️</div><div><div class="l">Woke up at</div><div class="v">6:30 AM</div></div></div>
             <div class="row sleep"><div class="e">💤</div><div><div class="l">Sleep</div><div class="v">10h 2m — slept well</div></div></div>
             <div class="row note"><div class="e">📝</div><div><div class="l">Notes</div><div class="v">A little congested overnight</div></div></div>
+            <div class="btnrow">
+              <div class="btn primary">🎒 Dropped off</div>
+              <div class="btn secondary" style="flex:0 0 auto;padding-inline:18px">Copy</div>
+            </div>
           </div>
         </div>
-        <div class="action"><span>Dropped off</span><span class="ico">🎒</span></div>
+        <div class="action input"><span>Add a note for the daycare</span><span class="ico">✏️</span></div>
+        <div class="action"><span>Open in app</span><span class="ico">↗︎</span></div>
+      </div>
+    </div>
+
+    <div>
+      <p class="lbl">2b · After tapping Dropped off <span>card stays up while you write</span></p>
+      <div class="phone dim">
+        <div class="notch"></div>
+        <div style="height:24px"></div>
+        <div class="card">
+          <div class="top"><div class="app">👶</div><div class="name">Two of Us</div><div class="x">✕</div></div>
+          <div class="board">
+            <div class="bhead"><b>Miller</b><span>for the whiteboard</span></div>
+            <div class="divider"></div>
+            <div class="done"><span>✓ Dropped off</span><span>7:48 AM</span></div>
+            <div class="row feed"><div class="e">🍼</div><div><div class="l">Last bottle</div><div class="v">6:45 AM · 4 oz</div></div></div>
+            <div class="row diaper"><div class="e">💧</div><div><div class="l">Last diaper</div><div class="v">7:10 AM · wet</div></div></div>
+            <div class="row sleep"><div class="e">☀️</div><div><div class="l">Woke up at</div><div class="v">6:30 AM</div></div></div>
+            <div class="row sleep"><div class="e">💤</div><div><div class="l">Sleep</div><div class="v">10h 2m — slept well</div></div></div>
+            <div class="row note"><div class="e">📝</div><div><div class="l">Notes</div><div class="v">A little congested overnight</div></div></div>
+            <div class="btnrow"><div class="btn secondary">Copied ✓</div></div>
+          </div>
+        </div>
+        <div class="action input"><span>Add a note for the daycare</span><span class="ico">✏️</span></div>
+        <div class="action"><span>Open in app</span><span class="ico">↗︎</span></div>
       </div>
     </div>
 
@@ -146,7 +184,7 @@
           <div class="app">👶</div>
           <div class="ntext">
             <div class="nhead"><div class="ntitle">Drop off Miller?</div><div class="nwhen">now</div></div>
-            <div class="nsubtitle">You're at Daycare</div>
+            <div class="nsubtitle">Hold to log it · You're at Daycare</div>
             <div class="nbody one">Log the drop-off with one tap.</div>
           </div>
         </div>
@@ -155,7 +193,7 @@
           <div class="app">👶</div>
           <div class="ntext">
             <div class="nhead"><div class="ntitle">Drop off Miller?</div><div class="nwhen">now</div></div>
-            <div class="nsubtitle">You're at Daycare</div>
+            <div class="nsubtitle">Hold to log it · You're at Daycare</div>
             <div class="nbody">🍼 Last bottle 6:45 AM · 4 oz
 💧 Last diaper 7:10 AM · wet
 ☀️ Woke 6:30 AM · 💤 10h 2m — slept well</div>
@@ -168,20 +206,29 @@
 
   <div class="notes">
     <div class="note">
-      <h2>What's new vs. today</h2>
+      <h2>Banner: the whiteboard, above the fold</h2>
       <ul>
-        <li>The body used to say "You're at Daycare — log the drop-off with one tap." It is now the whiteboard: last bottle, last diaper, wake time with the overnight total, and your own notes since last night.</li>
-        <li>Rows with nothing logged are left out instead of shown as a dash, so the four core answers fit the lock screen's four body lines. Wake time and overnight sleep share a line for the same reason.</li>
-        <li>Long-pressing now opens a rich card (the notification content extension handles this category too) with the five rows at reading size, re-read live from the shared store.</li>
+        <li>Title, a one-line hint that holding it reveals the buttons, then the rows: last bottle, last diaper, wake time with the overnight total, your notes since last night.</li>
+        <li>iOS shows four body lines on the lock screen, so empty rows are left out rather than dashed, wake and overnight share a line, and a long note is cut to about one line with an ellipsis. The full note is on the card.</li>
+        <li>With other notifications stacked, iOS collapses every app's body to two lines; tapping the stack brings the full banner back. That's a system behaviour, not ours.</li>
       </ul>
     </div>
     <div class="note">
-      <h2>The Dropped off button</h2>
-      <p>Already existed; unchanged. It runs in the background: it writes the check-in through <code>QuickLogger</code>, syncs it to the other phone, and the notification dismisses. The app never opens. Tapping the notification body itself still opens the app as before, and the in-app slide-to-drop-off still shows the full-screen whiteboard card.</p>
+      <h2>Card: buttons where you're already looking</h2>
+      <ul>
+        <li><b>Dropped off</b> logs the check-in right there. The button becomes a "✓ Dropped off 7:48 AM" line and the card stays open while you write on the board.</li>
+        <li><b>Copy</b> puts the five rows on the clipboard, one per line, for a text to the daycare.</li>
+        <li><b>Add a note for the daycare</b> opens the keyboard; what you type is saved and appears in the Notes row without leaving the card.</li>
+        <li><b>Open in app</b> is there because an interactive card no longer opens the app when tapped.</li>
+        <li>The pick-up prompt is unchanged: a plain "Picked up" button.</li>
+      </ul>
     </div>
     <div class="note">
-      <h2>Where the numbers come from</h2>
-      <p>One builder (<code>DropoffBoard</code>) feeds both the in-app card and this notification, using the same rules: newest live bottle and diaper, the newest ended sleep's end as wake time, sleep overlap with the configured night window (default 8 PM to 8 AM) as the overnight total, and parents' notes since that window opened, oldest first. Daycare-sourced notes are excluded.</p>
+      <h2>Trade-offs</h2>
+      <ul>
+        <li>Writes from the card go into the shared store like the widget buttons do, and reach the other phone the next time the app is opened. The geofence itself already tells the other phone someone is at daycare the moment you arrive.</li>
+        <li>The Apple Watch mirror of this notification shows the system actions (Add a note, Open in app) but not the card, so the Watch loses its one-tap Dropped off. Say the word and it comes back as a third system action.</li>
+      </ul>
     </div>
   </div>
 </div>

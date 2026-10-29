@@ -256,6 +256,26 @@ final class QuickLoggerTests: XCTestCase {
 
     // MARK: Extension → app sync hand-off
 
+    // MARK: Notes (the drop-off prompt's "Add a note" action)
+
+    func testNoteIsTrimmedAttributedAndQueued() throws {
+        let note = try XCTUnwrap(logger.logNote("  a little congested overnight \n"))
+        XCTAssertEqual(note.text, "a little congested overnight")
+        XCTAssertEqual(note.loggedByName, "Taylor")
+        XCTAssertNil(note.sourceRaw, "typed by a parent — hand-logged, not daycare-sourced")
+        XCTAssertTrue(queuedIDs().contains(note.id.uuidString))
+    }
+
+    func testBlankNoteIsRefused() {
+        XCTAssertNil(logger.logNote("   \n "))
+        XCTAssertTrue(queuedIDs().isEmpty)
+    }
+
+    func testOverLongNoteIsCapped() throws {
+        let note = try XCTUnwrap(logger.logNote(String(repeating: "x", count: 600)))
+        XCTAssertEqual(note.text.count, QuickLogger.noteMaxLength)
+    }
+
     func testWritesQueueForTheAppToSync() throws {
         guard AppGroup.userDefaults != nil else {
             throw XCTSkip("App Group suite unavailable in this test host")

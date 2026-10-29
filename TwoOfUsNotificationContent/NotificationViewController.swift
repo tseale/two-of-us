@@ -8,15 +8,24 @@ import UserNotificationsUI
 /// hands us (matched by `UNNotificationExtensionCategory` in Info.plist).
 final class NotificationViewController: UIViewController, UNNotificationContentExtension {
     private var host: UIHostingController<NotificationCardView>?
+    /// Lives as long as the drop-off card is up, so the system action row's
+    /// typed note updates the same card.
+    private var dropoffModel: DropoffCardModel?
 
     func didReceive(_ notification: UNNotification) {
         let content = notification.request.content
+        let style = NotificationCardView.Style(categoryID: content.categoryIdentifier)
+        if style == .dropoffBoard {
+            dropoffModel = DropoffCardModel(userInfo: content.userInfo)
+        } else {
+            dropoffModel = nil
+        }
         let card = NotificationCardView(
-            style: NotificationCardView.Style(categoryID: content.categoryIdentifier),
+            style: style,
             title: content.title,
             subtitle: content.subtitle,
             message: content.body,
-            userInfo: content.userInfo
+            dropoff: dropoffModel
         )
 
         if let host {
@@ -25,6 +34,10 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
             let host = UIHostingController(rootView: card)
             host.view.backgroundColor = .clear
             host.view.translatesAutoresizingMaskIntoConstraints = false
+            // Report the SwiftUI content's own height so the notification
+            // sizes to the card (the buttons made it taller than the fixed
+            // initial ratio) instead of clipping.
+            host.sizingOptions = .intrinsicContentSize
             addChild(host)
             view.addSubview(host.view)
             NSLayoutConstraint.activate([
@@ -36,5 +49,22 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
             host.didMove(toParent: self)
             self.host = host
         }
+    }
+
+    /// System action-row taps while the card is showing. The drop-off card
+    /// absorbs "Add a note" so the typed note lands on the Notes row with the
+    /// card still up; everything else (Open in app, the pick-up marker,
+    /// Log feed / Snooze on the other categories) is forwarded to the app's
+    /// handler as before.
+    func didReceive(_ response: UNNotificationResponse,
+                    completionHandler completion: @escaping (UNNotificationContentExtensionResponseOption) -> Void) {
+        if response.actionIdentifier == NotificationID.Action.addNote,
+           let model = dropoffModel,
+           let text = (response as? UNTextInputNotificationResponse)?.userText {
+            model.addNote(text)
+            completion(.doNotDismiss)
+            return
+        }
+        completion(.dismissAndForwardAction)
     }
 }

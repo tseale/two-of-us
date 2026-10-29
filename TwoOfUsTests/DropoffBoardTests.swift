@@ -111,6 +111,21 @@ final class DropoffBoardTests: XCTestCase {
                        "an empty board posts the plain one-tap prompt instead")
     }
 
+    func testBannerCapsALongNoteSoTheOtherRowsStayVisible() {
+        let long = String(repeating: "congested ", count: 12).trimmingCharacters(in: .whitespaces)
+        let info = DropoffBoardInfo(
+            name: "Miller", lastBottle: nil, lastDiaper: nil,
+            wokeUpAt: nil, overnightSleep: nil, notes: long)
+        let line = info.notificationBody
+        XCTAssertTrue(line.hasPrefix("📝 "))
+        XCTAssertTrue(line.hasSuffix("…"))
+        XCTAssertLessThanOrEqual(line.count, DropoffBoardInfo.bannerNoteLimit + 3,
+                                 "emoji, space, capped text, ellipsis")
+        XCTAssertEqual(DropoffBoardInfo(name: "Miller", lastBottle: nil, lastDiaper: nil,
+                                        wokeUpAt: nil, overnightSleep: nil, notes: "Teething")
+                        .notificationBody, "📝 Teething", "a short note is untouched")
+    }
+
     func testUserInfoRoundTrips() {
         let info = DropoffBoardInfo(
             name: "Miller", lastBottle: "6:45 AM · 4 oz", lastDiaper: nil,
