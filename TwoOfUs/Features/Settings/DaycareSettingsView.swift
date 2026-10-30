@@ -199,7 +199,7 @@ struct DaycareSettingsView: View {
             Text("Hours")
         } footer: {
             Text(geofenceModeActive
-                 ? "Opening and closing times bound the arrival sliders: an evening visit (a parents' night) shows nothing. With no pick-up logged, the daycare day is assumed over at closing time."
+                 ? "Opening and closing times bound the drop-off slider: an evening visit (a parents' night) shows nothing. The pick-up slider follows the fence alone — while he's checked in, arriving at the daycare shows it at any hour, even after closing time; away from the daycare, the day is assumed over at closing time."
                  : "Without arrival detection, the clock decides: the drop-off slider appears when the doors open, and the pick-up slider from \"Pick-up from\". With no pick-up logged, the daycare day is assumed over at closing time.")
         }
     }

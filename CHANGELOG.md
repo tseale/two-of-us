@@ -6,6 +6,13 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Fixed — late pick-ups inside the fence
+- With arrival detection on, returning to the daycare while he's checked in
+  shows the pick-up slider (and fires the "Pick up Miller?" prompt) at any
+  hour, closing time included. The "assumed checked out at closing" fallback
+  now only applies away from the daycare: standing inside the fence, only a
+  logged pick-up ends the day. The Hours footer in Settings → Daycare says so.
+
 ### Changed — a plain drop-off prompt; the whiteboard lives on Home
 - The morning geofence prompt is back to one line — "Drop off Miller?" /
   "You're at <daycare> — log the drop-off with one tap." — with the single
