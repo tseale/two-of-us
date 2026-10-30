@@ -96,7 +96,11 @@ enum DaycareStatus {
     /// markers at all, the first daycare-sourced event of any kind stands in
     /// for the missing check-in — if daycare is logging bottles, he's there.
     /// Fallbacks keep a missed tap from wedging Home:
-    /// - no check-out by the assumed close → considered checked out then;
+    /// - no check-out by the assumed close → considered checked out then —
+    ///   unless `atDaycare`: a phone standing inside the daycare fence is a
+    ///   better signal than the clock, so a late pick-up (or a parents'
+    ///   night with him still checked in) keeps the pick-up slide until the
+    ///   check-out is actually logged;
     /// - everything is scoped to today, so midnight clears any leftover state;
     /// - future-dated events (backdate typos) don't count until their time.
     static func attendance(
@@ -105,6 +109,7 @@ enum DaycareStatus {
         dayStart: Date,
         now: Date = .now,
         closeMinute: Int = defaultCloseMinute,
+        atDaycare: Bool = false,
         calendar: Calendar = .current
     ) -> Attendance? {
         func isLive(_ t: Date) -> Bool { t >= dayStart && t <= now }
@@ -126,7 +131,8 @@ enum DaycareStatus {
         }
         guard let candidate else { return nil }
 
-        if let assumedOut = assumedCheckOut(dayStart: dayStart, closeMinute: closeMinute,
+        if !atDaycare,
+           let assumedOut = assumedCheckOut(dayStart: dayStart, closeMinute: closeMinute,
                                             calendar: calendar),
            now >= assumedOut, candidate.since < assumedOut {
             return nil

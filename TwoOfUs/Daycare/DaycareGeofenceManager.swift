@@ -161,11 +161,15 @@ final class DaycareGeofenceManager: NSObject {
         let checks = ((try? context.fetch(FetchDescriptor<CheckEvent>(
             predicate: #Predicate { $0.deletedAt == nil }))) ?? [])
             .filter { $0.timestamp >= dayStart }
+        // This IS an arrival at the daycare: with him still checked in, a
+        // return after closing time is a late pick-up, not a day that ended
+        // on its own — so the assumed check-out doesn't apply here.
         let attending = DaycareStatus.attendance(
             checks: checks.map { ($0.timestamp, $0.type) },
             firstDaycareEvent: firstDaycareEventToday(dayStart: dayStart, in: context),
             dayStart: dayStart, now: when,
-            closeMinute: settings.daycareCloseMinute) != nil
+            closeMinute: settings.daycareCloseMinute,
+            atDaycare: true) != nil
 
         guard let prompt = DaycareGeofencePlanner.prompt(
             now: when, dayStart: dayStart,

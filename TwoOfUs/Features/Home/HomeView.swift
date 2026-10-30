@@ -479,14 +479,17 @@ struct HomeView: View {
 
     /// Whether Miller is at daycare right now, and since when (`DaycareStatus`
     /// — check markers first, first daycare-logged event as the fallback, with
-    /// the configured closing time as the assumed check-out). Drives the
+    /// the configured closing time as the assumed check-out — except while
+    /// THIS phone stands inside the fence: then only a logged check-out ends
+    /// the day, so a late pick-up still gets its slide). Drives the
     /// tiles-↔-strip swap and the report card's hero placement.
     private func daycareAttendance(now: Date) -> DaycareStatus.Attendance? {
         DaycareStatus.attendance(
             checks: checkEvents.map { ($0.timestamp, $0.type) },
             firstDaycareEvent: firstDaycareEventToday,
             dayStart: dayStart, now: now,
-            closeMinute: daycareCloseMinute)
+            closeMinute: daycareCloseMinute,
+            atDaycare: geofenceSliderMode && geofence.isNearDaycare)
     }
 
     /// The shared daycare config (hours, days, name) — the canonical row, the
@@ -1046,9 +1049,11 @@ struct HomeView: View {
     /// In geofence mode (`geofenceSliderMode`) the fence drives everything:
     /// the drop-off slide exists only while THIS phone stands at the daycare
     /// inside the operating window, the pick-up slide only while this phone
-    /// returns there with him checked in — and a phone elsewhere shows the
-    /// quiet "someone's at daycare" line when the co-parent's is inside the
-    /// fence. A day that never touches the fence shows nothing at all.
+    /// returns there with him checked in — whatever the clock says, closing
+    /// time included (`daycareAttendance` skips the assumed check-out inside
+    /// the fence) — and a phone elsewhere shows the quiet "someone's at
+    /// daycare" line when the co-parent's is inside the fence. A day that
+    /// never touches the fence shows nothing at all.
     ///
     /// Without the fence (location denied, no pin), the clock decides, as
     /// before: the drop-off slide from doors-open, the pick-up slide from the

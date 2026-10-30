@@ -19,9 +19,10 @@ final class DaycareStatusTests: XCTestCase {
 
     private func attendance(checks: [(Date, CheckType)] = [],
                             firstEvent: Date? = nil,
-                            now: Date) -> DaycareStatus.Attendance? {
+                            now: Date,
+                            atDaycare: Bool = false) -> DaycareStatus.Attendance? {
         DaycareStatus.attendance(checks: checks, firstDaycareEvent: firstEvent,
-                                 dayStart: dayStart, now: now)
+                                 dayStart: dayStart, now: now, atDaycare: atDaycare)
     }
 
     // MARK: Check markers (primary)
@@ -111,6 +112,31 @@ final class DaycareStatusTests: XCTestCase {
     func testAssumedCheckOutClearsTheEventFallbackToo() {
         XCTAssertNil(attendance(firstEvent: today(hour: 9),
                                 now: today(hour: 18)))
+    }
+
+    func testStandingAtTheDaycareOverridesTheAssumedCheckOut() {
+        // Requirement: back inside the fence with him still checked in, the
+        // pick-up slide shows no matter the hour — a 5:45 pick-up is a
+        // pick-up, not a day that ended at 5:30 on its own.
+        let checks: [(Date, CheckType)] = [(today(hour: 7, minute: 30), .checkIn)]
+        let late = attendance(checks: checks, now: today(hour: 17, minute: 45), atDaycare: true)
+        XCTAssertEqual(late?.since, today(hour: 7, minute: 30))
+        XCTAssertEqual(late?.basis, .checkInEvent)
+        XCTAssertNotNil(attendance(checks: checks, now: today(hour: 20), atDaycare: true))
+        // The event fallback (a marker-less Brightwheel day) holds the same way.
+        XCTAssertNotNil(attendance(firstEvent: today(hour: 9), now: today(hour: 18),
+                                   atDaycare: true))
+    }
+
+    func testStandingAtTheDaycareStillHonorsALoggedCheckOut() {
+        // The fence only replaces the ASSUMED check-out: a real one ends the
+        // day wherever the phone is (a forgotten-bag return shows nothing).
+        XCTAssertNil(attendance(
+            checks: [(today(hour: 7, minute: 30), .checkIn),
+                     (today(hour: 17, minute: 40), .checkOut)],
+            now: today(hour: 17, minute: 50), atDaycare: true))
+        // And no signal at all is still no attendance.
+        XCTAssertNil(attendance(now: today(hour: 18), atDaycare: true))
     }
 
     func testExplicitPostCutoffCheckInIsHonored() {
