@@ -1,9 +1,8 @@
 import Foundation
 import SwiftData
 
-/// The drop-off whiteboard's answers — display strings, not raw events: the
-/// card (`DropoffBoardSheet`), the geofence drop-off notification, and the
-/// notification's expanded view all read the same five rows.
+/// The drop-off whiteboard's answers — display strings, not raw events, for
+/// Home's slide-to-drop-off card (`DropoffBoardSheet`).
 struct DropoffBoardInfo: Identifiable {
     let id = UUID()
     let name: String
@@ -12,97 +11,11 @@ struct DropoffBoardInfo: Identifiable {
     let wokeUpAt: String?         // "6:30 AM"
     let overnightSleep: String?   // "10h 2m — slept well"
     let notes: String?            // recent parent notes; nil reads "None"
-
-    /// The whole card as plain text, for the Copy button — the same rows,
-    /// one per line, pasteable into a message to the daycare too.
-    var clipboardText: String {
-        """
-        \(name)
-        Last bottle: \(lastBottle ?? "—")
-        Last diaper: \(lastDiaper ?? "—")
-        Woke up at: \(wokeUpAt ?? "—")
-        Sleep: \(overnightSleep ?? "—")
-        Notes: \(notes ?? "None")
-        """
-    }
-
-    /// The rows as a notification body: one line per answer the daycare
-    /// asks for, so the lock-screen banner IS the whiteboard — every answer
-    /// above the fold, no long-press needed. The banner shows four body
-    /// lines, so: empty rows are dropped rather than shown as "—", wake time
-    /// shares a line with the overnight total, and the notes line (last) is
-    /// capped so a long note can't wrap the bottle off the screen; the
-    /// expanded card has the whole note.
-    var notificationBody: String {
-        var lines: [String] = []
-        if let lastBottle { lines.append("🍼 Last bottle \(lastBottle)") }
-        if let lastDiaper { lines.append("💧 Last diaper \(lastDiaper)") }
-        let sleep = [wokeUpAt.map { "☀️ Woke \($0)" },
-                     overnightSleep.map { "💤 \($0)" }].compactMap { $0 }
-        if !sleep.isEmpty { lines.append(sleep.joined(separator: " · ")) }
-        if let notes {
-            let short = notes.count > Self.bannerNoteLimit
-                ? notes.prefix(Self.bannerNoteLimit - 1).trimmingCharacters(in: .whitespaces) + "…"
-                : notes
-            lines.append("📝 \(short)")
-        }
-        return lines.joined(separator: "\n")
-    }
-
-    /// About one banner line at the default text size.
-    static let bannerNoteLimit = 60
-
-    // MARK: Notification userInfo
-
-    /// Carried on the drop-off notification so the content extension can
-    /// render the rows even when it can't open the App Group store — and so
-    /// the expanded card shows the same answers the banner did.
-    private enum Key {
-        static let name = "board.name"
-        static let lastBottle = "board.lastBottle"
-        static let lastDiaper = "board.lastDiaper"
-        static let wokeUpAt = "board.wokeUpAt"
-        static let overnightSleep = "board.overnightSleep"
-        static let notes = "board.notes"
-    }
-
-    var userInfo: [String: String] {
-        var info = [Key.name: name]
-        info[Key.lastBottle] = lastBottle
-        info[Key.lastDiaper] = lastDiaper
-        info[Key.wokeUpAt] = wokeUpAt
-        info[Key.overnightSleep] = overnightSleep
-        info[Key.notes] = notes
-        return info
-    }
-
-    init(name: String, lastBottle: String?, lastDiaper: String?,
-         wokeUpAt: String?, overnightSleep: String?, notes: String?) {
-        self.name = name
-        self.lastBottle = lastBottle
-        self.lastDiaper = lastDiaper
-        self.wokeUpAt = wokeUpAt
-        self.overnightSleep = overnightSleep
-        self.notes = notes
-    }
-
-    /// nil when the payload isn't a board (any other notification's userInfo).
-    init?(userInfo: [AnyHashable: Any]) {
-        guard let name = userInfo[Key.name] as? String else { return nil }
-        self.init(name: name,
-                  lastBottle: userInfo[Key.lastBottle] as? String,
-                  lastDiaper: userInfo[Key.lastDiaper] as? String,
-                  wokeUpAt: userInfo[Key.wokeUpAt] as? String,
-                  overnightSleep: userInfo[Key.overnightSleep] as? String,
-                  notes: userInfo[Key.notes] as? String)
-    }
 }
 
 /// Builds the whiteboard from the app's own data. Pure `compute` takes
 /// value tuples (HomeView passes its @Query arrays, tests pass fixtures);
-/// `load` fetches them from any context — the app's main context when the
-/// geofence prompt posts, the App Group store inside the notification
-/// content extension.
+/// `load` fetches them from a store context.
 enum DropoffBoard {
 
     /// Compiles everywhere `DropoffBoardInfo` does; `NoteEvent` and friends

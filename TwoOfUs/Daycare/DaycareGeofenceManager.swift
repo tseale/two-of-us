@@ -197,20 +197,10 @@ final class DaycareGeofenceManager: NSObject {
         content.interruptionLevel = .timeSensitive
         switch prompt {
         case .dropOff:
-            // The banner IS the whiteboard: the daycare's morning questions
-            // (last bottle, last diaper, wake time, overnight sleep, notes)
-            // answered in the body, with Dropped off as the action — the
-            // phone never has to leave the pocket. Computed now, before
-            // the marker lands, exactly like Home's card; the same rows ride
-            // along in userInfo so the long-press card can show them big.
-            let board = DropoffBoard.load(from: context, now: when)
+            // Deliberately plain — one line, one action. The whiteboard
+            // answers live on Home's slide-to-drop-off card, not here.
             content.title = "Drop off \(babyName)?"
-            // The buttons only exist once the banner is held — say so.
-            content.subtitle = "Hold to log it · You're at \(place)"
-            content.body = board.notificationBody.isEmpty
-                ? "Log the drop-off with one tap."
-                : board.notificationBody
-            content.userInfo = board.userInfo
+            content.body = "You're at \(place) — log the drop-off with one tap."
             content.categoryIdentifier = NotificationID.Category.geofenceDropOff
         case .pickUp:
             content.title = "Pick up \(babyName)?"

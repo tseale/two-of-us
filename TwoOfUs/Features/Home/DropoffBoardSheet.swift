@@ -1,15 +1,14 @@
 import SwiftUI
-import UIKit
 
 /// The whiteboard cheat sheet: at drop-off the daycare asks for last bottle,
 /// last diaper, wake time, sleep quality, and notes on a whiteboard — the
 /// exact numbers a sleep-deprived parent reconstructs from memory at 7 AM
 /// with a baby on one arm. This card answers every column from the app's
-/// own data, in type big enough to read at arm's length while writing.
+/// own data, in type big enough to read at arm's length while writing. Just
+/// the rows: it's read off the phone and written on the board, never pasted.
 struct DropoffBoardSheet: View {
     let info: DropoffBoardInfo
     @Environment(\.dismiss) private var dismiss
-    @State private var copied = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -25,7 +24,6 @@ struct DropoffBoardSheet: View {
                 .padding(.horizontal, 24)
                 .padding(.vertical, 20)
             }
-            copyButton
         }
         .background(AppColor.bg)
         .presentationDetents([.large])
@@ -70,29 +68,6 @@ struct DropoffBoardSheet: View {
         .surfaceCard(cornerRadius: 16)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(label): \(value ?? "nothing logged")")
-    }
-
-    private var copyButton: some View {
-        Button {
-            UIPasteboard.general.string = info.clipboardText
-            Haptics.tap()
-            withAnimation(.easeInOut(duration: 0.2)) { copied = true }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                    .font(.body.weight(.semibold))
-                Text(copied ? "Copied" : "Copy")
-                    .font(.body.weight(.semibold))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 15)
-            .background(AppColor.accentCheck.opacity(copied ? 0.55 : 1), in: Capsule())
-            .foregroundStyle(.white)
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 24)
-        .padding(.bottom, 16)
-        .accessibilityLabel(copied ? "Copied to clipboard" : "Copy for the whiteboard")
     }
 }
 
