@@ -393,9 +393,6 @@ targets:
       - path: TwoOfUs/DesignSystem/Typography.swift
       - path: TwoOfUs/DesignSystem/TimeFormatting.swift
       - path: TwoOfUs/Notifications/NotificationIdentifiers.swift
-      # The drop-off whiteboard rows (last bottle / diaper / wake / overnight
-      # sleep / notes) — the geofence drop-off card re-reads them live.
-      - path: TwoOfUs/Daycare/DropoffBoard.swift
     info:
       path: TwoOfUsNotificationContent/Info.plist
       properties:
@@ -417,7 +414,6 @@ targets:
               - REMINDER_DIAPER
               - SCHEDULE_FEED
               - SCHEDULE_SLEEP
-              - GEOFENCE_DROPOFF
             UNNotificationExtensionInitialContentSizeRatio: 0.4
             UNNotificationExtensionDefaultContentHidden: true
     entitlements:

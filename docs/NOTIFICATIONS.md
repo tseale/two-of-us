@@ -138,42 +138,29 @@ location on that phone), entering the fence posts one Time Sensitive prompt
 per direction per day, decided by `DaycareGeofencePlanner` off the same store
 state Home reads:
 
-- **Morning — `GEOFENCE_DROPOFF`** · title "Drop off Miller?", subtitle
-  "Hold to log it · You're at <daycare>", and the body is the **drop-off
-  whiteboard**: the questions the daycare asks at the door, answered one per
-  line from the app's own data (`DropoffBoard.load`) — `🍼 Last bottle 6:45 AM
-  · 4 oz`, `💧 Last diaper 7:10 AM · wet`, `☀️ Woke 6:30 AM · 💤 10h 2m —
-  slept well`, `📝 <parents' notes since last night>`. Every answer sits on
-  the banner itself (nothing behind a long-press): rows with nothing logged
-  are dropped rather than shown as "—", wake + overnight share a line, and the
-  notes line is capped (`DropoffBoardInfo.bannerNoteLimit`) so the banner's
-  four body lines always hold the core answers.
-  Holding the banner opens the whiteboard card (content extension): the five
-  rows at reading size, re-read live from the App Group store, with the one
-  action beneath — **Dropped off** (`LOG_CHECKIN`), which logs the
-  `CheckEvent` through `QuickLogger` in the app's background handler and
-  drains it to CloudKit at once; the phone never has to leave the pocket.
-  Deliberately the only button: the card is a reference, not a menu.
+- **Morning — `GEOFENCE_DROPOFF`** · "Drop off Miller?" / "You're at
+  <daycare> — log the drop-off with one tap." with the one action
+  **Dropped off** (`LOG_CHECKIN`), which logs the `CheckEvent` through
+  `QuickLogger` in the app's background handler and drains it to CloudKit at
+  once; the phone never has to leave the pocket. Deliberately plain: no
+  custom expanded card, no whiteboard rows in the body — the daycare's
+  whiteboard answers (last bottle / diaper / wake / overnight sleep / notes)
+  live on Home's slide-to-drop-off card (`DropoffBoardSheet`, built by
+  `DropoffBoard.compute`), read off the phone while writing on the board.
 - **Afternoon — `GEOFENCE_PICKUP`** · "Pick up Miller?" with **Picked up**
   (`LOG_CHECKOUT`).
-
-The whiteboard rows also ride in `userInfo` (`DropoffBoardInfo.userInfo`) as
-the card's fallback when the App Group store won't open; Home's
-slide-to-drop-off shows the same rows as a full-screen card
-(`DropoffBoardSheet`) through the same `DropoffBoard.compute`.
 
 ## Rich expanded UI (Notification Content Extension)
 
 Long-pressing / pulling down a notification shows a custom card rendered by the
 **`TwoOfUsNotificationContent`** app extension (`NotificationViewController` hosts
 the SwiftUI `NotificationCardView`). It's registered for the daily summary,
-co-parent, both reminder categories, the schedule slots, and the geofence
-drop-off prompt (`UNNotificationExtensionCategory` in the extension's
-Info.plist). The card reads **live** state from `QuickLogger`
-(today's counts/sleep for the summary; last-feed/diaper/sleep "time since" for
-co-parent/reminders; the five whiteboard rows at display scale for the
-drop-off prompt, falling back to the rows carried in `userInfo` if the App
-Group store won't open) so it's accurate even if the notification was posted earlier.
+co-parent, both reminder categories, and the schedule slots
+(`UNNotificationExtensionCategory` in the extension's Info.plist); the
+geofence prompts use the system banner only. The card reads **live** state
+from `QuickLogger` (today's counts/sleep for the summary; last-feed/diaper/sleep
+"time since" for co-parent/reminders) so it's accurate even if the
+notification was posted earlier.
 Action buttons still render below, supplied by the category. The extension shares
 `QuickLogger`, the models, and the design system via `project.yml` sources (like
 the widget target).

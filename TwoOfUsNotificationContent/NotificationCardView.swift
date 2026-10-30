@@ -7,16 +7,14 @@ import SwiftUI
 /// …) still render below, supplied by the notification's category.
 struct NotificationCardView: View {
     enum Style {
-        case summary        // end-of-day recap
-        case coParent       // the other parent just logged
-        case reminder       // feed / diaper due
-        case dropoffBoard   // geofence drop-off: the daycare whiteboard
+        case summary    // end-of-day recap
+        case coParent   // the other parent just logged
+        case reminder   // feed / diaper due
 
         init(categoryID: String) {
             switch categoryID {
             case NotificationID.Category.milestone: self = .summary
             case NotificationID.Category.coParent: self = .coParent
-            case NotificationID.Category.geofenceDropOff: self = .dropoffBoard
             default: self = .reminder
             }
         }
@@ -24,26 +22,19 @@ struct NotificationCardView: View {
 
     let style: Style
     let title: String
-    var subtitle: String = ""
     let message: String
-    /// The posted notification's payload — the drop-off board rides here.
-    var userInfo: [AnyHashable: Any] = [:]
 
     private var logger: QuickLogger? { QuickLogger.make() }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if style == .dropoffBoard {
-                boardHeader
-            } else {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(AppColor.text)
-                if !message.isEmpty {
-                    Text(message)
-                        .font(.subheadline)
-                        .foregroundStyle(AppColor.text2)
-                }
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(AppColor.text)
+            if !message.isEmpty {
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(AppColor.text2)
             }
 
             Divider().opacity(0.4)
@@ -51,74 +42,11 @@ struct NotificationCardView: View {
             switch style {
             case .summary: summaryStats
             case .coParent, .reminder: recentRows
-            case .dropoffBoard: boardRows
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppColor.bg)
-    }
-
-    // MARK: Drop-off — the whiteboard, big enough to read while writing
-
-    /// Live when the App Group store opens (a bottle logged in the car after
-    /// the prompt fired still shows), else the rows the notification carried.
-    private var board: DropoffBoardInfo? {
-        if let logger { return DropoffBoard.load(from: logger.context) }
-        return DropoffBoardInfo(userInfo: userInfo)
-    }
-
-    private var boardHeader: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(AppColor.text)
-            Spacer()
-            if !subtitle.isEmpty {
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(AppColor.text3)
-            }
-        }
-    }
-
-    @ViewBuilder private var boardRows: some View {
-        if let board {
-            VStack(spacing: 10) {
-                boardRow("🍼", "Last bottle", board.lastBottle, AppColor.accentFeed)
-                boardRow("💧", "Last diaper", board.lastDiaper, AppColor.accentDiaper)
-                boardRow("☀️", "Woke up at", board.wokeUpAt, AppColor.accentSleep)
-                boardRow("💤", "Sleep", board.overnightSleep, AppColor.accentSleep)
-                boardRow("📝", "Notes", board.notes ?? "None", AppColor.accentNote)
-            }
-        } else {
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(AppColor.text2)
-        }
-    }
-
-    /// One whiteboard column: quiet caption, the answer at display scale.
-    private func boardRow(_ emoji: String, _ label: String, _ value: String?, _ tint: Color) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(emoji).font(.body)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .font(.caption.weight(.semibold))
-                    .textCase(.uppercase)
-                    .foregroundStyle(AppColor.text2)
-                Text(value ?? "—")
-                    .font(.system(.title3, design: .rounded).weight(.semibold))
-                    .foregroundStyle(value == nil ? AppColor.text3 : AppColor.text)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(label): \(value ?? "nothing logged")")
     }
 
     // MARK: Summary — three stat tiles
