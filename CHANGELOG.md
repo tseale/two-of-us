@@ -6,6 +6,17 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Added — a new phone finds your family on its own
+- A fresh install (new phone, or a reinstall without a backup) checks
+  iCloud before showing setup. If this Apple ID owns a family, the log
+  downloads behind a "Welcome back" screen and the app opens on Home as
+  you, so nobody can tap through onboarding and create a second baby. If
+  this Apple ID already joined a co-parent's share, the phone reconnects to
+  it without the invite link being tapped again and adopts your existing
+  profile (matched by iCloud account; the join flow runs only if no
+  profile matches). Nothing found, offline, or no iCloud → onboarding as
+  before. Try again appears if the download stalls.
+
 ### Fixed — late pick-ups inside the fence
 - With arrival detection on, returning to the daycare while he's checked in
   shows the pick-up slider (and fires the "Pick up Miller?" prompt) at any

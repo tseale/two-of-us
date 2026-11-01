@@ -13,6 +13,20 @@ or both. Run before promoting a build to the App Store. Pair with
       "Try again" re-kicks the fetch.
 - [ ] Accept failures show the right copy: signed out vs offline vs revoked link.
 
+## New phone / reinstall without a backup (CloudRestore)
+- [ ] Owner: delete the app (or use a second device on the same Apple ID),
+      reinstall → "Checking iCloud…" → "Welcome back" → Home with the full
+      log. Onboarding never appears; no second baby or second "you" in
+      People. Settings → People still shows the owner controls.
+- [ ] Co-parent: same, on the co-parent's Apple ID, WITHOUT tapping the
+      invite link → "Reconnecting to your family's shared log" → Home as
+      themselves (no join flow, no duplicate People row). Logging works.
+- [ ] Brand-new Apple ID (never used the app) → onboarding after a brief
+      "Checking iCloud…" (≤ 8s even on a slow network).
+- [ ] Airplane mode on a fresh install → onboarding, as before.
+- [ ] First-time joiner opening the app from the invite link → join flow as
+      before (the check yields to the accept).
+
 ## Logging core
 - [ ] Feed/diaper/sleep quick-log; backdate via the time control; toast + Undo.
 - [ ] Diaper select-then-confirm logs the highlighted type, not a stray tap.
