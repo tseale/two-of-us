@@ -120,6 +120,14 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         UserDefaults.standard.string(forKey: Keys.sharedZoneOwner)
     }
 
+    /// The owner's zone this participant is attached to (restore's Try again
+    /// re-attaches to it).
+    static func attachedSharedZoneID() -> CKRecordZone.ID? {
+        guard let name = UserDefaults.standard.string(forKey: Keys.sharedZoneName),
+              let owner = UserDefaults.standard.string(forKey: Keys.sharedZoneOwner) else { return nil }
+        return CKRecordZone.ID(zoneName: name, ownerName: owner)
+    }
+
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
         super.init()
@@ -472,18 +480,8 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     /// a share proves an account exists); only the engine work awaits the check.
     func didAcceptShare() {
         Task {
-            guard await cloudAvailable() else { return }
-            // A re-accept can attach us to a DIFFERENT zone than the engine was
-            // following (re-join after a leave/revoke, or a new household) —
-            // the old engine state belongs to the wrong zone, so start fresh.
-            if let persisted = persistedSharedZoneID(), sharedZoneID != persisted {
-                sharedEngine = nil
-                sharedZoneID = nil
-                try? FileManager.default.removeItem(at: stateURL(.shared))
-            }
-            startSharedEngine()
             do {
-                try await sharedEngine?.fetchChanges()
+                guard try await attachToAcceptedShareAndFetch() else { return }
                 // Only after a SUCCESSFUL fetch: judging our profile against a
                 // half-fetched store could wrongly re-run the join flow.
                 reclaimIdentityAfterAccept()
@@ -491,6 +489,119 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
                 AppLog.sync.error("Post-accept fetch failed: \(error.localizedDescription, privacy: .public)")
             }
         }
+    }
+
+    /// Starts the shared engine on the zone `markShareAccepted` recorded and
+    /// pulls it down. False without iCloud; throws when the fetch fails.
+    private func attachToAcceptedShareAndFetch() async throws -> Bool {
+        guard await cloudAvailable() else { return false }
+        // A re-accept can attach us to a DIFFERENT zone than the engine was
+        // following (re-join after a leave/revoke, or a new household) —
+        // the old engine state belongs to the wrong zone, so start fresh.
+        if let persisted = persistedSharedZoneID(), sharedZoneID != persisted {
+            sharedEngine = nil
+            sharedZoneID = nil
+            try? FileManager.default.removeItem(at: stateURL(.shared))
+        }
+        startSharedEngine()
+        try await sharedEngine?.fetchChanges()
+        return true
+    }
+
+    // MARK: Fresh-install restore (see CloudRestore)
+
+    /// Asks iCloud whether this account already has a family: a share it
+    /// accepted (shared database) or a zone it owns with a Baby in it
+    /// (private database). Read-only. Any failure reads as "nothing found",
+    /// so the caller falls back to onboarding exactly as before.
+    func probeForExistingFamily() async -> CloudRestorePlan.Finding {
+        guard !LocalPrefs.shared.demoModeEnabled, await cloudAvailable() else { return .nothingFound }
+        let container = SyncConstants.container
+
+        var sharedZones: [CKRecordZone.ID] = []
+        do {
+            sharedZones = try await container.sharedCloudDatabase.allRecordZones().map(\.zoneID)
+        } catch {
+            AppLog.sync.error("Restore probe: shared zones unavailable: \(error.localizedDescription, privacy: .public)")
+            if CloudRestorePlan.isTransient(error) { return .nothingFound }
+        }
+        if case .joined(let zone) = CloudRestorePlan.decide(sharedZones: sharedZones, privateHasBaby: false) {
+            return .joined(zone)
+        }
+
+        // One Baby record is proof enough. Not just zone existence: every
+        // install's private engine creates an empty zone at launch, so a
+        // brand-new user would otherwise wait on a restore of nothing.
+        let privateHasBaby: Bool
+        do {
+            let query = CKQuery(recordType: SyncConstants.RecordType.baby, predicate: NSPredicate(value: true))
+            let (matches, _) = try await container.privateCloudDatabase.records(
+                matching: query, inZoneWith: privateZoneID, desiredKeys: [], resultsLimit: 1)
+            privateHasBaby = !matches.isEmpty
+        } catch let error as CKError where error.code == .zoneNotFound {
+            privateHasBaby = false
+        } catch {
+            AppLog.sync.error("Restore probe: private Baby query failed: \(error.localizedDescription, privacy: .public)")
+            if CloudRestorePlan.isTransient(error) { return .nothingFound }
+            // Unexpected failure (e.g. the query index missing in this
+            // environment): fall back to "the zone exists". A restore attempt
+            // that finds nothing costs one fetch; skipping a real family
+            // costs a duplicate baby.
+            privateHasBaby = (try? await container.privateCloudDatabase.recordZone(for: privateZoneID)) != nil
+        }
+        return CloudRestorePlan.decide(sharedZones: sharedZones, privateHasBaby: privateHasBaby)
+    }
+
+    /// Co-parent on a fresh install: re-attach to the share this account
+    /// already accepted (no invite link needed), fetch it, and adopt the
+    /// profile carrying this iCloud user record name. With no match,
+    /// `myParticipantID` stays nil and `RootView` runs the join flow over the
+    /// already-downloaded data. True when the fetch succeeded.
+    func rejoinExistingShare(zoneID: CKRecordZone.ID) async -> Bool {
+        Self.markShareAccepted(zoneID: zoneID)
+        do {
+            guard try await attachToAcceptedShareAndFetch() else { return false }
+        } catch {
+            AppLog.sync.error("Restore: shared fetch failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+        await repairMyIdentityIfDangling()
+        return true
+    }
+
+    /// Owner on a fresh install: pull the private zone down before Home
+    /// appears, adopt the owner's profile, and restore the `.owner` role when
+    /// the zone is still shared (People management keys on it). True when
+    /// the fetch succeeded.
+    func restoreOwnedFamily() async -> Bool {
+        guard await cloudAvailable() else { return false }
+        startPrivateEngine()
+        do {
+            try await privateEngine?.fetchChanges()
+        } catch {
+            AppLog.sync.error("Restore: private fetch failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+        if LocalPrefs.shared.myParticipantID == nil {
+            let recordName = (try? await SyncConstants.container.userRecordID())?.recordName
+            let all = (try? context.fetch(FetchDescriptor<Participant>())) ?? []
+            if let me = CloudRestorePlan.ownerIdentity(among: all, myCloudUserID: recordName) {
+                AppLog.sync.log("Restore: adopted owner identity \(me.id, privacy: .public)")
+                LocalPrefs.shared.myParticipantID = me.id
+                // Stamp a legacy unstamped owner row so the watch (and any
+                // future restore) can match it by iCloud account.
+                if me.cloudUserID == nil { captureCloudUserID(for: me.id) }
+            } else {
+                AppLog.sync.warning("Restore: no participant matched this iCloud account")
+            }
+        }
+        if Self.realSyncRole == .solo {
+            let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: privateZoneID)
+            if (try? await SyncConstants.container.privateCloudDatabase.record(for: shareID)) is CKShare {
+                Self.setRealRole(.owner)
+            }
+        }
+        return true
     }
 
     /// A re-accept on a device that already had a profile must not leave a ghost:
@@ -539,9 +650,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
     // MARK: Shared zone persistence
 
     private func persistedSharedZoneID() -> CKRecordZone.ID? {
-        guard let name = UserDefaults.standard.string(forKey: Keys.sharedZoneName),
-              let owner = UserDefaults.standard.string(forKey: Keys.sharedZoneOwner) else { return nil }
-        return CKRecordZone.ID(zoneName: name, ownerName: owner)
+        Self.attachedSharedZoneID()
     }
 
     private func setSharedZone(_ zoneID: CKRecordZone.ID) {

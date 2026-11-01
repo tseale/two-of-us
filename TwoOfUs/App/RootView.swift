@@ -3,6 +3,8 @@ import SwiftData
 
 /// Routes between the three top-level worlds and owns the transitions between
 /// them, so no route change ever hard-cuts:
+/// - a fresh install whose iCloud account already has a family → the restore
+///   screen (checked before everything: see `CloudRestore`),
 /// - a parent who accepted a share but has no profile yet → the join flow
 ///   (checked FIRST: right after accepting, the owner's records may not have
 ///   synced down yet, and the empty-store check would wrongly show owner
@@ -18,6 +20,7 @@ struct RootView: View {
     @State private var prefs = LocalPrefs.shared
     @State private var celebration: CelebrationData?
     @State private var shareAcceptance = ShareAcceptance.shared
+    @State private var cloudRestore = CloudRestore.shared
     @State private var storeErrors = StoreErrorCenter.shared
     /// Launch curtain (see `LaunchOverlay`). Starts done when it already
     /// played this process — the demo toggle rebuilds this whole view via
@@ -47,10 +50,13 @@ struct RootView: View {
         prefs.syncRole == .participant && prefs.myParticipantID == nil
     }
 
-    private enum Route: Equatable { case join, joinSyncing, onboarding, main }
+    private enum Route: Equatable { case restoring, join, joinSyncing, onboarding, main }
 
     private var route: Route {
-        if needsJoinProfile { .join }
+        // A new phone must never show owner onboarding while this iCloud
+        // account's existing family is still being found or downloaded.
+        if cloudRestore.blocksRouting(hasBaby: !babies.isEmpty) { .restoring }
+        else if needsJoinProfile { .join }
         // A participant whose profile exists but whose baby hasn't synced down
         // yet must never see owner onboarding (they'd create a duplicate baby in
         // the shared zone) — hold on a syncing screen until the records land.
@@ -83,6 +89,9 @@ struct RootView: View {
         // A tapped Feed/Diaper home-screen widget opens the app on this URL;
         // the router stages the sheet for HomeView to present.
         .onOpenURL { DeepLinkRouter.shared.handle($0) }
+        // Fresh install: look for this iCloud account's existing family before
+        // onboarding can show (no-op on a device that was ever set up).
+        .task { await cloudRestore.runIfNeeded() }
         .overlay(alignment: .bottom) {
             if let banner = storeErrors.current { errorBanner(banner) }
         }
@@ -103,7 +112,8 @@ struct RootView: View {
         // to a list that's still shifting.
         .overlay {
             if !launchDone {
-                LaunchOverlay(style: launchStyle, firstRun: route == .onboarding) {
+                LaunchOverlay(style: launchStyle,
+                              firstRun: route == .onboarding || cloudRestore.phase == .checking) {
                     launchDone = true
                 }
                 .zIndex(3)
@@ -170,6 +180,9 @@ struct RootView: View {
     @ViewBuilder private var routedContent: some View {
         ZStack {
             switch route {
+            case .restoring:
+                RestoreFromCloudView()
+                    .transition(.opacity)
             case .join:
                 JoinFlowView(onFinished: celebrate)
                     .transition(.opacity)
