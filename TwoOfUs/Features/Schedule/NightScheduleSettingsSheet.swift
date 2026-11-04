@@ -143,8 +143,11 @@ struct NightScheduleSettingsSheet: View {
     /// inside the (pending) window, then the spacing marches out the slots —
     /// the same math the Home card and alarms run.
     private var previewSection: some View {
-        Section {
-            ForEach(Array(previewTimes.enumerated()), id: \.offset) { index, date in
+        // `previewTimes` scans the feed history; evaluate it once for both the
+        // rows and the footer rather than once in each.
+        let times = previewTimes
+        return Section {
+            ForEach(Array(times.enumerated()), id: \.offset) { index, date in
                 HStack(spacing: 10) {
                     Text("🍼").font(.callout)
                     Text(TimeFormatting.clock(date))
@@ -159,12 +162,12 @@ struct NightScheduleSettingsSheet: View {
         } header: {
             Text("Tonight would run")
         } footer: {
-            Text(previewFooter)
+            Text(previewFooter(isEmpty: times.isEmpty))
         }
     }
 
-    private var previewFooter: String {
-        if previewTimes.isEmpty {
+    private func previewFooter(isEmpty: Bool) -> String {
+        if isEmpty {
             return "These hours generate no feeds — widen the window or tighten the spacing."
         }
         return "Projected from the last logged feed plus your feed spacing — the night re-anchors to the first bottle actually logged in (or within an hour before) the window."

@@ -1351,7 +1351,7 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
         let rearmFeedAlarm = LocalPrefs.shared.feedReminderEnabled
             || LocalPrefs.shared.gentleRemindersEnabled
             || LocalPrefs.shared.notifyMilestones
-        let logger = rearmFeedAlarm ? QuickLogger.make() : nil
+        let logger = rearmFeedAlarm ? QuickLogger.forAppReads() : nil
         let haveLogger = logger != nil
         let babyName = logger?.babyName ?? "Baby"
         let lastFeed = logger?.lastFeed?.timestamp

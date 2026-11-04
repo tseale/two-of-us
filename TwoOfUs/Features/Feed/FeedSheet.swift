@@ -56,14 +56,18 @@ struct FeedSheet: View {
     private var suggestedOz: (oz: Double, isBaseline: Bool)? {
         guard let s = settingsList.first, s.aiPredictionsEnabled,
               let baby = babies.first else { return nil }
+        // One pass over the full feed history, shared by both predictors below
+        // (it used to be mapped once per predictor). The labeled tuple type is
+        // required to match the predictors' `[(timestamp:, oz:)]` parameters.
+        let samples: [(timestamp: Date, oz: Double)] = feeds.map { ($0.timestamp, $0.amountOz) }
         var prediction = PredictionEngine.feedAmount(
-            feeds: feeds.map { ($0.timestamp, $0.amountOz) },
+            feeds: samples,
             ageInDays: WakeWindow.ageInDays(dateOfBirth: baby.dateOfBirth),
             at: date,
             nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute)
         if prediction.confidence != .low,
            let modelOz = PredictionArbiter.shared.modelOz(
-               at: date, feeds: feeds.map { ($0.timestamp, $0.amountOz) },
+               at: date, feeds: samples,
                dateOfBirth: baby.dateOfBirth,
                nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute) {
             prediction = PredictionEngine.FeedAmount(oz: modelOz, confidence: prediction.confidence)
@@ -75,8 +79,9 @@ struct FeedSheet: View {
         return (prediction.oz, prediction.confidence == .low)
     }
 
-    private var suggestionLabel: String? {
-        guard let suggested = suggestedOz else { return nil }
+    /// Takes the already-computed suggestion so `suggestedOz` (a full-history
+    /// prediction) runs once per body rather than once here and once at the call site.
+    private func suggestionLabel(for suggested: (oz: Double, isBaseline: Bool)) -> String {
         return suggested.isBaseline
             ? "typical at \(TimeFormatting.age(from: babies.first?.dateOfBirth ?? .now)): ~\(OzFormat.string(suggested.oz)) oz"
             : "\(babies.first?.name ?? "Baby") has been taking ~\(OzFormat.string(suggested.oz)) oz at this hour"
@@ -119,7 +124,9 @@ struct FeedSheet: View {
                             }
                         Text("oz").foregroundStyle(AppColor.text3)
                     }
-                    if let suggested = suggestedOz, let label = suggestionLabel {
+                    // Evaluate the suggestion once per body; the label is derived from it.
+                    if let suggested = suggestedOz {
+                        let label = suggestionLabel(for: suggested)
                         Button {
                             // Land the suggestion where the eye can confirm it:
                             // on its chip when one matches, else in the Custom

@@ -15,7 +15,7 @@ struct LastFeedIntent: AppIntent {
     /// record, not just the sentence.
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog & ReturnsValue<CareEventEntity?> {
-        guard let logger = QuickLogger.make() else {
+        guard let logger = QuickLogger.forAppReads() else {
             return .result(value: nil, dialog: "Couldn't reach Two of Us.")
         }
         let name = logger.babyName ?? "Baby"
@@ -37,7 +37,7 @@ struct LastDiaperIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog & ReturnsValue<CareEventEntity?> {
-        guard let logger = QuickLogger.make() else {
+        guard let logger = QuickLogger.forAppReads() else {
             return .result(value: nil, dialog: "Couldn't reach Two of Us.")
         }
         let name = logger.babyName ?? "Baby"
@@ -58,7 +58,7 @@ struct SleepStatusIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        guard let logger = QuickLogger.make() else {
+        guard let logger = QuickLogger.forAppReads() else {
             return .result(dialog: "Couldn't reach Two of Us.")
         }
         let name = logger.babyName ?? "Baby"
@@ -81,7 +81,7 @@ struct TodaySummaryIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        guard let logger = QuickLogger.make() else {
+        guard let logger = QuickLogger.forAppReads() else {
             return .result(dialog: "Couldn't reach Two of Us.")
         }
         let name = logger.babyName ?? "Baby"

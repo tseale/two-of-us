@@ -9,8 +9,10 @@ struct HealthReportView: View {
     let days: Int
     let engine: StatsEngine
 
-    private var summaries: [DaySummary] { engine.dailySummaries(days: days) }
-    private var diaperDays: [DiaperDay] { engine.diaperDays(days: days) }
+    // Stored, not computed: each of these is a full-history pass, and the body
+    // reads them many times. They are built once in `init` below.
+    private let summaries: [DaySummary]
+    private let diaperDays: [DiaperDay]
 
     /// One table row, pairing a day's feed/sleep totals with its diaper split.
     /// Wet/Dirty include "both" diapers (a "both" is both wet and dirty).
@@ -24,8 +26,21 @@ struct HealthReportView: View {
         let dirty: Int
     }
 
-    private var rows: [Row] {
-        zip(summaries, diaperDays).map { s, d in
+    private let rows: [Row]
+
+    /// Same signature as the memberwise initializer it replaces, so existing
+    /// call sites (`CareSummarySheet`) are unchanged. The summaries and the
+    /// rows derived from them are computed once here instead of on every access.
+    init(babyName: String, dateOfBirth: Date?, days: Int, engine: StatsEngine) {
+        self.babyName = babyName
+        self.dateOfBirth = dateOfBirth
+        self.days = days
+        self.engine = engine
+        let summaries = engine.dailySummaries(days: days)
+        let diaperDays = engine.diaperDays(days: days)
+        self.summaries = summaries
+        self.diaperDays = diaperDays
+        self.rows = zip(summaries, diaperDays).map { s, d in
             Row(day: s.day, feeds: s.feedCount, oz: s.feedOz,
                 sleepHours: s.sleepSeconds / 3600, wet: d.wet + d.both, dirty: d.dirty + d.both)
         }

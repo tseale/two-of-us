@@ -226,7 +226,7 @@ enum CareEventCatalog {
     static let indexedWindowDays = 30
 
     static func recent(limit: Int, days: Int = indexedWindowDays) -> [CareEventEntity] {
-        guard let logger = QuickLogger.make() else { return [] }
+        guard let logger = QuickLogger.forAppReads() else { return [] }
         let since = Calendar.current.date(byAdding: .day, value: -days, to: .now) ?? .distantPast
         let name = logger.babyName ?? "Baby"
         let context = logger.context
@@ -249,7 +249,7 @@ enum CareEventCatalog {
     }
 
     static func events(ids: [UUID]) -> [CareEventEntity] {
-        guard !ids.isEmpty, let logger = QuickLogger.make() else { return [] }
+        guard !ids.isEmpty, let logger = QuickLogger.forAppReads() else { return [] }
         let name = logger.babyName ?? "Baby"
         let context = logger.context
 

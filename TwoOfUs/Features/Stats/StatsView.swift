@@ -532,15 +532,18 @@ struct StatsView: View {
     // MARK: Cadence
 
     private var cadenceCard: some View {
-        Card(title: "Patterns") {
+        // Each is a full-history pass; evaluate once, not twice.
+        let hour = engine.hungriestHour()
+        let note = cadenceNote
+        return Card(title: "Patterns") {
             VStack(alignment: .leading, spacing: 12) {
-                if let hour = engine.hungriestHour() {
+                if let hour {
                     label("🕕 Hungriest hour", detail: "around \(Self.hourLabel(hour))")
                 }
-                if let note = cadenceNote {
+                if let note {
                     label("📅 On this day", detail: note)
                 }
-                if engine.hungriestHour() == nil && cadenceNote == nil {
+                if hour == nil && note == nil {
                     Text("Log a few more feeds to unlock patterns")
                         .font(.subheadline).foregroundStyle(AppColor.text3)
                 }

@@ -37,19 +37,45 @@ enum PredictionModel {
         return (Foundation.sin(angle), Foundation.cos(angle), minute)
     }
 
+    /// The calendar-derived part of a feature row — everything that depends
+    /// only on the row's own instant (with the fixed birth date and night
+    /// window). Split out so the walk-forward evaluation, which retrains a
+    /// model per scored event over heavily overlapping windows, can compute
+    /// each instant's calendar math once per report instead of once per
+    /// retrain. Values are bit-identical to computing them inline.
+    struct InstantFeatures {
+        let sin: Double
+        let cos: Double
+        let isNight: Double
+        let ageHundredDays: Double
+    }
+
+    static func instantFeatures(_ date: Date, dateOfBirth: Date,
+                                nightStartMinute: Int, nightEndMinute: Int,
+                                calendar: Calendar = .current) -> InstantFeatures {
+        let c = clock(date, calendar: calendar)
+        let night = WakeWindow.isNight(date, startMinute: nightStartMinute,
+                                       endMinute: nightEndMinute, calendar: calendar)
+        let age = Double(WakeWindow.ageInDays(dateOfBirth: dateOfBirth, now: date, calendar: calendar))
+        return InstantFeatures(sin: c.sin, cos: c.cos, isNight: night ? 1 : 0, ageHundredDays: age / 100)
+    }
+
     /// Gap features from the feeding's anchor bottle:
     /// [bias, sin(t), cos(t), isNight, age/100d, prevGapHours, hasPrevGap].
     static func gapFeatures(anchor: Date, previousGap: TimeInterval?,
                             dateOfBirth: Date,
                             nightStartMinute: Int, nightEndMinute: Int,
                             calendar: Calendar = .current) -> [Double] {
-        let c = clock(anchor, calendar: calendar)
-        let night = WakeWindow.isNight(anchor, startMinute: nightStartMinute,
-                                       endMinute: nightEndMinute, calendar: calendar)
-        let age = Double(WakeWindow.ageInDays(dateOfBirth: dateOfBirth, now: anchor, calendar: calendar))
-        return [1, c.sin, c.cos, night ? 1 : 0, age / 100,
-                previousGap.map { min($0, 8 * hour) / hour } ?? 0,
-                previousGap == nil ? 0 : 1]
+        gapFeatures(instantFeatures(anchor, dateOfBirth: dateOfBirth,
+                                    nightStartMinute: nightStartMinute, nightEndMinute: nightEndMinute,
+                                    calendar: calendar),
+                    previousGap: previousGap)
+    }
+
+    static func gapFeatures(_ f: InstantFeatures, previousGap: TimeInterval?) -> [Double] {
+        [1, f.sin, f.cos, f.isNight, f.ageHundredDays,
+         previousGap.map { min($0, 8 * hour) / hour } ?? 0,
+         previousGap == nil ? 0 : 1]
     }
 
     /// Amount features for a bottle at `reference`:
@@ -59,15 +85,19 @@ enum PredictionModel {
                                dateOfBirth: Date,
                                nightStartMinute: Int, nightEndMinute: Int,
                                calendar: Calendar = .current) -> [Double] {
-        let c = clock(reference, calendar: calendar)
-        let night = WakeWindow.isNight(reference, startMinute: nightStartMinute,
-                                       endMinute: nightEndMinute, calendar: calendar)
-        let age = Double(WakeWindow.ageInDays(dateOfBirth: dateOfBirth, now: reference, calendar: calendar))
-        return [1, c.sin, c.cos, night ? 1 : 0, age / 100,
-                gapSinceLastFeed.map { min($0, 8 * hour) / hour } ?? 0,
-                gapSinceLastFeed == nil ? 0 : 1,
-                lastOz ?? 0,
-                lastOz == nil ? 0 : 1]
+        amountFeatures(instantFeatures(reference, dateOfBirth: dateOfBirth,
+                                       nightStartMinute: nightStartMinute, nightEndMinute: nightEndMinute,
+                                       calendar: calendar),
+                       gapSinceLastFeed: gapSinceLastFeed, lastOz: lastOz)
+    }
+
+    static func amountFeatures(_ f: InstantFeatures, gapSinceLastFeed: TimeInterval?,
+                               lastOz: Double?) -> [Double] {
+        [1, f.sin, f.cos, f.isNight, f.ageHundredDays,
+         gapSinceLastFeed.map { min($0, 8 * hour) / hour } ?? 0,
+         gapSinceLastFeed == nil ? 0 : 1,
+         lastOz ?? 0,
+         lastOz == nil ? 0 : 1]
     }
 
     // MARK: Training
@@ -75,10 +105,13 @@ enum PredictionModel {
     /// Fits the feed-gap regressor from consecutive plausible feedings.
     /// Target is the gap in hours from a feeding's last bottle to the next
     /// feeding's first — the same measurement the statistic medians.
+    /// `featuresAt` lets `PredictionAccuracy` share one per-instant memo of
+    /// the calendar features across retrains; nil computes them inline.
     static func trainGapModel(feeds: [Date], dateOfBirth: Date,
                               nightStartMinute: Int, nightEndMinute: Int,
                               now: Date = .now,
-                              calendar: Calendar = .current) -> TrainedModel? {
+                              calendar: Calendar = .current,
+                              featuresAt: ((Date) -> InstantFeatures)? = nil) -> TrainedModel? {
         let feedings = PredictionEngine.feedings(feeds: feeds, within: trainingWindow, now: now)
         var rows: [[Double]] = []
         var targets: [Double] = []
@@ -87,10 +120,11 @@ enum PredictionModel {
             let gap = b.first.timeIntervalSince(a.last)
             defer { previousGap = PredictionEngine.plausibleFeedGap.contains(gap) ? gap : nil }
             guard PredictionEngine.plausibleFeedGap.contains(gap) else { continue }
-            rows.append(gapFeatures(anchor: a.last, previousGap: previousGap,
-                                    dateOfBirth: dateOfBirth,
-                                    nightStartMinute: nightStartMinute, nightEndMinute: nightEndMinute,
-                                    calendar: calendar))
+            let f = featuresAt?(a.last)
+                ?? instantFeatures(a.last, dateOfBirth: dateOfBirth,
+                                   nightStartMinute: nightStartMinute, nightEndMinute: nightEndMinute,
+                                   calendar: calendar)
+            rows.append(gapFeatures(f, previousGap: previousGap))
             targets.append(gap / hour)
         }
         guard rows.count >= minimumTrainingSamples,
@@ -99,11 +133,13 @@ enum PredictionModel {
     }
 
     /// Fits the amount regressor from each feeding's first bottle (top-offs
-    /// would double-count the same hunger).
+    /// would double-count the same hunger). `featuresAt` is the same optional
+    /// per-instant memo hook as in `trainGapModel`.
     static func trainAmountModel(feeds: [(timestamp: Date, oz: Double)], dateOfBirth: Date,
                                  nightStartMinute: Int, nightEndMinute: Int,
                                  now: Date = .now,
-                                 calendar: Calendar = .current) -> TrainedModel? {
+                                 calendar: Calendar = .current,
+                                 featuresAt: ((Date) -> InstantFeatures)? = nil) -> TrainedModel? {
         let usable = feeds
             .filter { $0.timestamp > now.addingTimeInterval(-trainingWindow) && $0.timestamp <= now
                 && PredictionEngine.plausibleOz.contains($0.oz) }
@@ -115,11 +151,11 @@ enum PredictionModel {
             defer { previous = feed }
             let gap = previous.map { feed.timestamp.timeIntervalSince($0.timestamp) }
             if let gap, gap < PredictionEngine.feedClusterGap { continue }   // top-off
-            rows.append(amountFeatures(at: feed.timestamp,
-                                       gapSinceLastFeed: gap, lastOz: previous?.oz,
-                                       dateOfBirth: dateOfBirth,
-                                       nightStartMinute: nightStartMinute, nightEndMinute: nightEndMinute,
-                                       calendar: calendar))
+            let f = featuresAt?(feed.timestamp)
+                ?? instantFeatures(feed.timestamp, dateOfBirth: dateOfBirth,
+                                   nightStartMinute: nightStartMinute, nightEndMinute: nightEndMinute,
+                                   calendar: calendar)
+            rows.append(amountFeatures(f, gapSinceLastFeed: gap, lastOz: previous?.oz))
             targets.append(feed.oz)
         }
         guard rows.count >= minimumTrainingSamples,

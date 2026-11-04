@@ -43,7 +43,7 @@ enum SlotAlarmManager {
         await cancel()
         guard LocalPrefs.shared.nightSlotAlarmEnabled,
               !LocalPrefs.shared.demoModeEnabled,
-              let logger = QuickLogger.make(),
+              let logger = QuickLogger.forAppReads(),
               let myID = logger.myParticipantID else { return }
 
         // Standing sleep slots merged with tonight's dynamic feed schedule
