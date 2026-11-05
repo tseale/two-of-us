@@ -115,6 +115,14 @@ struct HomeView: View {
                         // 12pt matches the tile grid spacing, so the active sleep
                         // card reads as the Sleep row transformed in place.
                         let attendance = daycareAttendance(now: ctx.date)
+                        // Performance: bind the computed properties once per tick
+                        // instead of re-deriving them at every use below (the
+                        // summary was rebuilt four times). Same values: the
+                        // arrays they read are fixed for the evaluation (the
+                        // summary's own clock read aside, which only matters at
+                        // the instant of midnight).
+                        let summary = todaySummary
+                        let active = activeSleep
                         VStack(spacing: 12) {
                             // ONE hero card, every day — a day-flow strip
                             // with a breathing live-sleep glow and plain
@@ -128,12 +136,12 @@ struct HomeView: View {
                                 babyName: baby?.name ?? "Baby",
                                 babyPhotoData: baby?.photoData,
                                 marks: todayMarks,
-                                feedCount: todaySummary?.feedCount ?? 0,
-                                feedOz: todaySummary?.feedOz ?? 0,
-                                diaperCount: todaySummary?.diaperCount ?? 0,
+                                feedCount: summary?.feedCount ?? 0,
+                                feedOz: summary?.feedOz ?? 0,
+                                diaperCount: summary?.diaperCount ?? 0,
                                 wetCount: todayDiaperSplit.wet,
                                 dirtyCount: todayDiaperSplit.dirty,
-                                sleepSeconds: todaySummary?.sleepSeconds ?? 0,
+                                sleepSeconds: summary?.sleepSeconds ?? 0,
                                 daycare: daycareToday ?? DaycareDaySummary(),
                                 attendingSince: attendance?.since,
                                 firstDaycareEventAt: firstDaycareEventToday,
@@ -144,7 +152,7 @@ struct HomeView: View {
                                 // outright) or the assumed-close fallback once
                                 // nothing ever arrives. Never runs forever.
                                 liveNapStartedAt: attendance != nil ? liveNapToday : nil,
-                                activeSleepStartedAt: activeSleep?.startedAt,
+                                activeSleepStartedAt: active?.startedAt,
                                 now: ctx.date,
                                 showFeed: isTracked(.feed),
                                 showSleep: isTracked(.sleep),
@@ -164,9 +172,9 @@ struct HomeView: View {
                                 onUndoHomeToday: undoHomeToday
                             )
                             if attendance == nil {
-                                logButtons(now: ctx.date)
+                                logButtons(now: ctx.date, activeSleep: active)
                             }
-                            if let sleep = activeSleep {
+                            if let sleep = active {
                                 SleepActiveCard(
                                     sleep: sleep, now: ctx.date,
                                     onWake: { endSleep(sleep) },
@@ -204,13 +212,16 @@ struct HomeView: View {
                             // window's start, so a night in progress always
                             // has a schedule; daytime keeps the one-line up-next.
                             switch nightState(now: ctx.date) {
-                            case .active, .approaching:
+                            case .active(let nightOccurrences), .approaching(let nightOccurrences):
                                 // Never while he's at daycare — the nighttime
                                 // roster waits for pickup. Once every slot is
                                 // settled (the 7:58 AM all-checkmarks state),
                                 // the card is a finished checklist — hidden
                                 // until the next evening's run-up.
-                                let tonight = tonightOccurrences(now: ctx.date)
+                                // Reuses the occurrences nightState already built
+                                // (same inputs), instead of rebuilding the schedule.
+                                let tonight = tonightOccurrences(now: ctx.date,
+                                                                 nightOccurrences: nightOccurrences)
                                 if attendance == nil,
                                    NightSchedule.hasRemainingBusiness(tonight) {
                                     tonightCard(tonight, now: ctx.date)
@@ -224,7 +235,7 @@ struct HomeView: View {
                         // Keyed to the sleep state (not withAnimation at the action
                         // sites) so CloudKit- and Siri-initiated starts animate too.
                         .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.8),
-                                   value: activeSleep != nil)
+                                   value: active != nil)
                         // Check-in/out arrives via Brightwheel sync, never a
                         // tap — animate the tiles ↔ strip swap it causes.
                         .animation(reduceMotion ? nil : .easeInOut(duration: 0.3),
@@ -432,7 +443,18 @@ struct HomeView: View {
     private var todayMarks: [RibbonMark] {
         // Reads dayStart so a midnight rollover (which bumps it) re-renders the
         // whole today section — refreshing the counts and 24h window too.
-        RibbonMark.forDay(dayStart, feeds: feeds, sleeps: sleeps, diapers: diapers)
+        // Newest-first @Queries: the day's feeds/diapers are a prefix (forDay
+        // drops the rest anyway); sleeps stay whole since one can span midnight.
+        // forDay rounds dayStart down with calendar.startOfDay, which falls
+        // BEFORE a stale dayStart after a time-zone change. Cut the prefix at that
+        // same start, using the same calendar, so the slice always covers it.
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: dayStart)
+        return RibbonMark.forDay(dayStart,
+                                 feeds: Array(feeds.prefix(while: { $0.timestamp >= start })),
+                                 sleeps: sleeps,
+                                 diapers: Array(diapers.prefix(while: { $0.timestamp >= start })),
+                                 calendar: calendar)
     }
 
     /// Today's Brightwheel-imported events, aggregated for the report card.
@@ -444,13 +466,15 @@ struct HomeView: View {
         else { return nil }
         func isToday(_ date: Date) -> Bool { date >= dayStart && date < dayEnd }
 
-        let dayFeeds = feeds.filter { $0.isFromDaycare && isToday($0.timestamp) }
-        let dayNaps = sleeps.filter { $0.isFromDaycare && isToday($0.startedAt) && $0.endedAt != nil }
-        let dayDiapers = diapers.filter { $0.isFromDaycare && isToday($0.timestamp) }
+        // Performance: every array is newest-first, so "today" starts with a
+        // prefix; the isToday upper bound is kept in each predicate.
+        let dayFeeds = feeds.prefix(while: { $0.timestamp >= dayStart }).filter { $0.isFromDaycare && isToday($0.timestamp) }
+        let dayNaps = sleeps.prefix(while: { $0.startedAt >= dayStart }).filter { $0.isFromDaycare && isToday($0.startedAt) && $0.endedAt != nil }
+        let dayDiapers = diapers.prefix(while: { $0.timestamp >= dayStart }).filter { $0.isFromDaycare && isToday($0.timestamp) }
         // ANY source — a manual drop-off/pick-up brackets the day exactly
         // like Brightwheel's markers do (capsule window, strip zone).
         // "Home today" markers aren't attendance and stay out.
-        let dayChecks = checkEvents.filter { isToday($0.timestamp) && $0.type != .notAttending }
+        let dayChecks = checkEvents.prefix(while: { $0.timestamp >= dayStart }).filter { isToday($0.timestamp) && $0.type != .notAttending }
 
         var day = DaycareDaySummary()
         day.feedCount = dayFeeds.count
@@ -460,20 +484,20 @@ struct HomeView: View {
         day.diaperCount = dayDiapers.count
         day.wetCount = dayDiapers.filter { $0.type == .wet || $0.type == .both }.count
         day.dirtyCount = dayDiapers.filter { $0.type == .dirty || $0.type == .both }.count
-        day.activityCount = activityEvents.filter { $0.isFromDaycare && isToday($0.timestamp) }.count
-        day.photoCount = mediaEvents.filter { $0.isFromDaycare && isToday($0.timestamp) }.count
-        day.medicationCount = medicationEvents.filter { $0.isFromDaycare && isToday($0.timestamp) }.count
+        day.activityCount = activityEvents.prefix(while: { $0.timestamp >= dayStart }).filter { $0.isFromDaycare && isToday($0.timestamp) }.count
+        day.photoCount = mediaEvents.prefix(while: { $0.timestamp >= dayStart }).filter { $0.isFromDaycare && isToday($0.timestamp) }.count
+        day.medicationCount = medicationEvents.prefix(while: { $0.timestamp >= dayStart }).filter { $0.isFromDaycare && isToday($0.timestamp) }.count
         day.checkIn = dayChecks.filter { $0.type == .checkIn }.map(\.timestamp).min()
         day.checkOut = dayChecks.filter { $0.type == .checkOut }.map(\.timestamp).max()
         // A lone drop-off note, mood, or staff note still counts — the card
         // appears at drop-off and grows through the day.
         day.hasAnythingElse =
-            noteEvents.contains { $0.isFromDaycare && isToday($0.timestamp) }
-            || staffNoteEvents.contains { $0.isFromDaycare && isToday($0.timestamp) }
-            || healthCheckEvents.contains { $0.isFromDaycare && isToday($0.timestamp) }
-            || moodEvents.contains { $0.isFromDaycare && isToday($0.timestamp) }
-            || pottyEvents.contains { $0.isFromDaycare && isToday($0.timestamp) }
-            || milestoneEvents.contains { $0.isFromDaycare && isToday($0.timestamp) }
+            noteEvents.prefix(while: { $0.timestamp >= dayStart }).contains { $0.isFromDaycare && isToday($0.timestamp) }
+            || staffNoteEvents.prefix(while: { $0.timestamp >= dayStart }).contains { $0.isFromDaycare && isToday($0.timestamp) }
+            || healthCheckEvents.prefix(while: { $0.timestamp >= dayStart }).contains { $0.isFromDaycare && isToday($0.timestamp) }
+            || moodEvents.prefix(while: { $0.timestamp >= dayStart }).contains { $0.isFromDaycare && isToday($0.timestamp) }
+            || pottyEvents.prefix(while: { $0.timestamp >= dayStart }).contains { $0.isFromDaycare && isToday($0.timestamp) }
+            || milestoneEvents.prefix(while: { $0.timestamp >= dayStart }).contains { $0.isFromDaycare && isToday($0.timestamp) }
         return day.isEmpty ? nil : day
     }
 
@@ -563,7 +587,15 @@ struct HomeView: View {
     }
 
     private var todaySummary: DaySummary? {
-        StatsEngine(feeds: feeds, sleeps: sleeps, diapers: diapers)
+        // Performance: the one-day summary only counts feeds/diapers on the
+        // engine's own today, and the @Queries are newest-first, so today's
+        // rows are a prefix. Sleeps stay whole (one started earlier can overlap
+        // today). todayStart is taken before the engine's Date(), so a midnight
+        // in between only makes the prefix a superset — same result.
+        let todayStart = Calendar.current.startOfDay(for: .now)
+        return StatsEngine(feeds: Array(feeds.prefix(while: { $0.timestamp >= todayStart })),
+                           sleeps: sleeps,
+                           diapers: Array(diapers.prefix(while: { $0.timestamp >= todayStart })))
             .dailySummaries(days: 1).first
     }
 
@@ -577,16 +609,19 @@ struct HomeView: View {
 
     // MARK: Log buttons
 
-    private func logButtons(now: Date) -> some View {
-        LogButtons(
+    // `activeSleep` deliberately shadows the property so the reads below use the
+    // value bound once per tick (performance; identical value).
+    private func logButtons(now: Date, activeSleep: SleepEvent?) -> some View {
+        let target = sleepTarget
+        return LogButtons(
             feedStatus: feeds.first.flatMap {
                 tileStatus(since: $0.timestamp, now: now, target: targetFeed(after: $0.timestamp))
             },
             sleepStatus: activeSleep == nil
-                ? tileStatus(since: lastSleepEnd, now: now, target: sleepTarget) : nil,
+                ? tileStatus(since: lastSleepEnd, now: now, target: target) : nil,
             diaperStatus: tileStatus(since: diapers.first?.timestamp, now: now, target: UrgencyDefaults.diaper),
             feedHint: feedHint(now: now),
-            sleepHint: sleepHint(now: now),
+            sleepHint: sleepHint(now: now, target: target),
             diaperHint: diaperHint,
             sleepDetail: lastNapDetail,
             sleepActive: activeSleep != nil,
@@ -618,8 +653,10 @@ struct HomeView: View {
     private func feedHint(now: Date) -> TileHint {
         guard let last = feeds.first?.timestamp else { return TileHint(text: "log a bottle") }
         if aiEnabled, let s = settingsList.first {
+            // Performance: mapped once, used by both engines below.
+            let feedTimes = feeds.map(\.timestamp)
             let prediction = PredictionEngine.nextFeed(
-                lastFeed: last, feeds: feeds.map(\.timestamp),
+                lastFeed: last, feeds: feedTimes,
                 targetInterval: targetFeed(after: last),
                 nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute,
                 now: now)
@@ -629,7 +666,7 @@ struct HomeView: View {
                 var date = prediction.date
                 if let baby,
                    let modelDate = PredictionArbiter.shared.modelNextFeed(
-                       lastFeed: last, feeds: feeds.map(\.timestamp),
+                       lastFeed: last, feeds: feedTimes,
                        dateOfBirth: baby.dateOfBirth,
                        targetInterval: { s.feedInterval(after: $0) },
                        nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute,
@@ -661,15 +698,17 @@ struct HomeView: View {
     /// shouldn't dress a baseline up as his pattern).
     private func predictedOz(at reference: Date, now: Date) -> Double? {
         guard aiEnabled, let s = settingsList.first else { return nil }
+        // Performance: mapped once, shared by both calls below.
+        let samples: [(timestamp: Date, oz: Double)] = feeds.map { ($0.timestamp, $0.amountOz) }
         let prediction = PredictionEngine.feedAmount(
-            feeds: feeds.map { ($0.timestamp, $0.amountOz) },
+            feeds: samples,
             ageInDays: ageInDays, at: reference,
             nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute,
             now: now)
         guard prediction.confidence != .low else { return nil }
         if let baby,
            let modelOz = PredictionArbiter.shared.modelOz(
-               at: reference, feeds: feeds.map { ($0.timestamp, $0.amountOz) },
+               at: reference, feeds: samples,
                dateOfBirth: baby.dateOfBirth,
                nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute,
                now: now) {
@@ -701,12 +740,12 @@ struct HomeView: View {
     /// plus the sleep target that already drives the tile's urgency dot. With
     /// AI on and enough history, the "awake" suffix gives way to the expected
     /// nap length — the number a parent is actually planning around.
-    private func sleepHint(now: Date) -> TileHint {
-        let plain = WakeWindow.napHint(lastWake: lastSleepEnd, target: sleepTarget, now: now)
+    private func sleepHint(now: Date, target: TimeInterval) -> TileHint {
+        let plain = WakeWindow.napHint(lastWake: lastSleepEnd, target: target, now: now)
         guard aiEnabled, let s = settingsList.first, let lastWake = lastSleepEnd else {
             return TileHint(text: plain)
         }
-        let next = lastWake.addingTimeInterval(sleepTarget)
+        let next = lastWake.addingTimeInterval(target)
         guard next > now else { return TileHint(text: plain) }
         let duration = PredictionEngine.sleepDuration(
             startingAt: next, sleeps: sleeps.map { ($0.startedAt, $0.endedAt) },
@@ -748,7 +787,8 @@ struct HomeView: View {
         return WakeWindow.predicted(
             ageInDays: baby.map { WakeWindow.ageInDays(dateOfBirth: $0.dateOfBirth) } ?? 0,
             observedGaps: WakeWindow.wakeGaps(
-                sleeps: sleeps.filter { $0.startedAt >= weekAgo }
+                // Newest-first by startedAt, so the trailing week is a prefix.
+                sleeps: sleeps.prefix(while: { $0.startedAt >= weekAgo })
                     .map { ($0.startedAt, $0.endedAt) },
                 nightStartMinute: settingsList.first?.nightStartMinute ?? 1200,
                 nightEndMinute: settingsList.first?.nightEndMinute ?? 480),
@@ -777,18 +817,19 @@ struct HomeView: View {
     /// (anchored to the night's first logged bottle) merged with any standing
     /// sleep slots in the window, ticked-off ones included — the card is
     /// tonight's roster, not just what's left.
-    private func tonightOccurrences(now: Date) -> [ScheduleOccurrence] {
+    private func tonightOccurrences(now: Date, nightOccurrences: [ScheduleOccurrence]) -> [ScheduleOccurrence] {
         guard let s = settingsList.first else { return [] }
-        let night = NightSchedule(settings: s, participants: participants, feeds: feeds,
-                                  overrides: planOverrides, sleepSlots: sleepSlots, now: now)
         var merged = isTracked(.feed)
-            ? night.occurrences().filter { $0.status != .skipped }
+            ? nightOccurrences.filter { $0.status != .skipped }
             : []
         // Sleep slots come from TONIGHT's window bounds (the one the feed
         // schedule speaks for), not minute-of-day arithmetic — during the
         // run-up to the window, "time since night start" would otherwise
         // reach back into LAST night and drag its stale slots onto the card.
         if !sleepSlots.isEmpty, isTracked(.sleep) {
+            // Built only where used (same inputs as nightState's schedule).
+            let night = NightSchedule(settings: s, participants: participants, feeds: feeds,
+                                      overrides: planOverrides, sleepSlots: sleepSlots, now: now)
             let engine = ScheduleEngine(slots: sleepSlots, overrides: planOverrides,
                                         feeds: feeds, sleeps: sleeps, now: now)
             merged += night.planOccurrences(from: engine).filter { $0.status != .skipped }
@@ -1077,7 +1118,7 @@ struct HomeView: View {
             }
             return geofenceMode && partnerAtDaycare(now: now) ? .partnerAtDaycare : .hidden
         }
-        let todays = checkEvents.filter { $0.timestamp >= dayStart && $0.timestamp <= now }
+        let todays = checkEvents.prefix(while: { $0.timestamp >= dayStart }).filter { $0.timestamp <= now }
         if let pickedUpAt = todays.filter({ $0.type == .checkOut }).map(\.timestamp).max() {
             return .pickedUp(pickedUpAt)
         }
@@ -1130,10 +1171,10 @@ struct HomeView: View {
 
     /// "Actually, taking him in" — clears today's home-today marker(s).
     private func undoHomeToday() {
+        Haptics.tap()
         checkEvents
             .filter { $0.timestamp >= dayStart && $0.type == .notAttending }
             .forEach { store.softDelete($0) }
-        Haptics.tap()
     }
 
     private func tileStatus(since date: Date?, now: Date, target: TimeInterval) -> TileStatus? {
@@ -1176,8 +1217,11 @@ struct HomeView: View {
 
     @ViewBuilder
     private var timelineSection: some View {
+        // Performance: assembled once per body, not once for isEmpty and again
+        // for the ForEach.
+        let entries = timelineEntries
         Section {
-            if timelineEntries.isEmpty {
+            if entries.isEmpty {
                 EmptyStateView(
                     emoji: "🍼💤💩",
                     title: "No events yet",
@@ -1196,7 +1240,7 @@ struct HomeView: View {
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                 }
-                ForEach(timelineEntries) { entry in
+                ForEach(entries) { entry in
                     DayTimelineRow(entry: entry, loggedByPhoto: loggerPhoto[entry.loggedByID],
                                    loggedByNameFallback: loggerName[entry.loggedByID])
                         .listRowSeparator(.hidden)
@@ -1264,21 +1308,28 @@ struct HomeView: View {
     private var timelineEntries: [TimelineEntry] {
         let since = Calendar.current.date(byAdding: .hour, value: -24, to: .now) ?? .now
         var entries: [TimelineEntry] = []
-        entries += feeds.filter { $0.timestamp >= since }.map(TimelineEntry.feed)
+        entries += feeds.prefix(while: { $0.timestamp >= since }).map(TimelineEntry.feed)
         // Active sleeps ride the timeline too — a nap in progress shows as a
         // growing bar with a counting label, not a gap until it ends.
-        entries += sleeps.filter { $0.isActive || $0.startedAt >= since }.map(TimelineEntry.sleep)
-        entries += diapers.filter { $0.timestamp >= since }.map(TimelineEntry.diaper)
-        entries += noteEvents.filter { $0.timestamp >= since }.map(TimelineEntry.note)
-        entries += activityEvents.filter { $0.timestamp >= since }.map(TimelineEntry.activity)
-        entries += mediaEvents.filter { $0.timestamp >= since }.map(TimelineEntry.media)
-        entries += checkEvents.filter { $0.timestamp >= since }.map(TimelineEntry.check)
-        entries += medicationEvents.filter { $0.timestamp >= since }.map(TimelineEntry.medication)
-        entries += healthCheckEvents.filter { $0.timestamp >= since }.map(TimelineEntry.healthCheck)
-        entries += moodEvents.filter { $0.timestamp >= since }.map(TimelineEntry.mood)
-        entries += pottyEvents.filter { $0.timestamp >= since }.map(TimelineEntry.potty)
-        entries += milestoneEvents.filter { $0.timestamp >= since }.map(TimelineEntry.milestone)
-        entries += staffNoteEvents.filter { $0.timestamp >= since }.map(TimelineEntry.staffNote)
+        // Newest-first, so each window is a prefix. Sleeps additionally carry
+        // ACTIVE ones of any age: exactly the elements of
+        // `filter { $0.isActive || $0.startedAt >= since }`, in the same order.
+        let allSleeps = sleeps
+        let recentSleeps = allSleeps.prefix(while: { $0.startedAt >= since })
+        entries += recentSleeps.map(TimelineEntry.sleep)
+        // An active sleep older than the window still rides the timeline.
+        entries += allSleeps[recentSleeps.endIndex...].filter(\.isActive).map(TimelineEntry.sleep)
+        entries += diapers.prefix(while: { $0.timestamp >= since }).map(TimelineEntry.diaper)
+        entries += noteEvents.prefix(while: { $0.timestamp >= since }).map(TimelineEntry.note)
+        entries += activityEvents.prefix(while: { $0.timestamp >= since }).map(TimelineEntry.activity)
+        entries += mediaEvents.prefix(while: { $0.timestamp >= since }).map(TimelineEntry.media)
+        entries += checkEvents.prefix(while: { $0.timestamp >= since }).map(TimelineEntry.check)
+        entries += medicationEvents.prefix(while: { $0.timestamp >= since }).map(TimelineEntry.medication)
+        entries += healthCheckEvents.prefix(while: { $0.timestamp >= since }).map(TimelineEntry.healthCheck)
+        entries += moodEvents.prefix(while: { $0.timestamp >= since }).map(TimelineEntry.mood)
+        entries += pottyEvents.prefix(while: { $0.timestamp >= since }).map(TimelineEntry.potty)
+        entries += milestoneEvents.prefix(while: { $0.timestamp >= since }).map(TimelineEntry.milestone)
+        entries += staffNoteEvents.prefix(while: { $0.timestamp >= since }).map(TimelineEntry.staffNote)
         // Never render one event twice: duplicate rows sharing an id can exist
         // between sweeps (inbound upsert races, legacy data).
         var seen = Set<UUID>()
@@ -1331,15 +1382,15 @@ struct HomeView: View {
         // would strand its Live Activity and wake alarm. cancelSleep tears
         // those down too, and Undo resumes the timer whole.
         if case .sleep(let e) = entry, e.isActive {
-            store.cancelSleep(e)
             Haptics.warning()
+            store.cancelSleep(e)
             showToast("Deleted", accent: AppColor.urgencyAmber) { store.resumeSleep(e) }
             return
         }
         // A photo burst deletes as one gesture — all of it, one Undo.
         if case .mediaGroup(let events) = entry {
-            events.forEach { store.softDelete($0) }
             Haptics.warning()
+            events.forEach { store.softDelete($0) }
             showToast("Deleted \(Plural.count(events.count, "photo"))",
                       accent: AppColor.urgencyAmber) {
                 events.forEach { store.restore($0) }
@@ -1363,8 +1414,8 @@ struct HomeView: View {
         case .milestone(let e): event = e
         case .staffNote(let e): event = e
         }
-        store.softDelete(event)
         Haptics.warning()
+        store.softDelete(event)
         // Swipe-delete is fast and easy to fire by accident — offer the same Undo
         // affordance a log gets, restoring the exact event on tap.
         showToast("Deleted", accent: AppColor.urgencyAmber) { store.restore(event) }

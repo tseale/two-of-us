@@ -2,6 +2,7 @@ import Foundation
 import SwiftData
 import WidgetKit
 import AppIntents
+import UIKit
 
 /// Thin layer over `ModelContext` so views never hand-roll predicates.
 /// Stamps every write with the local user's identity (denormalized) and hands
@@ -1457,10 +1458,16 @@ struct EventStore {
         SyncManager.shared?.enqueueDelete(delete)
     }
 
+    /// Reloads the widgets (and queues a Spotlight reindex) off this write.
+    /// Deferred and coalesced by `PostWriteEffects`: the reload lands a beat
+    /// after the write — after the confirmation haptic and the sheet's first
+    /// dismissal frame — and a burst of writes in one go (an edit's
+    /// soft-delete + insert, a daycare import) reloads once instead of once
+    /// per row. The end state is identical; only the timing moves. While the
+    /// app isn't active the reload still runs inline, as it always did.
     private func reloadWidgets() {
         guard !demo else { return }
-        WidgetCenter.shared.reloadAllTimelines()
-        SpotlightIndexer.scheduleReindex()
+        PostWriteEffects.requestWidgetReload()
     }
 
     /// Re-arms every reminder surface off current state after a write: the
@@ -1470,8 +1477,19 @@ struct EventStore {
     /// alarms as a sequenced pair — the interval feed alarm's stand-down
     /// decision reads the slot alarm's published fire date, so the slot alarm
     /// must settle first. No-ops in demo.
+    ///
+    /// Deferred and coalesced the same way as `reloadWidgets()` — the re-arm
+    /// reads the store when it runs, so a burst re-arms once, off the final
+    /// state, exactly as the last of its writes would have.
     private func refreshLocalReminders() {
         guard !demo else { return }
+        PostWriteEffects.requestReminderRefresh(context: context)
+    }
+
+    /// The re-arm itself, run by `PostWriteEffects` (deferred while the app is
+    /// active, inline otherwise) — the body `refreshLocalReminders()` used to
+    /// run inline, unchanged.
+    fileprivate func performReminderRefresh() {
         NotificationManager.refreshScheduledReminders()
         NotificationManager.refreshDailyMilestone()   // keep the summary's counts fresh
         NotificationManager.refreshScheduleReminders()
@@ -1481,6 +1499,76 @@ struct EventStore {
         Task {
             await SlotAlarmManager.reschedule()
             await FeedAlarmManager.reschedule(babyName: name, lastFeed: last, interval: interval)
+        }
+    }
+}
+
+/// Runs the expensive post-write side effects — widget reload + Spotlight
+/// reindex, and the reminder/alarm re-arm — on a short-delayed pass after the
+/// write instead of inline in it. Inline, they sat between the save and the
+/// caller's confirmation: every log's success haptic, toast and sheet
+/// dismissal waited on WidgetKit, UserNotifications, AlarmKit and several
+/// store reads. Deferred, the confirmation fires right after the save, and
+/// every write in a burst (an edit's soft-delete + insert, a 15-event daycare
+/// import) shares one pass.
+///
+/// Equivalence: the save and the sync enqueue still happen inline (a queued
+/// change must ride the same turn as its save), and so does the Live
+/// Activity refresh (its serialized ActivityKit chain is order-sensitive).
+/// Everything deferred here recomputes from the store when it runs, so one
+/// pass after a burst produces what an inline call at the burst's end would
+/// have. Demo is checked when a pass is requested (callers only request one
+/// outside demo), not when it runs.
+///
+/// Foreground only: the delay exists to get the confirmation on screen first,
+/// and only an active app has one. When the app isn't active — a silent-push
+/// ghost sweep, or a SNOO poll or Brightwheel import whose network reply lands
+/// after the parent has locked the phone — the process can be suspended
+/// inside the delay, so the pass runs inline, exactly as the effects used to.
+@MainActor
+private enum PostWriteEffects {
+    private static var widgetReloadPending = false
+    /// The context to re-arm reminders from (the real store's main context —
+    /// demo writes never request a pass); non-nil while a re-arm is pending.
+    private static var reminderContext: ModelContext?
+    private static var passScheduled = false
+
+    static func requestWidgetReload() {
+        widgetReloadPending = true
+        schedulePass()
+    }
+
+    static func requestReminderRefresh(context: ModelContext) {
+        reminderContext = context
+        schedulePass()
+    }
+
+    private static func schedulePass() {
+        guard UIApplication.shared.applicationState == .active else {
+            runPass()
+            return
+        }
+        guard !passScheduled else { return }
+        passScheduled = true
+        Task { @MainActor in
+            // A short sleep (rather than a bare main-queue hop, which the run
+            // loop can drain before the frame commit) puts the pass after the
+            // turn that commits the caller's confirmation frame.
+            try? await Task.sleep(for: .milliseconds(50))
+            runPass()
+        }
+    }
+
+    private static func runPass() {
+        passScheduled = false
+        if widgetReloadPending {
+            widgetReloadPending = false
+            WidgetCenter.shared.reloadAllTimelines()
+            SpotlightIndexer.scheduleReindex()
+        }
+        if let context = reminderContext {
+            reminderContext = nil
+            EventStore(context: context).performReminderRefresh()
         }
     }
 }

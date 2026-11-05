@@ -32,8 +32,9 @@ private struct LoggedToastModifier: ViewModifier {
                     Spacer()
                     if let undo = toast.undo {
                         let undoButton = Button("Undo") {
-                            undo()
+                            // The tap haptic is unconditional, so it fires first and lands sooner.
                             Haptics.tap()
+                            undo()
                             self.toast = nil
                         }
                         .font(.subheadline.weight(.bold))

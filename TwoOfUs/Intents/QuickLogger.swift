@@ -25,7 +25,8 @@ struct QuickLogger {
         let schema = Schema(versionedSchema: SchemaV1.self)
         let config: ModelConfiguration
         // `cloudKitDatabase: .none` is required, not hygiene: this code also runs
-        // in the APP process (reminder re-arming), whose iCloud entitlement would
+        // in the APP process (notification-action writes, in-app intents), whose
+        // iCloud entitlement would
         // otherwise flip the default `.automatic` into SwiftData's own CloudKit
         // mirroring — a second sync system fighting CKSyncEngine over one store.
         if let storeURL = AppGroup.storeURL {

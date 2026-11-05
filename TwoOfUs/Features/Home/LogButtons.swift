@@ -94,7 +94,9 @@ struct LogButtons: View {
                       status: TileStatus?, detail: TileDetail? = nil,
                       reminderArmed: Bool = false,
                       action: @escaping () -> Void) -> some View {
-        Button(action: { action(); Haptics.tap() }) {
+        // The tap haptic is unconditional touch acknowledgement, so firing it before
+        // the action (for the Sleep tile, the whole start-sleep write) only makes it land sooner.
+        Button(action: { Haptics.tap(); action() }) {
             HStack(spacing: 14) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(emoji).font(.system(size: 30))
@@ -210,5 +212,9 @@ struct PressableTileStyle: ButtonStyle {
             .scaleEffect(reduceMotion ? 1 : (configuration.isPressed ? 0.96 : 1))
             .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.6),
                        value: configuration.isPressed)
+            // Warm the haptic engine on touch-down so the tap haptic at touch-up is immediate.
+            .onChange(of: configuration.isPressed) { _, pressed in
+                if pressed { Haptics.prepareTap() }
+            }
     }
 }

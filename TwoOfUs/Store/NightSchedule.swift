@@ -201,6 +201,10 @@ struct NightSchedule {
                                  windowStart: window.start, windowEnd: window.end) != nil
         } ?? false
         let manualSet = manualAnchor(in: window) != nil
+        // With nothing pointing at the night and no manual anchor, the result
+        // below is `.day` whatever the slots are — skip building them (this
+        // runs on Home's once-a-second tick all day).
+        guard now >= graceStart || predictsIn || manualSet else { return .day }
         let occ = occurrences()
         let firstSlotNear = occ.first.map {
             now >= $0.date.addingTimeInterval(-TimeInterval(Self.runUpLeadMinutes * 60))
@@ -355,10 +359,14 @@ struct NightSchedule {
         let live = feeds.filter { $0.deletedAt == nil && $0.timestamp <= now }
         let graceStart = window.start.addingTimeInterval(
             -TimeInterval(Self.preWindowGraceMinutes * 60))
-        if let logged = live
-            .filter({ $0.timestamp >= graceStart && $0.timestamp <= window.end })
-            .min(by: { ($0.timestamp, $0.id.uuidString) < ($1.timestamp, $1.id.uuidString) }) {
-            return logged.timestamp
+        // Only the timestamp is used, so feeds tied at the earliest instant
+        // need no tie-break (the uuidString one allocated two strings per
+        // comparison on every tick).
+        if let logged = (live.lazy
+            .map { $0.timestamp }
+            .filter { $0 >= graceStart && $0 <= window.end }
+            .min()) {
+            return logged
         }
         if let last = lastLiveFeed,
            let projected = Self.projectedAnchor(lastFeed: last, spacingMinutes: spacingMinutes,
@@ -394,9 +402,12 @@ struct NightSchedule {
 
     /// Most recent live feed at or before `now` — the one predictions build on.
     private var lastLiveFeed: Date? {
-        feeds.filter { $0.deletedAt == nil && $0.timestamp <= now }
-            .max { ($0.timestamp, $0.id.uuidString) < ($1.timestamp, $1.id.uuidString) }?
-            .timestamp
+        // Only the timestamp is returned, so feeds tied at the latest instant
+        // need no tie-break.
+        feeds.lazy
+            .filter { $0.deletedAt == nil && $0.timestamp <= now }
+            .map { $0.timestamp }
+            .max()
     }
 
     /// The last feed plus the night spacing — when that predicted bottle lands

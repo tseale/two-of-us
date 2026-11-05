@@ -6,6 +6,29 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Changed — faster taps, a lighter Home (nothing looks or behaves differently)
+- Logging confirms sooner: the save happens first and the success haptic,
+  toast and sheet dismissal follow right away, while the widget reload,
+  Spotlight reindex and reminder/alarm re-arm run a beat later in one pass
+  (a daycare import now reloads the widgets and re-arms the reminders once,
+  not once per feed, diaper and nap). When the app isn't in the foreground —
+  say a SNOO or Brightwheel sync that finishes after you lock the phone —
+  they still run right away, as before.
+- Reminder, alarm, Spotlight and Siri reads reuse the store the app already
+  has open instead of opening a fresh copy of it each time.
+- Home's once-a-second refresh does a fraction of the work: today's totals,
+  ribbon, daycare recap and timeline read only today's or the last 24 hours'
+  rows, and values shared by several tiles are computed once per tick. The
+  nighttime schedule skips building tonight's slots during the day.
+- The first Home refresh after a logged feed no longer stalls while the
+  prediction accuracy check retrains: each instant's calendar math is done
+  once per check instead of once per retrain (identical results).
+- Haptics come from long-lived generators (the log tiles' tap is warmed up
+  on touch-down), and the haptic on the log tiles, Undo, "Home today" undo
+  and swipe-delete fires before the action it confirms.
+- The Feed sheet, History, Stats, the care summary and the night-schedule
+  settings stop recomputing the same aggregates several times per redraw.
+
 ### Added — a new phone finds your family on its own
 - A fresh install (new phone, or a reinstall without a backup) checks
   iCloud before showing setup. If this Apple ID owns a family, the log

@@ -27,12 +27,16 @@ struct HistoryView: View {
         NavigationStack {
             Group {
                 if hasAnyData {
+                    // The consolidation, total-sleep and volume cards all read the
+                    // same daily summaries; aggregate the history once per body and
+                    // pass it down rather than re-running the pass in each card.
+                    let summaries = engine.dailySummaries(days: days)
                     ScrollView {
                         VStack(spacing: 14) {
                             swimlaneCard
-                            consolidationCard
-                            sleepTotalCard
-                            volumeCard
+                            consolidationCard(summaries)
+                            sleepTotalCard(summaries)
+                            volumeCard(summaries)
                             feedHeatmapCard
                             diaperTrendCard
                         }
@@ -90,8 +94,7 @@ struct HistoryView: View {
 
     // MARK: Sleep consolidation
 
-    private var consolidationCard: some View {
-        let summaries = engine.dailySummaries(days: days)
+    private func consolidationCard(_ summaries: [DaySummary]) -> some View {
         let best = summaries.map(\.longestStretch).max() ?? 0
         return Card(title: "Longest sleep stretch", trailing: durationShort(best)) {
             if best == 0 {
@@ -133,8 +136,7 @@ struct HistoryView: View {
 
     // MARK: Daily volume
 
-    private var volumeCard: some View {
-        let summaries = engine.dailySummaries(days: days)
+    private func volumeCard(_ summaries: [DaySummary]) -> some View {
         let total = summaries.reduce(0.0) { $0 + $1.feedOz }
         // Average over days actually logged, not the whole window — pre-birth /
         // untracked zero-days would otherwise understate "avg" for a young baby.
@@ -171,8 +173,7 @@ struct HistoryView: View {
 
     // MARK: Total sleep per day
 
-    private var sleepTotalCard: some View {
-        let summaries = engine.dailySummaries(days: days)
+    private func sleepTotalCard(_ summaries: [DaySummary]) -> some View {
         let total = summaries.reduce(0.0) { $0 + $1.sleepSeconds }
         // Average over days with sleep logged, not the whole window (see volumeCard).
         let trackedDays = summaries.filter { $0.sleepSeconds > 0 }.count

@@ -158,7 +158,7 @@ enum NotificationManager {
             NotificationID.Request.feedReminder,
             NotificationID.Request.diaperReminder
         ])
-        guard prefs.gentleRemindersEnabled, let logger = QuickLogger.make() else { return }
+        guard prefs.gentleRemindersEnabled, let logger = QuickLogger.forAppReads() else { return }
 
         // Feed: only when the loud AlarmKit reminder is OFF (avoid double-firing)
         // and no assigned schedule slot already covers that time — a planned
@@ -218,7 +218,7 @@ enum NotificationManager {
     static func snooze(category: String) {
         guard !prefs.demoModeEnabled else { return }
         let fire = Date.now.addingTimeInterval(30 * 60)
-        let babyName = QuickLogger.make()?.babyName ?? "Baby"
+        let babyName = QuickLogger.forAppReads()?.babyName ?? "Baby"
         switch category {
         case NotificationID.Category.reminderFeed:
             scheduleReminder(
@@ -302,7 +302,7 @@ enum NotificationManager {
             .filter { $0.hasPrefix(NotificationID.Request.schedulePrefix) }
         center.removePendingNotificationRequests(withIdentifiers: stale)
 
-        guard let logger = QuickLogger.make(), let myID = logger.myParticipantID else { return }
+        guard let logger = QuickLogger.forAppReads(), let myID = logger.myParticipantID else { return }
         // Standing sleep slots + tonight's dynamic feed schedule, merged — so
         // the "you're up" reminders follow the schedule the anchor feed built.
         let planned = ScheduleReminderPlanner.plan(
@@ -356,7 +356,7 @@ enum NotificationManager {
         guard !prefs.demoModeEnabled, prefs.notifyMilestones else { return }
         guard let fireDate = nextMilestoneDate(), !isWithinQuietHours(fireDate) else { return }
 
-        let logger = QuickLogger.make()
+        let logger = QuickLogger.forAppReads()
         let babyName = logger?.babyName ?? "your little one"
         let body = logger.map { summaryBody($0) } ?? "Tap to see \(babyName)'s day."
 
@@ -591,7 +591,7 @@ enum NotificationManager {
         // notification action button never reschedules the loud overnight alarm —
         // the app foreground would eventually fix it, but the alarm fires at the
         // wrong time if the parent doesn't open the app after a 2am notification log.
-        if let logger = QuickLogger.make() {
+        if let logger = QuickLogger.forAppReads() {
             let babyName = logger.babyName ?? "Baby"
             let lastFeed = logger.lastFeed?.timestamp
             let interval = logger.feedInterval(after: lastFeed)

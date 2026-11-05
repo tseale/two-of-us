@@ -53,6 +53,21 @@ enum PredictionAccuracy {
         var statErrors: [Double] = []
         var modelErrors: [Double] = []
         var previousGap: TimeInterval?
+        // Each scored event retrains the gap model over a 45-day window that
+        // overlaps the previous event's almost entirely. The per-instant
+        // calendar features (clock, night, age) are a pure function of the
+        // instant, so compute each once per report instead of once per
+        // retrain — same function, same inputs, every number unchanged.
+        var instantCache: [Date: PredictionModel.InstantFeatures] = [:]
+        let featuresAt: (Date) -> PredictionModel.InstantFeatures = { date in
+            if let cached = instantCache[date] { return cached }
+            let features = PredictionModel.instantFeatures(
+                date, dateOfBirth: dateOfBirth,
+                nightStartMinute: nightStartMinute, nightEndMinute: nightEndMinute,
+                calendar: calendar)
+            instantCache[date] = features
+            return features
+        }
         for (a, b) in zip(feedings, feedings.dropFirst()) {
             let gap = b.first.timeIntervalSince(a.last)
             defer { previousGap = PredictionEngine.plausibleFeedGap.contains(gap) ? gap : nil }
@@ -71,7 +86,8 @@ enum PredictionAccuracy {
             if let model = PredictionModel.trainGapModel(
                 feeds: prior, dateOfBirth: dateOfBirth,
                 nightStartMinute: nightStartMinute, nightEndMinute: nightEndMinute,
-                now: a.last, calendar: calendar) {
+                now: a.last, calendar: calendar,
+                featuresAt: featuresAt) {
                 let predicted = PredictionModel.predictGap(
                     model, lastFeed: a.last, previousGap: previousGap,
                     dateOfBirth: dateOfBirth, targetInterval: targetInterval(a.last),
@@ -95,6 +111,19 @@ enum PredictionAccuracy {
         let sorted = feeds.sorted { $0.timestamp < $1.timestamp }
         var statErrors: [Double] = []
         var modelErrors: [Double] = []
+        // Same per-report memo as feedTimeReport: calendar features depend
+        // only on the instant, so each is computed once instead of once per
+        // retrain over the overlapping 45-day windows. Numbers unchanged.
+        var instantCache: [Date: PredictionModel.InstantFeatures] = [:]
+        let featuresAt: (Date) -> PredictionModel.InstantFeatures = { date in
+            if let cached = instantCache[date] { return cached }
+            let features = PredictionModel.instantFeatures(
+                date, dateOfBirth: dateOfBirth,
+                nightStartMinute: nightStartMinute, nightEndMinute: nightEndMinute,
+                calendar: calendar)
+            instantCache[date] = features
+            return features
+        }
         for (index, feed) in sorted.enumerated() {
             guard feed.timestamp > now.addingTimeInterval(-evaluationWindow),
                   PredictionEngine.plausibleOz.contains(feed.oz) else { continue }
@@ -115,7 +144,8 @@ enum PredictionAccuracy {
             if let model = PredictionModel.trainAmountModel(
                 feeds: prior, dateOfBirth: dateOfBirth,
                 nightStartMinute: nightStartMinute, nightEndMinute: nightEndMinute,
-                now: feed.timestamp, calendar: calendar) {
+                now: feed.timestamp, calendar: calendar,
+                featuresAt: featuresAt) {
                 let predicted = PredictionModel.predictAmount(
                     model, at: feed.timestamp,
                     gapSinceLastFeed: gap, lastOz: previous?.oz,
