@@ -1486,8 +1486,9 @@ struct EventStore {
         PostWriteEffects.requestReminderRefresh(context: context)
     }
 
-    /// The re-arm itself, run by `PostWriteEffects` on its deferred pass —
-    /// the body `refreshLocalReminders()` used to run inline, unchanged.
+    /// The re-arm itself, run by `PostWriteEffects` (deferred while the app is
+    /// active, inline otherwise) — the body `refreshLocalReminders()` used to
+    /// run inline, unchanged.
     fileprivate func performReminderRefresh() {
         NotificationManager.refreshScheduledReminders()
         NotificationManager.refreshDailyMilestone()   // keep the summary's counts fresh

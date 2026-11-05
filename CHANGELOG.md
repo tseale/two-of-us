@@ -10,10 +10,10 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 - Logging confirms sooner: the save happens first and the success haptic,
   toast and sheet dismissal follow right away, while the widget reload,
   Spotlight reindex and reminder/alarm re-arm run a beat later in one pass
-  (a daycare import of fifteen events now reloads the widgets and re-arms the
-  reminders once, not fifteen times). With the app in the background they
-  still run right away, as before, so a sync that finishes after you lock
-  the phone still updates the lock-screen widget.
+  (a daycare import now reloads the widgets and re-arms the reminders once,
+  not once per feed, diaper and nap). When the app isn't in the foreground —
+  say a SNOO or Brightwheel sync that finishes after you lock the phone —
+  they still run right away, as before.
 - Reminder, alarm, Spotlight and Siri reads reuse the store the app already
   has open instead of opening a fresh copy of it each time.
 - Home's once-a-second refresh does a fraction of the work: today's totals,
