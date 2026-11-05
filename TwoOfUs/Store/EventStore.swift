@@ -2,6 +2,7 @@ import Foundation
 import SwiftData
 import WidgetKit
 import AppIntents
+import UIKit
 
 /// Thin layer over `ModelContext` so views never hand-roll predicates.
 /// Stamps every write with the local user's identity (denormalized) and hands
@@ -1462,7 +1463,8 @@ struct EventStore {
     /// after the write — after the confirmation haptic and the sheet's first
     /// dismissal frame — and a burst of writes in one go (an edit's
     /// soft-delete + insert, a daycare import) reloads once instead of once
-    /// per row. The end state is identical; only the timing moves.
+    /// per row. The end state is identical; only the timing moves. While the
+    /// app isn't active the reload still runs inline, as it always did.
     private func reloadWidgets() {
         guard !demo else { return }
         PostWriteEffects.requestWidgetReload()
@@ -1515,11 +1517,13 @@ struct EventStore {
 /// Everything deferred here recomputes from the store when it runs, so one
 /// pass after a burst produces what an inline call at the burst's end would
 /// have. Demo is checked when a pass is requested (callers only request one
-/// outside demo), not when it runs. The only pass-requesting write that can
-/// happen during a background wake (the
-/// ghost sweep on a silent-push sync) is also covered inline: SyncManager
-/// reloads the widgets and re-arms the reminders itself after every fetched
-/// batch, so a pass that lands after the push's completion changes nothing.
+/// outside demo), not when it runs.
+///
+/// Foreground only: the delay exists to get the confirmation on screen first,
+/// and only an active app has one. When the app isn't active — a silent-push
+/// ghost sweep, or a SNOO poll or Brightwheel import whose network reply lands
+/// after the parent has locked the phone — the process can be suspended
+/// inside the delay, so the pass runs inline, exactly as the effects used to.
 @MainActor
 private enum PostWriteEffects {
     private static var widgetReloadPending = false
@@ -1539,6 +1543,10 @@ private enum PostWriteEffects {
     }
 
     private static func schedulePass() {
+        guard UIApplication.shared.applicationState == .active else {
+            runPass()
+            return
+        }
         guard !passScheduled else { return }
         passScheduled = true
         Task { @MainActor in

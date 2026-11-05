@@ -11,7 +11,9 @@ All notable changes to Two of Us are recorded here. The format loosely follows
   toast and sheet dismissal follow right away, while the widget reload,
   Spotlight reindex and reminder/alarm re-arm run a beat later in one pass
   (a daycare import of fifteen events now reloads the widgets and re-arms the
-  reminders once, not fifteen times).
+  reminders once, not fifteen times). With the app in the background they
+  still run right away, as before, so a sync that finishes after you lock
+  the phone still updates the lock-screen widget.
 - Reminder, alarm, Spotlight and Siri reads reuse the store the app already
   has open instead of opening a fresh copy of it each time.
 - Home's once-a-second refresh does a fraction of the work: today's totals,
@@ -21,9 +23,9 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 - The first Home refresh after a logged feed no longer stalls while the
   prediction accuracy check retrains: each instant's calendar math is done
   once per check instead of once per retrain (identical results).
-- Haptics come from long-lived, pre-warmed generators, and the haptic on the
-  log tiles, Undo, "Home today" undo and swipe-delete fires before the action
-  it confirms.
+- Haptics come from long-lived generators (the log tiles' tap is warmed up
+  on touch-down), and the haptic on the log tiles, Undo, "Home today" undo
+  and swipe-delete fires before the action it confirms.
 - The Feed sheet, History, Stats, the care summary and the night-schedule
   settings stop recomputing the same aggregates several times per redraw.
 
