@@ -34,14 +34,26 @@ extension View {
 // MARK: - Readable column
 
 extension View {
-    /// Caps a setup-flow column at a readable width and centres it in the full
-    /// width, so nothing stretches across iPhone Duo's open screen (and its
-    /// fold). Horizontal only — a fixed page stays vertically rigid. Never
-    /// binds on a phone: no iPhone is wider than 440 pt, and callers apply it
-    /// inside their side padding.
+    /// Caps a setup-flow column at a readable width, centred — or, on iPhone
+    /// Duo open in landscape, on the page before the fold, so nothing sits on
+    /// the crease in book pose. Horizontal only — a fixed page stays
+    /// vertically rigid. Never binds on a phone: no iPhone is wider than
+    /// 440 pt, callers apply it inside their side padding, and the fold page
+    /// is only set for the `.wide` shape.
     func onboardingColumn(maxWidth: CGFloat = 520) -> some View {
-        frame(maxWidth: maxWidth)
-            .frame(maxWidth: .infinity)
+        modifier(OnboardingColumn(maxWidth: maxWidth))
+    }
+}
+
+/// `onboardingColumn`'s body: centred, unless the screen is iPhone Duo open in
+/// landscape (or an iPad), where a centred column would cross the fold — there
+/// it sits on the page before the fold (`leadingPageWidth`, set by RootView).
+private struct OnboardingColumn: ViewModifier {
+    let maxWidth: CGFloat
+    @Environment(\.leadingPageWidth) private var leadingPage
+
+    func body(content: Content) -> some View {
+        content.modifier(LeadingPageColumn(maxWidth: maxWidth, page: leadingPage))
     }
 }
 
@@ -142,8 +154,9 @@ struct OnboardingBottomBar: View {
             .frame(minHeight: 44)
             .animation(.easeInOut(duration: 0.2), value: secondary?.title)
         }
-        // A thumb-sized capsule on a wide screen, centred — not an 800 pt bar
-        // across the fold. The bar itself still spans the width (hosts pin it).
+        // A thumb-sized capsule on a wide screen — not an 800 pt bar — and on
+        // iPhone Duo open in landscape, on the page before the fold. The bar
+        // itself still spans the width (hosts pin it).
         .onboardingColumn(maxWidth: 440)
         .padding(.horizontal, 24)
         .padding(.top, 8)

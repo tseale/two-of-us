@@ -35,7 +35,8 @@ enum ScreenShape: Equatable {
 /// middle of the *display* — not of the safe area, which the trailing vertical
 /// bar makes lopsided (455.5 pt of content before the fold, 371.5 pt after, in
 /// landscape) — so the band is centred on the display's midline, worked out
-/// from the reader's size plus its safe-area insets. It is the same band
+/// from the reader's position in the window, its size and its trailing /
+/// bottom safe-area insets. It is the same band
 /// whether the phone lies flat or is partly folded, so folding never moves a
 /// single view, and in book or tabletop pose the crease always lands in the
 /// gap between panes — never on a control or a line of text. The band's 40 pt
@@ -53,9 +54,9 @@ struct PaneLayout: Equatable {
     /// The gap between the panes in the reader's coordinates: a vertical band
     /// for `.wide` / `.short`, a horizontal band for `.tall`.
     let band: CGRect
-    /// The reader's height plus its top and bottom safe-area insets — about
-    /// the display's height for a full-screen tab. What "is there room for the
-    /// roomy version of a card" questions should ask.
+    /// The display's height (the window's: the reader's top in the window
+    /// plus its height and bottom safe-area inset). What "is there room for
+    /// the roomy version of a card" questions should ask.
     let fullHeight: CGFloat
     /// The reader's top safe-area inset. Zero on iPhone Duo's outer display and
     /// its inner display in landscape, where the status bar lives in the side
@@ -67,8 +68,8 @@ struct PaneLayout: Equatable {
     /// Gutter between side-by-side panes on a display with no fold (the
     /// outer display in landscape).
     static let gutter: CGFloat = 16
-    /// A fold-less regular-width container narrower than this, and taller
-    /// than wide, stacks its panes; wider ones (iPad portrait) sit side by side.
+    /// A regular-width container narrower than this, on a display taller than
+    /// wide, stacks its panes; wider ones (iPad portrait) sit side by side.
     static let sideBySideMinWidth: CGFloat = 700
     /// No pane is ever made narrower (or shorter) than this; a container too
     /// small for two such panes splits evenly instead.
@@ -111,7 +112,19 @@ struct PaneLayout: Equatable {
                         horizontal: UserInterfaceSizeClass?) -> PaneLayout {
         let size = proxy.size
         let insets = proxy.safeAreaInsets
-        let fullHeight = size.height + insets.top + insets.bottom
+        // Where the reader starts in the window. Usually that's just its
+        // leading / top safe-area inset, but not when something sits above it
+        // (the demo-mode pill row), so the display's edges are measured from
+        // the window, not assumed from the insets. (Its trailing and bottom
+        // edges do reach the window's safe area: a tab's content fills it.)
+        let origin = proxy.frame(in: .global).origin
+        // The whole display (the window — the display itself whenever this
+        // runs on iPhone Duo, since a Split View half is compact width).
+        // Shape and midlines come from it, never from the reader's own size,
+        // which changes with the bars: a large title collapsing on scroll,
+        // the demo pill or a big text size must not flip portrait to "wide".
+        let displayWidth = origin.x + size.width + insets.trailing
+        let displayHeight = origin.y + size.height + insets.bottom
 
         guard horizontal == .regular else {
             // The outer display has no fold: a quiet gutter down the middle
@@ -120,26 +133,24 @@ struct PaneLayout: Equatable {
             let band = CGRect(x: (size.width - gutter) / 2, y: 0,
                               width: gutter, height: size.height)
             return PaneLayout(shape: .short, size: size, band: band,
-                              fullHeight: fullHeight, topInset: insets.top)
+                              fullHeight: displayHeight, topInset: insets.top)
         }
 
-        if size.width >= size.height || size.width >= sideBySideMinWidth {
+        if displayWidth >= displayHeight || size.width >= sideBySideMinWidth {
             // The display's vertical midline, in the reader's coordinates.
-            let displayMid = (insets.leading + size.width + insets.trailing) / 2 - insets.leading
-            let mid = clamped(displayMid, length: size.width, band: foldBand)
+            let mid = clamped(displayWidth / 2 - origin.x, length: size.width, band: foldBand)
             let band = CGRect(x: mid - foldBand / 2, y: 0,
                               width: foldBand, height: size.height)
             return PaneLayout(shape: .wide, size: size, band: band,
-                              fullHeight: fullHeight, topInset: insets.top)
+                              fullHeight: displayHeight, topInset: insets.top)
         }
 
         // The display's horizontal midline, in the reader's coordinates.
-        let displayMid = (insets.top + size.height + insets.bottom) / 2 - insets.top
-        let mid = clamped(displayMid, length: size.height, band: foldBand)
+        let mid = clamped(displayHeight / 2 - origin.y, length: size.height, band: foldBand)
         let band = CGRect(x: 0, y: mid - foldBand / 2,
                           width: size.width, height: foldBand)
         return PaneLayout(shape: .tall, size: size, band: band,
-                          fullHeight: fullHeight, topInset: insets.top)
+                          fullHeight: displayHeight, topInset: insets.top)
     }
 
     /// Keeps both panes at least `minPane` long; a container too small for
@@ -186,6 +197,58 @@ struct DividedPanes<First: View, Second: View>: View {
                 second()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+        }
+    }
+}
+
+// MARK: - The page before the fold
+
+private struct LeadingPageWidthKey: EnvironmentKey {
+    static let defaultValue: CGFloat? = nil
+}
+
+extension EnvironmentValues {
+    /// Set by `RootView` while the screen resolves to `.wide` (iPhone Duo open
+    /// in landscape, flat or folded like a book; iPad): the width, from the
+    /// screen's leading edge, that centred one-column content can use and
+    /// still finish well before the fold. Nil everywhere else — every slab
+    /// iPhone, Split View, and the Duo's portrait and tent poses — so readers
+    /// fall back to exactly what they did before.
+    var leadingPageWidth: CGFloat? {
+        get { self[LeadingPageWidthKey.self] }
+        set { self[LeadingPageWidthKey.self] = newValue }
+    }
+}
+
+extension PaneLayout {
+    /// The `leadingPageWidth` for a resolved layout: the page before the fold,
+    /// less the band's width again as slack, so a host's own outer padding
+    /// (up to ~40 pt) can never push the content onto the crease. Nil unless
+    /// `.wide`.
+    var leadingPage: CGFloat? {
+        shape == .wide ? max(leadingWidth - Self.foldBand, 0) : nil
+    }
+}
+
+/// Puts one-column content (a setup step, a bottom button, a banner) on the
+/// page before the fold: at most `maxWidth` wide, centred within `page`, which
+/// starts at the leading edge. With no page (nil) it is centred in the full
+/// width, capped at `maxWidth` — the behaviour everywhere but `.wide`.
+struct LeadingPageColumn: ViewModifier {
+    let maxWidth: CGFloat
+    let page: CGFloat?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let page {
+            content
+                .frame(maxWidth: min(maxWidth, page))
+                .frame(width: page)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            content
+                .frame(maxWidth: maxWidth)
+                .frame(maxWidth: .infinity)
         }
     }
 }

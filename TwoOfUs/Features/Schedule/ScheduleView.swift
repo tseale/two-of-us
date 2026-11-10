@@ -111,14 +111,16 @@ struct ScheduleView: View {
                     tonightSections(now: now)
                 }
                 // The status bar isn't across the top here, so the first row
-                // would sit flush against the display's edge.
-                .safeAreaPadding(.top, layout.topBreathingRoom)
+                // would sit flush against the display's edge. Padding, not
+                // safeAreaPadding: rows would otherwise scroll through the
+                // strip above the pinned "Tonight" header.
+                .padding(.top, layout.topBreathingRoom)
                 .loggedToast($toast)
             } second: {
                 List {
                     planSection
                 }
-                .safeAreaPadding(.top, layout.topBreathingRoom)
+                .padding(.top, layout.topBreathingRoom)
             }
         case .tall:
             // Inner display in portrait / tabletop: one list, held to a

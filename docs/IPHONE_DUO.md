@@ -89,10 +89,15 @@ cadence, accuracy). Empty states top-align instead of centring on the fold.
 - Tent pose: `OrientationPolicy` (via `AppDelegate`) lets near-square phone
   displays (long ÷ short < 1.6 — the Duo is ≈ 1.45, every slab iPhone ≥ 1.78)
   rotate; slab iPhones stay portrait-only, iPad keeps all orientations.
-- Onboarding, join and restore flows: a centred ~520 pt column and a ≤ 440 pt
-  bottom button on the inner display; a smaller cradle mark in tent pose.
-- Error banner ≤ 440 pt; undo toast ≤ 480 pt; slide-to-confirm ≤ 360 pt (an
-  80%-of-width slide on the inner display crossed the fold).
+- Onboarding, join and restore flows: a readable ~520 pt column and a
+  ≤ 440 pt bottom button on the inner display — centred in portrait, and on the
+  page before the fold in landscape (`leadingPageWidth`, measured once in
+  `RootView`), so nothing sits on the crease in book pose; a smaller cradle
+  mark in tent pose.
+- The error banner and the undo toasts sit on the page before the fold in
+  landscape (centred in the safe area they'd straddle it) and are capped at
+  440 / 480 pt; slide-to-confirm ≤ 360 pt (an 80%-of-width slide on the inner
+  display crossed the fold).
 - Launch curtain blocks touches across the whole display, side strip included.
 - Feed, baby and profile sheets don't re-seed their fields if `onAppear` fires
   again on a fold; the Diaper sheet can expand to large (the outer display's

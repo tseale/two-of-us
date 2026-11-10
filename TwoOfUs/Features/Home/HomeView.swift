@@ -371,7 +371,11 @@ struct HomeView: View {
             // (daycare's assumed close), so re-ask once a minute — the
             // per-second ticking stays inside each pane.
             TimelineView(.everyMinute) { ctx in
-                if controlsPaneHasContent(now: ctx.date) {
+                // ctx.date is the minute's start, and stays there when a
+                // @Query change re-runs this closure — up to 59 s stale. A
+                // drop-off or pick-up slid mid-minute is stamped now and must
+                // count at once, as it does in the per-second panes.
+                if controlsPaneHasContent(now: max(ctx.date, .now)) {
                     DividedPanes(layout: layout) {
                         glancePane(layout, includesTimeline: true)
                     } second: {
