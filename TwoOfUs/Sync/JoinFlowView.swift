@@ -91,6 +91,9 @@ struct JoinFlowView: View {
             Spacer()
             // Smaller in the tent pose so the copy clears the page dots and bar.
             CradleMark(size: vSize == .compact ? 100 : 150, staged: true)
+                // On the same page as its copy when iPhone Duo is open in
+                // landscape (no-op on a phone).
+                .onboardingColumn()
             VStack(spacing: 10) {
                 Text(helloTitle)
                     .font(AppFont.hero(28))
@@ -302,6 +305,9 @@ struct JoinSyncingView: View {
             VStack(spacing: 24) {
                 // Smaller in the tent pose so the escape hatch still fits.
                 CradleMark(size: vSize == .compact ? 100 : 150, staged: true)
+                    // On the same page as its copy when iPhone Duo is open in
+                    // landscape (no-op on a phone).
+                    .onboardingColumn()
                 VStack(spacing: 10) {
                     Text("Bringing everything over…")
                         .font(AppFont.hero(24))

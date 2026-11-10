@@ -238,17 +238,13 @@ struct LeadingPageColumn: ViewModifier {
     let maxWidth: CGFloat
     let page: CGFloat?
 
-    @ViewBuilder
     func body(content: Content) -> some View {
-        if let page {
-            content
-                .frame(maxWidth: min(maxWidth, page))
-                .frame(width: page)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        } else {
-            content
-                .frame(maxWidth: maxWidth)
-                .frame(maxWidth: .infinity)
-        }
+        // One structure for every pose — a nil page is layout-neutral — so
+        // rotating or opening/closing iPhone Duo never rebuilds the content
+        // (a focused field, an open picker or a running task survives).
+        content
+            .frame(maxWidth: min(maxWidth, page ?? CGFloat.infinity))
+            .frame(width: page)   // nil: sizes to the child, a no-op
+            .frame(maxWidth: .infinity, alignment: page == nil ? Alignment.center : .leading)
     }
 }

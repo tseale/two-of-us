@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import SwiftData
 
 /// Routes between the three top-level worlds and owns the transitions between
@@ -103,7 +104,10 @@ struct RootView: View {
                     Color.clear
                         .onChange(of: PaneLayout.resolve(in: proxy, horizontal: hSize),
                                   initial: true) { _, layout in
-                            measuredLeadingPage = layout.leadingPage
+                            // Only iPhone Duo's inner display has a fold; an
+                            // iPad is `.wide` too but keeps centred columns.
+                            measuredLeadingPage = UIDevice.current.userInterfaceIdiom == .phone
+                                ? layout.leadingPage : nil
                         }
                 }
             }
