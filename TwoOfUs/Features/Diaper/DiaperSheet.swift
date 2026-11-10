@@ -72,7 +72,9 @@ struct DiaperSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        // Opens at medium as before; .large lets it expand where the half
+        // sheet is short (iPhone Duo's outer display hides Logged by and Note).
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
 

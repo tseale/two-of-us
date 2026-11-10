@@ -220,6 +220,9 @@ struct RootView: View {
         }
         .buttonStyle(.plain)
         .tint(AppColor.urgencyAmber)
+        // A readable line, not one long strip across iPhone Duo's open screen
+        // (and its fold). Never binds on a phone, where the banner is narrower.
+        .frame(maxWidth: 440)
         .padding(.horizontal, 20)
         .padding(.bottom, 8)
         .transition(.move(edge: .bottom).combined(with: .opacity))

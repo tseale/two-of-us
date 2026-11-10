@@ -14,6 +14,11 @@ struct SnooSuggestionCard: View {
     /// render, not ticking live (§8).
     let now: Date
     var onSaved: ((String) -> Void)?
+    /// When set, "Edit" asks the parent to present the editor instead of the
+    /// card presenting it. Home sets this: it moves the card between panes as
+    /// iPhone Duo opens and closes, and a sheet owned by a card that moves is
+    /// torn down mid-edit. Nil keeps the card's own sheet.
+    var onEdit: (() -> Void)? = nil
 
     private var store: EventStore { EventStore(context: context) }
 
@@ -51,7 +56,9 @@ struct SnooSuggestionCard: View {
                     .font(.footnote.weight(.semibold))
                     .buttonStyle(.borderedProminent)
                     .tint(AppColor.accentSleep)
-                Button("Edit") { editing = true }
+                Button("Edit") {
+                    if let onEdit { onEdit() } else { editing = true }
+                }
                     .font(.footnote.weight(.semibold))
                     .buttonStyle(.bordered)
                     .tint(AppColor.accentSleep)

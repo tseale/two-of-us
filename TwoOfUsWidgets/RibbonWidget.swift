@@ -22,7 +22,11 @@ struct DayRibbonWidgetView: View {
             HStack {
                 Text("Today").font(.caption2)
                 Spacer()
+                // One line, scaling down rather than wrapping when the tally
+                // ("🍼 12 · 💤 14h35 · 💩 9") outgrows a narrow tile.
                 Text(tally).font(.caption2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             .foregroundStyle(.secondary)
             DayRibbonView(marks: entry.todayMarks, style: .tinted)
@@ -37,6 +41,8 @@ struct DayRibbonWidgetView: View {
                 Text("TODAY").sectionLabelStyle()
                 Spacer()
                 Text(tally).font(.caption2).foregroundStyle(AppColor.text3)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             DayRibbonView(marks: entry.todayMarks, style: .color)
                 .frame(maxHeight: .infinity)

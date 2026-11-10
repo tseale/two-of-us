@@ -135,6 +135,9 @@ struct OnboardingTourPage: View {
                 .padding(.horizontal, 12)
                 .onboardingEntrance(revealed, index: 4)
         }
+        // Readable on a wide screen; horizontal only, so the fixed variant
+        // above stays vertically rigid for ViewThatFits.
+        .onboardingColumn()
     }
 }
 

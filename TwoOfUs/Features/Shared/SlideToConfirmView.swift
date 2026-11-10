@@ -40,10 +40,14 @@ struct SlideToConfirmView: View {
 
     /// Every slide is the same width: 80% of its parent, centered.
     private let widthFraction: CGFloat = 0.8
+    /// …up to this, so on a wide screen (iPhone Duo's inner display) the drag
+    /// stays a thumb's reach and can't cross the fold. Never binds on a
+    /// phone: 80% of the widest iPhone (440 pt) is 352 pt.
+    private let maxPillWidth: CGFloat = 360
 
     var body: some View {
         GeometryReader { geo in
-            let width = geo.size.width * widthFraction
+            let width = min(geo.size.width * widthFraction, maxPillWidth)
             let travel = max(width - height, 1)
             let progress = min(max(dragX / travel, 0), 1)
 

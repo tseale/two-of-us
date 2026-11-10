@@ -12,6 +12,9 @@ import MapKit
 /// geofence radius.
 struct DaycareSettingsView: View {
     @Environment(\.modelContext) private var context
+    /// Compact only on iPhone Duo's outer display stood like a tent (432 pt
+    /// tall) — never on a slab iPhone, which is portrait-only.
+    @Environment(\.verticalSizeClass) private var vSize
     @Query private var settingsList: [SharedSettings]
     @Query private var participants: [Participant]
     @Query private var babies: [Baby]
@@ -264,7 +267,8 @@ struct DaycareSettingsView: View {
             }
 
             map(settings)
-                .frame(height: 220)
+                // Shorter in the tent pose so the rows around it stay in view.
+                .frame(height: vSize == .compact ? 140 : 220)
                 .listRowInsets(EdgeInsets())
 
             Button {

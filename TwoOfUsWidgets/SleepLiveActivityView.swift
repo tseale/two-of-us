@@ -57,6 +57,11 @@ struct SleepLockScreenView: View {
     let nextFeedOwnerColorHex: String?
     let predictedWakeAt: Date?
 
+    /// True on the Lock Screen; false in StandBy, where the system scales this
+    /// card 2x to fill the screen (iPhone Duo enters StandBy on a nightstand,
+    /// no charger needed). Gates the view-drawn gradient — see `body`.
+    @Environment(\.showsWidgetContainerBackground) private var showsWidgetBackground
+
     init(babyName: String, startedAt: Date,
          endedAt: Date? = nil,
          nextFeedAt: Date? = nil,
@@ -114,12 +119,20 @@ struct SleepLockScreenView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(
-            LinearGradient(
-                colors: [AppColor.indigoHi, AppColor.indigoNight],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-        )
+        // The gradient only where the system shows a container background
+        // (the Lock Screen — unchanged there). In StandBy a view-drawn
+        // gradient stops at the card's edges and leaves it floating small on
+        // black; there the background is the `.activityBackgroundTint` set in
+        // `SleepActivityContent`, which the system extends edge to edge
+        // (WWDC26 "Live Activities essentials").
+        .background {
+            if showsWidgetBackground {
+                LinearGradient(
+                    colors: [AppColor.indigoHi, AppColor.indigoNight],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )
+            }
+        }
     }
 
     private var mainRow: some View {
@@ -288,7 +301,14 @@ private struct SleepActivityContent: View {
                            nextFeedAt: context.state.nextFeedAt,
                            nextFeedOwnerName: context.state.nextFeedOwnerName)
         } else {
+            // The Live Activity's background tint, set on the lock-screen
+            // presentation: the card's deepest gradient stop. On the Lock
+            // Screen the card's own gradient covers it, so nothing changes
+            // there; in StandBy the card drops its gradient and the system
+            // extends this tint edge to edge. Only on this branch — the small
+            // family (Watch / CarPlay) paints its own background as before.
             SleepLockScreenView(context: context)
+                .activityBackgroundTint(AppColor.indigoNight)
         }
     }
 }
@@ -347,8 +367,7 @@ struct SleepLiveActivity: Widget {
                 // whole activity deep-links to.
             } compactLeading: {
                 // DESIGN.md §9: the compact island reads "💤 23:47".
-                Text("💤")
-                    .padding(.leading, 4)
+                CompactSleepGlyph()
             } compactTrailing: {
                 CompactSleepTimer(startedAt: context.state.startedAt)
             } minimal: {
@@ -369,15 +388,20 @@ struct SleepLiveActivity: Widget {
 /// duration, which would stretch the island to full width, so it's bounded to
 /// a sleep-sized H:MM:SS ("💤 1:23:45"); longer stretches scale down to fit.
 ///
-/// iOS 27 shows the Dynamic Island in landscape, where the compact pill can't
-/// grow in width at all — `isDynamicIslandLimitedInWidth` — so the bound
-/// tightens further there and the text scales harder rather than clipping.
+/// iOS 27 can render the compact island limited in width —
+/// `isDynamicIslandLimitedInWidth`: iPhone in landscape, iPhone Duo, and
+/// iPhone 18 Pro with two or more Live Activities (Apple's list). Compact
+/// views must then fit a 28 pt circle, which a running timer can't (the old
+/// 44 pt / 0.5-scale bound still truncated past the first hour). So there
+/// the trailing view is empty — Apple's documented fallback: the system
+/// hides an empty trailing view and the leading 💤 (`CompactSleepGlyph`)
+/// stands alone. When not limited, unchanged.
 private struct CompactSleepTimer: View {
     let startedAt: Date
 
     var body: some View {
         if #available(iOS 27, *) {
-            LandscapeAwareCompactSleepTimer(startedAt: startedAt)
+            WidthLimitAwareCompactSleepTimer(startedAt: startedAt)
         } else {
             compactSleepTimerText(startedAt: startedAt, maxWidth: 56, minimumScale: 0.7)
         }
@@ -385,14 +409,42 @@ private struct CompactSleepTimer: View {
 }
 
 @available(iOS 27, *)
-private struct LandscapeAwareCompactSleepTimer: View {
+private struct WidthLimitAwareCompactSleepTimer: View {
     @Environment(\.isDynamicIslandLimitedInWidth) private var limitedInWidth
     let startedAt: Date
 
     var body: some View {
-        compactSleepTimerText(startedAt: startedAt,
-                              maxWidth: limitedInWidth ? 44 : 56,
-                              minimumScale: limitedInWidth ? 0.5 : 0.7)
+        if limitedInWidth {
+            // Bare EmptyView — no padding or frame — so the slot really is
+            // empty and the system hides it.
+            EmptyView()
+        } else {
+            compactSleepTimerText(startedAt: startedAt, maxWidth: 56, minimumScale: 0.7)
+        }
+    }
+}
+
+/// The compact island's leading 💤, with a 4 pt leading inset in the normal
+/// pill. When the island is limited in width the glyph sits alone in a 28 pt
+/// circle (see `CompactSleepTimer`), so the inset is dropped to keep it centred.
+private struct CompactSleepGlyph: View {
+    var body: some View {
+        if #available(iOS 27, *) {
+            WidthLimitAwareCompactSleepGlyph()
+        } else {
+            Text("💤")
+                .padding(.leading, 4)
+        }
+    }
+}
+
+@available(iOS 27, *)
+private struct WidthLimitAwareCompactSleepGlyph: View {
+    @Environment(\.isDynamicIslandLimitedInWidth) private var limitedInWidth
+
+    var body: some View {
+        Text("💤")
+            .padding(.leading, limitedInWidth ? 0 : 4)
     }
 }
 

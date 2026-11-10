@@ -10,6 +10,10 @@ import SwiftData
 /// with the assignee and every row carries their face.
 struct ScheduleView: View {
     @Environment(\.modelContext) private var context
+    // Size classes pick the shape: single column wherever they say compact
+    // (every slab iPhone, iPhone Duo closed and upright), panes otherwise.
+    @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.verticalSizeClass) private var vSize
 
     @Query(filter: #Predicate<PlanSlot> { $0.deletedAt == nil }, sort: \PlanSlot.minuteOfDay)
     private var slots: [PlanSlot]
@@ -33,8 +37,11 @@ struct ScheduleView: View {
         NavigationStack {
             // A minute tick keeps "in 2h 5m", the NOW divider, and overdue
             // states honest while the tab sits open overnight.
+            // The layout switch lives INSIDE the tick, so both panes keep
+            // ticking, and the sheets below stay on a container whose identity
+            // never changes when the phone opens, closes or turns.
             TimelineView(.periodic(from: .now, by: 60)) { ctx in
-                scheduleList(now: ctx.date)
+                scheduleContent(now: ctx.date)
             }
             .listStyle(.plain)
             // Zero row spacing so lane bands (and the rail) fuse across rows
@@ -64,13 +71,82 @@ struct ScheduleView: View {
             .sheet(isPresented: $addingSlot) {
                 SlotEditSheet(onDone: showToast)
             }
-            .loggedToast($toast)
+            // Regular width (iPhone Duo's inner display, iPad) always resolves
+            // to `.wide` or `.tall`, and those carry the toast themselves —
+            // `.wide` on its leading pane, so it never sits across the fold.
+            // Everywhere else (compact, `.short`) it stays here, as before.
+            .loggedToast(hSize == .regular ? .constant(nil) : $toast)
+        }
+    }
+
+    // MARK: Layout
+
+    /// Today's single list wherever the size classes say single column (no
+    /// measuring at all); the iPhone Duo / iPad shapes otherwise.
+    @ViewBuilder
+    private func scheduleContent(now: Date) -> some View {
+        if ScreenShape.isCompact(horizontal: hSize, vertical: vSize) {
+            scheduleList(now: now)
+        } else {
+            GeometryReader { proxy in
+                let layout = PaneLayout.resolve(in: proxy, horizontal: hSize)
+                paneContent(layout, now: now)
+            }
+        }
+    }
+
+    /// The non-compact shapes (see `ScreenShape`). The tonight and plan
+    /// sections are the same views the single list shows — only where they
+    /// sit changes.
+    @ViewBuilder
+    private func paneContent(_ layout: PaneLayout, now: Date) -> some View {
+        switch layout.shape {
+        case .wide:
+            // Inner display in landscape (flat or book pose), iPad: tonight on
+            // the leading pane, the standing plan on the trailing one, the
+            // seam on the fold. Both lists inherit the plain style, zero row
+            // spacing and app background set on the TimelineView.
+            DividedPanes(layout: layout) {
+                List {
+                    tonightSections(now: now)
+                }
+                // The status bar isn't across the top here, so the first row
+                // would sit flush against the display's edge.
+                .safeAreaPadding(.top, layout.topBreathingRoom)
+                .loggedToast($toast)
+            } second: {
+                List {
+                    planSection
+                }
+                .safeAreaPadding(.top, layout.topBreathingRoom)
+            }
+        case .tall:
+            // Inner display in portrait / tabletop: one list, held to a
+            // readable width instead of rows stretched 669 pt wide.
+            scheduleList(now: now)
+                .contentMargins(.horizontal, max(0, (layout.size.width - 600) / 2),
+                                for: .scrollContent)
+                .loggedToast($toast)
+        case .short, .compact:
+            // Outer display on its side (tent pose): ~594 pt is room enough
+            // for the single list as it is.
+            scheduleList(now: now)
         }
     }
 
     // MARK: List
 
     private func scheduleList(now: Date) -> some View {
+        List {
+            tonightSections(now: now)
+            planSection
+        }
+    }
+
+    /// Tonight's sections — the hero and the Tonight / Last night timeline,
+    /// or the empty state. Shared by the single list and the leading pane.
+    @ViewBuilder
+    private func tonightSections(now: Date) -> some View {
         let occurrences = mergedOccurrences(now: now)
         // Window spans paint the sleep lanes; instants (bottles, plus any
         // legacy put-down slots) stay rows. A skipped window is not sleep
@@ -82,14 +158,11 @@ struct ScheduleView: View {
         let upNext = rows.first {
             $0.kind == .feed && $0.status == .upcoming && $0.date >= now
         }
-        return List {
-            if rows.isEmpty {
-                emptySection(now: now)
-            } else {
-                if let upNext { heroSection(upNext, now: now) }
-                timelineSection(rows, spans: spans, now: now)
-            }
-            planSection
+        if rows.isEmpty {
+            emptySection(now: now)
+        } else {
+            if let upNext { heroSection(upNext, now: now) }
+            timelineSection(rows, spans: spans, now: now)
         }
     }
 

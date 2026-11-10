@@ -3,7 +3,9 @@ import SwiftData
 import Charts
 
 /// Trends over the last week: a day-in-the-life swimlane (reusing the ribbon),
-/// the sleep-consolidation line, and daily formula volume.
+/// the sleep-consolidation line, and daily formula volume. One column on every
+/// iPhone; two columns that scroll together on iPhone Duo's inner display and
+/// iPad (see `PaneLayout`).
 struct HistoryView: View {
     @Query(filter: #Predicate<FeedEvent> { $0.deletedAt == nil }, sort: \FeedEvent.timestamp, order: .reverse)
     private var feeds: [FeedEvent]
@@ -23,38 +25,28 @@ struct HistoryView: View {
     private var babyName: String { babies.first?.name ?? "your baby" }
     private var hasAnyData: Bool { !feeds.isEmpty || !sleeps.isEmpty || !diapers.isEmpty }
 
+    @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.verticalSizeClass) private var vSize
+
     var body: some View {
         NavigationStack {
             Group {
-                if hasAnyData {
-                    // The consolidation, total-sleep and volume cards all read the
-                    // same daily summaries; aggregate the history once per body and
-                    // pass it down rather than re-running the pass in each card.
-                    let summaries = engine.dailySummaries(days: days)
-                    ScrollView {
-                        VStack(spacing: 14) {
-                            swimlaneCard
-                            consolidationCard(summaries)
-                            sleepTotalCard(summaries)
-                            volumeCard(summaries)
-                            feedHeatmapCard
-                            diaperTrendCard
-                        }
-                        .padding(16)
-                    }
+                if ScreenShape.isCompact(horizontal: hSize, vertical: vSize) {
+                    content(split: nil)
                 } else {
-                    // A single warm whole-screen empty state beats 7 blank
-                    // swimlane rows + five "No X yet" cards on first run.
-                    VStack {
-                        Spacer()
-                        EmptyStateView(
-                            emoji: "📈",
-                            title: "No history yet",
-                            message: "Log a few feeds, sleeps, and diapers and \(babyName)'s trends will show up here."
-                        )
-                        Spacer()
+                    // Measured only off the compact path — a phone never
+                    // builds this reader.
+                    GeometryReader { proxy in
+                        let layout = PaneLayout.resolve(in: proxy, horizontal: hSize)
+                        switch layout.shape {
+                        case .wide, .tall:
+                            content(split: layout)
+                        case .compact, .short:
+                            // The outer display on its side: no fold, and one
+                            // column of ~560 pt cards reads fine.
+                            content(split: nil)
+                        }
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .background(AppColor.bg)
@@ -62,12 +54,113 @@ struct HistoryView: View {
         }
     }
 
+    /// The tab's content: today's single column when `split` is nil (every
+    /// iPhone, and the Duo's outer display either way up), or two columns
+    /// along `split` (`.wide` / `.tall`: the Duo's inner display, iPad).
+    @ViewBuilder
+    private func content(split: PaneLayout?) -> some View {
+        if hasAnyData {
+            // The consolidation, total-sleep and volume cards all read the
+            // same daily summaries; aggregate the history once per body and
+            // pass it down rather than re-running the pass in each card (or
+            // each column).
+            let summaries = engine.dailySummaries(days: days)
+            if let split {
+                twoColumns(summaries, layout: split)
+            } else {
+                ScrollView {
+                    VStack(spacing: 14) {
+                        swimlaneCard()
+                        consolidationCard(summaries)
+                        sleepTotalCard(summaries)
+                        volumeCard(summaries)
+                        feedHeatmapCard()
+                        diaperTrendCard()
+                    }
+                    .padding(16)
+                }
+            }
+        } else if let split {
+            // Top-aligned, not centred: centred, it would sit on the fold in
+            // `.tall`. In `.wide` the fold runs down the middle instead, so the
+            // message stays inside the leading pane rather than across it.
+            VStack {
+                noHistory
+                Spacer()
+            }
+            .padding(.top, 48)
+            .frame(width: split.shape == .wide ? split.leadingWidth : nil)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        } else {
+            // A single warm whole-screen empty state beats 7 blank
+            // swimlane rows + five "No X yet" cards on first run.
+            VStack {
+                Spacer()
+                noHistory
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private var noHistory: some View {
+        EmptyStateView(
+            emoji: "📈",
+            title: "No history yet",
+            message: "Log a few feeds, sleeps, and diapers and \(babyName)'s trends will show up here."
+        )
+    }
+
+    // MARK: Two columns (Duo inner display, iPad)
+
+    /// `.wide` / `.tall`: the single column reflowed into two that scroll
+    /// together — the day's rhythm leading, the daily totals trailing. In
+    /// `.wide` the gap between them is the fold band. Each column holds three
+    /// cards instead of six, so the charts get taller here.
+    private func twoColumns(_ summaries: [DaySummary], layout: PaneLayout) -> some View {
+        let columns = layout.columns
+        return ScrollView {
+            HStack(alignment: .top, spacing: 0) {
+                VStack(spacing: 14) {
+                    swimlaneCard(twoColumn: true)
+                    consolidationCard(summaries, twoColumn: true)
+                    feedHeatmapCard(twoColumn: true)
+                }
+                // Outer edge keeps the usual 16 pt; the inner edge only
+                // `foldSideInset`, since the gap (the fold band in `.wide`)
+                // already separates the columns.
+                .padding(.leading, 16)
+                .padding(.trailing, PaneLayout.foldSideInset)
+                .frame(width: columns.leading)
+                // VoiceOver finishes one column before starting the other.
+                .accessibilityElement(children: .contain)
+
+                Color.clear
+                    .frame(width: columns.gap)
+                    .accessibilityHidden(true)
+
+                VStack(spacing: 14) {
+                    sleepTotalCard(summaries, twoColumn: true)
+                    volumeCard(summaries, twoColumn: true)
+                    diaperTrendCard(twoColumn: true)
+                }
+                .padding(.leading, PaneLayout.foldSideInset)
+                .padding(.trailing, 16)
+                .frame(width: columns.trailing)
+                .accessibilityElement(children: .contain)
+            }
+            .padding(.vertical, 16)
+        }
+    }
+
     // MARK: Swimlane
 
-    private var swimlaneCard: some View {
+    /// `twoColumn`: the taller ribbons (and roomier rows) of the two-column
+    /// shapes; false is the phone's layout.
+    private func swimlaneCard(twoColumn: Bool = false) -> some View {
         let rows = engine.swimlane(days: days)
         return Card(title: "Day in the life", trailing: "24h") {
-            VStack(spacing: 7) {
+            VStack(spacing: twoColumn ? 9 : 7) {
                 ForEach(rows) { row in
                     HStack(spacing: 8) {
                         Text(Self.weekday(row.day))
@@ -75,7 +168,7 @@ struct HistoryView: View {
                             .foregroundStyle(AppColor.text3)
                             .frame(width: 28, alignment: .leading)
                         DayRibbonView(marks: row.marks, style: .color, day: row.day, showNowMarker: false)
-                            .frame(height: 16)
+                            .frame(height: twoColumn ? 24 : 16)
                     }
                     // The ribbon Canvas is hidden from accessibility — without
                     // this, VoiceOver reads seven bare weekday labels and no data.
@@ -94,11 +187,11 @@ struct HistoryView: View {
 
     // MARK: Sleep consolidation
 
-    private func consolidationCard(_ summaries: [DaySummary]) -> some View {
+    private func consolidationCard(_ summaries: [DaySummary], twoColumn: Bool = false) -> some View {
         let best = summaries.map(\.longestStretch).max() ?? 0
         return Card(title: "Longest sleep stretch", trailing: durationShort(best)) {
             if best == 0 {
-                emptyState("No completed sleeps yet")
+                emptyState("No completed sleeps yet", twoColumn: twoColumn)
             } else {
                 Chart(summaries) { s in
                     let hours = s.longestStretch / 3600
@@ -127,16 +220,16 @@ struct HistoryView: View {
                     .foregroundStyle(AppColor.accentSleep)
                     .symbolSize(28)
                 }
-                .chartXAxis { weekdayAxis() }
+                .chartXAxis { weekdayAxis(twoColumn: twoColumn) }
                 .chartYAxis { softYAxis(unit: "h") }
-                .frame(height: 120)
+                .frame(height: chartHeight(twoColumn: twoColumn))
             }
         }
     }
 
     // MARK: Daily volume
 
-    private func volumeCard(_ summaries: [DaySummary]) -> some View {
+    private func volumeCard(_ summaries: [DaySummary], twoColumn: Bool = false) -> some View {
         let total = summaries.reduce(0.0) { $0 + $1.feedOz }
         // Average over days actually logged, not the whole window — pre-birth /
         // untracked zero-days would otherwise understate "avg" for a young baby.
@@ -144,7 +237,7 @@ struct HistoryView: View {
         let avg = trackedDays == 0 ? 0 : total / Double(trackedDays)
         return Card(title: "Daily formula (oz)", trailing: "avg \(OzFormat.string(avg.rounded()))") {
             if total == 0 {
-                emptyState("No feeds logged yet")
+                emptyState("No feeds logged yet", twoColumn: twoColumn)
             } else {
                 Chart(summaries) { s in
                     BarMark(
@@ -164,23 +257,23 @@ struct HistoryView: View {
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
                     }
                 }
-                .chartXAxis { weekdayAxis() }
+                .chartXAxis { weekdayAxis(twoColumn: twoColumn) }
                 .chartYAxis { softYAxis(unit: "oz") }
-                .frame(height: 120)
+                .frame(height: chartHeight(twoColumn: twoColumn))
             }
         }
     }
 
     // MARK: Total sleep per day
 
-    private func sleepTotalCard(_ summaries: [DaySummary]) -> some View {
+    private func sleepTotalCard(_ summaries: [DaySummary], twoColumn: Bool = false) -> some View {
         let total = summaries.reduce(0.0) { $0 + $1.sleepSeconds }
         // Average over days with sleep logged, not the whole window (see volumeCard).
         let trackedDays = summaries.filter { $0.sleepSeconds > 0 }.count
         let avgPerDay = trackedDays == 0 ? 0 : total / Double(trackedDays)
         return Card(title: "Total sleep per day", trailing: "avg \(durationShort(avgPerDay))") {
             if total == 0 {
-                emptyState("No completed sleeps yet")
+                emptyState("No completed sleeps yet", twoColumn: twoColumn)
             } else {
                 Chart(summaries) { s in
                     BarMark(
@@ -200,16 +293,16 @@ struct HistoryView: View {
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
                     }
                 }
-                .chartXAxis { weekdayAxis() }
+                .chartXAxis { weekdayAxis(twoColumn: twoColumn) }
                 .chartYAxis { softYAxis(unit: "h") }
-                .frame(height: 120)
+                .frame(height: chartHeight(twoColumn: twoColumn))
             }
         }
     }
 
     // MARK: Feeding times (day × hour heatmap)
 
-    private var feedHeatmapCard: some View {
+    private func feedHeatmapCard(twoColumn: Bool = false) -> some View {
         let cells = engine.feedHeatmap(days: days)
         let peak = cells.map(\.count).max() ?? 0
         // Oldest → newest weekday labels, indexed to match each cell's dayIndex.
@@ -218,7 +311,7 @@ struct HistoryView: View {
         }
         return Card(title: "Feeding times", trailing: "by hour") {
             if peak == 0 {
-                emptyState("No feeds logged yet")
+                emptyState("No feeds logged yet", twoColumn: twoColumn)
             } else {
                 Chart(cells) { c in
                     RectangleMark(
@@ -254,19 +347,19 @@ struct HistoryView: View {
                         }
                     }
                 }
-                .frame(height: 132)
+                .frame(height: twoColumn ? 168 : 132)
             }
         }
     }
 
     // MARK: Diaper trend (wet / dirty / both)
 
-    private var diaperTrendCard: some View {
+    private func diaperTrendCard(twoColumn: Bool = false) -> some View {
         let trend = engine.diaperDays(days: days)
         let total = trend.reduce(0) { $0 + $1.total }
         return Card(title: "Diapers per day") {
             if total == 0 {
-                emptyState("No diapers logged yet")
+                emptyState("No diapers logged yet", twoColumn: twoColumn)
             } else {
                 VStack(spacing: 10) {
                     Chart {
@@ -290,10 +383,10 @@ struct HistoryView: View {
                         "Dirty": AppColor.accentDiaper.opacity(0.72),
                         "Both": AppColor.accentDiaper,
                     ])
-                    .chartXAxis { weekdayAxis() }
+                    .chartXAxis { weekdayAxis(twoColumn: twoColumn) }
                     .chartYAxis { softYAxis(unit: "") }
                     .chartLegend(.hidden)
-                    .frame(height: 120)
+                    .frame(height: chartHeight(twoColumn: twoColumn))
 
                     HStack(spacing: 16) {
                         legendBar(AppColor.accentDiaper.opacity(0.45), label: "wet")
@@ -321,10 +414,18 @@ struct HistoryView: View {
 
     // MARK: Helpers
 
-    private func weekdayAxis() -> some AxisContent {
+    /// Height of the bar / line charts: the phone's 120 pt, or 150 pt in the
+    /// two-column shapes (three cards per column instead of six).
+    private func chartHeight(twoColumn: Bool) -> CGFloat {
+        twoColumn ? 150 : 120
+    }
+
+    /// `twoColumn` labels the days "Mon", "Tue"… where the phone has room only
+    /// for "M", "T"….
+    private func weekdayAxis(twoColumn: Bool = false) -> some AxisContent {
         AxisMarks(values: .stride(by: .day)) { _ in
             AxisGridLine().foregroundStyle(AppColor.separator.opacity(0.35))
-            AxisValueLabel(format: .dateTime.weekday(.narrow))
+            AxisValueLabel(format: .dateTime.weekday(twoColumn ? .abbreviated : .narrow))
                 .font(.caption2)
                 .foregroundStyle(AppColor.text3)
         }
@@ -344,11 +445,13 @@ struct HistoryView: View {
         }
     }
 
-    private func emptyState(_ text: String) -> some View {
+    /// Centred on a phone; leading-aligned (in line with the card's title) in
+    /// the two-column shapes.
+    private func emptyState(_ text: String, twoColumn: Bool = false) -> some View {
         Text(text)
             .font(.subheadline)
             .foregroundStyle(AppColor.text3)
-            .frame(maxWidth: .infinity, minHeight: 80)
+            .frame(maxWidth: .infinity, minHeight: 80, alignment: twoColumn ? .leading : .center)
     }
 
     private func legendBar(_ color: Color, label: String) -> some View {

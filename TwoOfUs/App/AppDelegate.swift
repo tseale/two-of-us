@@ -176,6 +176,17 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                      didFailToRegisterForRemoteNotificationsWithError error: Error) {
         AppLog.sync.error("Remote notification registration failed: \(error.localizedDescription, privacy: .public)")
     }
+
+    /// Slab iPhones stay portrait-only and iPad keeps every orientation —
+    /// exactly what Info.plist says — but iPhone Duo's outer display turns to
+    /// landscape when the phone is stood on its side like a tent (see
+    /// `OrientationPolicy`). Implementing this replaces the Info.plist mask.
+    func application(_ application: UIApplication,
+                     supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        MainActor.assumeIsolated {
+            OrientationPolicy.supportedOrientations(for: window)
+        }
+    }
 }
 
 /// Receives the joining parent's share-link tap in both launch shapes: warm

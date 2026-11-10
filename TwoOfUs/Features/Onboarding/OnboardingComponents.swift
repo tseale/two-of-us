@@ -31,6 +31,20 @@ extension View {
     }
 }
 
+// MARK: - Readable column
+
+extension View {
+    /// Caps a setup-flow column at a readable width and centres it in the full
+    /// width, so nothing stretches across iPhone Duo's open screen (and its
+    /// fold). Horizontal only — a fixed page stays vertically rigid. Never
+    /// binds on a phone: no iPhone is wider than 440 pt, and callers apply it
+    /// inside their side padding.
+    func onboardingColumn(maxWidth: CGFloat = 520) -> some View {
+        frame(maxWidth: maxWidth)
+            .frame(maxWidth: .infinity)
+    }
+}
+
 // MARK: - Step header
 
 /// Eyebrow + title + subtitle stack used by every story and setup page.
@@ -128,6 +142,9 @@ struct OnboardingBottomBar: View {
             .frame(minHeight: 44)
             .animation(.easeInOut(duration: 0.2), value: secondary?.title)
         }
+        // A thumb-sized capsule on a wide screen, centred — not an 800 pt bar
+        // across the fold. The bar itself still spans the width (hosts pin it).
+        .onboardingColumn(maxWidth: 440)
         .padding(.horizontal, 24)
         .padding(.top, 8)
         .padding(.bottom, 12)
