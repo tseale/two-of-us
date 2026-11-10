@@ -135,36 +135,69 @@ struct SleepActiveCard: View {
         }
     }
 
-    var body: some View {
-        VStack(spacing: 6) {
-            // Combine ONLY the status readout into one element, so the Wake-up
-            // button stays a separate, focusable, activatable element for
-            // VoiceOver (a card-level combine swallowed it — you couldn't wake
-            // the baby with VoiceOver on).
-            if let onEditStart {
-                status
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel(statusLabel)
-                    .accessibilityAction(named: "Edit start time", onEditStart)
-            } else {
-                status
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel(statusLabel)
-            }
+    /// The status readout as ONE accessibility element, so the Wake-up
+    /// button stays a separate, focusable, activatable element for VoiceOver
+    /// (a card-level combine swallowed it — you couldn't wake the baby with
+    /// VoiceOver on).
+    @ViewBuilder
+    private var accessibleStatus: some View {
+        if let onEditStart {
+            status
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(statusLabel)
+                .accessibilityAction(named: "Edit start time", onEditStart)
+        } else {
+            status
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(statusLabel)
+        }
+    }
 
-            // Manual sleeps only: a SNOO session ends itself when the device
-            // reports the wake, so its card never needs — or shows — the
-            // wake-up slide. (The SnooTag above already says whose timer it is.)
+    /// Manual sleeps only: a SNOO session ends itself when the device reports
+    /// the wake, so its card never needs — or shows — the wake-up slide. (The
+    /// SnooTag above already says whose timer it is.)
+    private var wakeSlide: some View {
+        SlideToConfirmView(label: "Slide to wake up",
+                           tintColor: AppColor.accentSleep,
+                           thumbIcon: "sun.max",
+                           completionMessage: { "Woke up at \(TimeFormatting.clock($0))" }) {
+            withAnimation { wokeAt = .now }
+            onWake()
+        }
+        .accessibilityHint("Ends the sleep timer")
+    }
+
+    /// The readout over the slide — every card on a phone.
+    private var stackedContent: some View {
+        VStack(spacing: 6) {
+            accessibleStatus
             if !sleep.isFromSnoo {
-                SlideToConfirmView(label: "Slide to wake up",
-                                   tintColor: AppColor.accentSleep,
-                                   thumbIcon: "sun.max",
-                                   completionMessage: { "Woke up at \(TimeFormatting.clock($0))" }) {
-                    withAnimation { wokeAt = .now }
-                    onWake()
+                wakeSlide
+                    .padding(.top, 8)
+            }
+        }
+    }
+
+    var body: some View {
+        Group {
+            if compact {
+                // A wide short card (iPhone Duo's tabletop controls half, 637 pt
+                // across) sets the Wake slide beside the readout instead of under
+                // it — ≈ 70 pt shorter again, so the tiles and the card fit the
+                // half that lies on the table. Narrower ones (the outer display,
+                // a landscape page) don't have the room and stack as before.
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .center, spacing: 16) {
+                        accessibleStatus
+                        if !sleep.isFromSnoo {
+                            wakeSlide
+                                .frame(width: 300)
+                        }
+                    }
+                    stackedContent
                 }
-                .padding(.top, 8)
-                .accessibilityHint("Ends the sleep timer")
+            } else {
+                stackedContent
             }
         }
         .frame(maxWidth: .infinity)

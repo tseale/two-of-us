@@ -64,7 +64,7 @@ API (see "Not done" below).
 |---|---|
 | Compact (iPhone; Duo closed) | Unchanged single list. On short displays (full height < 700 pt: the Duo's outer display, iPhone SE) a running sleep uses the **short sleep card** (timer beside the 💤, ≈ 70 pt shorter) and the Today card drops the duplicate elapsed time from its live caption, so the Wake slide stays on screen without scrolling. |
 | Wide (Duo open in landscape, flat or book; iPad) | **Left page:** header, Today card, log tiles, sleep card, SNOO suggestions, tonight / up next, setup checklist. **Right page:** "Recent · last 24 hours" with its pinned "+ Add note" header. The undo toast sits under the left page. |
-| Tall (Duo open in portrait, flat or tabletop) | **Top half:** header, Today card, tonight / up next, checklist, timeline (scrolls). **Bottom half:** log tiles + sleep card + SNOO, centred — the feeding-station pad. During daycare hours, with nothing to tap, the bottom half shows the day's feed instead. |
+| Tall (Duo open in portrait, flat or tabletop) | **Top half:** header, Today card, tonight / up next, checklist, timeline (scrolls). **Bottom half:** log tiles + sleep card + SNOO, centred — the feeding-station pad (on this 637 pt-wide half the short sleep card sets its Wake slide beside the timer, so tiles and card fit the half). During daycare hours, with nothing to tap, the bottom half shows the day's feed instead. |
 | Short (Duo closed, stood on its side) | Header + Today card on one side; tiles, sleep card, up next and timeline on the other. |
 
 Every sheet, task and the pull-to-refresh hang on a container that never
