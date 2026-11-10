@@ -10,12 +10,19 @@ struct RestoreFromCloudView: View {
     /// After this long still downloading, explain and offer Try again.
     private static let patienceWindow: Duration = .seconds(30)
     @State private var tookTooLong = false
+    /// Compact only on iPhone Duo's outer display stood like a tent (432 pt
+    /// tall) — never on a slab iPhone, which is portrait-only.
+    @Environment(\.verticalSizeClass) private var vSize
 
     var body: some View {
         ZStack {
             AmbientBackground(stop: .nightStage)
             VStack(spacing: 24) {
-                CradleMark(size: 150, staged: true)
+                // Smaller in the tent pose so the escape hatch still fits.
+                CradleMark(size: vSize == .compact ? 100 : 150, staged: true)
+                    // On the same page as its copy when iPhone Duo is open in
+                    // landscape (no-op on a phone).
+                    .onboardingColumn()
                 VStack(spacing: 10) {
                     Text(title)
                         .font(AppFont.hero(24))
@@ -28,6 +35,7 @@ struct RestoreFromCloudView: View {
                 }
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
+                .onboardingColumn()   // readable on a wide screen; no-op on a phone
 
                 if isRestoring && (restore.failed || tookTooLong) { escapeHatch }
             }
@@ -80,6 +88,7 @@ struct RestoreFromCloudView: View {
             .tint(AppColor.accentFeed)
         }
         .padding(.horizontal, 32)
+        .onboardingColumn()
         .padding(.top, 8)
         .transition(.opacity)
     }

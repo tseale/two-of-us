@@ -11,6 +11,7 @@ App Store submission. Deployment target is **iOS 26**.
 | iPhone non-Pro (notch) | Lock-Screen Live Activity only | Lock-screen sleep timer, widgets |
 | iPhone SE / smallest width | Tight layouts, `minimumScaleFactor` | Lifetime 2×2 grid, widget action buttons, no clipping |
 | iPad | Portrait + landscape, regular size class | Onboarding, Home, sheets, widgets |
+| iPhone Duo | Two displays, vertical side bars, a fold, tent/book/tabletop poses (see `IPHONE_DUO.md`) | Every pose: two-page Home on the inner display, nothing on the fold, sheets survive opening/closing, tent landscape, 28 pt Dynamic Island, StandBy Live Activity |
 
 ## Capability dimensions
 | Dimension | Variants to cover |

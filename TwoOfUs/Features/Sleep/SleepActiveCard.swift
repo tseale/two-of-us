@@ -14,6 +14,11 @@ struct SleepActiveCard: View {
     /// `PredictionEngine`'s expected end of this sleep. Nil (AI off, not
     /// enough history, or already past) simply hides the line.
     var predictedWake: Date? = nil
+    /// The short layout: the elapsed timer beside the 💤 instead of under it,
+    /// ≈ 70 pt shorter, so the Wake slide stays on screen where height is
+    /// tight — iPhone Duo's outer display (644 pt of content), its tabletop
+    /// controls half and its tent pose. Same content, same order, same slide.
+    var compact: Bool = false
 
     @Environment(\.openURL) private var openURL
 
@@ -45,13 +50,64 @@ struct SleepActiveCard: View {
     @ViewBuilder
     private var statusContent: some View {
         Text("💤").font(.system(size: 34))
+        eyebrow
+        elapsedText(size: 48)
+        sinceRow
+        if let predictedWake {
+            predictedWakeHint(predictedWake)
+                .padding(.top, 2)
+        }
+    }
+
+    /// The short layout's readout: the same lines, set beside the 💤 and
+    /// leading-aligned, with a slightly smaller timer.
+    private var compactStatusContent: some View {
+        HStack(alignment: .center, spacing: 14) {
+            Text("💤").font(.system(size: 30))
+            VStack(alignment: .leading, spacing: 2) {
+                eyebrow
+                elapsedText(size: 40)
+                sinceRow
+                if let predictedWake {
+                    predictedWakeHint(predictedWake)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// Whichever readout this card shows.
+    @ViewBuilder
+    private var status: some View {
+        if compact {
+            compactStatusContent
+        } else {
+            VStack(spacing: 6) { statusContent }
+        }
+    }
+
+    private var eyebrow: some View {
         Text("\(babyName.uppercased()) IS \(gerund.uppercased())")
             .sectionLabelStyle(color: AppColor.accentSleep)
+    }
+
+    private func elapsedText(size: CGFloat) -> some View {
         Text(elapsed)
-            .font(AppFont.display(48, weight: .heavy))
+            .font(AppFont.display(size, weight: .heavy))
             .foregroundStyle(AppColor.text)
             .minimumScaleFactor(0.7)
             .lineLimit(1)
+    }
+
+    private func predictedWakeHint(_ predictedWake: Date) -> some View {
+        AIHintText(text: "predicted wake ~\(TimeFormatting.clock(predictedWake))",
+                   font: .caption)
+            // The combined status element above already reads the
+            // prediction in `statusLabel`.
+            .accessibilityHidden(true)
+    }
+
+    private var sinceRow: some View {
         HStack(spacing: 6) {
             if let onEditStart {
                 // A plain Button still works for sighted taps even inside the
@@ -77,50 +133,75 @@ struct SleepActiveCard: View {
             // Same tag as the timeline rows: this timer is the SNOO's.
             if sleep.isFromSnoo { SnooTag() }
         }
-        if let predictedWake {
-            AIHintText(text: "predicted wake ~\(TimeFormatting.clock(predictedWake))",
-                       font: .caption)
-                .padding(.top, 2)
-                // The combined status element above already reads the
-                // prediction in `statusLabel`.
-                .accessibilityHidden(true)
+    }
+
+    /// The status readout as ONE accessibility element, so the Wake-up
+    /// button stays a separate, focusable, activatable element for VoiceOver
+    /// (a card-level combine swallowed it — you couldn't wake the baby with
+    /// VoiceOver on).
+    @ViewBuilder
+    private var accessibleStatus: some View {
+        if let onEditStart {
+            status
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(statusLabel)
+                .accessibilityAction(named: "Edit start time", onEditStart)
+        } else {
+            status
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(statusLabel)
+        }
+    }
+
+    /// Manual sleeps only: a SNOO session ends itself when the device reports
+    /// the wake, so its card never needs — or shows — the wake-up slide. (The
+    /// SnooTag above already says whose timer it is.)
+    private var wakeSlide: some View {
+        SlideToConfirmView(label: "Slide to wake up",
+                           tintColor: AppColor.accentSleep,
+                           thumbIcon: "sun.max",
+                           completionMessage: { "Woke up at \(TimeFormatting.clock($0))" }) {
+            withAnimation { wokeAt = .now }
+            onWake()
+        }
+        .accessibilityHint("Ends the sleep timer")
+    }
+
+    /// The readout over the slide — every card on a phone.
+    private var stackedContent: some View {
+        VStack(spacing: 6) {
+            accessibleStatus
+            if !sleep.isFromSnoo {
+                wakeSlide
+                    .padding(.top, 8)
+            }
         }
     }
 
     var body: some View {
-        VStack(spacing: 6) {
-            // Combine ONLY the status readout into one element, so the Wake-up
-            // button stays a separate, focusable, activatable element for
-            // VoiceOver (a card-level combine swallowed it — you couldn't wake
-            // the baby with VoiceOver on).
-            if let onEditStart {
-                VStack(spacing: 6) { statusContent }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel(statusLabel)
-                    .accessibilityAction(named: "Edit start time", onEditStart)
-            } else {
-                VStack(spacing: 6) { statusContent }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel(statusLabel)
-            }
-
-            // Manual sleeps only: a SNOO session ends itself when the device
-            // reports the wake, so its card never needs — or shows — the
-            // wake-up slide. (The SnooTag above already says whose timer it is.)
-            if !sleep.isFromSnoo {
-                SlideToConfirmView(label: "Slide to wake up",
-                                   tintColor: AppColor.accentSleep,
-                                   thumbIcon: "sun.max",
-                                   completionMessage: { "Woke up at \(TimeFormatting.clock($0))" }) {
-                    withAnimation { wokeAt = .now }
-                    onWake()
+        Group {
+            if compact {
+                // A wide short card (iPhone Duo's tabletop controls half, 637 pt
+                // across) sets the Wake slide beside the readout instead of under
+                // it — ≈ 70 pt shorter again, so the tiles and the card fit the
+                // half that lies on the table. Narrower ones (the outer display,
+                // a landscape page) don't have the room and stack as before.
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .center, spacing: 16) {
+                        accessibleStatus
+                        if !sleep.isFromSnoo {
+                            wakeSlide
+                                .frame(width: 300)
+                        }
+                    }
+                    stackedContent
                 }
-                .padding(.top, 8)
-                .accessibilityHint("Ends the sleep timer")
+            } else {
+                stackedContent
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(20)
+        .padding(compact ? 16 : 20)
         .glassTile(cornerRadius: 22, tint: AppColor.accentSleep)
         // Corner badge in the same spot and idiom as the log tiles' plus badges.
         // Only for SNOO sessions: the camera is pointed at the bassinet, so

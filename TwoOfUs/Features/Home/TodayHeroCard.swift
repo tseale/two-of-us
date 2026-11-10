@@ -100,6 +100,13 @@ struct TodayHeroCard: View {
     var onDropOff: (() -> Void)? = nil
     var onPickUp: (() -> Void)? = nil
     var onUndoHomeToday: (() -> Void)? = nil
+    /// Drops the live sleep caption's elapsed time ("napping · 1h 20m" →
+    /// "napping") where the short sleep card sits right below and already
+    /// shows it big. The full caption is the widest thing in the totals row,
+    /// so on a narrow, short display (iPhone Duo's outer one) it alone would
+    /// collapse the row to its stacked floor — ≈ 100 pt taller, pushing the
+    /// Wake slide off screen.
+    var condensedLiveCaption = false
 
     private enum Stat { case feed, diaper, sleep }
     @State private var popped: Set<Stat> = []
@@ -368,7 +375,9 @@ struct TodayHeroCard: View {
                 HStack(spacing: 3) {
                     Image(systemName: "moon.zzz.fill")
                         .font(.caption.weight(.semibold))
-                    Text("\(SleepLanguage.gerund(start: start, now: now)) · \(TimeFormatting.duration(from: start, to: now))")
+                    Text(condensedLiveCaption
+                         ? SleepLanguage.gerund(start: start, now: now)
+                         : "\(SleepLanguage.gerund(start: start, now: now)) · \(TimeFormatting.duration(from: start, to: now))")
                         .monospacedDigit()
                 }
                 .font(.caption.weight(.semibold))

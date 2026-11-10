@@ -77,7 +77,8 @@ struct LaunchOverlay: View {
         // Cold launch opens opaque (the launch screen was already this color);
         // a resume curtain appears over live UI, so it washes in instead of
         // hard-cutting. It blocks touches from frame one either way — hit
-        // testing comes from `contentShape`, which opacity doesn't affect.
+        // testing comes from the clear `contentShape` layer behind the scene,
+        // which opacity doesn't affect.
         _sceneOpacity = State(initialValue: style == .resume ? 0 : 1)
     }
 
@@ -117,8 +118,16 @@ struct LaunchOverlay: View {
         }
         .opacity(sceneOpacity)
         // The whole point: a full-screen hit target so nothing underneath can
-        // be touched while the UI beneath may still be shifting.
-        .contentShape(Rectangle())
+        // be touched while the UI beneath may still be shifting. A clear layer
+        // that ignores the safe area, not a `contentShape` on the ZStack: the
+        // ZStack is only safe-area sized, and on iPhone Duo the tab bar sits in
+        // a side strip outside it. Applied outside `.opacity`, so it blocks
+        // even while the scene is fully transparent.
+        .background {
+            Color.clear
+                .contentShape(Rectangle())
+                .ignoresSafeArea()
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Two of Us is opening")
         .task { await run() }

@@ -5,6 +5,8 @@ struct HomeView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.verticalSizeClass) private var vSize
 
     @Query private var babies: [Baby]
     @Query private var participants: [Participant]
@@ -58,6 +60,11 @@ struct HomeView: View {
     @State private var brightwheel = BrightwheelManager.shared
     @State private var geofence = DaycareGeofenceManager.shared
     @State private var didApplyDebugScreen = false
+    /// The SNOO suggestion whose editor is up (presented from Home, not the card).
+    @State private var editingSnoo: SnooSuggestion?
+    /// The compact list's full height (content + insets ≈ the display's).
+    /// Starts roomy so the first frame matches every slab iPhone.
+    @State private var compactFullHeight: CGFloat = .infinity
     /// Start of the current day. Advanced by a task at midnight so the "today"
     /// ribbon, counts, and 24h window refresh even if the app sits foregrounded
     /// across midnight with nothing new logged (a @Query change would otherwise
@@ -105,171 +112,26 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    header
-                        // Small top inset keeps the profile/settings row off the
-                        // status bar now the nav bar is hidden.
-                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 2, trailing: 16))
-                    TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                        // 12pt matches the tile grid spacing, so the active sleep
-                        // card reads as the Sleep row transformed in place.
-                        let attendance = daycareAttendance(now: ctx.date)
-                        // Performance: bind the computed properties once per tick
-                        // instead of re-deriving them at every use below (the
-                        // summary was rebuilt four times). Same values: the
-                        // arrays they read are fixed for the evaluation (the
-                        // summary's own clock read aside, which only matters at
-                        // the instant of midnight).
-                        let summary = todaySummary
-                        let active = activeSleep
-                        VStack(spacing: 12) {
-                            // ONE hero card, every day — a day-flow strip
-                            // with a breathing live-sleep glow and plain
-                            // totals. Daycare arrives as layers on the same
-                            // base (zone, capsule, recap line, photos), not
-                            // as a different card. Between check-in and
-                            // check-out the parents aren't the ones logging
-                            // — they're watching — so the log tiles sit the
-                            // daycare day out; checkout brings them back.
-                            TodayHeroCard(
-                                babyName: baby?.name ?? "Baby",
-                                babyPhotoData: baby?.photoData,
-                                marks: todayMarks,
-                                feedCount: summary?.feedCount ?? 0,
-                                feedOz: summary?.feedOz ?? 0,
-                                diaperCount: summary?.diaperCount ?? 0,
-                                wetCount: todayDiaperSplit.wet,
-                                dirtyCount: todayDiaperSplit.dirty,
-                                sleepSeconds: summary?.sleepSeconds ?? 0,
-                                daycare: daycareToday ?? DaycareDaySummary(),
-                                attendingSince: attendance?.since,
-                                firstDaycareEventAt: firstDaycareEventToday,
-                                lastDaycareEventAt: lastDaycareEventToday,
-                                // Stops crediting the live nap the instant he's
-                                // no longer considered "at daycare" — an explicit
-                                // checkout (handled above by closing the nap
-                                // outright) or the assumed-close fallback once
-                                // nothing ever arrives. Never runs forever.
-                                liveNapStartedAt: attendance != nil ? liveNapToday : nil,
-                                activeSleepStartedAt: active?.startedAt,
-                                now: ctx.date,
-                                showFeed: isTracked(.feed),
-                                showSleep: isTracked(.sleep),
-                                showDiaper: isTracked(.diaper),
-                                daycareName: daycareSettings?.daycareDisplayName ?? "Daycare",
-                                daycareCloseMinute: daycareCloseMinute,
-                                checkinSlot: checkinSlot(now: ctx.date, attendance: attendance),
-                                onDropOff: {
-                                    // The whiteboard card reads the data BEFORE
-                                    // the marker lands — its answers are the
-                                    // morning's, not the drop-off's.
-                                    let board = dropoffBoardInfo()
-                                    logCheck(.checkIn, toast: "Dropped off")
-                                    dropoffBoard = board
-                                },
-                                onPickUp: { logCheck(.checkOut, toast: "Picked up") },
-                                onUndoHomeToday: undoHomeToday
-                            )
-                            if attendance == nil {
-                                logButtons(now: ctx.date, activeSleep: active)
-                            }
-                            if let sleep = active {
-                                SleepActiveCard(
-                                    sleep: sleep, now: ctx.date,
-                                    onWake: { endSleep(sleep) },
-                                    onEditStart: sleep.isFromSnoo ? nil : { editingSleepStart = true },
-                                    predictedWake: predictedWake(for: sleep, now: ctx.date)
-                                )
-                                .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
-                            }
-                            // SNOO suggestions sit directly under the sleep
-                            // button — never pushed down by the schedule card
-                            // (§8: present, never modal). Inside the ticking
-                            // TimelineView so an in-progress card's elapsed
-                            // text stays honest, same as the schedule rows.
-                            if showSnooSuggestions {
-                                ForEach(snoo.suggestions) { suggestion in
-                                    SnooSuggestionCard(suggestion: suggestion, now: ctx.date) { message in
-                                        toast = ToastData(message: message,
-                                                          accent: AppColor.accentSleep, undo: nil)
-                                    }
-                                }
-                            }
-                            // (The old after-pickup daycare report card is
-                            // gone: the hero's recap line and its
-                            // "daycare 7:30 – 4:30" capsule carry the
-                            // finished day all evening.)
-                            // Inside the ticking TimelineView so the rows stay
-                            // honest on a phone left open overnight: 11pm passing
-                            // greys the 11pm row and surfaces the 3am one without
-                            // needing a log or sync to trigger a render. The
-                            // "Tonight" card appears while the night window is
-                            // open AND in the run-up to it (once the next bottle
-                            // is already a night bottle, or within the grace
-                            // hour) — built dynamically from tonight's first
-                            // (logged or projected) feed, defaulting to the
-                            // window's start, so a night in progress always
-                            // has a schedule; daytime keeps the one-line up-next.
-                            switch nightState(now: ctx.date) {
-                            case .active(let nightOccurrences), .approaching(let nightOccurrences):
-                                // Never while he's at daycare — the nighttime
-                                // roster waits for pickup. Once every slot is
-                                // settled (the 7:58 AM all-checkmarks state),
-                                // the card is a finished checklist — hidden
-                                // until the next evening's run-up.
-                                // Reuses the occurrences nightState already built
-                                // (same inputs), instead of rebuilding the schedule.
-                                let tonight = tonightOccurrences(now: ctx.date,
-                                                                 nightOccurrences: nightOccurrences)
-                                if attendance == nil,
-                                   NightSchedule.hasRemainingBusiness(tonight) {
-                                    tonightCard(tonight, now: ctx.date)
-                                }
-                            case .day, nil:
-                                if let next = upNextOccurrence(now: ctx.date) {
-                                    upNextRow(next)
-                                }
-                            }
-                        }
-                        // Keyed to the sleep state (not withAnimation at the action
-                        // sites) so CloudKit- and Siri-initiated starts animate too.
-                        .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.8),
-                                   value: active != nil)
-                        // Check-in/out arrives via Brightwheel sync, never a
-                        // tap — animate the tiles ↔ strip swap it causes.
-                        .animation(reduceMotion ? nil : .easeInOut(duration: 0.3),
-                                   value: attendance != nil)
+            // One container whose identity never changes holds whichever
+            // layout fits the display, and every sheet, task and refresh
+            // hangs on it: opening or closing iPhone Duo (or entering Split
+            // View) swaps the layout INSIDE it, never the presenter — so a
+            // half-filled Feed sheet survives the fold.
+            ZStack {
+                if ScreenShape.isCompact(horizontal: hSize, vertical: vSize) {
+                    compactList
+                } else {
+                    GeometryReader { proxy in
+                        panes(PaneLayout.resolve(in: proxy, horizontal: hSize))
                     }
                 }
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-
-                // The deferred-setup checklist sits where an empty timeline
-                // leaves dead space — the logging UI above stays untouched.
-                if showChecklist {
-                    Section {
-                        SetupChecklistCard(
-                            quests: setup.activeQuests(role: prefs.syncRole),
-                            isComplete: { setup.isComplete($0, settings: settingsList.first) },
-                            onQuest: { questSheet = $0 },
-                            onDismiss: { withAnimation(.easeInOut) { setup.dismissedChecklist = true } }
-                        )
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                }
-
-                timelineSection
             }
-            .listStyle(.plain)
             // One pull refreshes everything: the daycare feed (Brightwheel)
             // and the other parent's phone (CloudKit), concurrently — the
             // native spinner holds until both finish, and the @Queries
             // re-render the Today card and timeline the moment either lands
-            // anything new. No partial refreshes.
+            // anything new. No partial refreshes. (Set once here, it reaches
+            // every list of every layout.)
             .refreshable {
                 async let daycare: Void = {
                     _ = await brightwheel.syncNow(context: context)
@@ -329,6 +191,14 @@ struct HomeView: View {
                         ? chainIntoRhythmQuest : nil
                 )
             }
+            // A SNOO card's "Edit": presented from here rather than from the
+            // card, because the card moves between panes as iPhone Duo opens
+            // and closes and would take its sheet down with it.
+            .sheet(item: $editingSnoo) { suggestion in
+                SnooSuggestionEditSheet(suggestion: suggestion) { message in
+                    toast = ToastData(message: message, accent: AppColor.accentSleep, undo: nil)
+                }
+            }
             #if DEBUG
             .onAppear {
                 // Dev-only: `-forceSpotlight rhythm` presents the spotlight on launch.
@@ -349,7 +219,9 @@ struct HomeView: View {
                 }
             }
             #endif
-            .loggedToast($toast)
+            // (The logged toast rides on the layout itself — the compact list,
+            // or the pane holding the log tiles — so on the inner display it
+            // never spans the fold.)
             // A tapped Feed/Diaper widget stages a sheet here: onChange catches a
             // warm launch (Home already up), onAppear a cold launch / tab switch.
             .onChange(of: router.pendingLog) { _, _ in consumeDeepLink() }
@@ -370,6 +242,469 @@ struct HomeView: View {
                     brightwheel.syncOnForeground(context: context)
                 }
             }
+        }
+    }
+
+    // MARK: Compact layout (iPhone, iPhone Duo closed, Split View)
+
+    /// The single column every slab iPhone shows — unchanged — and iPhone Duo's
+    /// outer display held upright. The one adaptation is height: where the
+    /// display is short (the Duo's outer display gives 644 pt of content, vs
+    /// ≈ 760 on an iPhone 17), a running sleep uses the short sleep card so the
+    /// Wake slide stays on screen.
+    private var compactList: some View {
+        let shortCard = compactFullHeight < PaneLayout.roomyHeight
+        return List {
+            Section {
+                header
+                    // Small top inset keeps the profile/settings row off the
+                    // status bar now the nav bar is hidden.
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 2, trailing: 16))
+                TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                    // 12pt matches the tile grid spacing, so the active sleep
+                    // card reads as the Sleep row transformed in place.
+                    let attendance = daycareAttendance(now: ctx.date)
+                    // Performance: bind the computed properties once per tick
+                    // instead of re-deriving them at every use below (the
+                    // summary was rebuilt four times). Same values: the
+                    // arrays they read are fixed for the evaluation (the
+                    // summary's own clock read aside, which only matters at
+                    // the instant of midnight).
+                    let summary = todaySummary
+                    let active = activeSleep
+                    VStack(spacing: 12) {
+                        // ONE hero card, every day — a day-flow strip
+                        // with a breathing live-sleep glow and plain
+                        // totals. Daycare arrives as layers on the same
+                        // base (zone, capsule, recap line, photos), not
+                        // as a different card. Between check-in and
+                        // check-out the parents aren't the ones logging
+                        // — they're watching — so the log tiles sit the
+                        // daycare day out; checkout brings them back.
+                        heroCard(now: ctx.date, attendance: attendance, summary: summary,
+                                 active: active, condensedCaption: shortCard)
+                        if attendance == nil {
+                            logButtons(now: ctx.date, activeSleep: active)
+                        }
+                        if let sleep = active {
+                            sleepCard(sleep, now: ctx.date, compact: shortCard)
+                                .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
+                        }
+                        // SNOO suggestions sit directly under the sleep
+                        // button — never pushed down by the schedule card
+                        // (§8: present, never modal). Inside the ticking
+                        // TimelineView so an in-progress card's elapsed
+                        // text stays honest, same as the schedule rows.
+                        snooCards(now: ctx.date)
+                        // (The old after-pickup daycare report card is
+                        // gone: the hero's recap line and its
+                        // "daycare 7:30 – 4:30" capsule carry the
+                        // finished day all evening.)
+                        scheduleRow(now: ctx.date, attendance: attendance)
+                    }
+                    // Keyed to the sleep state (not withAnimation at the action
+                    // sites) so CloudKit- and Siri-initiated starts animate too.
+                    .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.8),
+                               value: active != nil)
+                    // Check-in/out arrives via Brightwheel sync, never a
+                    // tap — animate the tiles ↔ strip swap it causes.
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.3),
+                               value: attendance != nil)
+                }
+            }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+
+            // The deferred-setup checklist sits where an empty timeline
+            // leaves dead space — the logging UI above stays untouched.
+            checklistSection(leading: 16, trailing: 16)
+
+            timelineSection()
+        }
+        .listStyle(.plain)
+        .background(AppColor.bg)
+        .loggedToast($toast)
+        // The display's full height picks the sleep card's layout — measured,
+        // never assumed from the device. A clear layer that ignores the safe
+        // area spans the whole display whichever way the list itself sizes.
+        .background {
+            Color.clear
+                .ignoresSafeArea()
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { height in
+                    compactFullHeight = height
+                }
+        }
+    }
+
+    // MARK: Roomy layouts (iPhone Duo open or on its side, iPad)
+
+    /// Home on a display with room for two panes — the inner display of iPhone
+    /// Duo (and iPad), or its outer display stood on its side. One hierarchy
+    /// everywhere, reflowed rather than stretched:
+    /// - **wide** (open in landscape, flat or folded like a book): the "now"
+    ///   page — header, Today card, log tiles, sleep card, what's up next — on
+    ///   the leading side of the fold; the 24-hour timeline on the trailing
+    ///   side, like the two pages of a passport.
+    /// - **tall** (open in portrait, flat or folded like a laptop on a table):
+    ///   everything to look at on the top half; the log tiles and the sleep
+    ///   card — the things to tap — on the bottom half, the "stable base"
+    ///   Apple's tabletop guidance describes. A feeding-station layout.
+    /// - **short** (closed, stood on a nightstand like a tent): the Today card
+    ///   on one side, the tiles, sleep card and timeline on the other.
+    /// The fold always lands in the gap between panes, flat or folded, so
+    /// folding the phone never moves anything.
+    @ViewBuilder
+    private func panes(_ layout: PaneLayout) -> some View {
+        switch layout.shape {
+        case .wide:
+            DividedPanes(layout: layout) {
+                nowPane(layout)
+                    .loggedToast($toast)
+            } second: {
+                logPane(layout)
+            }
+        case .tall:
+            // Minute-level: the controls pane can empty out on the clock alone
+            // (daycare's assumed close), so re-ask once a minute — the
+            // per-second ticking stays inside each pane.
+            TimelineView(.everyMinute) { ctx in
+                // ctx.date is the minute's start, and stays there when a
+                // @Query change re-runs this closure — up to 59 s stale. A
+                // drop-off or pick-up slid mid-minute is stamped now and must
+                // count at once, as it does in the per-second panes.
+                if controlsPaneHasContent(now: max(ctx.date, .now)) {
+                    DividedPanes(layout: layout) {
+                        glancePane(layout, includesTimeline: true)
+                    } second: {
+                        controlsPane(layout)
+                            .loggedToast($toast)
+                    }
+                } else {
+                    // Daycare hours with nothing to tap: the parents are
+                    // watching, not logging — the Today card on top, the
+                    // day's feed (daycare photos, naps) on the bottom half.
+                    DividedPanes(layout: layout) {
+                        glancePane(layout, includesTimeline: false)
+                    } second: {
+                        logPane(layout)
+                            .loggedToast($toast)
+                    }
+                }
+            }
+        case .short:
+            DividedPanes(layout: layout) {
+                glancePane(layout, includesTimeline: false)
+            } second: {
+                tentControlsPane(layout)
+                    .loggedToast($toast)
+            }
+        case .compact:
+            compactList
+        }
+    }
+
+    /// Wide layout, leading pane: everything Home's single column shows above
+    /// the timeline, at the width of a roomy iPhone.
+    private func nowPane(_ layout: PaneLayout) -> some View {
+        let shortCard = layout.fullHeight < PaneLayout.roomyHeight
+        return List {
+            Section {
+                header
+                    .listRowInsets(paneInsets(top: 8 + layout.topBreathingRoom, bottom: 2,
+                                              side: .leading, in: layout))
+                TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                    let attendance = daycareAttendance(now: ctx.date)
+                    let summary = todaySummary
+                    let active = activeSleep
+                    VStack(spacing: 12) {
+                        heroCard(now: ctx.date, attendance: attendance, summary: summary,
+                                 active: active, condensedCaption: false)
+                        controlsBlock(now: ctx.date, attendance: attendance, active: active,
+                                      compactCard: shortCard)
+                        scheduleRow(now: ctx.date, attendance: attendance)
+                    }
+                    .modifier(SleepAndDaycareAnimations(sleeping: active != nil,
+                                                       attending: attendance != nil,
+                                                       reduceMotion: reduceMotion))
+                }
+            }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(paneInsets(top: 4, bottom: 4, side: .leading, in: layout))
+
+            checklistSection(leading: 16, trailing: PaneLayout.foldSideInset)
+        }
+        .listStyle(.plain)
+    }
+
+    /// The 24-hour timeline on its own page (wide: trailing pane; tall during
+    /// daycare hours: bottom pane). Its header — with "+ Add note" — pins.
+    private func logPane(_ layout: PaneLayout) -> some View {
+        let side: HorizontalEdge = layout.shape == .tall ? .leading : .trailing
+        let insets = paneInsets(top: 0, bottom: 0, side: side, in: layout)
+        return List {
+            timelineSection(leading: insets.leading, trailing: insets.trailing, paneMode: true)
+        }
+        .listStyle(.plain)
+        .padding(.top, layout.shape == .tall ? 0 : layout.topBreathingRoom)
+    }
+
+    /// Tall and short layouts: the pane of things to look at — header and
+    /// Today card, then (tall only) what's up next, the setup checklist and
+    /// the timeline.
+    private func glancePane(_ layout: PaneLayout, includesTimeline: Bool) -> some View {
+        let side: HorizontalEdge = .leading
+        return List {
+            Section {
+                header
+                    .listRowInsets(paneInsets(top: 8 + layout.topBreathingRoom, bottom: 2,
+                                              side: side, in: layout))
+                TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                    let attendance = daycareAttendance(now: ctx.date)
+                    let summary = todaySummary
+                    let active = activeSleep
+                    VStack(spacing: 12) {
+                        heroCard(now: ctx.date, attendance: attendance, summary: summary,
+                                 active: active, condensedCaption: false)
+                        if layout.shape == .tall {
+                            scheduleRow(now: ctx.date, attendance: attendance)
+                        }
+                    }
+                    .modifier(SleepAndDaycareAnimations(sleeping: active != nil,
+                                                       attending: attendance != nil,
+                                                       reduceMotion: reduceMotion))
+                }
+            }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(paneInsets(top: 4, bottom: 4, side: side, in: layout))
+
+            if layout.shape == .tall {
+                checklistSection(leading: 16, trailing: 16)
+                if includesTimeline {
+                    timelineSection(paneMode: true)
+                }
+            }
+        }
+        .listStyle(.plain)
+    }
+
+    /// Tall layout, bottom pane: the log tiles and the sleep card — everything
+    /// you tap while feeding — on the half that lies flat on the table.
+    /// Centred in its half, and scrolls only if a large text size makes it
+    /// taller than the half.
+    private func controlsPane(_ layout: PaneLayout) -> some View {
+        ScrollView {
+            TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                let attendance = daycareAttendance(now: ctx.date)
+                let active = activeSleep
+                VStack(spacing: 12) {
+                    controlsBlock(now: ctx.date, attendance: attendance, active: active,
+                                  compactCard: true)
+                }
+                .modifier(SleepAndDaycareAnimations(sleeping: active != nil,
+                                                   attending: attendance != nil,
+                                                   reduceMotion: reduceMotion))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: layout.bottomHeight, alignment: .center)
+            }
+        }
+        .scrollBounceBehavior(.basedOnSize)
+    }
+
+    /// Short (tent) layout, trailing pane: tiles and sleep card first — the
+    /// glance-and-tap row for a phone standing on the nightstand — then what's
+    /// up next, the checklist and the timeline.
+    private func tentControlsPane(_ layout: PaneLayout) -> some View {
+        List {
+            Section {
+                TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                    let attendance = daycareAttendance(now: ctx.date)
+                    let active = activeSleep
+                    VStack(spacing: 12) {
+                        controlsBlock(now: ctx.date, attendance: attendance, active: active,
+                                      compactCard: true)
+                        scheduleRow(now: ctx.date, attendance: attendance)
+                    }
+                    .modifier(SleepAndDaycareAnimations(sleeping: active != nil,
+                                                       attending: attendance != nil,
+                                                       reduceMotion: reduceMotion))
+                }
+            }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(paneInsets(top: 8, bottom: 4, side: .trailing, in: layout))
+
+            checklistSection(leading: PaneLayout.foldSideInset, trailing: 16)
+
+            timelineSection(leading: PaneLayout.foldSideInset, trailing: 16, paneMode: true)
+        }
+        .listStyle(.plain)
+    }
+
+    /// Row insets for a pane: the usual 16 pt on the screen-edge side and the
+    /// small fold-side inset toward the band (which already supplies the gap).
+    /// Stacked panes span the full width, so both sides keep 16.
+    private func paneInsets(top: CGFloat, bottom: CGFloat, side: HorizontalEdge,
+                            in layout: PaneLayout) -> EdgeInsets {
+        guard layout.shape != .tall else {
+            return EdgeInsets(top: top, leading: 16, bottom: bottom, trailing: 16)
+        }
+        return side == .leading
+            ? EdgeInsets(top: top, leading: 16, bottom: bottom, trailing: PaneLayout.foldSideInset)
+            : EdgeInsets(top: top, leading: PaneLayout.foldSideInset, bottom: bottom, trailing: 16)
+    }
+
+    /// Whether the tall layout's controls pane has anything to show right
+    /// now: the log tiles (hidden while he's at daycare), a running sleep, or
+    /// a SNOO suggestion.
+    private func controlsPaneHasContent(now: Date) -> Bool {
+        daycareAttendance(now: now) == nil || activeSleep != nil || showSnooSuggestions
+    }
+
+    // MARK: Shared pieces (every layout builds Home from these)
+
+    private func heroCard(now: Date, attendance: DaycareStatus.Attendance?,
+                          summary: DaySummary?, active: SleepEvent?,
+                          condensedCaption: Bool) -> some View {
+        TodayHeroCard(
+            babyName: baby?.name ?? "Baby",
+            babyPhotoData: baby?.photoData,
+            marks: todayMarks,
+            feedCount: summary?.feedCount ?? 0,
+            feedOz: summary?.feedOz ?? 0,
+            diaperCount: summary?.diaperCount ?? 0,
+            wetCount: todayDiaperSplit.wet,
+            dirtyCount: todayDiaperSplit.dirty,
+            sleepSeconds: summary?.sleepSeconds ?? 0,
+            daycare: daycareToday ?? DaycareDaySummary(),
+            attendingSince: attendance?.since,
+            firstDaycareEventAt: firstDaycareEventToday,
+            lastDaycareEventAt: lastDaycareEventToday,
+            // Stops crediting the live nap the instant he's
+            // no longer considered "at daycare" — an explicit
+            // checkout (handled above by closing the nap
+            // outright) or the assumed-close fallback once
+            // nothing ever arrives. Never runs forever.
+            liveNapStartedAt: attendance != nil ? liveNapToday : nil,
+            activeSleepStartedAt: active?.startedAt,
+            now: now,
+            showFeed: isTracked(.feed),
+            showSleep: isTracked(.sleep),
+            showDiaper: isTracked(.diaper),
+            daycareName: daycareSettings?.daycareDisplayName ?? "Daycare",
+            daycareCloseMinute: daycareCloseMinute,
+            checkinSlot: checkinSlot(now: now, attendance: attendance),
+            onDropOff: {
+                // The whiteboard card reads the data BEFORE
+                // the marker lands — its answers are the
+                // morning's, not the drop-off's.
+                let board = dropoffBoardInfo()
+                logCheck(.checkIn, toast: "Dropped off")
+                dropoffBoard = board
+            },
+            onPickUp: { logCheck(.checkOut, toast: "Picked up") },
+            onUndoHomeToday: undoHomeToday,
+            // Only while the short sleep card sits right below it.
+            condensedLiveCaption: condensedCaption && active != nil
+        )
+    }
+
+    /// The tiles, the sleep card that takes the Sleep tile's place, and any
+    /// SNOO suggestions — always together, in this order, in one pane, so the
+    /// tile ↔ card swap animates in place ("Feed and Diaper never move").
+    @ViewBuilder
+    private func controlsBlock(now: Date, attendance: DaycareStatus.Attendance?,
+                               active: SleepEvent?, compactCard: Bool) -> some View {
+        if attendance == nil {
+            logButtons(now: now, activeSleep: active)
+        }
+        if let sleep = active {
+            sleepCard(sleep, now: now, compact: compactCard)
+                .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
+        }
+        snooCards(now: now)
+    }
+
+    private func sleepCard(_ sleep: SleepEvent, now: Date, compact: Bool) -> some View {
+        SleepActiveCard(
+            sleep: sleep, now: now,
+            onWake: { endSleep(sleep) },
+            onEditStart: sleep.isFromSnoo ? nil : { editingSleepStart = true },
+            predictedWake: predictedWake(for: sleep, now: now),
+            compact: compact
+        )
+    }
+
+    @ViewBuilder
+    private func snooCards(now: Date) -> some View {
+        if showSnooSuggestions {
+            ForEach(snoo.suggestions) { suggestion in
+                SnooSuggestionCard(
+                    suggestion: suggestion, now: now,
+                    onSaved: { message in
+                        toast = ToastData(message: message,
+                                          accent: AppColor.accentSleep, undo: nil)
+                    },
+                    onEdit: { editingSnoo = suggestion }
+                )
+            }
+        }
+    }
+
+    /// Tonight's roster or the one-line "up next".
+    ///
+    /// Inside the ticking TimelineView so the rows stay honest on a phone left
+    /// open overnight: 11pm passing greys the 11pm row and surfaces the 3am
+    /// one without needing a log or sync to trigger a render. The "Tonight"
+    /// card appears while the night window is open AND in the run-up to it
+    /// (once the next bottle is already a night bottle, or within the grace
+    /// hour) — built dynamically from tonight's first (logged or projected)
+    /// feed, defaulting to the window's start, so a night in progress always
+    /// has a schedule; daytime keeps the one-line up-next.
+    @ViewBuilder
+    private func scheduleRow(now: Date, attendance: DaycareStatus.Attendance?) -> some View {
+        switch nightState(now: now) {
+        case .active(let nightOccurrences), .approaching(let nightOccurrences):
+            // Never while he's at daycare — the nighttime
+            // roster waits for pickup. Once every slot is
+            // settled (the 7:58 AM all-checkmarks state),
+            // the card is a finished checklist — hidden
+            // until the next evening's run-up.
+            // Reuses the occurrences nightState already built
+            // (same inputs), instead of rebuilding the schedule.
+            let tonight = tonightOccurrences(now: now, nightOccurrences: nightOccurrences)
+            if attendance == nil,
+               NightSchedule.hasRemainingBusiness(tonight) {
+                tonightCard(tonight, now: now)
+            }
+        case .day, nil:
+            if let next = upNextOccurrence(now: now) {
+                upNextRow(next)
+            }
+        }
+    }
+
+    /// The deferred-setup checklist, where an empty timeline leaves dead space.
+    @ViewBuilder
+    private func checklistSection(leading: CGFloat, trailing: CGFloat) -> some View {
+        if showChecklist {
+            Section {
+                SetupChecklistCard(
+                    quests: setup.activeQuests(role: prefs.syncRole),
+                    isComplete: { setup.isComplete($0, settings: settingsList.first) },
+                    onQuest: { questSheet = $0 },
+                    onDismiss: { withAnimation(.easeInOut) { setup.dismissedChecklist = true } }
+                )
+            }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 4, leading: leading, bottom: 4, trailing: trailing))
         }
     }
 
@@ -1215,8 +1550,12 @@ struct HomeView: View {
 
     // MARK: Timeline
 
+    /// The "Recent · last 24 hours" section. The insets default to the
+    /// single column's; panes pass their own. `paneMode` words the empty
+    /// state for layouts where the tiles aren't "above".
     @ViewBuilder
-    private var timelineSection: some View {
+    private func timelineSection(leading: CGFloat = 16, trailing: CGFloat = 16,
+                                 paneMode: Bool = false) -> some View {
         // Performance: assembled once per body, not once for isEmpty and again
         // for the ForEach.
         let entries = timelineEntries
@@ -1225,26 +1564,28 @@ struct HomeView: View {
                 EmptyStateView(
                     emoji: "🍼💤💩",
                     title: "No events yet",
-                    message: "Tap a button above to log \(baby?.name ?? "Baby")'s first feed, sleep, or diaper."
+                    message: paneMode
+                        ? "Tap Feed, Sleep, or Diaper to log \(baby?.name ?? "Baby")'s first event."
+                        : "Tap a button above to log \(baby?.name ?? "Baby")'s first feed, sleep, or diaper."
                 )
                 .listRowBackground(Color.clear)
             } else {
                 TimelineNowCap()
                     .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                    .listRowInsets(EdgeInsets(top: 0, leading: leading, bottom: 0, trailing: trailing))
                 // Brightwheel's in-progress nap has no SleepEvent yet (the
                 // pair imports whole at wake), so its live row is synthesized
                 // here at the top — it started recently, so chronology holds.
                 if let napStart = liveNapToday {
                     LiveDaycareNapRow(start: napStart)
                         .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                        .listRowInsets(EdgeInsets(top: 0, leading: leading, bottom: 0, trailing: trailing))
                 }
                 ForEach(entries) { entry in
                     DayTimelineRow(entry: entry, loggedByPhoto: loggerPhoto[entry.loggedByID],
                                    loggedByNameFallback: loggerName[entry.loggedByID])
                         .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                        .listRowInsets(EdgeInsets(top: 0, leading: leading, bottom: 0, trailing: trailing))
                         .contentShape(Rectangle())
                         .accessibilityIdentifier("timelineRow")
                         // Media opens the full-size viewer; the editable four
@@ -1459,7 +1800,7 @@ struct HomeView: View {
 
     private var noSheetUp: Bool {
         activeSheet == nil && editing == nil && !showSettings
-            && questSheet == nil && spotlight == nil
+            && questSheet == nil && spotlight == nil && editingSnoo == nil
     }
 
     /// Rhythm spotlight → "Tune your rhythm": swap the spotlight for the quest.
@@ -1471,6 +1812,24 @@ struct HomeView: View {
         }
     }
 
+}
+
+/// The two keyed animations every Home layout puts on the block holding the
+/// log tiles and the sleep card: keyed to the sleep state (not withAnimation at
+/// the action sites) so CloudKit- and Siri-initiated starts animate too, and to
+/// daycare attendance, which arrives via Brightwheel sync, never a tap.
+private struct SleepAndDaycareAnimations: ViewModifier {
+    let sleeping: Bool
+    let attending: Bool
+    let reduceMotion: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.8),
+                       value: sleeping)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.3),
+                       value: attending)
+    }
 }
 
 #Preview {

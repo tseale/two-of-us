@@ -36,6 +36,10 @@ struct RhythmQuestSheet: View {
                 }
             }
         }
+        // The page before iPhone Duo's fold is measured from the window's
+        // leading edge (RootView); a sheet is its own centred surface, so
+        // its step stays centred.
+        .environment(\.leadingPageWidth, nil)
         .onAppear {
             if !seeded, let s = settingsList.first {
                 intervalMinutes = s.targetFeedIntervalMinutes
@@ -104,6 +108,8 @@ struct RemindersQuestSheet: View {
                 }
             }
         }
+        // See RhythmQuestSheet: a sheet keeps its step centred.
+        .environment(\.leadingPageWidth, nil)
         .onAppear { revealed = true }
     }
 

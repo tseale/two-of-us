@@ -16,6 +16,11 @@ struct SmallEventWidgetView: View {
     let kind: EventKind
     let entry: WidgetEntry
     @Environment(\.widgetFamily) private var family
+    /// False where the system removes the container background — StandBy
+    /// (iPhone Duo enters it on a nightstand, no charger needed) and CarPlay,
+    /// where the tile is read at a glance from a distance. The home tile then
+    /// drops its small print; true everywhere else (unchanged).
+    @Environment(\.showsWidgetContainerBackground) private var showsWidgetBackground
 
     /// A paused tracker keeps its sleep tile live while a sleep is running —
     /// the started timer must stay stoppable.
@@ -135,18 +140,23 @@ struct SmallEventWidgetView: View {
                     .font(.system(.title3, design: .rounded).weight(.bold))
                     .lineLimit(1)
                 if hasSinceLine { sinceLine }
-                Text(hint)
-                    .font(.caption)
-                    .foregroundStyle(AppColor.text2)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+                // Background removed (StandBy / CarPlay): the quiet hint and
+                // the ⊕ badge are tap-and-glance details that don't read from
+                // a distance — the tile keeps emoji, title and since-line.
+                if showsWidgetBackground {
+                    Text(hint)
+                        .font(.caption)
+                        .foregroundStyle(AppColor.text2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .padding(16)
         .foregroundStyle(AppColor.text)
         .overlay(alignment: .topTrailing) {
-            if !showingActiveSleep { plusBadge }
+            if !showingActiveSleep && showsWidgetBackground { plusBadge }
         }
     }
 
@@ -163,7 +173,9 @@ struct SmallEventWidgetView: View {
                     .frame(width: 8, height: 8)
             }
         }
-        .font(.subheadline)
+        // Up to .title3 when the background is removed (StandBy / CarPlay)
+        // so "2h 31m" reads from a distance; .subheadline otherwise.
+        .font(showsWidgetBackground ? Font.subheadline : Font.title3)
         .foregroundStyle(effectiveUrgency.sinceTextColor)
         .lineLimit(1)
         .minimumScaleFactor(0.75)

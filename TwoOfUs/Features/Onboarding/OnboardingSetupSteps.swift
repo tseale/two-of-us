@@ -69,6 +69,7 @@ struct BabyStep: View {
                 Spacer(minLength: 16)
             }
             .padding(.horizontal, 28)
+            .onboardingColumn()   // readable on a wide screen; no-op on a phone
         }
         .contentMargins(.bottom, OnboardingLayout.barClearance, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
@@ -109,6 +110,7 @@ struct YouStep: View {
                 Spacer(minLength: 16)
             }
             .padding(.horizontal, 28)
+            .onboardingColumn()   // readable on a wide screen; no-op on a phone
         }
         .contentMargins(.bottom, OnboardingLayout.barClearance, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
@@ -148,6 +150,7 @@ struct RhythmStep: View {
                 Spacer(minLength: 16)
             }
             .padding(.horizontal, 28)
+            .onboardingColumn()   // readable on a wide screen; no-op on a phone
         }
         .contentMargins(.bottom, barClearance ? OnboardingLayout.barClearance : 0, for: .scrollContent)
         .scrollBounceBehavior(.basedOnSize)
@@ -320,6 +323,7 @@ struct RemindersStep: View {
                 Spacer(minLength: 16)
             }
             .padding(.horizontal, 28)
+            .onboardingColumn()   // readable on a wide screen; no-op on a phone
         }
         .contentMargins(.bottom, barClearance ? OnboardingLayout.barClearance : 0, for: .scrollContent)
         .scrollBounceBehavior(.basedOnSize)
@@ -432,6 +436,7 @@ struct InviteStep: View {
                 Spacer(minLength: 16)
             }
             .padding(.horizontal, 28)
+            .onboardingColumn()   // readable on a wide screen; no-op on a phone
         }
         .contentMargins(.bottom, OnboardingLayout.barClearance, for: .scrollContent)
         .scrollBounceBehavior(.basedOnSize)

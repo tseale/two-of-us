@@ -46,37 +46,39 @@ struct StatsView: View {
     @State private var showWrapped = false
     @State private var showCareSummary = false
 
+    @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.verticalSizeClass) private var vSize
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 14) {
-                    if hasAnyData { wrappedButton }
-                    if showInsights {
-                        insightsCard
+            // A ZStack, not a Group: a Group hands its modifiers to whichever
+            // branch is showing, so the task below would restart and an open
+            // sheet be torn down whenever the phone opens or closes. The
+            // ZStack keeps one identity across both layouts.
+            ZStack {
+                if ScreenShape.isCompact(horizontal: hSize, vertical: vSize) {
+                    singleColumn
+                } else {
+                    // Measured only off the compact path — a phone never
+                    // builds this reader.
+                    GeometryReader { proxy in
+                        let layout = PaneLayout.resolve(in: proxy, horizontal: hSize)
+                        switch layout.shape {
+                        case .wide, .tall:
+                            twoColumns(layout)
+                        case .compact, .short:
+                            // The outer display on its side: no fold, and one
+                            // column of ~560 pt cards reads fine.
+                            singleColumn
+                        }
                     }
-                    if !outlookRows.isEmpty, aiEnabled {
-                        outlookCard(outlookRows)
-                    }
-                    if let patterns, aiEnabled {
-                        patternsCard(patterns)
-                    }
-                    todayCard
-                    recordHero
-                    milestonesCard
-                    lifetimeTiles
-                    nightShiftCard
-                    contributionCard
-                    cadenceCard
-                    if aiEnabled, timeAccuracy != nil || amountAccuracy != nil || sleepAccuracy != nil {
-                        accuracyCard
-                    }
-                    if hasAnyData { careSummaryButton }
                 }
-                .padding(16)
-                // Kept on the always-present container (not on the conditionally
-                // shown card) so generation still runs when the card is hidden.
-                .task(id: "\(feeds.count)-\(sleeps.count)-\(diapers.count)") { await loadSummary() }
             }
+            // Kept on the always-present container (not on the conditionally
+            // shown card, nor on either layout) so generation still runs when
+            // the card is hidden, and isn't restarted by opening or closing
+            // the phone.
+            .task(id: "\(feeds.count)-\(sleeps.count)-\(diapers.count)") { await loadSummary() }
             .background(AppColor.bg)
             .navigationTitle("Stats")
             .sheet(isPresented: $showWrapped) {
@@ -88,6 +90,114 @@ struct StatsView: View {
                                  dateOfBirth: babies.first?.dateOfBirth, engine: engine)
             }
         }
+    }
+
+    // MARK: Layouts
+
+    /// Today's single column: every iPhone, and the Duo's outer display
+    /// either way up.
+    private var singleColumn: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                wrappedButtonIfShown
+                insightsCardIfShown
+                outlookCardIfShown
+                patternsCardIfShown
+                todayCard
+                recordHero
+                milestonesCard
+                lifetimeTiles
+                nightShiftCard()
+                contributionCard
+                cadenceCard
+                accuracyCardIfShown
+                careSummaryButtonIfShown
+            }
+            .padding(16)
+        }
+    }
+
+    /// `.wide` / `.tall` (Duo inner display, iPad): the single column
+    /// reflowed into two that scroll together — the glance (records, totals,
+    /// today) leading, this week and the AI cards trailing. In `.wide` the
+    /// gap between them is the fold band.
+    private func twoColumns(_ layout: PaneLayout) -> some View {
+        let columns = layout.columns
+        return ScrollView {
+            HStack(alignment: .top, spacing: 0) {
+                VStack(spacing: 14) {
+                    wrappedButtonIfShown
+                    recordHero
+                    lifetimeTiles
+                    todayCard
+                    milestonesCard
+                    careSummaryButtonIfShown
+                }
+                // Outer edge keeps the usual 16 pt; the inner edge only
+                // `foldSideInset`, since the gap (the fold band in `.wide`)
+                // already separates the columns.
+                .padding(.leading, 16)
+                .padding(.trailing, PaneLayout.foldSideInset)
+                .frame(width: columns.leading)
+                // VoiceOver finishes one column before starting the other.
+                .accessibilityElement(children: .contain)
+
+                Color.clear
+                    .frame(width: columns.gap)
+                    .accessibilityHidden(true)
+
+                VStack(spacing: 14) {
+                    insightsCardIfShown
+                    outlookCardIfShown
+                    patternsCardIfShown
+                    nightShiftCard(twoColumn: true)
+                    contributionCard
+                    cadenceCard
+                    accuracyCardIfShown
+                }
+                .padding(.leading, PaneLayout.foldSideInset)
+                .padding(.trailing, 16)
+                .frame(width: columns.trailing)
+                .accessibilityElement(children: .contain)
+            }
+            .padding(.vertical, 16)
+        }
+    }
+
+    // MARK: Conditionally shown cards
+    //
+    // Each card's visibility rule lives here once, shared by both layouts.
+
+    @ViewBuilder private var wrappedButtonIfShown: some View {
+        if hasAnyData { wrappedButton }
+    }
+
+    @ViewBuilder private var insightsCardIfShown: some View {
+        if showInsights {
+            insightsCard
+        }
+    }
+
+    @ViewBuilder private var outlookCardIfShown: some View {
+        if !outlookRows.isEmpty, aiEnabled {
+            outlookCard(outlookRows)
+        }
+    }
+
+    @ViewBuilder private var patternsCardIfShown: some View {
+        if let patterns, aiEnabled {
+            patternsCard(patterns)
+        }
+    }
+
+    @ViewBuilder private var accuracyCardIfShown: some View {
+        if aiEnabled, timeAccuracy != nil || amountAccuracy != nil || sleepAccuracy != nil {
+            accuracyCard
+        }
+    }
+
+    @ViewBuilder private var careSummaryButtonIfShown: some View {
+        if hasAnyData { careSummaryButton }
     }
 
     // MARK: Wrapped (shareable weekly recap)
@@ -488,14 +598,17 @@ struct StatsView: View {
 
     // MARK: Night shift
 
-    private var nightShiftCard: some View {
+    /// `twoColumn`: leading-aligns the empty line, in line with the card's
+    /// title as the Today, Milestones and Teamwork cards already are; false is
+    /// the phone's layout.
+    private func nightShiftCard(twoColumn: Bool = false) -> some View {
         let shares = engine.nightShift(days: 7)
         let total = shares.reduce(0) { $0 + $1.count }
         return Card(title: "🌙 Night shift · this week") {
             if total == 0 {
                 Text("No night feeds logged this week")
                     .font(.subheadline).foregroundStyle(AppColor.text3)
-                    .frame(maxWidth: .infinity, minHeight: 40)
+                    .frame(maxWidth: .infinity, minHeight: 40, alignment: twoColumn ? .leading : .center)
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     GeometryReader { geo in

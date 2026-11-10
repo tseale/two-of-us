@@ -13,6 +13,10 @@ struct ProfileEditSheet: View {
     @State private var colorHex = ParticipantColors.palette[0]
     @State private var photoData: Data?
     @State private var photoItem: PhotosPickerItem?
+    /// The stored values load once per presentation: `onAppear` can fire
+    /// again while the sheet is up (e.g. iPhone Duo opening or closing), and
+    /// reloading then would wipe unsaved edits.
+    @State private var seeded = false
 
     private var store: EventStore { EventStore(context: context) }
 
@@ -56,7 +60,10 @@ struct ProfileEditSheet: View {
             }
             .onChange(of: photoItem) { _, item in loadPhoto(item) }
             .onAppear {
-                guard let me = store.owner else { return }
+                // Not marked seeded until the profile resolves, so a later
+                // appearance still loads it if it was missing (as before).
+                guard !seeded, let me = store.owner else { return }
+                seeded = true
                 name = me.displayName
                 colorHex = me.colorHex.isEmpty ? ParticipantColors.palette[0] : me.colorHex
                 photoData = me.photoData

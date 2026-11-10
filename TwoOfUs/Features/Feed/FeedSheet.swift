@@ -24,6 +24,10 @@ struct FeedSheet: View {
     @State private var date = Date()
     @State private var note = ""
     @State private var loggedByID: UUID?
+    /// The opening defaults apply once per presentation: `onAppear` can fire
+    /// again while the sheet is up (e.g. iPhone Duo opening or closing), and
+    /// re-running it would snap a chosen chip back to the bottle size.
+    @State private var seeded = false
 
     private var activeParticipants: [Participant] {
         participants.filter(\.isActive).sorted { $0.invitedAt < $1.invitedAt }
@@ -203,6 +207,8 @@ struct FeedSheet: View {
         // opens with a highlighted chip and is one Log tap from the common case
         // (he finished the bottle).
         .onAppear {
+            guard !seeded else { return }
+            seeded = true
             // Open on "me" — assigning to the co-parent is the exception.
             if loggedByID == nil {
                 loggedByID = EventStore(context: context).owner?.id

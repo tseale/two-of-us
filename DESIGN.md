@@ -329,8 +329,11 @@ Subtle and quick. Nothing bounces for attention.
 
 ## 9. Platform & Responsive Behavior
 
-- **Native iOS (SwiftUI), iPhone-first**, iPad supported via the same single-column layouts
-  with wider gutters. Web artifacts from Claude Design are *previews/specs*, not the product —
+- **Native iOS (SwiftUI), iPhone-first.** On roomy displays — iPhone Duo's inner display,
+  iPad — Home, Nighttime, History and Stats reflow into two panes whose seam sits on the
+  display's midline (iPhone Duo's fold); portrait iPhone Duo stacks Home with the log tiles
+  on the bottom half (tabletop). Compact width keeps the single column. See
+  [`docs/IPHONE_DUO.md`](docs/IPHONE_DUO.md) and `Features/Shared/PaneLayout.swift`. Web artifacts from Claude Design are *previews/specs*, not the product —
   frame mockups at iPhone widths (390–430pt) by default.
 - **Dynamic Type to XXL:** layouts reflow, display values shrink to 0.7 before truncating,
   nothing clips. On web, use rem units and test at 1.4× root size.

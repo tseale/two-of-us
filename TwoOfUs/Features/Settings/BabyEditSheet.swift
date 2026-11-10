@@ -16,6 +16,10 @@ struct BabyEditSheet: View {
     @State private var notBornYet = false
     @State private var photoData: Data?      // working copy; committed on Save
     @State private var photoItem: PhotosPickerItem?
+    /// The stored values load once per presentation: `onAppear` can fire
+    /// again while the sheet is up (e.g. iPhone Duo opening or closing), and
+    /// reloading then would wipe unsaved edits.
+    @State private var seeded = false
 
     private var store: EventStore { EventStore(context: context) }
 
@@ -74,6 +78,8 @@ struct BabyEditSheet: View {
                 }
             }
             .onAppear {
+                guard !seeded else { return }
+                seeded = true
                 name = baby.name
                 dob = baby.dateOfBirth
                 notBornYet = !baby.isBorn

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import SwiftData
 
 /// Routes between the three top-level worlds and owns the transitions between
@@ -33,6 +34,11 @@ struct RootView: View {
     /// shifts Home right as it's touched. Quick app switches never trigger it.
     @State private var backgroundedAt: Date?
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.verticalSizeClass) private var vSize
+    /// The page before iPhone Duo's fold while the screen is `.wide` (open in
+    /// landscape; iPad), measured once here for every screen below.
+    @State private var measuredLeadingPage: CGFloat?
 
     /// Half an hour: long enough that bouncing out to Messages and back never
     /// shows a curtain, short enough to catch the post-nap and overnight
@@ -44,6 +50,12 @@ struct RootView: View {
         if ProcessInfo.processInfo.arguments.contains("-forceResumeCurtain") { return 0 }
         #endif
         return 30 * 60
+    }
+
+    /// `measuredLeadingPage`, but only while the size classes aren't compact
+    /// (a stale measurement must not linger after closing the phone).
+    private var leadingPage: CGFloat? {
+        ScreenShape.isCompact(horizontal: hSize, vertical: vSize) ? nil : measuredLeadingPage
     }
 
     private var needsJoinProfile: Bool {
@@ -82,6 +94,25 @@ struct RootView: View {
         // While the launch curtain is up, the UI underneath must be as
         // unreachable to VoiceOver as it is to touch.
         .accessibilityHidden(!launchDone)
+        // iPhone Duo open in landscape: measure the page before the fold once,
+        // for every centred, one-column screen and banner below (setup flows,
+        // the error banner), which move onto it rather than straddle the
+        // crease. Never built on a phone (compact size classes).
+        .background {
+            if !ScreenShape.isCompact(horizontal: hSize, vertical: vSize) {
+                GeometryReader { proxy in
+                    Color.clear
+                        .onChange(of: PaneLayout.resolve(in: proxy, horizontal: hSize),
+                                  initial: true) { _, layout in
+                            // Only iPhone Duo's inner display has a fold; an
+                            // iPad is `.wide` too but keeps centred columns.
+                            measuredLeadingPage = UIDevice.current.userInterfaceIdiom == .phone
+                                ? layout.leadingPage : nil
+                        }
+                }
+            }
+        }
+        .environment(\.leadingPageWidth, leadingPage)
         .animation(.easeInOut(duration: 0.35), value: route)
         .animation(.easeInOut(duration: 0.35), value: prefs.demoModeEnabled)
         .tint(AppColor.accentFeed)
@@ -220,8 +251,14 @@ struct RootView: View {
         }
         .buttonStyle(.plain)
         .tint(AppColor.urgencyAmber)
+        // A readable line, not one long strip across iPhone Duo's open screen.
+        // Never binds on a phone, where the banner is narrower.
+        .frame(maxWidth: 440)
         .padding(.horizontal, 20)
         .padding(.bottom, 8)
+        // Open in landscape, on the page before the fold (centred in the safe
+        // area it would straddle it); centred everywhere else, as before.
+        .modifier(LeadingPageColumn(maxWidth: .infinity, page: leadingPage))
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .accessibilityHint("Double tap to dismiss")
     }

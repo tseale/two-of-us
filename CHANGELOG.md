@@ -6,6 +6,37 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Added — made for iPhone Duo, in every pose
+- **Open, in landscape (flat or folded like a book):** Home becomes two
+  pages — the Today card, log tiles, sleep card and what's up next on the
+  left, the last 24 hours on the right — with the gap between them exactly on
+  the fold, so folding the phone moves nothing and nothing ever sits on the
+  crease. Nighttime puts tonight on the left and the sleep-window plan on the
+  right; History and Stats become two columns (rhythm | daily totals, the
+  glance | this week + AI) with taller charts.
+- **Open, in portrait — and folded like a laptop on the table:** Home puts
+  everything to look at on the top half and the log tiles and sleep card on
+  the bottom half: set the phone down half-open during a feed and tap from the
+  table. During daycare hours the bottom half shows the day's feed instead.
+- **Closed:** the same Home as any iPhone, with the tabs in the side strip.
+  While he sleeps, a shorter sleep card (timer beside the 💤) keeps the Wake
+  slide on screen on the shorter outer display.
+- **Closed and stood on its side (tent):** the app now turns to landscape —
+  the Today card on one side, tiles and sleep card on the other. Every other
+  iPhone stays portrait-only.
+- **Lock Screen and StandBy:** the side Dynamic Island shows 💤 (its timer
+  didn't fit the Duo's narrow island); the sleep Live Activity fills the
+  screen in StandBy, which the Duo enters on a nightstand without a charger;
+  small widgets read across a room there.
+- Setup, join and restore screens keep a readable column on the big display;
+  banners, the undo toast and slide-to-confirm pills no longer stretch across
+  it; the launch curtain blocks taps on the side strip too.
+
+### Fixed
+- Opening or closing the phone (or entering Split View) no longer dismisses
+  an open sheet on Home or resets a half-filled Feed, baby or profile sheet.
+- The Diaper sheet can be dragged up to full height.
+
 ### Changed — faster taps, a lighter Home (nothing looks or behaves differently)
 - Logging confirms sooner: the save happens first and the success haptic,
   toast and sheet dismissal follow right away, while the widget reload,

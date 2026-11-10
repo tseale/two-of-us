@@ -13,6 +13,9 @@ struct JoinFlowView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Compact only on iPhone Duo's outer display stood like a tent (432 pt
+    /// tall) — never on a slab iPhone, which is portrait-only.
+    @Environment(\.verticalSizeClass) private var vSize
 
     @Query private var babies: [Baby]
     @Query(filter: #Predicate<Participant> { $0.isActive }) private var participants: [Participant]
@@ -86,7 +89,11 @@ struct JoinFlowView: View {
     private var helloPage: some View {
         VStack(spacing: 28) {
             Spacer()
-            CradleMark(size: 150, staged: true)
+            // Smaller in the tent pose so the copy clears the page dots and bar.
+            CradleMark(size: vSize == .compact ? 100 : 150, staged: true)
+                // On the same page as its copy when iPhone Duo is open in
+                // landscape (no-op on a phone).
+                .onboardingColumn()
             VStack(spacing: 10) {
                 Text(helloTitle)
                     .font(AppFont.hero(28))
@@ -102,6 +109,7 @@ struct JoinFlowView: View {
             }
             .multilineTextAlignment(.center)
             .padding(.horizontal, 32)
+            .onboardingColumn()   // readable on a wide screen; no-op on a phone
             Spacer()
             Spacer()
         }
@@ -191,6 +199,7 @@ struct JoinFlowView: View {
                 Spacer(minLength: 16)
             }
             .padding(.horizontal, 28)
+            .onboardingColumn()   // readable on a wide screen; no-op on a phone
         }
         .contentMargins(.bottom, OnboardingLayout.barClearance, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
@@ -287,12 +296,18 @@ struct JoinSyncingView: View {
     /// a way out (owner offline, deleted baby, or a dropped fetch).
     private static let patienceWindow: Duration = .seconds(30)
     @State private var tookTooLong = false
+    /// Compact only in the iPhone Duo tent pose (432 pt tall).
+    @Environment(\.verticalSizeClass) private var vSize
 
     var body: some View {
         ZStack {
             AmbientBackground(stop: .nightStage)
             VStack(spacing: 24) {
-                CradleMark(size: 150, staged: true)
+                // Smaller in the tent pose so the escape hatch still fits.
+                CradleMark(size: vSize == .compact ? 100 : 150, staged: true)
+                    // On the same page as its copy when iPhone Duo is open in
+                    // landscape (no-op on a phone).
+                    .onboardingColumn()
                 VStack(spacing: 10) {
                     Text("Bringing everything over…")
                         .font(AppFont.hero(24))
@@ -305,6 +320,7 @@ struct JoinSyncingView: View {
                 }
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
+                .onboardingColumn()   // readable on a wide screen; no-op on a phone
 
                 if tookTooLong { escapeHatch }
             }
@@ -339,6 +355,7 @@ struct JoinSyncingView: View {
             .tint(AppColor.accentFeed)
         }
         .padding(.horizontal, 32)
+        .onboardingColumn()
         .padding(.top, 8)
         .transition(.opacity)
     }

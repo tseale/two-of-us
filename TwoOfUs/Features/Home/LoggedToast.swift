@@ -55,6 +55,10 @@ private struct LoggedToastModifier: ViewModifier {
                 .padding(.vertical, 14)
                 .background(AppColor.card2, in: Capsule())
                 .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
+                // A message and its Undo stay a glance apart on a wide pane
+                // (iPhone Duo's inner display, iPad). Never binds on a phone,
+                // whose widest toast is ≈ 400 pt.
+                .frame(maxWidth: 480)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 8)
                 .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
