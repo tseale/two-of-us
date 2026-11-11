@@ -65,6 +65,10 @@ struct HomeView: View {
     /// The compact list's full height (content + insets ≈ the display's).
     /// Starts roomy so the first frame matches every slab iPhone.
     @State private var compactFullHeight: CGFloat = .infinity
+    /// The compact list's top safe-area inset. Zero only where the status bar
+    /// isn't across the top — iPhone Duo's outer display — which gets a little
+    /// more breathing room. Starts large so every slab iPhone is unchanged.
+    @State private var compactTopInset: CGFloat = .infinity
     /// Start of the current day. Advanced by a task at midnight so the "today"
     /// ribbon, counts, and 24h window refresh even if the app sits foregrounded
     /// across midnight with nothing new logged (a @Query change would otherwise
@@ -254,12 +258,17 @@ struct HomeView: View {
     /// Wake slide stays on screen.
     private var compactList: some View {
         let shortCard = compactFullHeight < PaneLayout.roomyHeight
+        // iPhone Duo's outer display: nothing sits across the top (the status
+        // bar is in the side strip), so the header would hug the display's
+        // edge. Give it room above and slightly wider side margins.
+        let duoOuter = compactTopInset < 1
+        let side: CGFloat = duoOuter ? 20 : 16
         return List {
             Section {
                 header
                     // Small top inset keeps the profile/settings row off the
                     // status bar now the nav bar is hidden.
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 2, trailing: 16))
+                    .listRowInsets(EdgeInsets(top: duoOuter ? 22 : 8, leading: side, bottom: 2, trailing: side))
                 TimelineView(.periodic(from: .now, by: 1)) { ctx in
                     // 12pt matches the tile grid spacing, so the active sleep
                     // card reads as the Sleep row transformed in place.
@@ -314,13 +323,13 @@ struct HomeView: View {
             }
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+            .listRowInsets(EdgeInsets(top: 4, leading: side, bottom: 4, trailing: side))
 
             // The deferred-setup checklist sits where an empty timeline
             // leaves dead space — the logging UI above stays untouched.
-            checklistSection(leading: 16, trailing: 16)
+            checklistSection(leading: side, trailing: side)
 
-            timelineSection()
+            timelineSection(leading: side, trailing: side)
         }
         .listStyle(.plain)
         .background(AppColor.bg)
@@ -328,6 +337,11 @@ struct HomeView: View {
         // The display's full height picks the sleep card's layout — measured,
         // never assumed from the device. A clear layer that ignores the safe
         // area spans the whole display whichever way the list itself sizes.
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.safeAreaInsets.top
+        } action: { inset in
+            compactTopInset = inset
+        }
         .background {
             Color.clear
                 .ignoresSafeArea()
