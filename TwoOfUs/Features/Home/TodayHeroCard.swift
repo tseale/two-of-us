@@ -196,16 +196,24 @@ struct TodayHeroCard: View {
                 // the diaper column dead-center (see its doc) and reports an
                 // ideal of slots×widest, so the ladder drops a size the
                 // moment the widest column couldn't hold a third.
+                // Between the centered tiers sit justified ones (outer
+                // columns flush to the card edges, the middle floating
+                // between): a wide live caption ("sleeping · 2h 35m") on a
+                // narrow display — iPhone Duo's outer one — used to blow the
+                // centered row's symmetric budget and drop all three stats
+                // to the stacked floor.
                 ViewThatFits(in: .horizontal) {
                     totalsRow(valueSize: 28, rigid: true)
                     totalsRow(valueSize: 25, rigid: true)
+                    justifiedTotalsRow(valueSize: 25)
                     totalsRow(valueSize: 22, rigid: true)
-                    totalsRow(valueSize: 19, rigid: true)
+                    justifiedTotalsRow(valueSize: 22)
+                    justifiedTotalsRow(valueSize: 19)
                     // The floor, for accessibility text sizes: the three
                     // stats stack vertically — still full-size, still whole,
-                    // never truncated.
+                    // never truncated, all flush to one leading edge.
                     VStack(alignment: .leading, spacing: 10) {
-                        totalsColumns(valueSize: 27, rigid: true)
+                        totalsColumns(valueSize: 27, rigid: true, stacked: true)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -299,25 +307,34 @@ struct TodayHeroCard: View {
         }
     }
 
-    /// The same three columns bare, for the stacked accessibility floor.
-    @ViewBuilder
-    private func totalsColumns(valueSize: CGFloat, rigid: Bool) -> some View {
-        if showFeed { feedColumn(valueSize: valueSize, rigid: rigid) }
-        if showDiaper { diaperColumn(valueSize: valueSize, rigid: rigid) }
-        if showSleep { sleepColumn(valueSize: valueSize, rigid: rigid) }
+    /// A tight tier: outer columns flush to the card edges, the middle
+    /// centered when it can be, nudged toward the narrower side when not.
+    private func justifiedTotalsRow(valueSize: CGFloat) -> some View {
+        JustifiedRow(spacing: 12) {
+            totalsColumns(valueSize: valueSize, rigid: true)
+        }
     }
 
-    private func feedColumn(valueSize: CGFloat, rigid: Bool) -> some View {
+    /// The same three columns bare, for the stacked accessibility floor.
+    @ViewBuilder
+    private func totalsColumns(valueSize: CGFloat, rigid: Bool,
+                               stacked: Bool = false) -> some View {
+        if showFeed { feedColumn(valueSize: valueSize, rigid: rigid, stacked: stacked) }
+        if showDiaper { diaperColumn(valueSize: valueSize, rigid: rigid, stacked: stacked) }
+        if showSleep { sleepColumn(valueSize: valueSize, rigid: rigid, stacked: stacked) }
+    }
+
+    private func feedColumn(valueSize: CGFloat, rigid: Bool, stacked: Bool) -> some View {
         totalColumn(.feed,
                     active: feedCount > 0,
                     segments: feedCount > 0
                         ? [(OzFormat.string(feedOz), false), (" oz", true)]
                         : [("—", false)],
                     caption: feedCount > 0 ? Plural.count(feedCount, "feed") : "no feeds yet",
-                    valueSize: valueSize, rigid: rigid)
+                    valueSize: valueSize, rigid: rigid, stacked: stacked)
     }
 
-    private func diaperColumn(valueSize: CGFloat, rigid: Bool) -> some View {
+    private func diaperColumn(valueSize: CGFloat, rigid: Bool, stacked: Bool) -> some View {
         totalColumn(.diaper,
                     active: diaperCount > 0,
                     segments: diaperCount > 0
@@ -325,15 +342,15 @@ struct TodayHeroCard: View {
                            (diaperCount == 1 ? " diaper" : " diapers", true)]
                         : [("—", false)],
                     caption: diaperCaption,
-                    valueSize: valueSize, rigid: rigid)
+                    valueSize: valueSize, rigid: rigid, stacked: stacked)
     }
 
-    private func sleepColumn(valueSize: CGFloat, rigid: Bool) -> some View {
+    private func sleepColumn(valueSize: CGFloat, rigid: Bool, stacked: Bool) -> some View {
         totalColumn(.sleep,
                     active: sleepingSince != nil || sleepSeconds > 0,
                     segments: sleepSegments,
                     caption: "sleep",
-                    valueSize: valueSize, rigid: rigid,
+                    valueSize: valueSize, rigid: rigid, stacked: stacked,
                     liveSleep: sleepingSince != nil)
     }
 
@@ -353,9 +370,11 @@ struct TodayHeroCard: View {
 
     private func totalColumn(_ stat: Stat, active: Bool,
                              segments: [(String, Bool)], caption: String,
-                             valueSize: CGFloat, rigid: Bool,
+                             valueSize: CGFloat, rigid: Bool, stacked: Bool = false,
                              liveSleep: Bool = false) -> some View {
-        VStack(spacing: 2) {
+        // Stacked, every value and caption shares one leading edge; in a
+        // row, each caption centers under its number.
+        VStack(alignment: stacked ? .leading : .center, spacing: 2) {
             // No emoji here: the strip above already tells each event's story
             // in glyphs, and the accent-inked numeral + caption identify the
             // stat on their own. The numbers get the whole stage. (Glance
@@ -808,10 +827,27 @@ private struct DayFlowStrip: View {
                         let path = Path(roundedRect: rect, cornerRadius: bandH / 2)
                         ctx.fill(path, with: .color(DaycareZoneStyle.base.opacity(DaycareZoneStyle.fillOpacity)))
                         ctx.stroke(path, with: .color(DaycareZoneStyle.base.opacity(0.4)), lineWidth: 1.5)
-                        let glyph = ctx.resolve(Text(Image(systemName: "building.2.fill"))
-                            .font(.system(size: 7, weight: .semibold))
-                            .foregroundStyle(DaycareZoneStyle.base))
-                        ctx.draw(glyph, at: CGPoint(x: rect.minX + 8, y: rect.midY), anchor: .center)
+                        // The building glyph only where it has the zone's
+                        // start to itself — a nap beginning right after
+                        // drop-off would sit on top of it.
+                        let glyphX = rect.minX + 8
+                        func coversGlyph(from: Double, to: Double) -> Bool {
+                            let s = span(from: from, to: to, minWidth: 0)
+                            return s.x < glyphX + 8 && s.x + s.width > glyphX - 6
+                        }
+                        var napsAtStart = marks.contains { mark in
+                            mark.kind == .sleep
+                                && coversGlyph(from: hour(mark.start), to: hour(mark.end ?? now))
+                        }
+                        if let start = liveNapStartedAt, coversGlyph(from: hour(start), to: nowH) {
+                            napsAtStart = true
+                        }
+                        if rect.width > 24, !napsAtStart {
+                            let glyph = ctx.resolve(Text(Image(systemName: "building.2.fill"))
+                                .font(.system(size: 7, weight: .semibold))
+                                .foregroundStyle(DaycareZoneStyle.base))
+                            ctx.draw(glyph, at: CGPoint(x: glyphX, y: rect.midY), anchor: .center)
+                        }
                     }
 
                     // Naps (overnight tail clips to the window's left edge)
@@ -832,25 +868,53 @@ private struct DayFlowStrip: View {
 
                     // Feeds above, diapers below — each event as its emoji, so the
                     // strip reads at a glance (🍼 lands before "feed" does).
-                    func emojiMark(_ h: Double, _ emoji: String, above: Bool) {
+                    // Events closer than a glyph's width merge into ONE emoji
+                    // with a small count — a cluster of daycare bottles an
+                    // hour apart used to pile into an overlapping smear.
+                    func emojiMarks(_ items: [(h: Double, emoji: String)], above: Bool) {
                         let y = above ? bandY - 8 : bandY + bandH + 8
-                        let glyph = ctx.resolve(Text(emoji).font(.system(size: 10)))
                         // A future-skewed timestamp lands on now, never past
                         // it; then clamp inside the strip so an event at the
                         // window's edge doesn't draw a half-clipped glyph.
-                        let gx = x(min(h, nowH))
-                        ctx.draw(glyph, at: CGPoint(x: min(max(gx, 6), size.width - 6), y: y),
-                                 anchor: .center)
+                        let placed: [(x: CGFloat, emoji: String)] = items
+                            .map { item -> (x: CGFloat, emoji: String) in
+                                let gx = x(min(item.h, nowH))
+                                return (x: min(max(gx, 6), size.width - 6), emoji: item.emoji)
+                            }
+                            .sorted { $0.x < $1.x }
+                        var clusters: [[(x: CGFloat, emoji: String)]] = []
+                        for item in placed {
+                            if let last = clusters.last?.last, item.x - last.x < 14 {
+                                clusters[clusters.count - 1].append(item)
+                            } else {
+                                clusters.append([item])
+                            }
+                        }
+                        for cluster in clusters {
+                            let cx = cluster.reduce(CGFloat(0)) { $0 + $1.x } / CGFloat(cluster.count)
+                            // 💩 wins a mixed diaper cluster — the saltier news.
+                            let emoji = cluster.contains { $0.emoji == "💩" } ? "💩"
+                                : cluster[0].emoji
+                            let glyph = ctx.resolve(Text(emoji).font(.system(size: 10)))
+                            if cluster.count == 1 {
+                                ctx.draw(glyph, at: CGPoint(x: cx, y: y), anchor: .center)
+                            } else {
+                                let badge = ctx.resolve(Text("\(cluster.count)")
+                                    .font(.system(size: 8, weight: .bold, design: .rounded))
+                                    .foregroundStyle(AppColor.text2))
+                                let gx = min(max(cx, 8), size.width - 14)
+                                ctx.draw(glyph, at: CGPoint(x: gx - 3, y: y), anchor: .center)
+                                ctx.draw(badge, at: CGPoint(x: gx + 4, y: y + 1), anchor: .leading)
+                            }
+                        }
                     }
-                    for mark in marks where mark.kind == .feed {
-                        emojiMark(hour(mark.start), "🍼", above: true)
-                    }
-                    for mark in marks where mark.kind == .diaper {
-                        // A .both diaper shows 💩 — the saltier half of the news.
-                        emojiMark(hour(mark.start),
-                                  mark.diaperType == .wet ? "💧" : "💩",
-                                  above: false)
-                    }
+                    emojiMarks(marks.filter { $0.kind == .feed }
+                                    .map { (h: hour($0.start), emoji: "🍼") },
+                               above: true)
+                    // A .both diaper shows 💩 — the saltier half of the news.
+                    emojiMarks(marks.filter { $0.kind == .diaper }
+                                    .map { (h: hour($0.start), emoji: $0.diaperType == .wet ? "💧" : "💩") },
+                               above: false)
 
                     // The "now" edge, marked even outside a sleep
                     if glowStart == nil {
@@ -976,6 +1040,46 @@ private struct EqualSlotRow: Layout {
         rightX = max(rightX, midX + midHalf + spacing + rightHalf)
         rightX = min(rightX, bounds.maxX - rightHalf)
         subviews[2].place(at: CGPoint(x: rightX, y: bounds.minY),
+                          anchor: .top, proposal: .unspecified)
+    }
+}
+
+/// The tight fallback for the totals: first and last columns flush to the
+/// card's edges, the middle centered on the card when it fits there and
+/// otherwise centered in the gap between its neighbours. Its ideal width is
+/// just the columns plus two gaps — no symmetric budget — so a single wide
+/// column (a live sleep caption) no longer forces the stacked floor.
+private struct JustifiedRow: Layout {
+    var spacing: CGFloat = 12
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews,
+                      cache: inout ()) -> CGSize {
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        let ideal = sizes.map(\.width).reduce(0, +)
+            + spacing * CGFloat(max(0, sizes.count - 1))
+        return CGSize(width: max(ideal, proposal.width ?? ideal),
+                      height: sizes.map(\.height).max() ?? 0)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize,
+                       subviews: Subviews, cache: inout ()) {
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        guard let first = subviews.first, let last = subviews.last else { return }
+        if subviews.count == 1 {
+            first.place(at: CGPoint(x: bounds.midX, y: bounds.minY),
+                        anchor: .top, proposal: .unspecified)
+            return
+        }
+        first.place(at: CGPoint(x: bounds.minX, y: bounds.minY),
+                    anchor: .topLeading, proposal: .unspecified)
+        last.place(at: CGPoint(x: bounds.maxX, y: bounds.minY),
+                   anchor: .topTrailing, proposal: .unspecified)
+        guard subviews.count == 3 else { return }
+        let half = sizes[1].width / 2
+        let lo = bounds.minX + sizes[0].width + spacing + half
+        let hi = bounds.maxX - sizes[2].width - spacing - half
+        let midX = lo <= hi ? min(max(bounds.midX, lo), hi) : (lo + hi) / 2
+        subviews[1].place(at: CGPoint(x: midX, y: bounds.minY),
                           anchor: .top, proposal: .unspecified)
     }
 }
