@@ -41,6 +41,15 @@ struct SleepLaneColumn: View {
         CGFloat(laneCount) * laneWidth + CGFloat(max(0, laneCount - 1)) * laneSpacing
     }
 
+    /// A parent's band colour: their own tint, flattened (see `bandAlpha`) —
+    /// or a neutral gray for a parent with none. One rule, here, so the same
+    /// sleep wears the same colour wherever it is drawn: these bands, and
+    /// the plan's to-scale strip (`NightPlanStrip`).
+    static func bandTint(colorHex: String) -> Color {
+        Color(hex: colorHex.isEmpty ? "636366" : colorHex)
+            .flattened(over: AppColor.row, alpha: bandAlpha)
+    }
+
     let lanes: [Lane]
     let slices: [SleepLaneLayout.Slice]
     /// Band tap → the covering window's per-night actions; nil = inert (NOW cap).
@@ -60,8 +69,7 @@ struct SleepLaneColumn: View {
 
     private func laneView(_ lane: Lane, index: Int) -> some View {
         let slice = index < slices.count ? slices[index] : SleepLaneLayout.Slice()
-        let tint = Color(hex: lane.colorHex.isEmpty ? "636366" : lane.colorHex)
-            .flattened(over: AppColor.row, alpha: Self.bandAlpha)
+        let tint = Self.bandTint(colorHex: lane.colorHex)
         return GeometryReader { geo in
             ZStack(alignment: .topLeading) {
                 ForEach(slice.runs.indices, id: \.self) { i in

@@ -1,8 +1,8 @@
 # Two of Us — Design
 
-**Status**: v1 design — locked June 5, 2026 · amended June 12, 2026 to match the implementation (day ribbon replaced the day-arc concept; HTML mockup retired in favor of the design-language spec)
+**Status**: v1 design — locked June 5, 2026 · amended June 12, 2026 to match the implementation (day ribbon replaced the day-arc concept; HTML mockup retired in favor of the design-language spec) · amended November 12, 2026 for iPhone Duo (the ground and the light — see Surfaces & depth)
 **Principle**: calm, not clinical. One-thumb operable. Readable at a glance, at 3am, holding a baby.
-**Platforms**: iPhone + iPad · **Appearance**: light + dark, follows the iOS system setting.
+**Platforms**: iPhone (iPhone Duo included — its layouts are in [`IPHONE_DUO.md`](IPHONE_DUO.md)) + iPad · **Appearance**: light + dark, follows the iOS system setting.
 
 The portable design-language spec — used for Claude Design collaboration and as the visual reference — lives at [`DESIGN.md`](../DESIGN.md) (repo root). It is extracted from the implementation; this document covers iOS screen flows and behavior.
 
@@ -45,8 +45,10 @@ Two type families, by role (helpers in `DesignSystem/Typography.swift`):
 ### Surfaces & depth (hierarchy through glass)
 Liquid Glass signals *elevation and interactivity*, not decoration. Reserve it for the floating/tappable layer:
 - **Glass** (`glassTile`/`glassCard`, `glassEffect`): the log tiles, the active-sleep card, the tab bar.
-- **Solid surface** (`surfaceCard()` — `card` fill + hairline): calm content you read but don't tap — data cards, timeline. This keeps the glass elements visually on top.
+- **Solid surface** (`surfaceCard()` — `card` fill + hairline): calm content you read but don't tap — data cards, timeline. This keeps the glass elements visually on top. On iPhone Duo's open pages the timeline is one such card (`JournalCard`).
 Don't stack glass on glass. The Stats "record" hero keeps its indigo gradient as the one intentional delight surface.
+
+**The ground.** The everyday screens sit on flat `bg`. The one exception is iPhone Duo, where the ground carries **the light** (`CradleField`) — the `CradleMark` at the size of the phone: a faint pool of each parent's accent behind each leaf of the open display (periwinkle leading, teal trailing) and, while he sleeps, a cream glow in the hinge between them. Falling asleep dims the pools; it never brightens the room. Closed, the cover keeps flat `bg` — in dark mode, black with only a faint bloom on the hinge edge while he sleeps. The light is ground, not a surface: no card or control wears it, glass and solid surfaces sit on it exactly as they sit on `bg`, it is hidden from VoiceOver and never takes a touch. It turns off (plain `bg`) under Reduce Transparency, Increase Contrast and Low Power Mode, and no slab iPhone or iPad ever draws it. So far it is behind the spread of every tab (and the dark cover). Numbers and rules: [`IPHONE_DUO.md`](IPHONE_DUO.md) → "The light".
 
 ### Spacing & shape
 8-pt rhythm. Corner radii: cards/sheets 16–26, big tap targets 20, pills 16. Generous padding around tap targets — minimum 44×44pt hit area, the primary log buttons are far larger.
@@ -75,6 +77,7 @@ Every screen specifies its **empty**, **loading**, and **error** states — not 
 - **Empty**: "No events yet — tap 🍼 to log Miller's first feed."
 - **Loading**: initial CloudKit fetch shows a light skeleton, but local data renders immediately (offline-first).
 - **Error**: a non-blocking banner if sync fails ("Not syncing — check iCloud"); logging still works locally.
+- **iPhone Duo**: the same pieces in two more arrangements. Closed, *the cover*: this screen. Open in landscape, *the spread*: two phone-width pages either side of the fold — name, Today card and actions on the leading page, the timeline as a journal card on the trailing one — over the light. In both, the running timer card takes the Sleep row's exact size, so nothing else moves when he falls asleep. See [`IPHONE_DUO.md`](IPHONE_DUO.md).
 
 ### 2. Feed sheet
 Bottom sheet. Oz presets (from `ozPresets`, default 2/3/4) + custom amount field. A **time control** defaults to "now" with quick "15 min ago / pick time" backdating. The Log button shows the resulting next-bottle reminder time. One tap on a preset can log-and-dismiss.
@@ -123,6 +126,8 @@ Timeline reloads on a schedule and on relevant updates. Widgets read shared data
 
 ## Motion
 Subtle and quick. Sheets use the standard system presentation. Timer digits animate via monospaced text only (no bouncing). Respect **Reduce Motion** — drop non-essential transitions.
+
+iPhone Duo's light is slow on purpose: a 1.2 s cross-fade when he falls asleep or wakes, and a hinge light that breathes with the day strip's live-sleep glow (2.6 s). Under Reduce Motion the change cuts and the light holds still.
 
 ---
 

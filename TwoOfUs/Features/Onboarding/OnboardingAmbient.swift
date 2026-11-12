@@ -36,6 +36,12 @@ extension AmbientStop {
 /// color interpolation across that much luminance can shortcut through gray).
 struct AmbientBackground: View {
     let stop: AmbientStop
+    /// Stands both washes on the display's vertical midline instead of
+    /// leaning one to each side. For a screen whose mark is on iPhone Duo's
+    /// spine (the display's midline is its crease): the lamp-warm pool then
+    /// lies under the mark, not under one page. Off everywhere else, where
+    /// the washes are where they always were.
+    var onSpine = false
     @Environment(\.colorScheme) private var scheme
 
     // On the dark stage the washes carry different weight on purpose: the warm
@@ -67,13 +73,13 @@ struct AmbientBackground: View {
                     .fill(stop.top)
                     .frame(width: 560, height: 560)
                     .blur(radius: 120)
-                    .offset(x: -130, y: -280)
+                    .offset(x: onSpine ? 0 : -130, y: -280)
                     .opacity(topWashOpacity)
                 Circle()
                     .fill(stop.bottom)
                     .frame(width: 500, height: 500)
                     .blur(radius: 110)
-                    .offset(x: 150, y: 320)
+                    .offset(x: onSpine ? 0 : 150, y: 320)
                     .opacity(bottomWashOpacity)
                 // Stars only read on a genuinely dark base, so keep them to dark
                 // mode — in light mode the cream points would vanish on the bg.

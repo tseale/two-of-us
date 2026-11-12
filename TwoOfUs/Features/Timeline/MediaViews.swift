@@ -7,6 +7,9 @@ import SwiftUI
 struct MediaThumbnail: View {
     let event: MediaEvent
     var size: CGFloat = 44
+    /// 8 pt on a timeline row; larger where the thumbnail is a tile of its
+    /// own (the Today card's daycare photos on iPhone Duo's open display).
+    var cornerRadius: CGFloat = 8
 
     var body: some View {
         Group {
@@ -27,9 +30,9 @@ struct MediaThumbnail: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
         .overlay {
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: cornerRadius)
                 .strokeBorder(AppColor.separator.opacity(0.5), lineWidth: 0.5)
         }
         .overlay(alignment: .bottomTrailing) {

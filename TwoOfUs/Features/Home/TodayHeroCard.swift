@@ -47,6 +47,15 @@ enum CheckinSlot: Equatable {
     case homeToday        // "home today" active: one quiet line with an undo
     case partnerAtDaycare // the OTHER phone is inside the fence: status line, no slider
     case hidden           // non-operating day, outside the fence/window, past the close
+
+    /// Whether the slot draws anything at all: `.hidden` collapses it, and
+    /// after pick-up the daycare row already carries the times.
+    var isShown: Bool {
+        switch self {
+        case .hidden, .pickedUp: false
+        case .dropOff, .pickUp, .homeToday, .partnerAtDaycare: true
+        }
+    }
 }
 
 struct TodayHeroCard: View {
@@ -107,6 +116,62 @@ struct TodayHeroCard: View {
     /// collapse the row to its stacked floor — ≈ 100 pt taller, pushing the
     /// Wake slide off screen.
     var condensedLiveCaption = false
+    /// The day strip's height: 62 pt wherever the card hugs its content (every
+    /// phone). In filling mode it is the strip's floor.
+    var stripHeight: CGFloat = 62
+    /// Filling mode — a page of iPhone Duo's open display, where the last
+    /// surface must end exactly on the page's foot line: the card takes all
+    /// the height it is offered instead of hugging its content. The strip
+    /// absorbs the slack first (from `stripHeight` up to `stripHeightCap`);
+    /// any more is shared evenly above and below the strip and totals (and,
+    /// when the card is the whole page, between them too), with the daycare
+    /// recap and the check slot kept at the card's bottom.
+    /// Offered no particular height (a list row, a page scrolling at a large
+    /// text size) it is simply the card at `stripHeight`.
+    var fillsHeight = false
+    /// The day's daycare photos, newest first. A card that is a whole page
+    /// has the room to show them — up to three tiles in its daycare block,
+    /// between the place's name and what staff logged — where the phone's
+    /// card can only count them (📸 3). HomeView passes them for exactly that
+    /// card: the leading page of iPhone Duo's open display, during daycare
+    /// hours. Empty — no tiles — everywhere else.
+    var daycarePhotos: [MediaEvent] = []
+    /// A tap on any photo tile: opens the day's photos in the viewer.
+    var onOpenPhotos: (() -> Void)? = nil
+    /// Which of the card's layers it draws. Everything, on every phone
+    /// (`.all`). On iPhone Duo's open display, while the log tiles share the
+    /// card's page, that page has exactly the room for the day — strip and
+    /// totals — above the tiles, and nothing on it may move between states.
+    /// So there the card is the day alone (`.day`), and its daycare layer —
+    /// the recap rows and the check slot — leads the page beside it, drawn by
+    /// a second card that is that layer and nothing else (`.daycare`).
+    var layers: Layers = .all
+
+    enum Layers {
+        case all, day, daycare
+    }
+
+    /// Whether a card with this daycare day and check slot has a daycare
+    /// layer to draw at all — so a page that hosts the layer on its own
+    /// (`layers: .daycare`) knows when there is nothing to host.
+    static func hasDaycareLayer(daycare: DaycareDaySummary, checkinSlot: CheckinSlot) -> Bool {
+        !daycare.isEmpty || checkinSlot.isShown
+    }
+
+    /// The tallest the strip grows in filling mode: past this the track
+    /// stops reading as one line of the day.
+    static let stripHeightCap: CGFloat = 110
+    /// The space between the card's parts: the "Today" line, the strip and
+    /// totals, the daycare layer, the check slot.
+    private static let cardSpacing: CGFloat = 16
+    /// The photo tiles: always three slots across, so one photo is the size
+    /// three would be; the last tile carries "+N" for the rest of the day's.
+    private static let photoTileCount = 3
+    private static let photoTileRadius: CGFloat = 14
+    /// Filling mode: the sunrise band keeps the depth it has on the phone's
+    /// card — the top quarter of a card about this tall — however far down
+    /// the page the card runs.
+    private static let filledWashReference: CGFloat = 214
 
     private enum Stat { case feed, diaper, sleep }
     @State private var popped: Set<Stat> = []
@@ -117,6 +182,16 @@ struct TodayHeroCard: View {
 
     /// Any sleep in progress — Brightwheel's or a parent-logged one.
     private var sleepingSince: Date? { liveNapStartedAt ?? activeSleepStartedAt }
+
+    /// The card is a whole page of iPhone Duo's open display: it fills the
+    /// height it is given AND draws every layer — which is the leading page
+    /// during daycare hours, when the log tiles are away and the card has
+    /// the page to itself. There the day is laid out for the room it has:
+    /// larger totals, and the strip and totals spread evenly down the page
+    /// rather than bunched in its middle. Never true on a phone (no phone
+    /// card fills), nor for the page's card while the tiles share its page
+    /// (`.day`).
+    private var isWholePage: Bool { fillsHeight && layers == .all }
 
     /// Seconds of the Brightwheel nap still running — counted into the sleep
     /// totals live (its SleepEvent only lands when staff log the wake).
@@ -159,11 +234,20 @@ struct TodayHeroCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        if layers == .daycare {
+            daycareLayerCard
+        } else {
+            card
+        }
+    }
+
+    /// The Today card itself — every layout's.
+    private var card: some View {
+        VStack(alignment: .leading, spacing: Self.cardSpacing) {
             // The readout combines into ONE VoiceOver element (the summary
             // below); the check buttons stay outside it so they remain
             // focusable and activatable — the SleepActiveCard lesson.
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: Self.cardSpacing) {
             HStack(alignment: .firstTextBaseline) {
                 // "Today", not "<name>'s Day" — his name sits right above in
                 // the profile header. Rounded title3 like the log tiles'
@@ -182,11 +266,28 @@ struct TodayHeroCard: View {
             }
 
             // The day's actual shape, then its totals as three plain numbers.
-            VStack(spacing: 14) {
+            //
+            // A card that is a whole page (`isWholePage`) spreads the two
+            // out: the room left once the strip has grown to its cap is
+            // shared evenly above the strip, between strip and totals, and
+            // under the totals — three equal gaps, where every other card
+            // keeps the pair 14 pt apart. The spacers exist only on that
+            // card; everywhere else this is the stack it always was.
+            VStack(spacing: isWholePage ? 0 : 14) {
+                if isWholePage {
+                    Spacer(minLength: Self.cardSpacing)
+                }
                 DayFlowStrip(marks: marks, zone: zone,
                              liveNapStartedAt: liveNapStartedAt,
                              glowStart: sleepingSince, now: now)
-                    .frame(height: 62)
+                    .modifier(DayStripHeight(height: stripHeight, fills: fillsHeight))
+                    // On the page the strip takes its height before the gaps
+                    // take theirs. (0 is the default priority: no change
+                    // anywhere else.)
+                    .layoutPriority(isWholePage ? 1 : 0)
+                if isWholePage {
+                    Spacer(minLength: 14)
+                }
                 // Tiered sizing, never truncation: minimumScaleFactor does
                 // NOT reliably scale a concatenated multi-font Text — it
                 // truncates ("10 diape…", the TestFlight bug) — so the rigid
@@ -197,6 +298,13 @@ struct TodayHeroCard: View {
                 // ideal of slots×widest, so the ladder drops a size the
                 // moment the widest column couldn't hold a third.
                 ViewThatFits(in: .horizontal) {
+                    // The ladder's head: 34 pt on a card that is a whole
+                    // page, where the numbers have the room to be the page's
+                    // headline. On every other card it is 28 — the same tier
+                    // as the next one, so the ladder there is the ladder it
+                    // always was (a row that doesn't fit at 28 doesn't fit
+                    // twice, and steps down to 25 as before).
+                    totalsRow(valueSize: isWholePage ? 34 : 28, rigid: true)
                     totalsRow(valueSize: 28, rigid: true)
                     totalsRow(valueSize: 25, rigid: true)
                     totalsRow(valueSize: 22, rigid: true)
@@ -210,30 +318,64 @@ struct TodayHeroCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxWidth: .infinity)
+                if isWholePage {
+                    Spacer(minLength: Self.cardSpacing)
+                }
             }
+            // Filling mode: this block is what stretches. The strip takes the
+            // extra height up to its cap; beyond that the strip and totals
+            // sit centred in the room that's left — or, on a whole page,
+            // spread through it.
+            .modifier(FillsOfferedHeight(active: fillsHeight))
+            // The three gaps are only equal if the outer two are measured
+            // from the block's neighbours — the "Today" line above, the
+            // daycare block below — not from the card's own spacing inside
+            // them. So on the page the block reaches across that spacing on
+            // both sides, and its outer spacers stand in for it (their
+            // minimum is that spacing: with no room to share, the card is
+            // exactly as tall as it would be without any of this).
+            .padding(.vertical, isWholePage ? -Self.cardSpacing : 0)
 
-            // The daycare recap — what staff logged since drop-off (the
-            // totals + strip above already carry the home side). A pure
-            // home day ends at the totals. Photos save individually from
-            // the timeline; the recap only counts them.
-            if !daycare.isEmpty {
-                bottomSection
+            // The daycare layer — unless the page beside this card's draws
+            // it instead (`layers`).
+            if layers == .all {
+                if !daycarePhotos.isEmpty {
+                    // A page's card during daycare hours: the daycare block
+                    // with today's photos as tiles — the place and its
+                    // window, the photos, what staff logged. Never on a
+                    // phone (no photos are passed there).
+                    photoBlock
+                } else if !daycare.isEmpty {
+                    // The daycare recap — what staff logged since drop-off
+                    // (the totals + strip above already carry the home
+                    // side). A pure home day ends at the totals. Photos save
+                    // individually from the timeline; the recap only counts
+                    // them.
+                    bottomSection
+                }
             }
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(accessibilitySummary)
+            // The photo tiles are touch targets only (hidden from VoiceOver,
+            // or the three of them would merge into this element as unnamed
+            // actions): VoiceOver opens the photos through one named action
+            // on the element instead.
+            .modifier(PhotosAccessibilityAction(
+                onPage: fillsHeight,
+                action: layers == .all && !daycarePhotos.isEmpty ? onOpenPhotos : nil))
 
             // Manual check-in/out, weekdays only: the drop-off slide →
             // the pick-up slide → gone for the day. Each confirms by one
             // deliberate sweep — you're holding a baby and a bag, and a
             // pocket tap must never log a check.
-            if checkinSlot != .hidden {
+            if checkinSlot != .hidden, layers == .all {
                 checkSlot
                     .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
             }
         }
         .padding(16)
-        .background {
+        .background(alignment: .top) {
             // The storybook wash, as a sunrise band: the three event accents
             // across the top of the card in the totals' own order (feed teal
             // → diaper peach → sleep lavender), fading out high so the body
@@ -247,6 +389,12 @@ struct TodayHeroCard: View {
                 .mask(LinearGradient(stops: [.init(color: .white, location: 0),
                                              .init(color: .clear, location: 0.25)],
                                      startPoint: .top, endPoint: .bottom))
+                // A card filling a page is far taller than its content: the
+                // band stays a band at the card's top (it has faded out long
+                // before this frame's own bottom edge). Otherwise the wash
+                // spans the card exactly as before — no limit, and the top
+                // alignment changes nothing for a layer that fills.
+                .frame(maxHeight: fillsHeight ? Self.filledWashReference : nil)
         }
         .surfaceCard(cornerRadius: 18)
         .onChange(of: feedOz) { old, new in if new > old { pop(.feed) } }
@@ -513,6 +661,140 @@ struct TodayHeroCard: View {
         .transition(.opacity.combined(with: .scale(0.96, anchor: .center)))
     }
 
+    // MARK: Daycare photos (a page's card)
+
+    /// The daycare block of a card that is a whole page, under a hairline
+    /// that sets it off from the day's totals: the place and its window as
+    /// the block's heading, today's photos as a row of square tiles (newest
+    /// first), then what staff logged. It is the recap row opened up around
+    /// the photos — same disc, same name, same window, same metrics — so it
+    /// stands in for that row rather than joining it.
+    ///
+    /// A tap on any tile opens the day's photos in the viewer — the pager a
+    /// photo row on the timeline opens. Every slot is a third of the row, so
+    /// a single photo is the size three would be; the third tile stands for
+    /// any photos beyond it ("+4").
+    private var photoBlock: some View {
+        let shown = Array(daycarePhotos.prefix(Self.photoTileCount))
+        let more = daycarePhotos.count - shown.count
+        // The tiles are the photos; the line under them is everything else
+        // staff logged.
+        let logged = recapData.filter { $0.0 != "📸" }
+        return VStack(alignment: .leading, spacing: 10) {
+            Rectangle()
+                .fill(AppColor.separator.opacity(0.5))
+                .frame(height: 0.5)
+                .padding(.bottom, 4)
+            HStack(spacing: 9) {
+                iconDisc("building.2.fill", tint: DaycareZoneStyle.base, bordered: true)
+                Text(daycareName)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppColor.text)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                // "since 8:05" at the trailing edge, on the name's line —
+                // and whole: a long name gives way before a clock does.
+                if let daycareWindowText {
+                    Text(daycareWindowText)
+                        .font(.footnote)
+                        .foregroundStyle(AppColor.text2)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                }
+            }
+            HStack(spacing: 8) {
+                ForEach(0..<Self.photoTileCount, id: \.self) { index in
+                    if index < shown.count {
+                        Button { onOpenPhotos?() } label: {
+                            photoTile(shown[index],
+                                      more: index == Self.photoTileCount - 1 ? more : 0)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        // An empty slot keeps each tile a third of the row.
+                        Color.clear
+                            .aspectRatio(1, contentMode: .fit)
+                    }
+                }
+            }
+            // Rigid: the tiles are squares a third of the card wide at any
+            // card height — the strip above them is what takes up a page's
+            // slack, never these.
+            .fixedSize(horizontal: false, vertical: true)
+            // Touch only. The readout is one VoiceOver element, and it
+            // carries a single "View photos" action for all three.
+            .accessibilityHidden(true)
+            if !logged.isEmpty {
+                recapItems(logged)
+            }
+            medsRow
+        }
+    }
+
+    /// One photo tile: a square slot, the thumbnail filling it. `more` > 0
+    /// dims the photo under "+N" — the photos there was no tile for.
+    private func photoTile(_ photo: MediaEvent, more: Int) -> some View {
+        Color.clear
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                // The thumbnail takes its side from the slot it is given.
+                GeometryReader { slot in
+                    MediaThumbnail(event: photo, size: slot.size.width,
+                                   cornerRadius: Self.photoTileRadius)
+                }
+            }
+            .overlay {
+                if more > 0 {
+                    Text("+\(more)")
+                        .font(.system(.title3, design: .rounded).weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(.black.opacity(0.45),
+                                    in: .rect(cornerRadius: Self.photoTileRadius))
+                }
+            }
+            .contentShape(.rect(cornerRadius: Self.photoTileRadius))
+    }
+
+    // MARK: The daycare layer on its own (a page's lead item)
+
+    /// The card's daycare layer — the recap rows and the check slot — on a
+    /// surface of its own, for the head of the page beside the Today card on
+    /// iPhone Duo's open display (see `layers`). The same rows, slides and
+    /// actions as inside the card; only where they sit differs. It wears the
+    /// shape of that page's other lead items (the Tonight card's padding and
+    /// corners), so the three read as one family.
+    private var daycareLayerCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if !daycare.isEmpty {
+                bottomSection
+                    // One VoiceOver element, as the recap is inside the
+                    // card's readout; the check slot below stays focusable.
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(daycareLayerSummary)
+            }
+            if checkinSlot.isShown {
+                checkSlot
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .surfaceCard(cornerRadius: 14)
+        // Its own hook: "todayCard" stays the one Today card.
+        .accessibilityIdentifier("todayCard.daycare")
+    }
+
+    /// What VoiceOver reads for the recap when it sits on a surface of its
+    /// own: the place, its window, then the card summary's own daycare
+    /// clauses.
+    private var daycareLayerSummary: String {
+        var parts = [daycareName]
+        if let daycareWindowText { parts.append(daycareWindowText) }
+        return (parts + daycareSummaryParts).joined(separator: ", ")
+    }
+
     // MARK: Daycare recap
 
     /// One quiet daycare line: each metric led by its emoji, the same
@@ -552,7 +834,7 @@ struct TodayHeroCard: View {
                     recapLabelWidth = $0
                 }
                 if !recapData.isEmpty {
-                    recapItems
+                    recapItems(recapData)
                 } else if attendingSince != nil {
                     // He's there but Brightwheel hasn't sent anything yet —
                     // say so, instead of a bare "since 7:51" floating alone.
@@ -594,8 +876,7 @@ struct TodayHeroCard: View {
 
     /// The recap metrics at full size: one line when they fit, otherwise
     /// split across two rather than shrinking the type.
-    private var recapItems: some View {
-        let items = recapData
+    private func recapItems(_ items: [(String, String)]) -> some View {
         let split = (items.count + 1) / 2
         return ViewThatFits(in: .horizontal) {
             HStack(spacing: 12) {
@@ -701,6 +982,18 @@ struct TodayHeroCard: View {
         if !today.isEmpty {
             parts.append("today: " + today.joined(separator: ", "))
         }
+        // The daycare layer's clauses go where the layer is drawn: here, or
+        // on the layer's own card beside this one (`layers`).
+        if layers == .all {
+            parts += daycareSummaryParts
+        }
+        return parts.joined(separator: ", ")
+    }
+
+    /// The summary's daycare clauses — what staff logged, and any medication
+    /// — for whichever element carries the daycare layer.
+    private var daycareSummaryParts: [String] {
+        var parts: [String] = []
         var recap: [String] = []
         if daycare.feedCount > 0 {
             recap.append("\(OzFormat.string(daycare.feedOz)) ounces across \(Plural.count(daycare.feedCount, "feed"))")
@@ -721,7 +1014,7 @@ struct TodayHeroCard: View {
         if daycare.medicationCount > 0 {
             parts.append("\(Plural.count(daycare.medicationCount, "medication")) given, see the timeline")
         }
-        return parts.joined(separator: ", ")
+        return parts
     }
 }
 
@@ -737,6 +1030,66 @@ struct TodayHeroCard: View {
 private enum DaycareZoneStyle {
     static let base = AppColor.accentCheck
     static let fillOpacity = 0.12
+}
+
+/// The day strip's height in the card. Fixed wherever the card hugs its
+/// content — every existing layout. In filling mode it flexes from the
+/// caller's height up to the cap, so the strip is the part of the card that
+/// stretches when a page hands it more room than it needs.
+private struct DayStripHeight: ViewModifier {
+    let height: CGFloat
+    let fills: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if fills {
+            content.frame(minHeight: height,
+                          maxHeight: max(height, TodayHeroCard.stripHeightCap))
+        } else {
+            content.frame(height: height)
+        }
+    }
+}
+
+/// Filling mode's other half: lets the strip-and-totals block take whatever
+/// height the card is offered (its content centred in it), which is what
+/// makes the whole card fill. Inactive, it adds nothing at all.
+private struct FillsOfferedHeight: ViewModifier {
+    let active: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if active {
+            content.frame(maxHeight: .infinity)
+        } else {
+            content
+        }
+    }
+}
+
+/// Gives the hero's one VoiceOver element a "View photos" action while the
+/// card shows photo tiles — only ever a card that fills a page. The branch
+/// is on the card's kind (`onPage`), which never changes for a card's life:
+/// every phone's card passes through untouched, and on a page the action
+/// comes and goes inside the modifier — so the day's first photo arriving,
+/// or pick-up taking the tiles away, never swaps the readout out from under
+/// its strip and totals.
+private struct PhotosAccessibilityAction: ViewModifier {
+    let onPage: Bool
+    let action: (() -> Void)?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if onPage {
+            content.accessibilityActions {
+                if let action {
+                    Button("View photos", action: action)
+                }
+            }
+        } else {
+            content
+        }
+    }
 }
 
 private struct DayFlowStrip: View {
@@ -773,6 +1126,10 @@ private struct DayFlowStrip: View {
         }
         let bandY = size.height * 0.32
         let bandH = size.height * 0.30
+        // The event glyphs grow a little with a taller strip (the filling
+        // card on iPhone Duo's page), or they'd be specks beside a thicker
+        // track. At the phone's 62 pt the factor is exactly 1.
+        let markScale = min(max(size.height / 62, 1), 1.4)
         let nowH = hour(now)
         let nowX = x(nowH)
         /// A span's horizontal extent with nothing past the now marker. Both
@@ -833,8 +1190,8 @@ private struct DayFlowStrip: View {
                     // Feeds above, diapers below — each event as its emoji, so the
                     // strip reads at a glance (🍼 lands before "feed" does).
                     func emojiMark(_ h: Double, _ emoji: String, above: Bool) {
-                        let y = above ? bandY - 8 : bandY + bandH + 8
-                        let glyph = ctx.resolve(Text(emoji).font(.system(size: 10)))
+                        let y = above ? bandY - 8 * markScale : bandY + bandH + 8 * markScale
+                        let glyph = ctx.resolve(Text(emoji).font(.system(size: 10 * markScale)))
                         // A future-skewed timestamp lands on now, never past
                         // it; then clamp inside the strip so an event at the
                         // window's edge doesn't draw a half-clipped glyph.
@@ -1036,6 +1393,24 @@ private func previewMarks() -> [RibbonMark] {
         now: .now,
         checkinSlot: .dropOff
     )
+    .padding()
+    .background(AppColor.bg)
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Hero, filling a page") {
+    TodayHeroCard(
+        babyName: "Miller",
+        marks: previewMarks(),
+        feedCount: 3, feedOz: 7, diaperCount: 3, wetCount: 2, dirtyCount: 1,
+        sleepSeconds: 4 * 3600 + 50 * 60,
+        daycare: DaycareDaySummary(),
+        attendingSince: nil,
+        liveNapStartedAt: nil,
+        now: .now,
+        fillsHeight: true
+    )
+    .frame(width: 350, height: 240)
     .padding()
     .background(AppColor.bg)
     .preferredColorScheme(.dark)

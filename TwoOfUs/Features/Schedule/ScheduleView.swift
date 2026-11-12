@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import SwiftData
 
 /// The Nighttime Schedule tab: who's up next, the night's plan on a rail, and
@@ -25,6 +26,8 @@ struct ScheduleView: View {
     private var sleeps: [SleepEvent]
     @Query private var participants: [Participant]
     @Query private var settingsList: [SharedSettings]
+    /// Only for the spread's margin avatar.
+    @Query private var babies: [Baby]
 
     @State private var actionTarget: ScheduleOccurrence?
     @State private var editingSlot: PlanSlot?
@@ -102,6 +105,39 @@ struct ScheduleView: View {
     private func paneContent(_ layout: PaneLayout, now: Date) -> some View {
         switch layout.shape {
         case .wide:
+            // A grid only ever resolves for the phone idiom — iPhone Duo's
+            // inner display. iPad (and a reader too narrow for two pages)
+            // keeps its panes exactly as they were.
+            if let grid = SpreadGrid(layout: layout, isPhone: isPhone) {
+                spread(layout, grid: grid, now: now)
+            } else {
+                widePanes(layout, now: now)
+            }
+        case .tall:
+            // Inner display in portrait / tabletop: one list, held to a
+            // readable width instead of rows stretched 669 pt wide.
+            scheduleList(now: now)
+                .contentMargins(.horizontal, max(0, (layout.size.width - 600) / 2),
+                                for: .scrollContent)
+                .loggedToast($toast)
+        case .short, .compact:
+            // Outer display on its side (tent pose): ~594 pt is room enough
+            // for the single list as it is.
+            scheduleList(now: now)
+        }
+    }
+
+    /// The phone idiom. With a `.wide` layout that is only ever iPhone Duo
+    /// open in landscape: slab iPhones are always compact, and an iPad (which
+    /// resolves `.wide` too) keeps its panes exactly. Never a device-model
+    /// check.
+    private var isPhone: Bool {
+        UIDevice.current.userInterfaceIdiom == .phone
+    }
+
+    /// iPad's `.wide` layout, as it always was.
+    private func widePanes(_ layout: PaneLayout, now: Date) -> some View {
+        Group {
             // Inner display in landscape (flat or book pose), iPad: tonight on
             // the leading pane, the standing plan on the trailing one, the
             // seam on the fold. Both lists inherit the plain style, zero row
@@ -122,18 +158,222 @@ struct ScheduleView: View {
                 }
                 .padding(.top, layout.topBreathingRoom)
             }
-        case .tall:
-            // Inner display in portrait / tabletop: one list, held to a
-            // readable width instead of rows stretched 669 pt wide.
-            scheduleList(now: now)
-                .contentMargins(.horizontal, max(0, (layout.size.width - 600) / 2),
-                                for: .scrollContent)
-                .loggedToast($toast)
-        case .short, .compact:
-            // Outer display on its side (tent pose): ~594 pt is room enough
-            // for the single list as it is.
-            scheduleList(now: now)
         }
+    }
+
+    // MARK: The spread (iPhone Duo open in landscape, flat or like a book)
+
+    /// Nighttime on iPhone Duo's open display in landscape: the two pages
+    /// Home opens on (`SpreadScaffold` draws the light, the avatar and the
+    /// titles). Tonight on the leading page — who's up next, then the night's
+    /// rail on one card down to the foot line; the standing plan on the
+    /// trailing page — its windows, the plan drawn to scale, the night's
+    /// numbers and how it works. The navigation bar is hidden here, so the
+    /// Nighttime settings button sits beside the leading title instead.
+    private func spread(_ layout: PaneLayout, grid: SpreadGrid, now: Date) -> some View {
+        SpreadScaffold(
+            layout: layout, grid: grid, baby: babies.first, toast: $toast,
+            leading: SpreadPage("Nighttime", subtitle: "Tonight") {
+                nightSettingsButton
+            } content: { _ in
+                spreadTonight(now: now)
+            },
+            trailing: SpreadPage("The plan", subtitle: "Your sleep, planned") { _ in
+                spreadPlanCard
+            })
+    }
+
+    /// The toolbar's moon, as a round page control (Home's Settings style):
+    /// same action, label and identifier.
+    private var nightSettingsButton: some View {
+        Button { configuringNight = true } label: {
+            Image(systemName: "moon.stars")
+                .font(.title3)
+                .foregroundStyle(AppColor.text3)
+                .frame(width: 44, height: 44)
+                .background(AppColor.card, in: Circle())
+                .overlay(Circle().strokeBorder(AppColor.separator.opacity(0.5), lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Nighttime settings")
+        .accessibilityIdentifier("schedule.nightSettings")
+    }
+
+    /// The leading page under its title: the hero at its natural height, then
+    /// the rail on a journal card that ends on the foot line — the same rows,
+    /// lanes and taps as the list, in a list of its own inside the card.
+    private func spreadTonight(now: Date) -> some View {
+        let occurrences = mergedOccurrences(now: now)
+        let rows = occurrences.filter { $0.endDate == nil }
+        let spans = occurrences.filter { $0.endDate != nil && $0.status != .skipped }
+        let upNext = rows.first {
+            $0.kind == .feed && $0.status == .upcoming && $0.date >= now
+        }
+        return VStack(spacing: SpreadGrid.surfaceGap) {
+            if let upNext, !rows.isEmpty {
+                heroCard(upNext, now: now)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            JournalCard {
+                List {
+                    if rows.isEmpty {
+                        emptySection(now: now)
+                    } else {
+                        timelineSection(rows, spans: spans, now: now)
+                            .listRowBackground(Color.clear)
+                    }
+                }
+                .listStyle(.plain)
+                .listRowSpacing(0)
+            }
+        }
+    }
+
+    /// The trailing page: one solid card from the top line to the foot line.
+    /// Its content scrolls inside it when there is more than it holds (many
+    /// windows, a large text size) — never clipped.
+    private var spreadPlanCard: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(nightOrderedSlots) { slot in
+                        planRow(slot)
+                            .padding(.vertical, 12)
+                        Divider().overlay(AppColor.separator.opacity(0.5))
+                    }
+                    Button { addingSlot = true } label: {
+                        Label("Add a sleep window", systemImage: "plus.circle.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppColor.accentSleep)
+                            .padding(.vertical, 12)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("schedule.addSlot")
+                }
+                if let scale = nightScale, !planWindows.isEmpty {
+                    NightPlanStrip(scale: scale, windows: planWindows, lanes: planLanes,
+                                   summary: planStripSummary)
+                }
+                planFacts
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(Self.planExplainer, id: \.self) { paragraph in
+                        Text(paragraph)
+                            .font(.footnote)
+                            .foregroundStyle(AppColor.text3)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipShape(.rect(cornerRadius: 18))
+        .surfaceCard(cornerRadius: 18)
+    }
+
+    /// The live facts the list's footer opens with, as three quiet stats.
+    /// A stat with nothing to show is left out.
+    private var planFacts: some View {
+        let totals = plannedSleepTotals
+        let settings = settingsList.first
+        return HStack(alignment: .top, spacing: 20) {
+            if !totals.isEmpty {
+                planFact("PLANNED SLEEP") {
+                    HStack(spacing: 10) {
+                        ForEach(totals) { item in
+                            HStack(spacing: 4) {
+                                Avatar(photoData: item.participant.photoData,
+                                       name: item.participant.displayName,
+                                       colorHex: item.participant.colorHex, size: 18)
+                                Text(TimeFormatting.duration(minutes: item.minutes))
+                            }
+                        }
+                    }
+                }
+            }
+            if let settings {
+                planFact("FEEDS") {
+                    Text("Every \(NightScheduleSettingsSheet.spacingLabel(settings.nightFeedSpacingMinutes))")
+                }
+                planFact("NIGHT") {
+                    Text("\(NightScheduleSettingsSheet.clock(minuteOfDay: settings.nightStartMinute))–\(NightScheduleSettingsSheet.clock(minuteOfDay: settings.nightEndMinute))")
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func planFact<Value: View>(_ label: String,
+                                       @ViewBuilder value: () -> Value) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(AppColor.text3)
+            value()
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .foregroundStyle(AppColor.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+    }
+
+    /// The list footer's explanation, its live-facts prefix left to
+    /// `planFacts`, in three short paragraphs. Same words.
+    private static let planExplainer = [
+        "Set when each of you sleeps — a feed that lands during someone's window goes to the other parent, and the sleeping phone stays quiet.",
+        "If you'd both be asleep, the bottle slides up to 45 minutes to the nearest moment one of you is already up; when there's no gap to reach, it goes to whoever's wake-up comes soonest.",
+        "Feeds build themselves each night from the first logged bottle. Windows repeat every night until changed; tap a band on the timeline to change just one night.",
+    ]
+
+    /// The night window as a ruler for the to-scale strip.
+    private var nightScale: NightPlanScale? {
+        guard let s = settingsList.first else { return nil }
+        return NightPlanScale(nightStartMinute: s.nightStartMinute, nightEndMinute: s.nightEndMinute)
+    }
+
+    /// The standing sleep windows, as the strip and the totals read them.
+    private var planWindows: [SleepWindow] {
+        sleepSlots.compactMap { SleepWindow(slot: $0) }
+    }
+
+    /// Active parents in join order — the rail's lane order and colours.
+    private var orderedParticipants: [Participant] {
+        participants
+            .filter(\.isActive)
+            .sorted { ($0.invitedAt, $0.id.uuidString) < ($1.invitedAt, $1.id.uuidString) }
+    }
+
+    private var planLanes: [SleepLaneColumn.Lane] {
+        orderedParticipants.map { .init(id: $0.id, name: $0.displayName, colorHex: $0.colorHex) }
+    }
+
+    /// Each parent's planned sleep, in join order — what `balanceSummary`
+    /// spells out.
+    private var plannedSleepTotals: [PlannedSleep] {
+        let totals = Dictionary(grouping: planWindows, by: \.parentID)
+            .mapValues { $0.reduce(0) { $0 + $1.durationMinutes } }
+        return orderedParticipants.compactMap { p in
+            totals[p.id].map { PlannedSleep(participant: p, minutes: $0) }
+        }
+    }
+
+    /// One parent's planned sleep, for the facts row.
+    private struct PlannedSleep: Identifiable {
+        let participant: Participant
+        let minutes: Int
+        var id: UUID { participant.id }
+    }
+
+    /// The strip in one sentence, for VoiceOver.
+    private var planStripSummary: String {
+        let parts = nightOrderedSlots.map { slot in
+            "\(slot.assignedToName.isEmpty ? "Unassigned" : slot.assignedToName) sleeps \(slotRange(slot))"
+        }
+        return "The plan, to scale: " + parts.joined(separator: ", ")
     }
 
     // MARK: List
@@ -202,40 +442,46 @@ struct ScheduleView: View {
     // MARK: Hero
 
     private func heroSection(_ occ: ScheduleOccurrence, now: Date) -> some View {
-        let mine = isMine(occ)
-        let tint = Color(hex: occ.assignedToColorHex.isEmpty ? "636366" : occ.assignedToColorHex)
-        return Section {
-            Button { open(occ) } label: {
-                HStack(spacing: 14) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(mine ? "You're up next" : "Up next")
-                            .sectionLabelStyle(color: mine ? tint : AppColor.text2)
-                        Text(TimeFormatting.clock(occ.date))
-                            .font(AppFont.display(38))
-                            .foregroundStyle(AppColor.text)
-                        Text("\(occ.kind.emoji) \(occ.kind == .sleep ? "Sleep" : "Bottle") · in \(TimeFormatting.duration(from: now, to: occ.date))")
-                            .font(.subheadline)
-                            .foregroundStyle(AppColor.text2)
-                    }
-                    Spacer()
-                    heroAssignee(occ, mine: mine)
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity)
-                .glassCard()
-                .overlay {
-                    if mine {
-                        RoundedRectangle(cornerRadius: 18).strokeBorder(tint, lineWidth: 2)
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(heroAccessibilityLabel(occ, mine: mine, now: now))
-            .accessibilityHint("Reassign or change this slot")
+        Section {
+            heroCard(occ, now: now)
         }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
+    }
+
+    /// The hero itself — a list section's row in the lists, a card at the
+    /// head of the leading page on the spread.
+    private func heroCard(_ occ: ScheduleOccurrence, now: Date) -> some View {
+        let mine = isMine(occ)
+        let tint = Color(hex: occ.assignedToColorHex.isEmpty ? "636366" : occ.assignedToColorHex)
+        return Button { open(occ) } label: {
+            HStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(mine ? "You're up next" : "Up next")
+                        .sectionLabelStyle(color: mine ? tint : AppColor.text2)
+                    Text(TimeFormatting.clock(occ.date))
+                        .font(AppFont.display(38))
+                        .foregroundStyle(AppColor.text)
+                    Text("\(occ.kind.emoji) \(occ.kind == .sleep ? "Sleep" : "Bottle") · in \(TimeFormatting.duration(from: now, to: occ.date))")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColor.text2)
+                }
+                Spacer()
+                heroAssignee(occ, mine: mine)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity)
+            .glassCard()
+            .overlay {
+                if mine {
+                    RoundedRectangle(cornerRadius: 18).strokeBorder(tint, lineWidth: 2)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(heroAccessibilityLabel(occ, mine: mine, now: now))
+        .accessibilityHint("Reassign or change this slot")
     }
 
     @ViewBuilder
