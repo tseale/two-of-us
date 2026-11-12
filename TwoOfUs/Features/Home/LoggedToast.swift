@@ -20,6 +20,12 @@ struct ToastData: Identifiable, Equatable {
 
 private struct LoggedToastModifier: ViewModifier {
     @Binding var toast: ToastData?
+    /// How far the toast keeps from its host's sides and bottom edge. The
+    /// defaults are every list layout's; a page of iPhone Duo's open display
+    /// passes its own, so the toast sits inside the page, just above its
+    /// foot line.
+    var sideInset: CGFloat = 20
+    var bottomInset: CGFloat = 8
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
@@ -59,8 +65,8 @@ private struct LoggedToastModifier: ViewModifier {
                 // (iPhone Duo's inner display, iPad). Never binds on a phone,
                 // whose widest toast is ≈ 400 pt.
                 .frame(maxWidth: 480)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 8)
+                .padding(.horizontal, sideInset)
+                .padding(.bottom, bottomInset)
                 .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 .task(id: toast.id) {
                     // The toast is transient — announce it, or a VoiceOver user
@@ -79,7 +85,9 @@ private struct LoggedToastModifier: ViewModifier {
 }
 
 extension View {
-    func loggedToast(_ toast: Binding<ToastData?>) -> some View {
-        modifier(LoggedToastModifier(toast: toast))
+    func loggedToast(_ toast: Binding<ToastData?>, sideInset: CGFloat = 20,
+                     bottomInset: CGFloat = 8) -> some View {
+        modifier(LoggedToastModifier(toast: toast, sideInset: sideInset,
+                                     bottomInset: bottomInset))
     }
 }

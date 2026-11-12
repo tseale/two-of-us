@@ -8,19 +8,31 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ### Added — made for iPhone Duo, in every pose
 - **Open, in landscape (flat or folded like a book):** Home becomes two
-  pages — the Today card, log tiles, sleep card and what's up next on the
-  left, the last 24 hours on the right — with the gap between them exactly on
-  the fold, so folding the phone moves nothing and nothing ever sits on the
-  crease. Nighttime puts tonight on the left and the sleep-window plan on the
-  right; History and Stats become two columns (rhythm | daily totals, the
-  glance | this week + AI) with taller charts.
+  facing pages, each exactly as wide as the closed screen. The left page is
+  the one you had while the phone was closed — his name, the Today card and
+  the log tiles — and the last 24 hours open beside it as a journal page,
+  with tonight's schedule, SNOO suggestions and the day's daycare recap
+  leading it. Both pages start and end on the same lines, and nothing ever
+  sits on the crease, so folding the phone moves nothing. While he sleeps the
+  sleep card takes the Sleep tile's exact place and size, so Feed and Diaper
+  never move; the undo toast sits at the foot of the right page, clear of the
+  Wake slide. During daycare hours the Today card is the whole left page,
+  with the day's photos as tiles. Nighttime puts tonight on the left and the
+  sleep-window plan on the right; History and Stats become two columns
+  (rhythm | daily totals, the glance | this week + AI) with taller charts.
+- **The light:** behind Home's two pages, a faint pool of each parent's
+  colour — and whenever he sleeps the room dims and a warm light comes on in
+  the hinge between them, breathing with the day strip's glow. Off under
+  Reduce Transparency, Increase Contrast and Low Power Mode; still under
+  Reduce Motion.
 - **Open, in portrait — and folded like a laptop on the table:** Home puts
   everything to look at on the top half and the log tiles and sleep card on
   the bottom half: set the phone down half-open during a feed and tap from the
   table. During daycare hours the bottom half shows the day's feed instead.
 - **Closed:** the same Home as any iPhone, with the tabs in the side strip.
-  While he sleeps, a shorter sleep card (timer beside the 💤) keeps the Wake
-  slide on screen on the shorter outer display.
+  While he sleeps, the sleep card takes the Sleep tile's place at the tile's
+  own size, so the Wake slide always stays on screen on the shorter outer
+  display — and, in dark mode, a faint glow marks the hinge edge.
 - **Closed and stood on its side (tent):** the app now turns to landscape —
   the Today card on one side, tiles and sleep card on the other. Every other
   iPhone stays portrait-only.

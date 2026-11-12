@@ -62,6 +62,14 @@ struct PaneLayout: Equatable {
     /// its inner display in landscape, where the status bar lives in the side
     /// strip instead of across the top.
     let topInset: CGFloat
+    /// How far below the top of its window the reader starts, beyond that
+    /// inset. Zero unless something sits above the reader — the demo-mode
+    /// pill's row, under which the inset itself reads zero, so this is then
+    /// everything above the reader: the row and, where there is one, the
+    /// status bar over it. Only iPhone Duo's spread reads it (`SpreadGrid`
+    /// counts it toward the air above the titles, `CradleField` softens its
+    /// top edge under it); every other layout is as it was.
+    var topOffset: CGFloat = 0
 
     /// Width of the fold band (the fold's reserved frame, margins included).
     static let foldBand: CGFloat = 40
@@ -125,6 +133,11 @@ struct PaneLayout: Equatable {
         // the demo pill or a big text size must not flip portrait to "wide".
         let displayWidth = origin.x + size.width + insets.trailing
         let displayHeight = origin.y + size.height + insets.bottom
+        // What sits above the reader beyond its own top inset: nothing, or
+        // the demo-mode pill's row. (Nothing is exactly zero: a hair of
+        // measuring noise must not make two equal layouts differ.)
+        let above = origin.y - insets.top
+        let topOffset: CGFloat = above > 0.5 ? above : 0
 
         guard horizontal == .regular else {
             // The outer display has no fold: a quiet gutter down the middle
@@ -133,7 +146,8 @@ struct PaneLayout: Equatable {
             let band = CGRect(x: (size.width - gutter) / 2, y: 0,
                               width: gutter, height: size.height)
             return PaneLayout(shape: .short, size: size, band: band,
-                              fullHeight: displayHeight, topInset: insets.top)
+                              fullHeight: displayHeight, topInset: insets.top,
+                              topOffset: topOffset)
         }
 
         if displayWidth >= displayHeight || size.width >= sideBySideMinWidth {
@@ -142,7 +156,8 @@ struct PaneLayout: Equatable {
             let band = CGRect(x: mid - foldBand / 2, y: 0,
                               width: foldBand, height: size.height)
             return PaneLayout(shape: .wide, size: size, band: band,
-                              fullHeight: displayHeight, topInset: insets.top)
+                              fullHeight: displayHeight, topInset: insets.top,
+                              topOffset: topOffset)
         }
 
         // The display's horizontal midline, in the reader's coordinates.
@@ -150,7 +165,8 @@ struct PaneLayout: Equatable {
         let band = CGRect(x: 0, y: mid - foldBand / 2,
                           width: size.width, height: foldBand)
         return PaneLayout(shape: .tall, size: size, band: band,
-                          fullHeight: displayHeight, topInset: insets.top)
+                          fullHeight: displayHeight, topInset: insets.top,
+                          topOffset: topOffset)
     }
 
     /// Keeps both panes at least `minPane` long; a container too small for

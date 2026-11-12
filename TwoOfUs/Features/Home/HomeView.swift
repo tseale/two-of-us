@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import SwiftData
 
 struct HomeView: View {
@@ -7,6 +8,7 @@ struct HomeView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var hSize
     @Environment(\.verticalSizeClass) private var vSize
+    @Environment(\.colorScheme) private var colorScheme
 
     @Query private var babies: [Baby]
     @Query private var participants: [Participant]
@@ -65,10 +67,31 @@ struct HomeView: View {
     /// The compact list's full height (content + insets ≈ the display's).
     /// Starts roomy so the first frame matches every slab iPhone.
     @State private var compactFullHeight: CGFloat = .infinity
-    /// The compact list's top safe-area inset. Zero only where the status bar
-    /// isn't across the top — iPhone Duo's outer display — which gets a little
-    /// more breathing room. Starts large so every slab iPhone is unchanged.
+    /// The compact list's top safe-area inset. Zero where the status bar
+    /// isn't across the top — iPhone Duo's outer display, which gets a little
+    /// more breathing room — and also wherever the demo-mode pill's row sits
+    /// above the list, which is why `compactList` never reads it alone.
+    /// Starts large so every slab iPhone is unchanged.
     @State private var compactTopInset: CGFloat = .infinity
+    /// Whether the compact list starts at the very top of its window —
+    /// nothing above it at all, neither a status bar nor the demo-mode
+    /// pill's row. Measured in the same pass as `compactTopInset` and written
+    /// with it, so the pair is never half-updated (see `compactList`). Starts
+    /// false so every slab iPhone is unchanged.
+    @State private var compactStartsAtWindowTop = false
+    /// The compact list's side safe-area inset (the larger of the two).
+    /// Non-zero only where the system's bars run down one side of an upright
+    /// display — iPhone Duo's outer display. Together with the zero top inset
+    /// it is what makes the list "the cover" (the top inset alone is also
+    /// zero on any iPhone under the demo-mode pill). Starts at zero so every
+    /// slab iPhone is unchanged.
+    @State private var compactSideInset: CGFloat = 0
+    /// The spread's trailing page: the height of its lead items (the Today
+    /// card's daycare layer, SNOO suggestions, tonight / up next, the setup
+    /// checklist), measured — what is left under them decides whether the
+    /// journal fills the page or the page scrolls as a whole. Zero while
+    /// there are none.
+    @State private var spreadLeadHeight: CGFloat = 0
     /// Start of the current day. Advanced by a task at midnight so the "today"
     /// ribbon, counts, and 24h window refresh even if the app sits foregrounded
     /// across midnight with nothing new logged (a @Query change would otherwise
@@ -76,6 +99,15 @@ struct HomeView: View {
     @State private var dayStart = Calendar.current.startOfDay(for: .now)
 
     private enum ActiveSheet: String, Identifiable { case feed, diaper, note; var id: String { rawValue } }
+
+    /// What the compact list measures about its own top edge, as one value:
+    /// the two readings change together or not at all.
+    private struct CompactTopEdge: Equatable {
+        /// The list's top safe-area inset.
+        let inset: CGFloat
+        /// The list starts at the top of its window (nothing sits above it).
+        let startsAtWindowTop: Bool
+    }
 
     /// What the photo viewer is showing: one photo from a plain row, or the
     /// whole burst from a grouped row (swiped as pages).
@@ -114,6 +146,14 @@ struct HomeView: View {
         baby.map { WakeWindow.ageInDays(dateOfBirth: $0.dateOfBirth) } ?? 0
     }
 
+    /// The phone idiom. With a non-compact screen shape — or with the compact
+    /// list's cover measurements — that is only ever iPhone Duo: slab iPhones
+    /// are always compact and upright, and an iPad (which resolves `.wide`
+    /// too) keeps its own layouts exactly. Never a device-model check.
+    private var isPhone: Bool {
+        UIDevice.current.userInterfaceIdiom == .phone
+    }
+
     var body: some View {
         NavigationStack {
             // One container whose identity never changes holds whichever
@@ -128,6 +168,16 @@ struct HomeView: View {
                     GeometryReader { proxy in
                         panes(PaneLayout.resolve(in: proxy, horizontal: hSize))
                     }
+                    // Home has no text field of its own — every one is in a
+                    // sheet — but a sheet's keyboard insets the screen behind
+                    // it as well. On iPhone Duo every frame of these layouts
+                    // hangs off this reader's height (the spread's foot line
+                    // IS its bottom edge), so a note typed in a sheet would
+                    // squeeze the pages behind it and rebuild the journal,
+                    // losing the parent's place in it. So the Duo's layouts
+                    // are measured without the keyboard. iPad ignores no
+                    // region at all and is laid out exactly as before.
+                    .ignoresSafeArea(isPhone ? .keyboard : [], edges: .bottom)
                 }
             }
             // One pull refreshes everything: the daycare feed (Brightwheel)
@@ -224,8 +274,9 @@ struct HomeView: View {
             }
             #endif
             // (The logged toast rides on the layout itself — the compact list,
-            // or the pane holding the log tiles — so on the inner display it
-            // never spans the fold.)
+            // the pane holding the log tiles, or the foot of the spread's
+            // trailing page — so on the inner display it never spans the
+            // fold.)
             // A tapped Feed/Diaper widget stages a sheet here: onChange catches a
             // warm launch (Home already up), onAppear a cold launch / tab switch.
             .onChange(of: router.pendingLog) { _, _ in consumeDeepLink() }
@@ -256,13 +307,49 @@ struct HomeView: View {
     /// display is short (the Duo's outer display gives 644 pt of content, vs
     /// ≈ 760 on an iPhone 17), a running sleep uses the short sleep card so the
     /// Wake slide stays on screen.
+    ///
+    /// Closed, iPhone Duo is the cover: the same page, with two differences
+    /// that only ever apply there. A running sleep takes the Sleep tile's
+    /// footprint (the card the open pages use), so the Wake slide always
+    /// clears the bottom edge; and while he sleeps the hinge — the spine, down
+    /// the side away from the system strip — carries a faint bloom of his
+    /// light on the otherwise black cover.
     private var compactList: some View {
         let shortCard = compactFullHeight < PaneLayout.roomyHeight
         // iPhone Duo's outer display: nothing sits across the top (the status
         // bar is in the side strip), so the header would hug the display's
         // edge. Give it room above and slightly wider side margins.
-        let duoOuter = compactTopInset < 1
+        //
+        // A zero top inset alone doesn't say so. It reads zero on any device
+        // while the demo-mode pill's row sits above the list (the list no
+        // longer touches the status bar), and an iPad's compact window is
+        // not a phone at all — both keep the margins they always had. So:
+        // the phone idiom, and something measured to vouch for the Duo —
+        // the side strip, or the list starting at the very top of its
+        // window (under the pill it starts below the pill's row).
+        //
+        // Measured, not read from the demo-mode pref: the pref flips at
+        // once and the inset only after the next layout, so leaving demo
+        // mode on a slab iPhone would pass through a moment with the pill
+        // gone and the inset still reading zero — the Duo's margins for a
+        // frame. The window-top reading is taken in the same pass as the
+        // inset; on a slab it is never true.
+        let duoOuter = compactTopInset < 1 && isPhone
+            && (compactSideInset > 0 || compactStartsAtWindowTop)
         let side: CGFloat = duoOuter ? 20 : 16
+        // The cover, measured: nothing across the top AND the system's bars
+        // down one side of an upright phone. The side strip is what a slab
+        // iPhone never has, so everything new here waits on both. (One
+        // other window measures the same: a Split View half that sits
+        // against the strip on the Duo's open display. It gets the cover's
+        // sleep card and bloom too — nothing a size could tell apart, the
+        // half and the cover being within a few points of each other. See
+        // docs/IPHONE_DUO.md.)
+        let cover = duoOuter && compactSideInset > 0
+        // The bloom is light on a dark ground, so the list only gives up its
+        // own background (and the timeline its row backgrounds) in the dark
+        // appearance. A light cover is exactly the list it always was.
+        let coverLit = cover && colorScheme == .dark
         return List {
             Section {
                 header
@@ -296,7 +383,9 @@ struct HomeView: View {
                             logButtons(now: ctx.date, activeSleep: active)
                         }
                         if let sleep = active {
-                            sleepCard(sleep, now: ctx.date, compact: shortCard)
+                            // On the cover, the footprint card (it takes
+                            // precedence over the short one).
+                            sleepCard(sleep, now: ctx.date, compact: shortCard, footprint: cover)
                                 .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
                         }
                         // SNOO suggestions sit directly under the sleep
@@ -329,19 +418,47 @@ struct HomeView: View {
             // leaves dead space — the logging UI above stays untouched.
             checklistSection(leading: side, trailing: side)
 
-            timelineSection(leading: side, trailing: side)
+            if coverLit {
+                // The timeline's rows are the one part of this list with a
+                // cell background of their own; over the light they would
+                // cut it off in a band wherever they scroll.
+                timelineSection(leading: side, trailing: side)
+                    .listRowBackground(Color.clear)
+            } else {
+                timelineSection(leading: side, trailing: side)
+            }
         }
         .listStyle(.plain)
+        // The cover's ground is the field, so the list's own background
+        // steps aside for it. (`.automatic` is the list as it always was.)
+        .scrollContentBackground(coverLit ? .hidden : .automatic)
+        .background {
+            if coverLit {
+                coverField
+            }
+        }
         .background(AppColor.bg)
         .loggedToast($toast)
+        // The list's top edge: its top inset, and whether it starts at the
+        // very top of its window — one reading, one write, so `duoOuter`
+        // never sees one without the other.
+        .onGeometryChange(for: CompactTopEdge.self) { proxy in
+            CompactTopEdge(inset: proxy.safeAreaInsets.top,
+                           startsAtWindowTop: proxy.frame(in: .global).minY < 1)
+        } action: { edge in
+            compactTopInset = edge.inset
+            compactStartsAtWindowTop = edge.startsAtWindowTop
+        }
+        // The system strip: the larger side inset (it can be on either side,
+        // depending on which way up the phone is held).
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            max(proxy.safeAreaInsets.leading, proxy.safeAreaInsets.trailing)
+        } action: { inset in
+            compactSideInset = inset
+        }
         // The display's full height picks the sleep card's layout — measured,
         // never assumed from the device. A clear layer that ignores the safe
         // area spans the whole display whichever way the list itself sizes.
-        .onGeometryChange(for: CGFloat.self) { proxy in
-            proxy.safeAreaInsets.top
-        } action: { inset in
-            compactTopInset = inset
-        }
         .background {
             Color.clear
                 .ignoresSafeArea()
@@ -353,15 +470,40 @@ struct HomeView: View {
         }
     }
 
+    /// The cover's ground: true black, and while he sleeps a faint bloom of
+    /// his light on the spine. Asked again once a minute: whether a daycare
+    /// nap still counts can turn on the clock alone (daycare's assumed
+    /// close), with no log or sync to re-render for it.
+    private var coverField: some View {
+        TimelineView(.everyMinute) { ctx in
+            // ctx.date is the minute's start, and stays there when a @Query
+            // change re-runs this closure — up to 59 s stale.
+            let now = max(ctx.date, .now)
+            CradleField(hinge: .spine(.oppositeSystemStrip),
+                        sleepingSince: sleepingSince(now: now), now: now)
+        }
+    }
+
+    /// Any sleep in progress, for the light: a parent-logged (or SNOO) one,
+    /// or the nap Brightwheel has started and not yet ended while he is at
+    /// daycare — the same pair that makes the Today card's strip glow, so the
+    /// hinge light and the strip's bead come on, and go out, together.
+    private func sleepingSince(now: Date) -> Date? {
+        let liveNap = daycareAttendance(now: now) != nil ? liveNapToday : nil
+        return liveNap ?? activeSleep?.startedAt
+    }
+
     // MARK: Roomy layouts (iPhone Duo open or on its side, iPad)
 
     /// Home on a display with room for two panes — the inner display of iPhone
     /// Duo (and iPad), or its outer display stood on its side. One hierarchy
     /// everywhere, reflowed rather than stretched:
-    /// - **wide** (open in landscape, flat or folded like a book): the "now"
-    ///   page — header, Today card, log tiles, sleep card, what's up next — on
-    ///   the leading side of the fold; the 24-hour timeline on the trailing
-    ///   side, like the two pages of a passport.
+    /// - **wide** (open in landscape, flat or folded like a book): on iPhone
+    ///   Duo, the spread — two mirrored phone-width pages (see `spread`). On
+    ///   iPad, which resolves wide too, the two panes it always had: the
+    ///   "now" page — header, Today card, log tiles, sleep card, what's up
+    ///   next — on the leading side; the 24-hour timeline on the trailing
+    ///   side.
     /// - **tall** (open in portrait, flat or folded like a laptop on a table):
     ///   everything to look at on the top half; the log tiles and the sleep
     ///   card — the things to tap — on the bottom half, the "stable base"
@@ -374,11 +516,18 @@ struct HomeView: View {
     private func panes(_ layout: PaneLayout) -> some View {
         switch layout.shape {
         case .wide:
-            DividedPanes(layout: layout) {
-                nowPane(layout)
-                    .loggedToast($toast)
-            } second: {
-                logPane(layout)
+            // A grid only ever resolves for the phone idiom — iPhone Duo's
+            // inner display. iPad (and a reader too narrow for two pages)
+            // keeps the panes exactly as they were.
+            if let grid = SpreadGrid(layout: layout, isPhone: isPhone) {
+                spread(layout, grid: grid)
+            } else {
+                DividedPanes(layout: layout) {
+                    nowPane(layout)
+                        .loggedToast($toast)
+                } second: {
+                    logPane(layout)
+                }
             }
         case .tall:
             // Minute-level: the controls pane can empty out on the clock alone
@@ -419,6 +568,302 @@ struct HomeView: View {
             compactList
         }
     }
+
+    // MARK: The spread (iPhone Duo open in landscape, flat or like a book)
+
+    /// Home on iPhone Duo's open display in landscape: two mirrored pages,
+    /// each exactly a phone-width page, either side of the fold. The leading
+    /// page is the cover's page — the baby's name, the Today card, the log
+    /// tiles — so what was under your thumb while the phone was closed is
+    /// still there when it opens; the day's journal opens beside it. Behind
+    /// both, the light (`CradleField`): a pool of each parent's colour behind
+    /// each leaf and, whenever he sleeps, his light in the hinge between
+    /// them.
+    ///
+    /// Every frame comes from `SpreadGrid`: the two titles start on one head
+    /// line, the first surfaces on one top line, and the last surface of each
+    /// page ends on the foot line. Nothing textual or tappable sits between
+    /// the pages — only the light crosses the fold, so folding the phone
+    /// like a book never puts the crease on a control or a line of text.
+    private func spread(_ layout: PaneLayout, grid: SpreadGrid) -> some View {
+        ZStack(alignment: .topLeading) {
+            // The light, behind everything. It takes this reader's frame —
+            // the one `PaneLayout` measured, so the crease is `band.midX`
+            // whichever side the system strip is on — and paints out through
+            // the safe area by itself. Asked again once a minute: a nap turns
+            // into a night's sleep on the clock alone (the two-hour
+            // crossover), with no log or sync to re-render for it.
+            TimelineView(.everyMinute) { ctx in
+                // ctx.date is the minute's start, and stays there when a
+                // @Query change re-runs this closure — up to 59 s stale.
+                let now = max(ctx.date, .now)
+                // (`topOffset`: under the demo-mode pill's row the field
+                // cannot reach the display's top edge, and softens its own.)
+                CradleField(hinge: .verticalCrease(x: layout.band.midX),
+                            sleepingSince: sleepingSince(now: now), now: now,
+                            topOffset: layout.topOffset)
+            }
+            // The baby's avatar hangs in the wider outer margin (the side
+            // away from the system strip), beside the first title. It is
+            // decoration here — the title next to it reads his name.
+            if let avatar = grid.avatarFrame {
+                Avatar(photoData: baby?.photoData, name: baby?.name ?? "Baby",
+                       colorHex: ParticipantColors.babyHex, size: avatar.width)
+                    .accessibilityHidden(true)
+                    .padding(.leading, avatar.minX)
+                    .padding(.top, avatar.minY)
+            }
+            // Leading page, then trailing page: the order VoiceOver reads.
+            spreadNowPage(grid)
+            spreadRecentPage(grid)
+        }
+        .frame(width: layout.size.width, height: layout.size.height, alignment: .topLeading)
+    }
+
+    /// The spread's leading page — the cover's page. Under the title, one
+    /// column that never moves between states: the Today card, the Feed and
+    /// Diaper tiles, and the Sleep tile or, while a sleep runs, the sleep
+    /// card in that tile's exact footprint. The Today card takes up the
+    /// page's slack, so the column ends on the foot line. During daycare
+    /// hours, with no tiles to show, the Today card is the whole page.
+    ///
+    /// The page has room for the day — strip and totals — above the tiles
+    /// and no more (≈ 18 pt to spare at the default text size). So while the
+    /// tiles are here, the Today card's daycare layer (the evening's recap,
+    /// a drop-off slide, "staying home") is not: it leads the facing page
+    /// (`spreadLeadItems`), which is built to take lead items of any height.
+    /// A recap or a slide in the card would push the Sleep tile — at
+    /// bedtime, the Wake slide — past the foot line every weekday evening.
+    private func spreadNowPage(_ grid: SpreadGrid) -> some View {
+        VStack(spacing: 0) {
+            PageTitle(baby?.name ?? "Baby",
+                      subtitle: baby.map { TimeFormatting.age(from: $0.dateOfBirth) }) {
+                settingsButton
+            }
+            // Air the title keeps under it at any text size…
+            .padding(.bottom, SpreadGrid.titleAir)
+            // …inside a minimum, never a fixed height: at the default text
+            // size the first surface lands on the grid's top line, and a
+            // larger size pushes it down instead of overlapping it.
+            .frame(minHeight: grid.titleHeight, alignment: .top)
+            // What is left of the page, measured, so the column fills it
+            // exactly whatever the title took.
+            GeometryReader { page in
+                // A fixed composition wherever it fits; at a text size
+                // where it can't, the page scrolls.
+                ScrollView {
+                    TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                        let attendance = daycareAttendance(now: ctx.date)
+                        let summary = todaySummary
+                        let active = activeSleep
+                        VStack(spacing: SpreadGrid.surfaceGap) {
+                            // The short live caption on the page, always:
+                            // the full one is the widest thing in the
+                            // totals row, and on a phone-width page it
+                            // alone would drop the row to its stacked floor
+                            // — ≈ 100 pt taller, off the page. The elapsed
+                            // time is on the sleep card under it, or (a
+                            // daycare nap) on the journal's live row.
+                            heroCard(now: ctx.date, attendance: attendance, summary: summary,
+                                     active: active, condensedCaption: true, fillsPage: true,
+                                     layers: attendance == nil ? .day : .all)
+                            // The tiles and the sleep card keep their own
+                            // height whatever the column is offered — a stack
+                            // sharing out a fixed height would otherwise
+                            // squeeze the tiles toward their floor — so the
+                            // Today card is the only thing that stretches.
+                            if attendance == nil, hasLogTiles(sleeping: active != nil) {
+                                logButtons(now: ctx.date, activeSleep: active)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            if let sleep = active {
+                                sleepCard(sleep, now: ctx.date, compact: false, footprint: true)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
+                            }
+                        }
+                        .modifier(SleepAndDaycareAnimations(sleeping: active != nil,
+                                                           attending: attendance != nil,
+                                                           reduceMotion: reduceMotion))
+                        .frame(minHeight: page.size.height, alignment: .top)
+                    }
+                }
+                .scrollBounceBehavior(.basedOnSize)
+            }
+        }
+        .frame(width: grid.pageWidth, height: max(grid.foot - grid.headY, 0), alignment: .top)
+        // One page is read to its end before the other begins.
+        .accessibilityElement(children: .contain)
+        .padding(.leading, grid.leadingPage.minX)
+        .padding(.top, grid.headY)
+    }
+
+    /// Whether `logButtons` has a tile to show at all: a paused tracker hides
+    /// its tile, and the Sleep tile steps aside for the running-sleep card.
+    /// With none, the spread leaves the row out rather than keep an empty one
+    /// — and the gap under it — between the Today card and the foot line.
+    private func hasLogTiles(sleeping: Bool) -> Bool {
+        isTracked(.feed) || isTracked(.diaper) || (isTracked(.sleep) && !sleeping)
+    }
+
+    /// The spread's trailing page — the day beside the cover: "Recent" with
+    /// its quiet "+ Add note", then whatever leads the day right now (the
+    /// Today card's daycare layer, SNOO suggestions, tonight's roster or the
+    /// one-line up next, the setup checklist) and the journal filling the
+    /// rest of the page. The undo toast floats at this page's foot, inside
+    /// its width, so it never covers the leading page's controls or spans
+    /// the fold.
+    private func spreadRecentPage(_ grid: SpreadGrid) -> some View {
+        VStack(spacing: 0) {
+            spreadRecentTitle
+                // As on the leading page: the title's own air, inside the
+                // minimum that puts the first surface on the top line.
+                .padding(.bottom, SpreadGrid.titleAir)
+                .frame(minHeight: grid.titleHeight, alignment: .top)
+            GeometryReader { page in
+                spreadRecentContent(pageHeight: page.size.height)
+            }
+        }
+        .frame(width: grid.pageWidth, height: max(grid.foot - grid.headY, 0), alignment: .top)
+        .loggedToast($toast, sideInset: SpreadGrid.toastSideInset,
+                     bottomInset: SpreadGrid.toastLift)
+        .accessibilityElement(children: .contain)
+        .padding(.leading, grid.trailingPage.minX)
+        .padding(.top, grid.headY)
+    }
+
+    /// "Recent / last 24 hours" — the words of the section header this title
+    /// replaces — with "+ Add note" on the subtitle's line. At a text size
+    /// where the two no longer fit side by side, the action drops under the
+    /// title rather than squeezing "Recent" into an ellipsis.
+    private var spreadRecentTitle: some View {
+        ViewThatFits(in: .horizontal) {
+            PageTitle("Recent", subtitle: "last 24 hours", trailingAlignment: .subtitle) {
+                spreadAddNoteButton
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                PageTitle("Recent", subtitle: "last 24 hours")
+                spreadAddNoteButton
+            }
+        }
+    }
+
+    /// The timeline header's "+ Add note", same words and style — deliberately
+    /// quiet. Alone at the head of a page it gets a 44 pt touch target; the
+    /// negative padding keeps its layout the single line of text it shows, so
+    /// it still sits on the subtitle's baseline.
+    private var spreadAddNoteButton: some View {
+        Button { activeSheet = .note } label: {
+            Text("+ Add note")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(AppColor.accentNote)
+                .padding(.vertical, 13)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, -13)
+        .accessibilityLabel("Add note")
+        .accessibilityHint("Writes a timestamped note on the timeline")
+    }
+
+    /// The trailing page under its title: the lead items at their natural
+    /// height, then the journal. While the journal still gets a useful height
+    /// it fills the rest of the page and ends on the foot line; when the lead
+    /// items leave it too little, the page scrolls as a whole instead, the
+    /// journal a fixed height inside it (`SpreadGrid.journalFills`).
+    @ViewBuilder
+    private func spreadRecentContent(pageHeight: CGFloat) -> some View {
+        let gap = SpreadGrid.leadGap(leadHeight: spreadLeadHeight)
+        if SpreadGrid.journalFills(pageHeight: pageHeight, leadHeight: spreadLeadHeight) {
+            VStack(spacing: 0) {
+                spreadLeadItems
+                spreadJournal
+                    .padding(.top, gap)
+            }
+        } else {
+            ScrollView {
+                VStack(spacing: 0) {
+                    spreadLeadItems
+                    spreadJournal
+                        .frame(height: SpreadGrid.journalScrollingHeight)
+                        .padding(.top, gap)
+                }
+            }
+        }
+    }
+
+    /// What leads the trailing page, each only when it exists today, in the
+    /// single column's order: the Today card's daycare layer (while the log
+    /// tiles have that card's page — see `spreadNowPage`), SNOO suggestions,
+    /// tonight's roster (or the one-line up next by day), the setup
+    /// checklist. Ticking, so the roster, a check slot and an in-progress
+    /// suggestion stay honest; measured, so the page knows what is left for
+    /// the journal.
+    private var spreadLeadItems: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { ctx in
+            let attendance = daycareAttendance(now: ctx.date)
+            VStack(spacing: SpreadGrid.surfaceGap) {
+                // The same test the leading page makes: he is not at
+                // daycare, so the tiles are on that page and its Today card
+                // is the day alone. What daycare logged today — and the
+                // drop-off slide, or "staying home" — sits here instead,
+                // first, as it comes first in the single column.
+                if attendance == nil, hasDaycareLayer(now: ctx.date, attendance: attendance) {
+                    heroCard(now: ctx.date, attendance: attendance, summary: nil,
+                             active: nil, condensedCaption: false, layers: .daycare)
+                }
+                snooCards(now: ctx.date)
+                scheduleRow(now: ctx.date, attendance: attendance)
+                if showChecklist {
+                    setupChecklist
+                }
+            }
+            .frame(maxWidth: .infinity)
+            // Natural height, whatever the page offers: the roster's rows
+            // would otherwise stretch to fill a share of it.
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.height
+        } action: { height in
+            spreadLeadHeight = height
+        }
+    }
+
+    /// The timeline as the journal page: the same rows as every other layout
+    /// — NOW cap, the live daycare nap, each entry with its taps and its
+    /// swipe to delete — on one solid card that ends on the foot line, with
+    /// no section header (the page's title says it).
+    private var spreadJournal: some View {
+        // Performance: assembled once per body, as in `timelineSection`.
+        let entries = timelineEntries
+        return JournalCard {
+            if entries.isEmpty {
+                // Centred in the card — and in a scroll view of its own, so a
+                // pull still refreshes on a first run with nothing to list.
+                GeometryReader { card in
+                    ScrollView {
+                        timelineEmptyState(paneMode: true)
+                            .frame(maxWidth: .infinity,
+                                   minHeight: max(card.size.height - JournalCardMetrics.topInset
+                                                  - JournalCardMetrics.fadeHeight, 0))
+                    }
+                }
+            } else {
+                List {
+                    Section {
+                        timelineRows(entries, leading: JournalCardMetrics.rowLeadingInset,
+                                     trailing: JournalCardMetrics.rowTrailingInset)
+                    }
+                    // The rows sit on the card, not on cells of their own.
+                    .listRowBackground(Color.clear)
+                }
+                .listStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: Panes (iPad wide; iPhone Duo in portrait and on its side)
 
     /// Wide layout, leading pane: everything Home's single column shows above
     /// the timeline, at the width of a roomy iPhone.
@@ -583,13 +1028,24 @@ struct HomeView: View {
 
     // MARK: Shared pieces (every layout builds Home from these)
 
+    /// `fillsPage` is the spread's leading page: the card takes the height it
+    /// is given (its strip absorbing the slack) and, during daycare hours —
+    /// when it is the whole page — shows the day's daycare photos as tiles.
+    /// `layers` is the spread's too: the card without its daycare layer
+    /// while the tiles share its page, and that layer alone, as a lead item
+    /// of the page beside it (`TodayHeroCard.layers`). Everywhere else the
+    /// card is whole.
     private func heroCard(now: Date, attendance: DaycareStatus.Attendance?,
                           summary: DaySummary?, active: SleepEvent?,
-                          condensedCaption: Bool) -> some View {
-        TodayHeroCard(
+                          condensedCaption: Bool, fillsPage: Bool = false,
+                          layers: TodayHeroCard.Layers = .all) -> some View {
+        let photos = fillsPage && attendance != nil ? daycarePhotosToday : []
+        return TodayHeroCard(
             babyName: baby?.name ?? "Baby",
             babyPhotoData: baby?.photoData,
-            marks: todayMarks,
+            // The daycare layer draws no strip: spare it the day's marks,
+            // which walk every sleep on each tick.
+            marks: layers == .daycare ? [] : todayMarks,
             feedCount: summary?.feedCount ?? 0,
             feedOz: summary?.feedOz ?? 0,
             diaperCount: summary?.diaperCount ?? 0,
@@ -624,9 +1080,39 @@ struct HomeView: View {
             },
             onPickUp: { logCheck(.checkOut, toast: "Picked up") },
             onUndoHomeToday: undoHomeToday,
-            // Only while the short sleep card sits right below it.
-            condensedLiveCaption: condensedCaption && active != nil
+            // Only while a sleep card showing the elapsed time big sits
+            // right below it — or on a page of the spread, whatever sleep
+            // is running: a daycare nap has no sleep card, but its caption
+            // would stack the totals of a phone-width page all the same
+            // (and the journal's live nap row, on the facing page, counts
+            // it).
+            condensedLiveCaption: condensedCaption && (active != nil || fillsPage),
+            fillsHeight: fillsPage,
+            daycarePhotos: photos,
+            // The same viewer a photo row on the timeline opens, on the
+            // whole day's photos.
+            onOpenPhotos: { viewingMedia = MediaViewing(events: photos) },
+            layers: layers
         )
+    }
+
+    /// Whether the Today card has a daycare layer to draw right now: the
+    /// recap of a daycare day, or a check slot in view. The spread's
+    /// trailing page asks before it hosts that layer as a lead item.
+    private func hasDaycareLayer(now: Date, attendance: DaycareStatus.Attendance?) -> Bool {
+        TodayHeroCard.hasDaycareLayer(
+            daycare: daycareToday ?? DaycareDaySummary(),
+            checkinSlot: checkinSlot(now: now, attendance: attendance))
+    }
+
+    /// Today's daycare photos and videos, newest first (the @Query's order)
+    /// — what the recap's 📸 count counts. Newest-first, so today's are a
+    /// prefix.
+    private var daycarePhotosToday: [MediaEvent] {
+        guard let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: dayStart)
+        else { return [] }
+        return mediaEvents.prefix(while: { $0.timestamp >= dayStart })
+            .filter { $0.isFromDaycare && $0.timestamp < dayEnd }
     }
 
     /// The tiles, the sleep card that takes the Sleep tile's place, and any
@@ -645,13 +1131,18 @@ struct HomeView: View {
         snooCards(now: now)
     }
 
-    private func sleepCard(_ sleep: SleepEvent, now: Date, compact: Bool) -> some View {
+    /// `footprint` is iPhone Duo's arrangement (its open pages and its
+    /// cover): the card at the Sleep tile's own size. It takes precedence
+    /// over `compact`.
+    private func sleepCard(_ sleep: SleepEvent, now: Date, compact: Bool,
+                           footprint: Bool = false) -> some View {
         SleepActiveCard(
             sleep: sleep, now: now,
             onWake: { endSleep(sleep) },
             onEditStart: sleep.isFromSnoo ? nil : { editingSleepStart = true },
             predictedWake: predictedWake(for: sleep, now: now),
-            compact: compact
+            compact: compact,
+            footprint: footprint
         )
     }
 
@@ -709,17 +1200,23 @@ struct HomeView: View {
     private func checklistSection(leading: CGFloat, trailing: CGFloat) -> some View {
         if showChecklist {
             Section {
-                SetupChecklistCard(
-                    quests: setup.activeQuests(role: prefs.syncRole),
-                    isComplete: { setup.isComplete($0, settings: settingsList.first) },
-                    onQuest: { questSheet = $0 },
-                    onDismiss: { withAnimation(.easeInOut) { setup.dismissedChecklist = true } }
-                )
+                setupChecklist
             }
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: 4, leading: leading, bottom: 4, trailing: trailing))
         }
+    }
+
+    /// The checklist card itself — a list row in the list layouts, a lead
+    /// item on the spread's trailing page. Show it only while `showChecklist`.
+    private var setupChecklist: some View {
+        SetupChecklistCard(
+            quests: setup.activeQuests(role: prefs.syncRole),
+            isComplete: { setup.isComplete($0, settings: settingsList.first) },
+            onQuest: { questSheet = $0 },
+            onDismiss: { withAnimation(.easeInOut) { setup.dismissedChecklist = true } }
+        )
     }
 
     /// Keeps `dayStart` current while Home is on screen, so the today ribbon,
@@ -1575,57 +2072,10 @@ struct HomeView: View {
         let entries = timelineEntries
         Section {
             if entries.isEmpty {
-                EmptyStateView(
-                    emoji: "🍼💤💩",
-                    title: "No events yet",
-                    message: paneMode
-                        ? "Tap Feed, Sleep, or Diaper to log \(baby?.name ?? "Baby")'s first event."
-                        : "Tap a button above to log \(baby?.name ?? "Baby")'s first feed, sleep, or diaper."
-                )
-                .listRowBackground(Color.clear)
+                timelineEmptyState(paneMode: paneMode)
+                    .listRowBackground(Color.clear)
             } else {
-                TimelineNowCap()
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 0, leading: leading, bottom: 0, trailing: trailing))
-                // Brightwheel's in-progress nap has no SleepEvent yet (the
-                // pair imports whole at wake), so its live row is synthesized
-                // here at the top — it started recently, so chronology holds.
-                if let napStart = liveNapToday {
-                    LiveDaycareNapRow(start: napStart)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 0, leading: leading, bottom: 0, trailing: trailing))
-                }
-                ForEach(entries) { entry in
-                    DayTimelineRow(entry: entry, loggedByPhoto: loggerPhoto[entry.loggedByID],
-                                   loggedByNameFallback: loggerName[entry.loggedByID])
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 0, leading: leading, bottom: 0, trailing: trailing))
-                        .contentShape(Rectangle())
-                        .accessibilityIdentifier("timelineRow")
-                        // Media opens the full-size viewer; the editable four
-                        // open the edit sheet; the other daycare types are
-                        // read-only (swipe-to-delete still works).
-                        .onTapGesture {
-                            if case .media(let e) = entry {
-                                viewingMedia = MediaViewing(events: [e])
-                            } else if case .mediaGroup(let events) = entry {
-                                viewingMedia = MediaViewing(events: events)
-                            } else if entry.isEditable, !entry.isActiveSleep {
-                                // A running sleep has no end to edit yet — its
-                                // controls live on the active card above.
-                                editing = entry
-                            }
-                        }
-                        // The row is tappable but nothing tells VoiceOver that —
-                        // without the trait + hint it reads as inert text.
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityHint("Edits this entry")
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) { delete(entry) } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
-                }
+                timelineRows(entries, leading: leading, trailing: trailing)
             }
         } header: {
             HStack {
@@ -1640,6 +2090,69 @@ struct HomeView: View {
                     .accessibilityLabel("Add note")
                     .accessibilityHint("Writes a timestamped note on the timeline")
             }
+        }
+    }
+
+    /// The timeline's empty state. `paneMode` words it for layouts where the
+    /// tiles aren't "above".
+    private func timelineEmptyState(paneMode: Bool) -> some View {
+        EmptyStateView(
+            emoji: "🍼💤💩",
+            title: "No events yet",
+            message: paneMode
+                ? "Tap Feed, Sleep, or Diaper to log \(baby?.name ?? "Baby")'s first event."
+                : "Tap a button above to log \(baby?.name ?? "Baby")'s first feed, sleep, or diaper."
+        )
+    }
+
+    /// The timeline's rows, for a list: the NOW cap, the live daycare nap,
+    /// then every entry with its tap and its swipe to delete. One builder for
+    /// the "Recent" section of every list layout and for the journal card on
+    /// the spread, so a row behaves the same wherever it is shown.
+    @ViewBuilder
+    private func timelineRows(_ entries: [TimelineEntry], leading: CGFloat,
+                              trailing: CGFloat) -> some View {
+        TimelineNowCap()
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 0, leading: leading, bottom: 0, trailing: trailing))
+        // Brightwheel's in-progress nap has no SleepEvent yet (the
+        // pair imports whole at wake), so its live row is synthesized
+        // here at the top — it started recently, so chronology holds.
+        if let napStart = liveNapToday {
+            LiveDaycareNapRow(start: napStart)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 0, leading: leading, bottom: 0, trailing: trailing))
+        }
+        ForEach(entries) { entry in
+            DayTimelineRow(entry: entry, loggedByPhoto: loggerPhoto[entry.loggedByID],
+                           loggedByNameFallback: loggerName[entry.loggedByID])
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 0, leading: leading, bottom: 0, trailing: trailing))
+                .contentShape(Rectangle())
+                .accessibilityIdentifier("timelineRow")
+                // Media opens the full-size viewer; the editable four
+                // open the edit sheet; the other daycare types are
+                // read-only (swipe-to-delete still works).
+                .onTapGesture {
+                    if case .media(let e) = entry {
+                        viewingMedia = MediaViewing(events: [e])
+                    } else if case .mediaGroup(let events) = entry {
+                        viewingMedia = MediaViewing(events: events)
+                    } else if entry.isEditable, !entry.isActiveSleep {
+                        // A running sleep has no end to edit yet — its
+                        // controls live on the active card above.
+                        editing = entry
+                    }
+                }
+                // The row is tappable but nothing tells VoiceOver that —
+                // without the trait + hint it reads as inert text.
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint("Edits this entry")
+                .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) { delete(entry) } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
         }
     }
 

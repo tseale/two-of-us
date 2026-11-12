@@ -58,6 +58,13 @@ struct LogButtons: View {
     let onSleep: () -> Void
     let onDiaper: () -> Void
 
+    /// A tile's content is never shorter than this…
+    static let tileMinContentHeight: CGFloat = 96
+    /// …inside this much padding. Named so `LogTileFootprint` — the stand-in
+    /// that lets the running-sleep card take exactly the Sleep tile's height —
+    /// is built from the tiles' own numbers.
+    static let tilePadding: CGFloat = 18
+
     var body: some View {
         VStack(spacing: 12) {
             if showFeed || showDiaper {
@@ -131,8 +138,8 @@ struct LogButtons: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
-            .padding(18)
+            .frame(maxWidth: .infinity, minHeight: Self.tileMinContentHeight, alignment: .leading)
+            .padding(Self.tilePadding)
             .overlay(alignment: .topTrailing) { plusBadge(color).padding(14) }
             .overlay(alignment: .bottomTrailing) {
                 if reminderArmed {
@@ -199,6 +206,37 @@ struct LogButtons: View {
         if let detail { text += ", \(detail.label) \(detail.value)" }
         if reminderArmed { text += ", reminder set" }
         return text
+    }
+}
+
+/// A log tile's height, as an invisible stand-in for layout. It stacks what a
+/// tile stacks — emoji, title, since-line, hint — in the same type styles,
+/// with the same floor and padding, so it is as tall as the Sleep tile at
+/// every text size. The running-sleep card's footprint arrangement (iPhone
+/// Duo's pages and cover) lays it under its own content: the card is then
+/// exactly the height of the tile it replaces, and nothing else on the page
+/// moves when he falls asleep. Draws nothing and says nothing to VoiceOver.
+/// Keep it in step with `LogButtons.tile`.
+struct LogTileFootprint: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("💤").font(.system(size: 30))
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Sleep")
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .lineLimit(1)
+                Text("1h ago")
+                    .font(.subheadline)
+                    .lineLimit(1)
+                Text("next")
+                    .font(.caption)
+                    .lineLimit(1)
+            }
+        }
+        .frame(minHeight: LogButtons.tileMinContentHeight)
+        .padding(.vertical, LogButtons.tilePadding)
+        .hidden()
+        .accessibilityHidden(true)
     }
 }
 
