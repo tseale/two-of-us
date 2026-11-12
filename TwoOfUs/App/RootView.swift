@@ -39,6 +39,11 @@ struct RootView: View {
     /// The page before iPhone Duo's fold while the screen is `.wide` (open in
     /// landscape; iPad), measured once here for every screen below.
     @State private var measuredLeadingPage: CGFloat?
+    /// The same measurement's other reading, on iPhone Duo alone: where the
+    /// spine is while the phone is open in landscape, for the full-screen
+    /// views that stand the mark on it (the launch curtain, the restore
+    /// screen).
+    @State private var measuredSpine: SpreadSpine?
 
     /// Half an hour: long enough that bouncing out to Messages and back never
     /// shows a curtain, short enough to catch the post-nap and overnight
@@ -56,6 +61,12 @@ struct RootView: View {
     /// (a stale measurement must not linger after closing the phone).
     private var leadingPage: CGFloat? {
         ScreenShape.isCompact(horizontal: hSize, vertical: vSize) ? nil : measuredLeadingPage
+    }
+
+    /// `measuredSpine`, under the same rule: none while the size classes
+    /// are compact.
+    private var spine: SpreadSpine? {
+        ScreenShape.isCompact(horizontal: hSize, vertical: vSize) ? nil : measuredSpine
     }
 
     private var needsJoinProfile: Bool {
@@ -108,11 +119,17 @@ struct RootView: View {
                             // iPad is `.wide` too but keeps centred columns.
                             measuredLeadingPage = UIDevice.current.userInterfaceIdiom == .phone
                                 ? layout.leadingPage : nil
+                            // And only its landscape pose has a spine to
+                            // stand the mark on (nil for every other layout).
+                            measuredSpine = SpreadSpine(
+                                layout: layout,
+                                isPhone: UIDevice.current.userInterfaceIdiom == .phone)
                         }
                 }
             }
         }
         .environment(\.leadingPageWidth, leadingPage)
+        .environment(\.spreadSpine, spine)
         .animation(.easeInOut(duration: 0.35), value: route)
         .animation(.easeInOut(duration: 0.35), value: prefs.demoModeEnabled)
         .tint(AppColor.accentFeed)
@@ -147,6 +164,11 @@ struct RootView: View {
                               firstRun: route == .onboarding || cloudRestore.phase == .checking) {
                     launchDone = true
                 }
+                // The curtain is mounted out here, past the environment the
+                // routed content reads, so it is handed the spine itself —
+                // in this view's own coordinates, which are the curtain's
+                // too (an overlay takes the frame of what it covers).
+                .environment(\.spreadSpine, spine)
                 .zIndex(3)
             }
         }

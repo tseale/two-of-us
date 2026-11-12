@@ -17,10 +17,16 @@ All notable changes to Two of Us are recorded here. The format loosely follows
   sleep card takes the Sleep tile's exact place and size, so Feed and Diaper
   never move; the undo toast sits at the foot of the right page, clear of the
   Wake slide. During daycare hours the Today card is the whole left page,
-  with the day's photos as tiles. Nighttime puts tonight on the left and the
-  sleep-window plan on the right; History and Stats become two columns
-  (rhythm | daily totals, the glance | this week + AI) with taller charts.
-- **The light:** behind Home's two pages, a faint pool of each parent's
+  with the day's photos as tiles.
+- **Nighttime, History and Stats** open on the same two pages, titles and
+  bottom edges on the same lines: Nighttime puts tonight on the left and the
+  plan on the right, now drawn to scale (each parent's sleep window across
+  the night), with its settings button beside the title; History opens on
+  the week's rhythm beside its daily totals, Stats on the records beside
+  this week and the AI cards, the charts and cards stretching to fill the
+  first screen. In portrait, History and Stats are two columns with taller
+  charts.
+- **The light:** behind the open display's two pages, a faint pool of each parent's
   colour — and whenever he sleeps the room dims and a warm light comes on in
   the hinge between them, breathing with the day strip's glow. Off under
   Reduce Transparency, Increase Contrast and Low Power Mode; still under
@@ -40,6 +46,8 @@ All notable changes to Two of Us are recorded here. The format loosely follows
   didn't fit the Duo's narrow island); the sleep Live Activity fills the
   screen in StandBy, which the Duo enters on a nightstand without a charger;
   small widgets read across a room there.
+- The launch and restore screens stand the app's mark on the fold, one
+  parent's circle on each page.
 - Setup, join and restore screens keep a readable column on the big display;
   banners, the undo toast and slide-to-confirm pills no longer stretch across
   it; the launch curtain blocks taps on the side strip too.

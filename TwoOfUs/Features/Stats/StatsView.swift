@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import SwiftData
 
 /// The delightful layer: records, lifetime counters in fun units, the night-shift
@@ -49,6 +50,14 @@ struct StatsView: View {
     @Environment(\.horizontalSizeClass) private var hSize
     @Environment(\.verticalSizeClass) private var vSize
 
+    /// The phone idiom. With a `.wide` layout that is only ever iPhone Duo
+    /// open in landscape: slab iPhones are always compact, and an iPad (which
+    /// resolves `.wide` too) keeps its two columns exactly. Never a
+    /// device-model check.
+    private var isPhone: Bool {
+        UIDevice.current.userInterfaceIdiom == .phone
+    }
+
     var body: some View {
         NavigationStack {
             // A ZStack, not a Group: a Group hands its modifiers to whichever
@@ -64,7 +73,17 @@ struct StatsView: View {
                     GeometryReader { proxy in
                         let layout = PaneLayout.resolve(in: proxy, horizontal: hSize)
                         switch layout.shape {
-                        case .wide, .tall:
+                        case .wide:
+                            // A grid only ever resolves for the phone idiom —
+                            // iPhone Duo's inner display. iPad (and a reader
+                            // too narrow for two pages) keeps the two columns
+                            // exactly as they were.
+                            if let grid = SpreadGrid(layout: layout, isPhone: isPhone) {
+                                spread(layout, grid: grid)
+                            } else {
+                                twoColumns(layout)
+                            }
+                        case .tall:
                             twoColumns(layout)
                         case .compact, .short:
                             // The outer display on its side: no fold, and one
@@ -100,11 +119,11 @@ struct StatsView: View {
         ScrollView {
             VStack(spacing: 14) {
                 wrappedButtonIfShown
-                insightsCardIfShown
-                outlookCardIfShown
-                patternsCardIfShown
+                insightsCardIfShown()
+                outlookCardIfShown()
+                patternsCardIfShown()
                 todayCard
-                recordHero
+                recordHero()
                 milestonesCard
                 lifetimeTiles
                 nightShiftCard()
@@ -117,17 +136,18 @@ struct StatsView: View {
         }
     }
 
-    /// `.wide` / `.tall` (Duo inner display, iPad): the single column
-    /// reflowed into two that scroll together — the glance (records, totals,
-    /// today) leading, this week and the AI cards trailing. In `.wide` the
-    /// gap between them is the fold band.
+    /// `.tall` (the Duo open in portrait) and `.wide` on iPad: the single
+    /// column reflowed into two that scroll together — the glance (records,
+    /// totals, today) leading, this week and the AI cards trailing. In
+    /// `.wide` the gap between them is the fold band. (The Duo open in
+    /// landscape has the spread instead.)
     private func twoColumns(_ layout: PaneLayout) -> some View {
         let columns = layout.columns
         return ScrollView {
             HStack(alignment: .top, spacing: 0) {
                 VStack(spacing: 14) {
                     wrappedButtonIfShown
-                    recordHero
+                    recordHero()
                     lifetimeTiles
                     todayCard
                     milestonesCard
@@ -147,9 +167,9 @@ struct StatsView: View {
                     .accessibilityHidden(true)
 
                 VStack(spacing: 14) {
-                    insightsCardIfShown
-                    outlookCardIfShown
-                    patternsCardIfShown
+                    insightsCardIfShown()
+                    outlookCardIfShown()
+                    patternsCardIfShown()
                     nightShiftCard(twoColumn: true)
                     contributionCard
                     cadenceCard
@@ -164,30 +184,102 @@ struct StatsView: View {
         }
     }
 
+    // MARK: The spread (iPhone Duo open in landscape, flat or like a book)
+
+    /// Stats on iPhone Duo's open display in landscape: the two pages Home
+    /// opens on (`SpreadScaffold` draws the light, the avatar and the
+    /// titles), holding the two columns' own split — the glance on the
+    /// leading page, this week and what's next on the trailing one. Each
+    /// page scrolls on its own under a title that stays put.
+    ///
+    /// A page opens on a first screen that ends exactly on the foot line, as
+    /// Home's pages do. Leading: the share row and the lifetime tiles at
+    /// their natural heights, with the record between them taking the slack
+    /// — its numerals stay where they are and the card gets taller. Trailing:
+    /// the AI cards that are showing, the last of them taking the slack;
+    /// with none showing there is no first screen to fill and the page
+    /// simply starts with the night shift. Everything else is a scroll away,
+    /// and at a text size where a first screen needs more than its page,
+    /// nothing stretches and the page scrolls sooner.
+    private func spread(_ layout: PaneLayout, grid: SpreadGrid) -> some View {
+        let lastLead = lastLeadCard
+        return SpreadScaffold(
+            layout: layout, grid: grid, baby: babies.first,
+            leading: SpreadPage("Stats", subtitle: "All time") { height in
+                SpreadPageScroll {
+                    SpreadFirstScreen(height: height) {
+                        // Natural height, whatever the page offers: a stack
+                        // sharing out a fixed height can otherwise hand a
+                        // card less than its text needs.
+                        wrappedButtonIfShown
+                            .fixedSize(horizontal: false, vertical: true)
+                        recordHero(fillsPage: true)
+                        lifetimeTiles
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    todayCard
+                    milestonesCard
+                    careSummaryButtonIfShown
+                }
+            },
+            trailing: SpreadPage("This week", subtitle: "and what's next") { height in
+                SpreadPageScroll {
+                    if let lastLead {
+                        SpreadFirstScreen(height: height) {
+                            // Each at its natural height but the last one
+                            // showing, which is left free to grow.
+                            insightsCardIfShown(fillsPage: lastLead == .insights)
+                                .fixedSize(horizontal: false, vertical: lastLead != .insights)
+                            outlookCardIfShown(fillsPage: lastLead == .outlook)
+                                .fixedSize(horizontal: false, vertical: lastLead != .outlook)
+                            patternsCardIfShown(fillsPage: lastLead == .patterns)
+                        }
+                    }
+                    nightShiftCard(twoColumn: true)
+                    contributionCard
+                    cadenceCard
+                    accuracyCardIfShown
+                }
+            })
+    }
+
     // MARK: Conditionally shown cards
     //
-    // Each card's visibility rule lives here once, shared by both layouts.
+    // Each card's visibility rule lives here once, shared by every layout.
+    // `fillsPage` is the spread's alone: the card takes up its page's slack
+    // (see `CardContentFrame`).
 
     @ViewBuilder private var wrappedButtonIfShown: some View {
         if hasAnyData { wrappedButton }
     }
 
-    @ViewBuilder private var insightsCardIfShown: some View {
+    @ViewBuilder private func insightsCardIfShown(fillsPage: Bool = false) -> some View {
         if showInsights {
-            insightsCard
+            insightsCard(fillsPage: fillsPage)
         }
     }
 
-    @ViewBuilder private var outlookCardIfShown: some View {
-        if !outlookRows.isEmpty, aiEnabled {
-            outlookCard(outlookRows)
+    private var showOutlook: Bool { !outlookRows.isEmpty && aiEnabled }
+
+    @ViewBuilder private func outlookCardIfShown(fillsPage: Bool = false) -> some View {
+        if showOutlook {
+            outlookCard(outlookRows, fillsPage: fillsPage)
         }
     }
 
-    @ViewBuilder private var patternsCardIfShown: some View {
-        if let patterns, aiEnabled {
-            patternsCard(patterns)
+    private var showPatterns: Bool { patterns != nil && aiEnabled }
+
+    @ViewBuilder private func patternsCardIfShown(fillsPage: Bool = false) -> some View {
+        if showPatterns, let patterns {
+            patternsCard(patterns, fillsPage: fillsPage)
         }
+    }
+
+    /// The last of the three AI cards that is showing — the one that takes
+    /// up the slack of the spread's trailing page. Nil when none is.
+    private var lastLeadCard: StatsLeadCard? {
+        StatsLeadCard.last(insights: showInsights, outlook: showOutlook,
+                           patterns: showPatterns)
     }
 
     @ViewBuilder private var accuracyCardIfShown: some View {
@@ -258,7 +350,7 @@ struct StatsView: View {
 
     // MARK: Insights (on-device AI)
 
-    private var insightsCard: some View {
+    private func insightsCard(fillsPage: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("INSIGHTS", systemImage: "sparkles")
                 .sectionLabelStyle()
@@ -279,7 +371,7 @@ struct StatsView: View {
                     .foregroundStyle(AppColor.text2)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .modifier(CardContentFrame(fillsPage: fillsPage))
         .padding(16)
         .surfaceCard(cornerRadius: 18)
     }
@@ -378,7 +470,7 @@ struct StatsView: View {
     /// Structured predictions with the reasoning shown — computed, not
     /// generated, so unlike the insights and weekly cards it carries no
     /// gradient border and its caption says "computed."
-    private func outlookCard(_ rows: [TodayOutlook.Row]) -> some View {
+    private func outlookCard(_ rows: [TodayOutlook.Row], fillsPage: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("\(AIGlow.mark) TODAY'S OUTLOOK")
                 .font(.caption2.weight(.semibold))
@@ -405,7 +497,7 @@ struct StatsView: View {
                 .font(.caption2)
                 .foregroundStyle(AppColor.text3)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .modifier(CardContentFrame(fillsPage: fillsPage))
         .padding(16)
         .surfaceCard(cornerRadius: 18)
         .accessibilityElement(children: .combine)
@@ -414,7 +506,8 @@ struct StatsView: View {
     /// The weekly card. Same gradient-border treatment as the outlook — all of
     /// it is generated — but its caption names Private Cloud Compute, because
     /// this is the one card whose input leaves the phone.
-    private func patternsCard(_ patterns: BabyIntelligence.WeeklyPatterns) -> some View {
+    private func patternsCard(_ patterns: BabyIntelligence.WeeklyPatterns,
+                              fillsPage: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("\(AIGlow.mark) THIS WEEK'S PATTERNS")
                 .font(.caption2.weight(.semibold))
@@ -438,7 +531,7 @@ struct StatsView: View {
                 .font(.caption2)
                 .foregroundStyle(AppColor.text3)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .modifier(CardContentFrame(fillsPage: fillsPage))
         .padding(16)
         .surfaceCard(cornerRadius: 18)
         .overlay(
@@ -522,7 +615,10 @@ struct StatsView: View {
 
     // MARK: Record hero
 
-    private var recordHero: some View {
+    /// `fillsPage`: on the spread's leading page the card takes the slack
+    /// between the share row and the lifetime tiles — taller, its lines
+    /// where they always were, at the top.
+    private func recordHero(fillsPage: Bool = false) -> some View {
         let record = engine.longestSleep()
         return VStack(alignment: .leading, spacing: 6) {
             // Fixed cream (not adaptive text2) — this card is always the dark indigo
@@ -546,7 +642,7 @@ struct StatsView: View {
                     .foregroundStyle(AppColor.nightlightCream.opacity(0.8))
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .modifier(CardContentFrame(fillsPage: fillsPage))
         .padding(16)
         .background(
             LinearGradient(
@@ -844,6 +940,47 @@ struct StatsView: View {
         let date = Calendar.current.date(from: c) ?? .now
         // "6 PM" for 12-hour users, "18" for 24-hour locales.
         return date.formatted(.dateTime.hour())
+    }
+}
+
+/// The three AI cards that open the spread's trailing page, in the order
+/// they stack: Insights, Today's outlook, This week's patterns.
+enum StatsLeadCard: Equatable {
+    case insights, outlook, patterns
+
+    /// The last of them that is showing — the one that takes up its page's
+    /// slack, so the first screen ends on the foot line whichever cards the
+    /// day has. Nil when none is showing: the page then starts with the
+    /// night shift and nothing stretches.
+    static func last(insights: Bool, outlook: Bool, patterns: Bool) -> StatsLeadCard? {
+        if patterns { return .patterns }
+        if outlook { return .outlook }
+        return insights ? .insights : nil
+    }
+}
+
+/// How a Stats card's content sits inside its surface. Everywhere but the
+/// spread's first screen it is the frame these cards have always had: as
+/// wide as the card, as tall as the content. With `fillsPage` the frame
+/// also takes whatever height its page has left — the padding and the
+/// background come after it, so the surface is what grows — while the
+/// content stays at the top, where it was.
+private struct CardContentFrame: ViewModifier {
+    let fillsPage: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if fillsPage {
+            content
+                // Never less than the content needs: handed too little (a
+                // large text size on a short page) the card keeps every
+                // line, and the page scrolls instead.
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 

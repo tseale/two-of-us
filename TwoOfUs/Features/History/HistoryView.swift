@@ -1,11 +1,13 @@
 import SwiftUI
+import UIKit
 import SwiftData
 import Charts
 
 /// Trends over the last week: a day-in-the-life swimlane (reusing the ribbon),
 /// the sleep-consolidation line, and daily formula volume. One column on every
-/// iPhone; two columns that scroll together on iPhone Duo's inner display and
-/// iPad (see `PaneLayout`).
+/// iPhone; two pages either side of the fold on iPhone Duo open in landscape
+/// (see `spread`); two columns that scroll together on the Duo open in
+/// portrait and on iPad (see `PaneLayout`).
 struct HistoryView: View {
     @Query(filter: #Predicate<FeedEvent> { $0.deletedAt == nil }, sort: \FeedEvent.timestamp, order: .reverse)
     private var feeds: [FeedEvent]
@@ -28,6 +30,14 @@ struct HistoryView: View {
     @Environment(\.horizontalSizeClass) private var hSize
     @Environment(\.verticalSizeClass) private var vSize
 
+    /// The phone idiom. With a `.wide` layout that is only ever iPhone Duo
+    /// open in landscape: slab iPhones are always compact, and an iPad (which
+    /// resolves `.wide` too) keeps its two columns exactly. Never a
+    /// device-model check.
+    private var isPhone: Bool {
+        UIDevice.current.userInterfaceIdiom == .phone
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -39,7 +49,17 @@ struct HistoryView: View {
                     GeometryReader { proxy in
                         let layout = PaneLayout.resolve(in: proxy, horizontal: hSize)
                         switch layout.shape {
-                        case .wide, .tall:
+                        case .wide:
+                            // A grid only ever resolves for the phone idiom —
+                            // iPhone Duo's inner display. iPad (and a reader
+                            // too narrow for two pages) keeps the two columns
+                            // exactly as they were.
+                            if let grid = SpreadGrid(layout: layout, isPhone: isPhone) {
+                                spread(layout, grid: grid)
+                            } else {
+                                content(split: layout)
+                            }
+                        case .tall:
                             content(split: layout)
                         case .compact, .short:
                             // The outer display on its side: no fold, and one
@@ -56,7 +76,8 @@ struct HistoryView: View {
 
     /// The tab's content: today's single column when `split` is nil (every
     /// iPhone, and the Duo's outer display either way up), or two columns
-    /// along `split` (`.wide` / `.tall`: the Duo's inner display, iPad).
+    /// along `split` (`.tall`: the Duo open in portrait; `.wide`: iPad —
+    /// the Duo open in landscape has the spread instead).
     @ViewBuilder
     private func content(split: PaneLayout?) -> some View {
         if hasAnyData {
@@ -111,7 +132,62 @@ struct HistoryView: View {
         )
     }
 
-    // MARK: Two columns (Duo inner display, iPad)
+    // MARK: The spread (iPhone Duo open in landscape, flat or like a book)
+
+    /// History on iPhone Duo's open display in landscape: the two pages Home
+    /// opens on (`SpreadScaffold` draws the light, the avatar and the
+    /// titles), holding the two columns' own split — the week's rhythm on
+    /// the leading page, its daily totals on the trailing one. Each page
+    /// scrolls on its own under a title that stays put.
+    ///
+    /// A page opens on a first screen that ends exactly on the foot line, as
+    /// Home's pages do: the swimlane at its natural height over the
+    /// longest-stretch card, whose chart takes the height that is left; and
+    /// the two totals cards sharing their page evenly. The third card of
+    /// each column is a scroll away. At a text size where a first screen
+    /// needs more than its page, the charts keep their usual height and the
+    /// page simply scrolls sooner.
+    private func spread(_ layout: PaneLayout, grid: SpreadGrid) -> some View {
+        // One pass over the history for both pages, as in `content(split:)`
+        // — and none at all while there is nothing to summarise.
+        let summaries = hasAnyData ? engine.dailySummaries(days: days) : []
+        return SpreadScaffold(
+            layout: layout, grid: grid, baby: babies.first,
+            leading: SpreadPage("History", subtitle: "Last \(days) days") { height in
+                SpreadPageScroll {
+                    if hasAnyData {
+                        SpreadFirstScreen(height: height) {
+                            // Natural height, whatever the page offers: a
+                            // stack sharing out a fixed height would
+                            // otherwise squeeze the lanes to make the two
+                            // cards even.
+                            swimlaneCard(twoColumn: true)
+                                .fixedSize(horizontal: false, vertical: true)
+                            consolidationCard(summaries, twoColumn: true, fillsPage: true)
+                        }
+                        feedHeatmapCard(twoColumn: true)
+                    } else {
+                        // Top-aligned on the leading page, under its title:
+                        // never centred across the fold. The facing page
+                        // stays empty until there is a week to total.
+                        noHistory
+                    }
+                }
+            },
+            trailing: SpreadPage("Daily totals", subtitle: "This week") { height in
+                SpreadPageScroll {
+                    if hasAnyData {
+                        SpreadFirstScreen(height: height) {
+                            sleepTotalCard(summaries, twoColumn: true, fillsPage: true)
+                            volumeCard(summaries, twoColumn: true, fillsPage: true)
+                        }
+                        diaperTrendCard(twoColumn: true)
+                    }
+                }
+            })
+    }
+
+    // MARK: Two columns (Duo open in portrait, iPad)
 
     /// `.wide` / `.tall`: the single column reflowed into two that scroll
     /// together — the day's rhythm leading, the daily totals trailing. In
@@ -187,11 +263,16 @@ struct HistoryView: View {
 
     // MARK: Sleep consolidation
 
-    private func consolidationCard(_ summaries: [DaySummary], twoColumn: Bool = false) -> some View {
+    /// `fillsPage`: on the spread's first screen, the chart takes whatever
+    /// height the page has left (never less than its usual one), so the card
+    /// ends on the foot line. False — every other layout — is the fixed
+    /// chart it always was.
+    private func consolidationCard(_ summaries: [DaySummary], twoColumn: Bool = false,
+                                   fillsPage: Bool = false) -> some View {
         let best = summaries.map(\.longestStretch).max() ?? 0
         return Card(title: "Longest sleep stretch", trailing: durationShort(best)) {
             if best == 0 {
-                emptyState("No completed sleeps yet", twoColumn: twoColumn)
+                emptyState("No completed sleeps yet", twoColumn: twoColumn, fillsPage: fillsPage)
             } else {
                 Chart(summaries) { s in
                     let hours = s.longestStretch / 3600
@@ -222,14 +303,18 @@ struct HistoryView: View {
                 }
                 .chartXAxis { weekdayAxis(twoColumn: twoColumn) }
                 .chartYAxis { softYAxis(unit: "h") }
-                .frame(height: chartHeight(twoColumn: twoColumn))
+                .modifier(ChartHeight(height: chartHeight(twoColumn: twoColumn),
+                                      fillsPage: fillsPage))
             }
         }
     }
 
     // MARK: Daily volume
 
-    private func volumeCard(_ summaries: [DaySummary], twoColumn: Bool = false) -> some View {
+    /// `fillsPage`: as on `consolidationCard` — the chart shares the spread
+    /// page's height with the card above it.
+    private func volumeCard(_ summaries: [DaySummary], twoColumn: Bool = false,
+                            fillsPage: Bool = false) -> some View {
         let total = summaries.reduce(0.0) { $0 + $1.feedOz }
         // Average over days actually logged, not the whole window — pre-birth /
         // untracked zero-days would otherwise understate "avg" for a young baby.
@@ -237,7 +322,7 @@ struct HistoryView: View {
         let avg = trackedDays == 0 ? 0 : total / Double(trackedDays)
         return Card(title: "Daily formula (oz)", trailing: "avg \(OzFormat.string(avg.rounded()))") {
             if total == 0 {
-                emptyState("No feeds logged yet", twoColumn: twoColumn)
+                emptyState("No feeds logged yet", twoColumn: twoColumn, fillsPage: fillsPage)
             } else {
                 Chart(summaries) { s in
                     BarMark(
@@ -259,21 +344,25 @@ struct HistoryView: View {
                 }
                 .chartXAxis { weekdayAxis(twoColumn: twoColumn) }
                 .chartYAxis { softYAxis(unit: "oz") }
-                .frame(height: chartHeight(twoColumn: twoColumn))
+                .modifier(ChartHeight(height: chartHeight(twoColumn: twoColumn),
+                                      fillsPage: fillsPage))
             }
         }
     }
 
     // MARK: Total sleep per day
 
-    private func sleepTotalCard(_ summaries: [DaySummary], twoColumn: Bool = false) -> some View {
+    /// `fillsPage`: as on `consolidationCard` — the chart shares the spread
+    /// page's height with the card under it.
+    private func sleepTotalCard(_ summaries: [DaySummary], twoColumn: Bool = false,
+                                fillsPage: Bool = false) -> some View {
         let total = summaries.reduce(0.0) { $0 + $1.sleepSeconds }
         // Average over days with sleep logged, not the whole window (see volumeCard).
         let trackedDays = summaries.filter { $0.sleepSeconds > 0 }.count
         let avgPerDay = trackedDays == 0 ? 0 : total / Double(trackedDays)
         return Card(title: "Total sleep per day", trailing: "avg \(durationShort(avgPerDay))") {
             if total == 0 {
-                emptyState("No completed sleeps yet", twoColumn: twoColumn)
+                emptyState("No completed sleeps yet", twoColumn: twoColumn, fillsPage: fillsPage)
             } else {
                 Chart(summaries) { s in
                     BarMark(
@@ -295,7 +384,8 @@ struct HistoryView: View {
                 }
                 .chartXAxis { weekdayAxis(twoColumn: twoColumn) }
                 .chartYAxis { softYAxis(unit: "h") }
-                .frame(height: chartHeight(twoColumn: twoColumn))
+                .modifier(ChartHeight(height: chartHeight(twoColumn: twoColumn),
+                                      fillsPage: fillsPage))
             }
         }
     }
@@ -446,12 +536,18 @@ struct HistoryView: View {
     }
 
     /// Centred on a phone; leading-aligned (in line with the card's title) in
-    /// the two-column shapes.
-    private func emptyState(_ text: String, twoColumn: Bool = false) -> some View {
+    /// the two-column shapes. `fillsPage`: in a card that takes up a spread
+    /// page's slack, the line's slot stretches as the chart would have, so
+    /// the page still ends on the foot line before there is anything to
+    /// chart.
+    private func emptyState(_ text: String, twoColumn: Bool = false,
+                            fillsPage: Bool = false) -> some View {
         Text(text)
             .font(.subheadline)
             .foregroundStyle(AppColor.text3)
-            .frame(maxWidth: .infinity, minHeight: 80, alignment: twoColumn ? .leading : .center)
+            .frame(maxWidth: .infinity, minHeight: 80,
+                   maxHeight: fillsPage ? CGFloat.infinity : nil,
+                   alignment: twoColumn ? .leading : .center)
     }
 
     private func legendBar(_ color: Color, label: String) -> some View {
@@ -498,6 +594,28 @@ struct HistoryView: View {
         }
         let day = row.day.formatted(.dateTime.weekday(.wide))
         return "\(day): \(Plural.count(feeds, "feed")), \(sleep), \(Plural.count(diapers, "diaper"))."
+    }
+}
+
+/// A bar or line chart's height inside its card. Fixed wherever the card
+/// hugs its content — every layout but one. On the spread's first screen
+/// (`fillsPage`) it starts from that same height and grows with whatever
+/// more the card is handed, so the chart is the part of the card that
+/// stretches and the card ends on the page's foot line.
+private struct ChartHeight: ViewModifier {
+    let height: CGFloat
+    let fillsPage: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if fillsPage {
+            // The ideal height is the usual one too: asked what it would
+            // like — a scroll view asks — the card answers as it always
+            // has, and only a page with room to spare makes it taller.
+            content.frame(minHeight: height, idealHeight: height, maxHeight: .infinity)
+        } else {
+            content.frame(height: height)
+        }
     }
 }
 

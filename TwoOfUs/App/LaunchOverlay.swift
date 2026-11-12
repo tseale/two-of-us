@@ -47,6 +47,9 @@ struct LaunchOverlay: View {
     var onFinished: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Where the spine is while iPhone Duo is open in landscape (handed in
+    /// by `RootView`); nil on every other device and in every other pose.
+    @Environment(\.spreadSpine) private var spine
 
     // Everything starts dark/apart and converges; `enter()` animates toward
     // the mark's resting pose, `reveal()` dissolves the lot.
@@ -115,6 +118,14 @@ struct LaunchOverlay: View {
                     .opacity(spotlightOpacity)
             }
             .scaleEffect(sceneScale)
+            // iPhone Duo open in landscape: the safe area this scene is
+            // centred in is off-centre (the system strip takes one side), so
+            // its middle is 42 pt off the crease. There the mark — and the
+            // spotlight behind it — stands on the spine instead: one parent
+            // on each page, the baby's light on the fold. Sideways only, and
+            // after the scale, so the scene still swells about the mark's
+            // own centre. Everywhere else there is no spine and no shift.
+            .offset(x: spine?.centreOffset ?? 0)
         }
         .opacity(sceneOpacity)
         // The whole point: a full-screen hit target so nothing underneath can

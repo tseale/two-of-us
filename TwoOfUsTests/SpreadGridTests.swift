@@ -241,6 +241,69 @@ final class SpreadGridTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(SpreadGrid.titleAir, SpreadGrid.surfaceGap)
     }
 
+    // MARK: A page with its title
+
+    func testATitledPageRunsFromTheHeadLineToTheFootLine() throws {
+        // What `SpreadScaffold` frames and places each page by: the page's
+        // own x and width, from the head line (y 22) to the foot line (635).
+        let grid = try XCTUnwrap(SpreadGrid.resolve(size: reader, band: band(minX: 455.5)))
+        assertFrame(grid.titledPage(.leading), x: 97.5, y: 22, width: 350, height: 613)
+        assertFrame(grid.titledPage(.trailing), x: 503.5, y: 22, width: 350, height: 613)
+
+        for side in [SpreadGrid.Side.leading, .trailing] {
+            let titled = grid.titledPage(side)
+            let page = grid.page(side)
+            // The title's slot, then the page: nothing else, and nothing less.
+            XCTAssertEqual(titled.height, grid.titleHeight + grid.pageHeight, accuracy: 0.001)
+            XCTAssertEqual(titled.minX, page.minX, accuracy: 0.001)
+            XCTAssertEqual(titled.width, page.width, accuracy: 0.001)
+            XCTAssertEqual(titled.minY, grid.headY, accuracy: 0.001)
+            XCTAssertEqual(titled.maxY, grid.foot, accuracy: 0.001, "ends on the foot line")
+            XCTAssertEqual(titled.maxY, page.maxY, accuracy: 0.001)
+        }
+    }
+
+    func testTitledPagesKeepClearOfTheFoldWhicheverSideTheStripIsOn() throws {
+        // The phone turned round: the same two columns, 84 pt to the left.
+        let fold = band(minX: 371.5)
+        let grid = try XCTUnwrap(SpreadGrid.resolve(size: reader, band: fold))
+        assertFrame(grid.titledPage(.leading), x: 13.5, y: 22, width: 350, height: 613)
+        assertFrame(grid.titledPage(.trailing), x: 419.5, y: 22, width: 350, height: 613)
+        // A title is text: it stays as clear of the band as its page does.
+        XCTAssertLessThanOrEqual(grid.titledPage(.leading).maxX, fold.minX - 8 + 0.001)
+        XCTAssertGreaterThanOrEqual(grid.titledPage(.trailing).minX, fold.maxX + 8 - 0.001)
+    }
+
+    func testATitledPageFollowsTheHeadLineWhereverItIs() throws {
+        // Demo mode: the pill's row has already kept the titles off the
+        // display's edge, so the titled page is the reader's whole height.
+        let short = CGSize(width: 867, height: 602)
+        let demo = try XCTUnwrap(SpreadGrid.resolve(size: short,
+                                                    band: band(minX: 455.5, height: 602),
+                                                    topOffset: 33))
+        assertFrame(demo.titledPage(.leading), x: 97.5, y: 0, width: 350, height: 602)
+        assertFrame(demo.titledPage(.trailing), x: 503.5, y: 0, width: 350, height: 602)
+
+        // A status bar across the top (not the Duo's landscape case).
+        let barred = try XCTUnwrap(SpreadGrid.resolve(size: reader, band: band(minX: 455.5),
+                                                      topInset: 5))
+        assertFrame(barred.titledPage(.leading), x: 97.5, y: 7, width: 350, height: 628)
+
+        // Narrower pages take their titles with them.
+        let narrow = try XCTUnwrap(SpreadGrid.resolve(size: CGSize(width: 760, height: 635),
+                                                      band: band(minX: 360)))
+        assertFrame(narrow.titledPage(.leading), x: 12, y: 22, width: 340, height: 613)
+        assertFrame(narrow.titledPage(.trailing), x: 408, y: 22, width: 340, height: 613)
+    }
+
+    func testAReaderShorterThanTheHeadLineHasAnEmptyTitledPageNotANegativeOne() throws {
+        let grid = try XCTUnwrap(SpreadGrid.resolve(size: CGSize(width: 867, height: 10),
+                                                    band: band(minX: 455.5, height: 10)))
+        XCTAssertEqual(grid.titledPage(.leading).height, 0, accuracy: 0.001)
+        XCTAssertEqual(grid.titledPage(.trailing).height, 0, accuracy: 0.001)
+        XCTAssertEqual(grid.titledPage(.leading).minY, 22, accuracy: 0.001)
+    }
+
     // MARK: A page that ends in the journal
 
     func testTheJournalFillsThePageUnderShortLeadItems() {

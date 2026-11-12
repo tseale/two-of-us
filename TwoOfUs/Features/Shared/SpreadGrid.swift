@@ -151,6 +151,17 @@ struct SpreadGrid: Equatable {
         side == .leading ? leadingPage : trailingPage
     }
 
+    /// The page on one side of the fold with its title: from the head line
+    /// to the foot line, at the page's own x and width. A page's views — the
+    /// title block, then everything from `top` down — are framed to this
+    /// size and placed at this origin as one column, so the title can push
+    /// its page's surfaces down (a larger text size) without ever moving the
+    /// foot line.
+    func titledPage(_ side: Side) -> CGRect {
+        let page = self.page(side)
+        return CGRect(x: page.minX, y: headY, width: page.width, height: max(foot - headY, 0))
+    }
+
     // MARK: Resolving
 
     /// The grid for a reader of `size` whose fold band is `band`, or nil when

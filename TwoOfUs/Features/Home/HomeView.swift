@@ -585,6 +585,12 @@ struct HomeView: View {
     /// page ends on the foot line. Nothing textual or tappable sits between
     /// the pages — only the light crosses the fold, so folding the phone
     /// like a book never puts the crease on a control or a line of text.
+    ///
+    /// The other tabs draw this same frame — the light, the avatar, the two
+    /// titled pages — through `SpreadScaffold`. Home keeps its own: its
+    /// light also follows a nap at daycare, which only the queries here can
+    /// tell, and its trailing title re-stacks at large text sizes. A change
+    /// to the frames here belongs there too.
     private func spread(_ layout: PaneLayout, grid: SpreadGrid) -> some View {
         ZStack(alignment: .topLeading) {
             // The light, behind everything. It takes this reader's frame —

@@ -149,10 +149,10 @@ strip. Where everything goes is plain geometry (`CradleField.Plan`), tested in
 | The cover | No pools and no night ground: plain black. While he sleeps, in the dark appearance, a bloom on the spine edge 62 % of the way down: drawn 220 × 420 (154 × 294), at 0.55 strength |
 | Changes | A 1.2 s cross-fade |
 
-- **Where it is drawn.** Behind Home's spread — the pools always, the hinge
-  light while he sleeps — and behind the cover in the dark appearance (a
-  light cover is the list it always was). No other screen or pose draws it
-  yet, and no slab iPhone or iPad ever does.
+- **Where it is drawn.** Behind every tab's spread — the pools always, the
+  hinge light while he sleeps — and behind the cover in the dark appearance (a
+  light cover is the list it always was). No other pose draws it yet, and no
+  slab iPhone or iPad ever does.
 - **On.** "Asleep" is any sleep in progress: a parent-logged or SNOO one, or
   a nap Brightwheel has started and not ended while he is at daycare — the
   same pair that makes the Today card's strip glow, so the two come on, and
@@ -173,13 +173,46 @@ strip. Where everything goes is plain geometry (`CradleField.Plan`), tested in
   nothing draws them until tabletop and tent get their layouts (see "Still to
   come").
 
+### The other tabs on the spread
+
+On iPhone Duo open in landscape, Nighttime, History and Stats use the same
+two pages as Home, drawn by one view: `Features/Shared/SpreadScaffold.swift`.
+It draws the light, the margin avatar, a `PageTitle` on each page's head line,
+and hands each page's content the height left under its title. It also hides
+the navigation bar (the page titles are the titles) and floats a tab's undo
+toast at the foot of the trailing page. `SpreadPageScroll` and
+`SpreadFirstScreen` give a page a first screen that ends on the foot line with
+the rest a scroll away. iPad's `.wide` and every other shape keep the code
+they had. Home draws the same frame by hand (its light also follows a
+daycare nap, and its trailing title re-stacks at large text sizes). The tabs'
+light follows parent-logged and SNOO sleeps only — not a Brightwheel nap,
+which only Home's queries can tell.
+
 ### Nighttime
-Wide: tonight (hero + timeline) on the left page, the sleep-window plan on the
-right. Tall: the single list with a ~600 pt readable width. Compact and short:
-unchanged.
+Wide on iPhone Duo — the spread: **"Nighttime / Tonight"** with the Nighttime
+settings button beside the title (the moon, moved from the hidden navigation
+bar), then who's up next and the night's rail on one journal card down to the
+foot line. **"The plan / Your sleep, planned"**: one card with the sleep
+windows and "Add a sleep window", the plan drawn to scale (`NightPlanStrip`:
+the night window as a track, each parent's window a pill in their colour,
+clipped to the night; geometry in `NightPlanScale`, tested in
+`NightPlanScaleTests`), the night's numbers (planned sleep each, feed spacing,
+the window), and the explanation as three short paragraphs. Wide on iPad:
+tonight on the left pane, the plan on the right. Tall: the single list with a
+~600 pt readable width. Compact and short: unchanged.
 
 ### History and Stats
-Wide and tall: two columns that scroll together, seam on the fold.
+Wide on iPhone Duo — the spread. History: **"History / Last 7 days"** opens on
+the swimlane and the longest-stretch card, whose chart takes the rest of the
+page; **"Daily totals / This week"** opens on total sleep and daily formula,
+sharing the page evenly. Stats: **"Stats / All time"** opens on the share row,
+the record (taller, taking the slack) and the lifetime tiles; **"This week /
+and what's next"** opens on the AI cards that are showing, the last one taking
+the slack. Every other card is a scroll away on its page; at a text size where
+a first screen needs more than its page, nothing stretches and the page
+scrolls sooner.
+
+Wide on iPad, and tall: two columns that scroll together, seam on the fold.
 History — left "rhythm" (swimlane, longest stretch, feed heatmap), right
 "daily totals" (sleep, volume, diapers), with taller charts. Stats — left "the
 glance" (Wrapped, record, lifetime tiles, today, milestones, care summary),
@@ -201,6 +234,16 @@ cadence, accuracy). Empty states top-align instead of centring on the fold.
   at the foot of the spread's trailing page. Slide-to-confirm ≤ 360 pt (an
   80%-of-width slide on the inner display crossed the fold).
 - Launch curtain blocks touches across the whole display, side strip included.
+- **The mark on the spine.** Open in landscape, the safe area is off-centre
+  (the strip takes 84 pt from one side), so a centred mark would sit 42 pt off
+  the crease. There the launch curtain's mark stands on the crease, one
+  parent's circle on each page; the restore screen draws the mark at 210 pt on
+  the crease, "Welcome back" closing the leading page and the status, shimmer
+  and Try again opening the trailing one, on one baseline — no word between
+  the pages. `RootView` measures where the spine is
+  (`Features/Shared/SpreadSpine.swift`, tested in `SpreadSpineTests`) beside
+  `leadingPageWidth`; everywhere else there is none and both screens are
+  unchanged.
 - Feed, baby and profile sheets don't re-seed their fields if `onAppear` fires
   again on a fold; the Diaper sheet can expand to large (the outer display's
   half sheet hid Logged by and Note).
@@ -220,11 +263,6 @@ cadence, accuracy). Empty states top-align instead of centring on the fold.
 Approved with the spread (2026-11-12), not built yet. Until each lands, the
 screens and poses it names are exactly as described above.
 
-- **Nighttime, History and Stats on the grid.** Page titles on the head line,
-  the avatar in the margin, first screens that end on the foot line, the light
-  behind them; Nighttime's plan drawn as a to-scale strip; the launch /
-  restore mark on the spine. Changes the Wide layouts on iPhone Duo under
-  "Nighttime" and "History and Stats".
 - **Tabletop and tent.** Open in portrait: a poster on the top half, an
   anchored pad on the bottom; while he sleeps, the timer upright as a face and
   the Wake slide on the flat half. Tent: the Today card and three tiles by
