@@ -86,12 +86,6 @@ struct HomeView: View {
     /// zero on any iPhone under the demo-mode pill). Starts at zero so every
     /// slab iPhone is unchanged.
     @State private var compactSideInset: CGFloat = 0
-    /// The spread's trailing page: the height of its lead items (the Today
-    /// card's daycare layer, SNOO suggestions, tonight / up next, the setup
-    /// checklist), measured — what is left under them decides whether the
-    /// journal fills the page or the page scrolls as a whole. Zero while
-    /// there are none.
-    @State private var spreadLeadHeight: CGFloat = 0
     /// Start of the current day. Advanced by a task at midnight so the "today"
     /// ribbon, counts, and 24h window refresh even if the app sits foregrounded
     /// across midnight with nothing new logged (a @Query change would otherwise
@@ -621,7 +615,7 @@ struct HomeView: View {
             }
             // Leading page, then trailing page: the order VoiceOver reads.
             spreadNowPage(grid)
-            spreadRecentPage(grid)
+            spreadStatsPage(grid)
         }
         .frame(width: layout.size.width, height: layout.size.height, alignment: .topLeading)
     }
@@ -712,22 +706,19 @@ struct HomeView: View {
         isTracked(.feed) || isTracked(.diaper) || (isTracked(.sleep) && !sleeping)
     }
 
-    /// The spread's trailing page — the day beside the cover: "Recent" with
-    /// its quiet "+ Add note", then whatever leads the day right now (the
-    /// Today card's daycare layer, SNOO suggestions, tonight's roster or the
-    /// one-line up next, the setup checklist) and the journal filling the
-    /// rest of the page. The undo toast floats at this page's foot, inside
-    /// its width, so it never covers the leading page's controls or spans
-    /// the fold.
-    private func spreadRecentPage(_ grid: SpreadGrid) -> some View {
+    /// The spread's trailing page — stats beside the cover. The daycare
+    /// layer, SNOO suggestions, and tonight's schedule come first (same items
+    /// as the old "Recent" page), then a "Today so far" card comparing feeds,
+    /// sleep, and diapers against the 7-day average. The undo toast floats at
+    /// this page's foot so it never crosses the fold.
+    private func spreadStatsPage(_ grid: SpreadGrid) -> some View {
         VStack(spacing: 0) {
-            spreadRecentTitle
-                // As on the leading page: the title's own air, inside the
-                // minimum that puts the first surface on the top line.
+            PageTitle("Stats", subtitle: "today so far")
                 .padding(.bottom, SpreadGrid.titleAir)
                 .frame(minHeight: grid.titleHeight, alignment: .top)
-            GeometryReader { page in
-                spreadRecentContent(pageHeight: page.size.height)
+            SpreadPageScroll {
+                spreadLeadItems
+                spreadTodayStatsCard
             }
         }
         .frame(width: grid.pageWidth, height: max(grid.foot - grid.headY, 0), alignment: .top)
@@ -738,82 +729,75 @@ struct HomeView: View {
         .padding(.top, grid.headY)
     }
 
-    /// "Recent / last 24 hours" — the words of the section header this title
-    /// replaces — with "+ Add note" on the subtitle's line. At a text size
-    /// where the two no longer fit side by side, the action drops under the
-    /// title rather than squeezing "Recent" into an ellipsis.
-    private var spreadRecentTitle: some View {
-        ViewThatFits(in: .horizontal) {
-            PageTitle("Recent", subtitle: "last 24 hours", trailingAlignment: .subtitle) {
-                spreadAddNoteButton
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                PageTitle("Recent", subtitle: "last 24 hours")
-                spreadAddNoteButton
-            }
-        }
-    }
-
-    /// The timeline header's "+ Add note", same words and style — deliberately
-    /// quiet. Alone at the head of a page it gets a 44 pt touch target; the
-    /// negative padding keeps its layout the single line of text it shows, so
-    /// it still sits on the subtitle's baseline.
-    private var spreadAddNoteButton: some View {
-        Button { activeSheet = .note } label: {
-            Text("+ Add note")
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(AppColor.accentNote)
-                .padding(.vertical, 13)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.vertical, -13)
-        .accessibilityLabel("Add note")
-        .accessibilityHint("Writes a timestamped note on the timeline")
-    }
-
-    /// The trailing page under its title: the lead items at their natural
-    /// height, then the journal. While the journal still gets a useful height
-    /// it fills the rest of the page and ends on the foot line; when the lead
-    /// items leave it too little, the page scrolls as a whole instead, the
-    /// journal a fixed height inside it (`SpreadGrid.journalFills`).
-    @ViewBuilder
-    private func spreadRecentContent(pageHeight: CGFloat) -> some View {
-        let gap = SpreadGrid.leadGap(leadHeight: spreadLeadHeight)
-        if SpreadGrid.journalFills(pageHeight: pageHeight, leadHeight: spreadLeadHeight) {
-            VStack(spacing: 0) {
-                spreadLeadItems
-                spreadJournal
-                    .padding(.top, gap)
-            }
-        } else {
-            ScrollView {
-                VStack(spacing: 0) {
-                    spreadLeadItems
-                    spreadJournal
-                        .frame(height: SpreadGrid.journalScrollingHeight)
-                        .padding(.top, gap)
+    /// "Today so far" card for the spread: feeds/oz, sleep, and diapers with
+    /// a delta against the 7-day average on each row.
+    private var spreadTodayStatsCard: some View {
+        let engine = StatsEngine(feeds: feeds, sleeps: sleeps, diapers: diapers)
+        let t = engine.todayVsTypical()
+        let empty = t.feedsToday == 0 && t.diapersToday == 0 && t.sleepToday == 0
+        return Card(title: "Today so far") {
+            if empty {
+                Text("Log today's first event to see how it's going.")
+                    .font(.subheadline).foregroundStyle(AppColor.text3)
+                    .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    statsRow("🍼",
+                             "\(Plural.count(t.feedsToday, "feed")) · \(OzFormat.string(t.ozToday.rounded())) oz",
+                             t.hasHistory ? spreadOzDelta(t.ozToday - t.ozAvg) : nil)
+                    statsRow("💤",
+                             t.sleepToday > 0
+                             ? TimeFormatting.duration(from: .now, to: .now.addingTimeInterval(t.sleepToday))
+                             : "none yet",
+                             t.hasHistory ? spreadSleepDelta(t.sleepToday - t.sleepAvg) : nil)
+                    statsRow("💩",
+                             Plural.count(t.diapersToday, "diaper"),
+                             t.hasHistory ? spreadCountDelta(Double(t.diapersToday) - t.diapersAvg) : nil)
                 }
             }
         }
     }
 
+    private func statsRow(_ emoji: String, _ value: String, _ delta: String?) -> some View {
+        HStack(spacing: 8) {
+            Text(emoji)
+            Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(AppColor.text)
+            Spacer(minLength: 8)
+            if let delta {
+                Text(delta).font(.caption).foregroundStyle(AppColor.text3)
+            }
+        }
+    }
+
+    private func spreadOzDelta(_ diff: Double) -> String {
+        let r = diff.rounded()
+        if abs(r) < 1 { return "about avg" }
+        return "\(r > 0 ? "+" : "−")\(Int(abs(r))) oz vs avg"
+    }
+
+    private func spreadCountDelta(_ diff: Double) -> String {
+        let r = diff.rounded()
+        if abs(r) < 1 { return "about avg" }
+        return "\(r > 0 ? "+" : "−")\(Int(abs(r))) vs avg"
+    }
+
+    private func spreadSleepDelta(_ diffSeconds: Double) -> String {
+        let mins = (diffSeconds / 60).rounded()
+        if abs(mins) < 15 { return "about avg" }
+        let total = Int(abs(mins))
+        let h = total / 60, m = total % 60
+        let magnitude = h > 0 ? (m > 0 ? "\(h)h \(m)m" : "\(h)h") : "\(m)m"
+        return "\(mins > 0 ? "+" : "−")\(magnitude) vs avg"
+    }
+
     /// What leads the trailing page, each only when it exists today, in the
     /// single column's order: the Today card's daycare layer (while the log
     /// tiles have that card's page — see `spreadNowPage`), SNOO suggestions,
-    /// tonight's roster (or the one-line up next by day), the setup
-    /// checklist. Ticking, so the roster, a check slot and an in-progress
-    /// suggestion stay honest; measured, so the page knows what is left for
-    /// the journal.
+    /// tonight's roster (or the one-line up next by day), the setup checklist.
     private var spreadLeadItems: some View {
         TimelineView(.periodic(from: .now, by: 1)) { ctx in
             let attendance = daycareAttendance(now: ctx.date)
             VStack(spacing: SpreadGrid.surfaceGap) {
-                // The same test the leading page makes: he is not at
-                // daycare, so the tiles are on that page and its Today card
-                // is the day alone. What daycare logged today — and the
-                // drop-off slide, or "staying home" — sits here instead,
-                // first, as it comes first in the single column.
                 if attendance == nil, hasDaycareLayer(now: ctx.date, attendance: attendance) {
                     heroCard(now: ctx.date, attendance: attendance, summary: nil,
                              active: nil, condensedCaption: false, layers: .daycare)
@@ -825,47 +809,7 @@ struct HomeView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            // Natural height, whatever the page offers: the roster's rows
-            // would otherwise stretch to fill a share of it.
             .fixedSize(horizontal: false, vertical: true)
-        }
-        .onGeometryChange(for: CGFloat.self) { proxy in
-            proxy.size.height
-        } action: { height in
-            spreadLeadHeight = height
-        }
-    }
-
-    /// The timeline as the journal page: the same rows as every other layout
-    /// — NOW cap, the live daycare nap, each entry with its taps and its
-    /// swipe to delete — on one solid card that ends on the foot line, with
-    /// no section header (the page's title says it).
-    private var spreadJournal: some View {
-        // Performance: assembled once per body, as in `timelineSection`.
-        let entries = timelineEntries
-        return JournalCard {
-            if entries.isEmpty {
-                // Centred in the card — and in a scroll view of its own, so a
-                // pull still refreshes on a first run with nothing to list.
-                GeometryReader { card in
-                    ScrollView {
-                        timelineEmptyState(paneMode: true)
-                            .frame(maxWidth: .infinity,
-                                   minHeight: max(card.size.height - JournalCardMetrics.topInset
-                                                  - JournalCardMetrics.fadeHeight, 0))
-                    }
-                }
-            } else {
-                List {
-                    Section {
-                        timelineRows(entries, leading: JournalCardMetrics.rowLeadingInset,
-                                     trailing: JournalCardMetrics.rowTrailingInset)
-                    }
-                    // The rows sit on the card, not on cells of their own.
-                    .listRowBackground(Color.clear)
-                }
-                .listStyle(.plain)
-            }
         }
     }
 
@@ -1092,7 +1036,6 @@ struct HomeView: View {
             // would stack the totals of a phone-width page all the same
             // (and the journal's live nap row, on the facing page, counts
             // it).
-            condensedLiveCaption: condensedCaption && (active != nil || fillsPage),
             fillsHeight: fillsPage,
             daycarePhotos: photos,
             // The same viewer a photo row on the timeline opens, on the
