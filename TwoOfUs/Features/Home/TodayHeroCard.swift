@@ -115,7 +115,6 @@ struct TodayHeroCard: View {
     /// so on a narrow, short display (iPhone Duo's outer one) it alone would
     /// collapse the row to its stacked floor — ≈ 100 pt taller, pushing the
     /// Wake slide off screen.
-    var condensedLiveCaption = false
     /// The day strip's height: 62 pt wherever the card hugs its content (every
     /// phone). In filling mode it is the strip's floor.
     var stripHeight: CGFloat = 62
@@ -523,9 +522,7 @@ struct TodayHeroCard: View {
                 HStack(spacing: 3) {
                     Image(systemName: "moon.zzz.fill")
                         .font(.caption.weight(.semibold))
-                    Text(condensedLiveCaption
-                         ? SleepLanguage.gerund(start: start, now: now)
-                         : "\(SleepLanguage.gerund(start: start, now: now)) · \(TimeFormatting.duration(from: start, to: now))")
+                    Text(SleepLanguage.gerund(start: start, now: now))
                         .monospacedDigit()
                 }
                 .font(.caption.weight(.semibold))
