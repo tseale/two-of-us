@@ -7,10 +7,12 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 ## [Unreleased]
 
 ### Added — the sky outside
-- In light mode Home's background follows the time of day: pale peach at
-  dawn, clean blue-white at midday, lavender at dusk, a quiet lavender-grey
-  overnight — fading into the page so cards and text sit where they always
-  did. Dark mode keeps its black ground. Off under Reduce Transparency and
+- In light mode Home's background is a little sky: a sun that sits where
+  the real sun is (by sunrise and sunset at your daycare's location, or your
+  time zone), soft clouds by day, a crescent moon and stars at night, and
+  three rolling hills along the bottom. The colours follow the light
+  outside — peach at sunrise, blue by day, lavender at sunset, indigo at
+  night — so a November dusk comes at a November hour. Dark mode keeps its black ground. Off under Reduce Transparency and
   Increase Contrast.
 - The timeline sits on its own rounded card, on every iPhone and on both of
   the Duo's screens, instead of a white band that started halfway down.

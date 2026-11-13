@@ -408,7 +408,7 @@ struct HomeView: View {
             if onSpread {
                 Color.clear
             } else {
-                SkyBackground()
+                SkyBackground(location: daycareSettings?.daycareCoordinate)
             }
         }
         .loggedToast($toast)
@@ -563,7 +563,7 @@ struct HomeView: View {
                                 topOffset: layout.topOffset)
                 }
             } else {
-                SkyBackground()
+                SkyBackground(location: daycareSettings?.daycareCoordinate)
             }
             // Leading page, then trailing page: the order VoiceOver reads.
             spreadDetailsPage(grid)

@@ -9,30 +9,38 @@ final class SkyPaletteTests: XCTestCase {
         XCTAssertEqual(a.blue, b.blue, accuracy: 0.0001, file: file, line: line)
     }
 
-    func testEachKeyframeIsItsOwnColour() {
-        for frame in SkyPalette.keyframes {
-            assertEqual(SkyPalette.top(atMinute: frame.minute), frame.top)
-        }
+    func testTheSunRisesLowOnTheLeftAndSetsLowOnTheRight() {
+        let rise = SkyPalette.bodyPosition(progress: 0)
+        let noon = SkyPalette.bodyPosition(progress: 0.5)
+        let set = SkyPalette.bodyPosition(progress: 1)
+        XCTAssertEqual(rise.x, 0.04, accuracy: 0.0001)
+        XCTAssertEqual(set.x, 0.96, accuracy: 0.0001)
+        XCTAssertEqual(noon.x, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(noon.y, 0, accuracy: 0.0001, "highest at its noon")
+        XCTAssertEqual(rise.y, 0.30, accuracy: 0.0001)
+        XCTAssertEqual(set.y, 0.30, accuracy: 0.0001)
     }
 
-    func testDawnIsPeachAndMiddayIsBlue() {
-        let dawn = SkyPalette.top(atMinute: 6 * 60 + 30)
-        XCTAssertGreaterThan(dawn.red, dawn.blue)
-        let noon = SkyPalette.top(atMinute: 12 * 60)
+    func testSunriseIsPeachMiddayBlueSunsetLavender() {
+        let rise = SkyPalette.look(at: 0, in: SkyPalette.dayFrames).top
+        XCTAssertGreaterThan(rise.red, rise.blue)
+        let noon = SkyPalette.look(at: 0.5, in: SkyPalette.dayFrames).top
         XCTAssertGreaterThan(noon.blue, noon.red)
+        let set = SkyPalette.look(at: 1, in: SkyPalette.dayFrames).top
+        XCTAssertGreaterThan(set.blue, set.green)
     }
 
-    func testBetweenKeyframesTheColourIsBlended() {
-        let a = SkyPalette.keyframes[4].top     // 12:00
-        let b = SkyPalette.keyframes[5].top     // 16:00
-        assertEqual(SkyPalette.top(atMinute: 14 * 60), a.mixed(with: b, by: 0.5))
+    func testTheNightJoinsTheDayAtBothEnds() {
+        assertEqual(SkyPalette.look(at: 0, in: SkyPalette.nightFrames).top,
+                    SkyPalette.look(at: 1, in: SkyPalette.dayFrames).top)
+        assertEqual(SkyPalette.look(at: 1, in: SkyPalette.nightFrames).top,
+                    SkyPalette.look(at: 0, in: SkyPalette.dayFrames).top)
     }
 
-    func testTheNightWrapsBackToMidnight() {
-        // 23:00 sits between 22:00 and the next midnight, both night colour.
-        assertEqual(SkyPalette.top(atMinute: 23 * 60), SkyPalette.keyframes[0].top)
-        assertEqual(SkyPalette.top(atMinute: 1440), SkyPalette.top(atMinute: 0))
-        assertEqual(SkyPalette.top(atMinute: -60), SkyPalette.top(atMinute: 23 * 60))
+    func testLooksBlendBetweenFrames() {
+        let a = SkyPalette.look(at: 0, in: SkyPalette.dayFrames).top
+        let b = SkyPalette.look(at: 0.18, in: SkyPalette.dayFrames).top
+        assertEqual(SkyPalette.look(at: 0.09, in: SkyPalette.dayFrames).top, a.mixed(with: b, by: 0.5))
     }
 
     func testMixingIsClamped() {
