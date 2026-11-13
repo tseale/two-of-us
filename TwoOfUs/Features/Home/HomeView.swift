@@ -394,22 +394,23 @@ struct HomeView: View {
             // leaves dead space — the logging UI above stays untouched.
             checklistSection(leading: side, trailing: side)
 
-            if onSpread {
-                // The timeline's rows are the one part of this list with a
-                // cell background of their own; over the light they would
-                // cut it off in a band wherever they scroll.
-                timelineSection(leading: side, trailing: side)
-                    .listRowBackground(Color.clear)
-            } else {
-                timelineSection(leading: side, trailing: side)
-            }
+            // The timeline on its own card, so it reads as one surface on
+            // the page — not a band of cell backgrounds starting halfway
+            // down the screen.
+            timelineSection(leading: side, trailing: side, card: true)
         }
         .listStyle(.plain)
-        // On the spread the ground is the light, so the list's own
-        // background steps aside for it. (`.automatic` is the list as it
-        // always was.)
-        .scrollContentBackground(onSpread ? .hidden : .automatic)
-        .background(onSpread ? Color.clear : AppColor.bg)
+        // The ground is the sky (the light appearance's time-of-day
+        // gradient; plain `bg` in the dark) — or, on the spread, whatever
+        // the spread draws behind both pages.
+        .scrollContentBackground(.hidden)
+        .background {
+            if onSpread {
+                Color.clear
+            } else {
+                SkyBackground()
+            }
+        }
         .loggedToast($toast)
         // The list's top edge: its top inset, and whether it starts at the
         // very top of its window — one reading, one write, so `duoOuter`
@@ -548,15 +549,21 @@ struct HomeView: View {
             // the safe area by itself. Asked again once a minute: a nap turns
             // into a night's sleep on the clock alone (the two-hour
             // crossover), with no log or sync to re-render for it.
-            TimelineView(.everyMinute) { ctx in
-                // ctx.date is the minute's start, and stays there when a
-                // @Query change re-runs this closure — up to 59 s stale.
-                let now = max(ctx.date, .now)
-                // (`topOffset`: under the demo-mode pill's row the field
-                // cannot reach the display's top edge, and softens its own.)
-                CradleField(hinge: .verticalCrease(x: layout.band.midX),
-                            sleepingSince: sleepingSince(now: now), now: now,
-                            topOffset: layout.topOffset)
+            // In the light appearance, the sky — the same time-of-day
+            // ground as the closed phone.
+            if colorScheme == .dark {
+                TimelineView(.everyMinute) { ctx in
+                    // ctx.date is the minute's start, and stays there when a
+                    // @Query change re-runs this closure — up to 59 s stale.
+                    let now = max(ctx.date, .now)
+                    // (`topOffset`: under the demo-mode pill's row the field
+                    // cannot reach the display's top edge, and softens its own.)
+                    CradleField(hinge: .verticalCrease(x: layout.band.midX),
+                                sleepingSince: sleepingSince(now: now), now: now,
+                                topOffset: layout.topOffset)
+                }
+            } else {
+                SkyBackground()
             }
             // Leading page, then trailing page: the order VoiceOver reads.
             spreadDetailsPage(grid)
@@ -800,7 +807,7 @@ struct HomeView: View {
                     .clipShape(.rect(cornerRadius: 18))
                     .accessibilityLabel(milestone?.text ?? "Today's photo")
             }
-            bookMomentCard(milestone: milestone, days: month)
+            bookHighlightsCard(now: now, days: month)
             if let then = month.first, then.feedCount > 0 || then.sleepSeconds > 0 {
                 detailsCard {
                     Text("A month ago today").sectionLabelStyle()
@@ -816,34 +823,104 @@ struct HomeView: View {
         }
     }
 
-    /// The day's moment: a milestone logged today, or else the day's longest
-    /// sleep — flagged when it beats the rest of the last month.
-    @ViewBuilder
-    private func bookMomentCard(milestone: MilestoneEvent?, days: [DaySummary]) -> some View {
-        if let milestone {
-            detailsCard {
-                Text("Today").sectionLabelStyle(color: AppColor.accentMilestone)
-                Text("🏆 \(milestone.text)")
-                    .font(.system(.title3, design: .rounded).weight(.bold))
-                    .foregroundStyle(AppColor.text)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .accessibilityElement(children: .combine)
-        } else if let today = days.last, today.longestStretch > 0 {
-            let earlierBest = days.dropLast().map(\.longestStretch).max() ?? 0
-            detailsCard {
-                Text("Today").sectionLabelStyle(color: AppColor.accentMilestone)
-                Text("Longest sleep: \(TimeFormatting.duration(from: today.day, to: today.day.addingTimeInterval(today.longestStretch)))")
-                    .font(.system(.title3, design: .rounded).weight(.bold))
-                    .foregroundStyle(AppColor.text)
-                if today.longestStretch > earlierBest, earlierBest > 0 {
-                    Text("🎉 His longest stretch this month")
-                        .font(.footnote)
-                        .foregroundStyle(AppColor.text2)
+    /// The day's highlights: a list that grows through the day and keeps
+    /// only what is worth remembering (`DayHighlights`) — milestones, a
+    /// record stretch of sleep, notes from either of you or from daycare,
+    /// the day's photos, what he did at daycare, a standout bottle.
+    private func bookHighlightsCard(now: Date, days: [DaySummary]) -> some View {
+        let items = dayHighlights(now: now, days: days)
+        return detailsCard {
+            HStack {
+                Text("Today's highlights").sectionLabelStyle(color: AppColor.accentMilestone)
+                Spacer(minLength: 8)
+                if !items.isEmpty {
+                    Text("\(items.count)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppColor.text3)
                 }
             }
-            .accessibilityElement(children: .combine)
+            if items.isEmpty {
+                Text("The day's best moments will gather here as you log them.")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColor.text3)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(items) { item in
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Text(TimeFormatting.clock(item.time))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(AppColor.text3)
+                                .frame(width: 64, alignment: .leading)
+                            Text(item.emoji)
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.text)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(AppColor.text)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                if let detail = item.detail {
+                                    Text(detail)
+                                        .font(.caption)
+                                        .foregroundStyle(AppColor.text2)
+                                }
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+                .padding(.top, 4)
+            }
         }
+    }
+
+    /// Today's candidates for `DayHighlights`, from Home's own queries (each
+    /// newest-first, so today's rows are a prefix).
+    private func dayHighlights(now: Date, days: [DaySummary]) -> [DayHighlights.Item] {
+        let start = dayStart
+        let todaysFeeds = feeds.prefix(while: { $0.timestamp >= start })
+            .map { DayHighlights.Feed(time: $0.timestamp, oz: $0.amountOz) }
+        // Sleeps that ended today — last night's long one included.
+        let todaysSleeps: [DayHighlights.Sleep] = sleeps.compactMap { sleep in
+            guard let end = sleep.endedAt, end >= start, end <= now else { return nil }
+            return DayHighlights.Sleep(start: sleep.startedAt, end: end)
+        }
+        let earlierBest = days.dropLast().map(\.longestStretch).max() ?? 0
+        let milestones = milestoneEvents.prefix(while: { $0.timestamp >= start })
+            .map { DayHighlights.Moment(time: $0.timestamp, emoji: "🏆", text: $0.text) }
+        let parentNotes = noteEvents.prefix(while: { $0.timestamp >= start })
+            .filter { !$0.text.isEmpty }
+            .map { DayHighlights.Moment(time: $0.timestamp, emoji: "📝", text: "“\($0.text)”",
+                                        detail: $0.loggedByName.isEmpty ? nil : $0.loggedByName) }
+        let staffNotes = staffNoteEvents.prefix(while: { $0.timestamp >= start })
+            .filter { !$0.text.isEmpty }
+            .map { DayHighlights.Moment(time: $0.timestamp, emoji: "🧑‍🏫", text: "“\($0.text)”",
+                                        detail: "from daycare") }
+        let activities = activityEvents.prefix(while: { $0.timestamp >= start })
+            .map { event -> DayHighlights.Moment in
+                let length = event.durationMinutes.map { " · \($0)m" } ?? ""
+                return DayHighlights.Moment(time: event.timestamp, emoji: event.type.emoji,
+                                            text: event.type.label + length)
+            }
+        let moods = moodEvents.prefix(while: { $0.timestamp >= start })
+            .filter { $0.level != .content }
+            .map { DayHighlights.Moment(time: $0.timestamp, emoji: $0.level.emoji,
+                                        text: "Mood: \($0.level.label.lowercased())") }
+        let checks = checkEvents.prefix(while: { $0.timestamp >= start })
+            .filter { $0.type != .notAttending }
+            .map { DayHighlights.Moment(time: $0.timestamp, emoji: $0.type.emoji,
+                                        text: $0.type == .checkIn ? "Dropped off at daycare" : "Picked up") }
+        let photoTimes = mediaEvents.prefix(while: { $0.timestamp >= start })
+            .filter { $0.isFromDaycare }
+            .map(\.timestamp)
+        return DayHighlights.build(name: baby?.name ?? "Baby",
+                                   feeds: Array(todaysFeeds), sleeps: todaysSleeps,
+                                   earlierBestStretch: earlierBest,
+                                   milestones: Array(milestones),
+                                   notes: parentNotes + staffNotes,
+                                   activities: Array(activities), moods: Array(moods),
+                                   checks: Array(checks), photoTimes: Array(photoTimes))
     }
 
     /// The other active parent: the first, in join order, who isn't this
@@ -2310,7 +2387,7 @@ struct HomeView: View {
     /// state for layouts where the tiles aren't "above".
     @ViewBuilder
     private func timelineSection(leading: CGFloat = 16, trailing: CGFloat = 16,
-                                 paneMode: Bool = false) -> some View {
+                                 paneMode: Bool = false, card: Bool = false) -> some View {
         // Performance: assembled once per body, not once for isEmpty and again
         // for the ForEach.
         let entries = timelineEntries
@@ -2319,7 +2396,7 @@ struct HomeView: View {
                 timelineEmptyState(paneMode: paneMode)
                     .listRowBackground(Color.clear)
             } else {
-                timelineRows(entries, leading: leading, trailing: trailing)
+                timelineRows(entries, leading: leading, trailing: trailing, card: card)
             }
         } header: {
             HStack {
@@ -2354,24 +2431,39 @@ struct HomeView: View {
     /// the "Recent" section of every list layout and for the journal card on
     /// the spread, so a row behaves the same wherever it is shown.
     @ViewBuilder
+    /// `card`: the rows sit on one rounded card whose edges are `leading` /
+    /// `trailing` in from the list's sides, the rows `TimelineCard.padding`
+    /// further in.
     private func timelineRows(_ entries: [TimelineEntry], leading: CGFloat,
-                              trailing: CGFloat) -> some View {
+                              trailing: CGFloat, card: Bool = false) -> some View {
+        let pad = card ? TimelineCard.padding : 0
+        let rowLeading = leading + pad
+        let rowTrailing = trailing + pad
+        let lastID = entries.last?.id
         TimelineNowCap()
             .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 0, leading: leading, bottom: 0, trailing: trailing))
+            .listRowInsets(EdgeInsets(top: card ? 6 : 0, leading: rowLeading, bottom: 0, trailing: rowTrailing))
+            .modifier(TimelineCard(active: card, top: true, bottom: false,
+                                   leading: leading, trailing: trailing))
         // Brightwheel's in-progress nap has no SleepEvent yet (the
         // pair imports whole at wake), so its live row is synthesized
         // here at the top — it started recently, so chronology holds.
         if let napStart = liveNapToday {
             LiveDaycareNapRow(start: napStart)
                 .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 0, leading: leading, bottom: 0, trailing: trailing))
+                .listRowInsets(EdgeInsets(top: 0, leading: rowLeading, bottom: 0, trailing: rowTrailing))
+                .modifier(TimelineCard(active: card, top: false, bottom: false,
+                                       leading: leading, trailing: trailing))
         }
         ForEach(entries) { entry in
             DayTimelineRow(entry: entry, loggedByPhoto: loggerPhoto[entry.loggedByID],
                            loggedByNameFallback: loggerName[entry.loggedByID])
                 .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 0, leading: leading, bottom: 0, trailing: trailing))
+                .listRowInsets(EdgeInsets(top: 0, leading: rowLeading,
+                                          bottom: card && entry.id == lastID ? 8 : 0,
+                                          trailing: rowTrailing))
+                .modifier(TimelineCard(active: card, top: false, bottom: entry.id == lastID,
+                                       leading: leading, trailing: trailing))
                 .contentShape(Rectangle())
                 .accessibilityIdentifier("timelineRow")
                 // Media opens the full-size viewer; the editable four
@@ -2606,4 +2698,36 @@ private struct SleepAndDaycareAnimations: ViewModifier {
 #Preview {
     HomeView()
         .modelContainer(AppModelContainer.preview)
+}
+
+/// One row of a timeline that sits on a card: the card's white (or, in the
+/// dark, `card`) surface behind the row, inset from the list's sides, its
+/// top corners on the first row and its bottom corners on the last, so the
+/// rows read as one rounded card. Inactive, the row is untouched.
+private struct TimelineCard: ViewModifier {
+    /// How far the rows sit inside the card's edges.
+    static let padding: CGFloat = 12
+    static let radius: CGFloat = 20
+
+    let active: Bool
+    let top: Bool
+    let bottom: Bool
+    let leading: CGFloat
+    let trailing: CGFloat
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if active {
+            content.listRowBackground(
+                UnevenRoundedRectangle(topLeadingRadius: top ? Self.radius : 0,
+                                       bottomLeadingRadius: bottom ? Self.radius : 0,
+                                       bottomTrailingRadius: bottom ? Self.radius : 0,
+                                       topTrailingRadius: top ? Self.radius : 0)
+                    .fill(AppColor.card)
+                    .padding(.leading, leading)
+                    .padding(.trailing, trailing))
+        } else {
+            content
+        }
+    }
 }

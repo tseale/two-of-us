@@ -6,6 +6,15 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Added — the sky outside
+- In light mode Home's background follows the time of day: pale peach at
+  dawn, clean blue-white at midday, lavender at dusk, a quiet lavender-grey
+  overnight — fading into the page so cards and text sit where they always
+  did. Dark mode keeps its black ground. Off under Reduce Transparency and
+  Increase Contrast.
+- The timeline sits on its own rounded card, on every iPhone and on both of
+  the Duo's screens, instead of a white band that started halfway down.
+
 ### Added — made for iPhone Duo, in every pose
 - **Open, in landscape (flat or folded like a book):** the right page is
   Home exactly as on the iPhone, and the left page shows what a phone has no
@@ -13,8 +22,10 @@ All notable changes to Two of Us are recorded here. The format loosely follows
   bottle, last diaper, next bottle, sleep, medicine and the latest note in
   big print. By day: your partner's side of today — what they last logged,
   how today's feeds and diapers split between you, the note they left — and
-  today against the usual. In the evening: his book — today's photo, the
-  day's moment, and a month ago today. Overnight: whether they're in their planned sleep
+  today against the usual. In the evening: his book — today's photo, a
+  list of the day's highlights that grows as the day goes (milestones, a
+  record stretch of sleep, notes, daycare photos and activities, a standout
+  bottle), and a month ago today. Overnight: whether they're in their planned sleep
   and until when, what they last did, and the night's plan to scale. Nothing
   ever sits on the crease.
 - **Nighttime, History and Stats** open on the same two pages, titles and
