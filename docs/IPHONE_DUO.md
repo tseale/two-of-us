@@ -70,8 +70,8 @@ API (see "Not done" below).
 | Shape | Layout |
 |---|---|
 | Compact (iPhone; a Split View half) | Unchanged single list. On short displays (full height < 700 pt: iPhone SE) a running sleep uses the **short sleep card** (timer beside the 💤, ≈ 70 pt shorter) and the Today card drops the duplicate elapsed time from its live caption, so the Wake slide stays on screen without scrolling. |
-| Compact on iPhone Duo, closed — **the cover** | The same list, with 20 pt side margins and 22 pt above the header (nothing sits across the top of the outer display). A running sleep uses the **footprint sleep card** — the card at the Sleep tile's own size: eyebrow and predicted wake on one line, the 40 pt timer and "since" on the next, then the Wake slide — so the Wake slide always clears the bottom edge; the Today card keeps the short live caption. In the dark appearance, while he sleeps, the spine (the edge away from the system strip) carries a faint bloom of his light on the otherwise black cover — see "The light". Measured, never a model check: the phone idiom, no top inset, and the system strip down one side. |
-| Wide on iPhone Duo, open in landscape (flat or book) — **the spread** | Two mirrored phone-width pages either side of the fold, over the light, with the baby's avatar in the wide outer margin. **Leading page** (the cover's page): the name and age as the page title with Settings beside it, then the Today card, the Feed and Diaper tiles and the Sleep tile — or, while a sleep runs, the footprint sleep card in that tile's place. The Today card takes up the page's slack, so the column ends on the foot line and nothing moves when he falls asleep. During daycare hours, with no tiles, the Today card is the whole page: larger totals, and the day's daycare photos as up to three tiles (tap for the viewer; "+N" on the last) over what staff logged. **Trailing page:** "Recent / last 24 hours" as the title with "+ Add note" on the subtitle's line; then whatever leads the day — the Today card's daycare layer (recap, drop-off slide, "staying home") while the tiles have the other page, SNOO suggestions, tonight / up next, the setup checklist — and the timeline as a journal card filling the rest (no pinned header; the title says it). The undo toast sits at the foot of the trailing page. See "The spread". |
+| Compact on iPhone Duo, closed | Exactly the iPhone layout, with 20 pt side margins and 22 pt above the header (nothing sits across the top of the outer display). On this short display a running sleep uses the short sleep card, as on iPhone SE. Measured, never a model check: the phone idiom, no top inset, and the system strip down one side (or the list starting at the very top of its window). |
+| Wide on iPhone Duo, open in landscape (flat or book) — **the spread** | **Trailing page:** the iPhone app's Home exactly — the same list the closed phone shows (`compactList(onSpread: true)`), starting at the fold band's edge and as wide as the closed phone's content (382 pt, or what the reader has left), with its own undo toast; it sits on the light instead of its own background. **Leading page** — the details a phone has no room for (`spreadDetailsPage`), following the day: **5–10 AM, the fridge** — last bottle, last diaper, next bottle, sleep, medicine and the latest note in big print; **from 5 PM until tonight's window, his book** — today's photo (tap for the viewer; a milestone's photo when daycare sent none), the day's moment (a milestone, or the longest sleep, flagged when it is the month's best) and a month ago today; in between, with a co-parent, their side of today ("Last from …" as a timeline row, today's feeds and diapers side by side, their latest note) over "Today so far" against the 7-day average; overnight, while tonight's window is open, "Tonight · the two of you" — whether they are in their planned sleep and until when, their last entry, the night's plan to scale (`NightPlanStrip`), and since-midnight tallies. On your own (or before this phone knows its participant): "Today so far" by day, and the fridge or the book through tonight's window. See "The spread". |
 | Wide on iPad | Unchanged panes. **Left:** header, Today card, log tiles, sleep card, SNOO suggestions, tonight / up next, setup checklist. **Right:** "Recent · last 24 hours" with its pinned "+ Add note" header. The undo toast sits under the left pane. |
 | Tall (Duo open in portrait, flat or tabletop) | **Top half:** header, Today card, tonight / up next, checklist, timeline (scrolls). **Bottom half:** log tiles + sleep card + SNOO, centred — the feeding-station pad (on this 637 pt-wide half the short sleep card sets its Wake slide beside the timer, so tiles and card fit the half). During daycare hours, with nothing to tap, the bottom half shows the day's feed instead. |
 | Short (Duo closed, stood on its side) | Header + Today card on one side; tiles, sleep card, up next and timeline on the other. |
@@ -83,8 +83,10 @@ sheet moved up to Home for the same reason.
 
 #### The spread
 
-Closed, the phone is the cover. Opened, the same page stays under the left
-thumb and the day opens beside it. `TwoOfUs/Features/Shared/SpreadGrid.swift`
+Closed, the phone is the iPhone app. Opened, the same app is the trailing
+page and the details open beside it. Home places its phone page itself (see
+the Home table); every other frame comes from
+`TwoOfUs/Features/Shared/SpreadGrid.swift`
 is the single source of every frame — a pure value type resolved from the
 `PaneLayout` (phone idiom and `.wide` only; iPad never gets a grid), tested in
 `TwoOfUsTests/SpreadGridTests.swift`. In the reader's coordinates — the tab's
@@ -120,16 +122,11 @@ x 455.5–495.5 and the crease at 475.5:
 - In demo mode the pill's row sits above the reader. It counts toward the head
   line (the titles start right under it), so the pages keep their height.
 
-`HomeView.spread` builds the two pages (`spreadNowPage`, `spreadRecentPage`)
-from four pieces, new or extended for it. Each extension is off by default, so
-every other caller is unchanged:
-
-| Piece | Where | On the page |
-|---|---|---|
-| Page title | `Features/Shared/PageTitle.swift` | The header's own type without the avatar, and one trailing control: Settings level with the title, "+ Add note" on the subtitle's baseline (under the title at a text size where it can't sit beside it) |
-| Today card | `TodayHeroCard`: `fillsHeight`, `layers`, `daycarePhotos` | Takes the height it is given: the strip grows from 62 pt to at most 110, the rest is air around the strip and totals. `.day` beside the tiles, `.daycare` as the trailing page's lead item, whole (`.all`: 34 pt totals, photo tiles) during daycare hours |
-| Sleep card | `SleepActiveCard(footprint:)`; `LogTileFootprint` in `LogButtons.swift` | The Sleep tile's own height, taller only when a large text size needs it: 11 pt above and below, 16 pt at the sides, the tiles' 20 pt corners, a 40 pt timer. Its lines re-stack before the timer would truncate |
-| Journal | `Features/Shared/JournalCard.swift` | The timeline's rows on one solid card (18 pt corners, a hairline), the last 44 pt dissolving into it. Taps, swipe to delete and pull to refresh as in every list |
+`HomeView.spread` builds Home's two pages: `spreadDetailsPage` on the grid's
+leading page, and the compact list as the phone page. The building blocks
+step A added for the earlier spread (`TodayHeroCard`'s `fillsHeight` /
+`layers` / `daycarePhotos`, `SleepActiveCard(footprint:)`, `JournalCard`) are
+off by default and no longer used by Home.
 
 #### The light
 
@@ -146,13 +143,12 @@ strip. Where everything goes is plain geometry (`CradleField.Plan`), tested in
 | Ground | `AppColor.bg`. In the dark appearance, during a night's sleep ("sleeping", not "napping", by `SleepLanguage`'s rule): `nightInk`, a tenth of the way back to black. The light appearance never changes ground |
 | Pools | Periwinkle (`accentSleep`) from the top corner of the leading leaf, teal (`accentFeed`) from the trailing one. Drawn 640 × 560 on the 951 × 669 display and clear at 72 % of that (≈ 461 × 403), scaled with the display. Peak opacity 0.13 / 0.10 awake; **0.07 / 0.055 asleep** — falling asleep dims the room, it never brightens it. Half of those in the light appearance |
 | Hinge light | Only while he sleeps. `nightlightCream`, centred on the crease 62 % of the way down: drawn 280 × 500, clear at 70 % (196 × 350), peak 0.17, with an 80 pt core at 0.20. It breathes between 0.6 and 1 of that on the day strip's own constant (ease in-out, 2.6 s) |
-| The cover | No pools and no night ground: plain black. While he sleeps, in the dark appearance, a bloom on the spine edge 62 % of the way down: drawn 220 × 420 (154 × 294), at 0.55 strength |
 | Changes | A 1.2 s cross-fade |
 
 - **Where it is drawn.** Behind every tab's spread — the pools always, the
-  hinge light while he sleeps — and behind the cover in the dark appearance (a
-  light cover is the list it always was). No other pose draws it yet, and no
-  slab iPhone or iPad ever does.
+  hinge light while he sleeps. The closed phone is the plain iPhone app, and
+  no other pose, slab iPhone or iPad draws it. (`CradleField.Hinge.spine` is
+  still in `Plan`, unused.)
 - **On.** "Asleep" is any sleep in progress: a parent-logged or SNOO one, or
   a nap Brightwheel has started and not ended while he is at daycare — the
   same pair that makes the Today card's strip glow, so the two come on, and
@@ -290,19 +286,17 @@ screens and poses it names are exactly as described above.
 
 ## Device checklist (first night with the Duo)
 
-1. **Closed, upright:** Home's tabs sit in the right-hand strip; start a sleep —
-   the sleep card takes the Sleep tile's place at the tile's size, Wake slide
-   included, without scrolling. In dark mode a faint warm bloom appears on the
-   hinge edge while he sleeps, and goes when he wakes.
+1. **Closed, upright:** Home is the iPhone app, its tabs in the right-hand
+   strip; start a sleep — the short sleep card, Wake slide included, without
+   scrolling.
 2. **Closed, stood on its side (tent):** the app turns to landscape; Today card
    on one side, tiles on the other.
-3. **Open, landscape:** Home is the spread — his page on the left (name,
-   Today card, tiles), "Recent" on the right, his avatar in the wide margin;
-   both pages end on one line, level with the tab capsule's bottom. Fold it
-   like a book — nothing moves, nothing sits on the crease. Start a sleep: the
-   Sleep tile becomes the sleep card in place, the room dims and his light
-   comes on in the hinge. Log a diaper: the undo toast is at the foot of the
-   right page. Open a Feed sheet, pick an amount, type a note (the pages
+3. **Open, landscape:** the right page is the iPhone app exactly; the left
+   page is your partner's side of today (last entry, today's split, their
+   note, today against the usual) — or, during tonight's window, "Tonight"
+   with their planned sleep and the plan to scale. Fold it like a book —
+   nothing sits on the crease. Start a sleep: the room dims and his light
+   comes on in the hinge. Log a diaper: the undo toast is on the right page. Open a Feed sheet, pick an amount, type a note (the pages
    behind the sheet stay put), close the phone — the sheet is still there.
    Turn on Low Power Mode: the light is off and nothing else changes.
 4. **Open, portrait; then tabletop:** log tiles on the bottom half, Today card

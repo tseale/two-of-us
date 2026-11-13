@@ -157,7 +157,7 @@ struct HomeView: View {
             // half-filled Feed sheet survives the fold.
             ZStack {
                 if ScreenShape.isCompact(horizontal: hSize, vertical: vSize) {
-                    compactList
+                    compactList()
                 } else {
                     GeometryReader { proxy in
                         panes(PaneLayout.resolve(in: proxy, horizontal: hSize))
@@ -302,13 +302,10 @@ struct HomeView: View {
     /// ≈ 760 on an iPhone 17), a running sleep uses the short sleep card so the
     /// Wake slide stays on screen.
     ///
-    /// Closed, iPhone Duo is the cover: the same page, with two differences
-    /// that only ever apply there. A running sleep takes the Sleep tile's
-    /// footprint (the card the open pages use), so the Wake slide always
-    /// clears the bottom edge; and while he sleeps the hinge — the spine, down
-    /// the side away from the system strip — carries a faint bloom of his
-    /// light on the otherwise black cover.
-    private var compactList: some View {
+    /// Closed, iPhone Duo shows exactly this page. Open in landscape it is
+    /// also the spread's trailing page (`onSpread`): the same page, on the
+    /// light instead of its own background, with the details page beside it.
+    private func compactList(onSpread: Bool = false) -> some View {
         let shortCard = compactFullHeight < PaneLayout.roomyHeight
         // iPhone Duo's outer display: nothing sits across the top (the status
         // bar is in the side strip), so the header would hug the display's
@@ -331,19 +328,6 @@ struct HomeView: View {
         let duoOuter = compactTopInset < 1 && isPhone
             && (compactSideInset > 0 || compactStartsAtWindowTop)
         let side: CGFloat = duoOuter ? 20 : 16
-        // The cover, measured: nothing across the top AND the system's bars
-        // down one side of an upright phone. The side strip is what a slab
-        // iPhone never has, so everything new here waits on both. (One
-        // other window measures the same: a Split View half that sits
-        // against the strip on the Duo's open display. It gets the cover's
-        // sleep card and bloom too — nothing a size could tell apart, the
-        // half and the cover being within a few points of each other. See
-        // docs/IPHONE_DUO.md.)
-        let cover = duoOuter && compactSideInset > 0
-        // The bloom is light on a dark ground, so the list only gives up its
-        // own background (and the timeline its row backgrounds) in the dark
-        // appearance. A light cover is exactly the list it always was.
-        let coverLit = cover && colorScheme == .dark
         return List {
             Section {
                 header
@@ -377,9 +361,7 @@ struct HomeView: View {
                             logButtons(now: ctx.date, activeSleep: active)
                         }
                         if let sleep = active {
-                            // On the cover, the footprint card (it takes
-                            // precedence over the short one).
-                            sleepCard(sleep, now: ctx.date, compact: shortCard, footprint: cover)
+                            sleepCard(sleep, now: ctx.date, compact: shortCard)
                                 .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
                         }
                         // SNOO suggestions sit directly under the sleep
@@ -412,7 +394,7 @@ struct HomeView: View {
             // leaves dead space — the logging UI above stays untouched.
             checklistSection(leading: side, trailing: side)
 
-            if coverLit {
+            if onSpread {
                 // The timeline's rows are the one part of this list with a
                 // cell background of their own; over the light they would
                 // cut it off in a band wherever they scroll.
@@ -423,15 +405,11 @@ struct HomeView: View {
             }
         }
         .listStyle(.plain)
-        // The cover's ground is the field, so the list's own background
-        // steps aside for it. (`.automatic` is the list as it always was.)
-        .scrollContentBackground(coverLit ? .hidden : .automatic)
-        .background {
-            if coverLit {
-                coverField
-            }
-        }
-        .background(AppColor.bg)
+        // On the spread the ground is the light, so the list's own
+        // background steps aside for it. (`.automatic` is the list as it
+        // always was.)
+        .scrollContentBackground(onSpread ? .hidden : .automatic)
+        .background(onSpread ? Color.clear : AppColor.bg)
         .loggedToast($toast)
         // The list's top edge: its top inset, and whether it starts at the
         // very top of its window — one reading, one write, so `duoOuter`
@@ -461,20 +439,6 @@ struct HomeView: View {
                 } action: { height in
                     compactFullHeight = height
                 }
-        }
-    }
-
-    /// The cover's ground: true black, and while he sleeps a faint bloom of
-    /// his light on the spine. Asked again once a minute: whether a daycare
-    /// nap still counts can turn on the clock alone (daycare's assumed
-    /// close), with no log or sync to re-render for it.
-    private var coverField: some View {
-        TimelineView(.everyMinute) { ctx in
-            // ctx.date is the minute's start, and stays there when a @Query
-            // change re-runs this closure — up to 59 s stale.
-            let now = max(ctx.date, .now)
-            CradleField(hinge: .spine(.oppositeSystemStrip),
-                        sleepingSince: sleepingSince(now: now), now: now)
         }
     }
 
@@ -559,34 +523,25 @@ struct HomeView: View {
                     .loggedToast($toast)
             }
         case .compact:
-            compactList
+            compactList()
         }
     }
 
     // MARK: The spread (iPhone Duo open in landscape, flat or like a book)
 
-    /// Home on iPhone Duo's open display in landscape: two mirrored pages,
-    /// each exactly a phone-width page, either side of the fold. The leading
-    /// page is the cover's page — the baby's name, the Today card, the log
-    /// tiles — so what was under your thumb while the phone was closed is
-    /// still there when it opens; the day's journal opens beside it. Behind
-    /// both, the light (`CradleField`): a pool of each parent's colour behind
-    /// each leaf and, whenever he sleeps, his light in the hinge between
-    /// them.
-    ///
-    /// Every frame comes from `SpreadGrid`: the two titles start on one head
-    /// line, the first surfaces on one top line, and the last surface of each
-    /// page ends on the foot line. Nothing textual or tappable sits between
-    /// the pages — only the light crosses the fold, so folding the phone
-    /// like a book never puts the crease on a control or a line of text.
-    ///
-    /// The other tabs draw this same frame — the light, the avatar, the two
-    /// titled pages — through `SpreadScaffold`. Home keeps its own: its
-    /// light also follows a nap at daycare, which only the queries here can
-    /// tell, and its trailing title re-stacks at large text sizes. A change
-    /// to the frames here belongs there too.
+    /// Home on iPhone Duo's open display in landscape. The trailing page is
+    /// the iPhone app's Home exactly — the page the closed phone shows
+    /// (`compactList`), under the right thumb. The leading page is what a
+    /// phone has no room for (`spreadDetailsPage`): the other parent's side
+    /// of the day, and overnight the two of you. Behind both, the light.
+    /// Nothing textual or tappable sits on the fold.
     private func spread(_ layout: PaneLayout, grid: SpreadGrid) -> some View {
-        ZStack(alignment: .topLeading) {
+        // The phone page starts at the fold band's edge — the list's own
+        // 20 pt margins keep every row clear of the band — and is as wide
+        // as the closed phone's content, or what the reader has left.
+        let phoneX = layout.band.maxX
+        let phoneWidth = max(min(Self.closedContentWidth, layout.size.width - phoneX), 0)
+        return ZStack(alignment: .topLeading) {
             // The light, behind everything. It takes this reader's frame —
             // the one `PaneLayout` measured, so the crease is `band.midX`
             // whichever side the system strip is on — and paints out through
@@ -603,130 +558,493 @@ struct HomeView: View {
                             sleepingSince: sleepingSince(now: now), now: now,
                             topOffset: layout.topOffset)
             }
-            // The baby's avatar hangs in the wider outer margin (the side
-            // away from the system strip), beside the first title. It is
-            // decoration here — the title next to it reads his name.
-            if let avatar = grid.avatarFrame {
-                Avatar(photoData: baby?.photoData, name: baby?.name ?? "Baby",
-                       colorHex: ParticipantColors.babyHex, size: avatar.width)
-                    .accessibilityHidden(true)
-                    .padding(.leading, avatar.minX)
-                    .padding(.top, avatar.minY)
-            }
             // Leading page, then trailing page: the order VoiceOver reads.
-            spreadNowPage(grid)
-            spreadStatsPage(grid)
+            spreadDetailsPage(grid)
+            compactList(onSpread: true)
+                .frame(width: phoneWidth, height: layout.size.height)
+                .accessibilityElement(children: .contain)
+                .padding(.leading, phoneX)
         }
         .frame(width: layout.size.width, height: layout.size.height, alignment: .topLeading)
     }
 
-    /// The spread's leading page — the cover's page. Under the title, one
-    /// column that never moves between states: the Today card, the Feed and
-    /// Diaper tiles, and the Sleep tile or, while a sleep runs, the sleep
-    /// card in that tile's exact footprint. The Today card takes up the
-    /// page's slack, so the column ends on the foot line. During daycare
-    /// hours, with no tiles to show, the Today card is the whole page.
-    ///
-    /// The page has room for the day — strip and totals — above the tiles
-    /// and no more (≈ 18 pt to spare at the default text size). So while the
-    /// tiles are here, the Today card's daycare layer (the evening's recap,
-    /// a drop-off slide, "staying home") is not: it leads the facing page
-    /// (`spreadLeadItems`), which is built to take lead items of any height.
-    /// A recap or a slide in the card would push the Sleep tile — at
-    /// bedtime, the Wake slide — past the foot line every weekday evening.
-    private func spreadNowPage(_ grid: SpreadGrid) -> some View {
-        VStack(spacing: 0) {
-            PageTitle(baby?.name ?? "Baby",
-                      subtitle: baby.map { TimeFormatting.age(from: $0.dateOfBirth) }) {
-                settingsButton
-            }
-            // Air the title keeps under it at any text size…
-            .padding(.bottom, SpreadGrid.titleAir)
-            // …inside a minimum, never a fixed height: at the default text
-            // size the first surface lands on the grid's top line, and a
-            // larger size pushes it down instead of overlapping it.
-            .frame(minHeight: grid.titleHeight, alignment: .top)
-            // What is left of the page, measured, so the column fills it
-            // exactly whatever the title took.
-            GeometryReader { page in
-                // A fixed composition wherever it fits; at a text size
-                // where it can't, the page scrolls.
-                ScrollView {
-                    TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                        let attendance = daycareAttendance(now: ctx.date)
-                        let summary = todaySummary
-                        let active = activeSleep
-                        VStack(spacing: SpreadGrid.surfaceGap) {
-                            // The short live caption on the page, always:
-                            // the full one is the widest thing in the
-                            // totals row, and on a phone-width page it
-                            // alone would drop the row to its stacked floor
-                            // — ≈ 100 pt taller, off the page. The elapsed
-                            // time is on the sleep card under it, or (a
-                            // daycare nap) on the journal's live row.
-                            heroCard(now: ctx.date, attendance: attendance, summary: summary,
-                                     active: active, condensedCaption: true, fillsPage: true,
-                                     layers: attendance == nil ? .day : .all)
-                            // The tiles and the sleep card keep their own
-                            // height whatever the column is offered — a stack
-                            // sharing out a fixed height would otherwise
-                            // squeeze the tiles toward their floor — so the
-                            // Today card is the only thing that stretches.
-                            if attendance == nil, hasLogTiles(sleeping: active != nil) {
-                                logButtons(now: ctx.date, activeSleep: active)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            if let sleep = active {
-                                sleepCard(sleep, now: ctx.date, compact: false, footprint: true)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
-                            }
+    /// The closed phone's content width (the outer display beside its
+    /// system strip): the spread's phone page is never wider.
+    private static let closedContentWidth: CGFloat = 382
+
+    /// The spread's leading page — the details a phone has no room for,
+    /// following the day (`SpreadDetailsMoment`):
+    /// - **morning** (5–10 AM): the fridge — last bottle, last diaper, next
+    ///   bottle, sleep, medicine and the latest note, in big print for
+    ///   whoever is holding him;
+    /// - **day**, with a co-parent: their side of today (what they last
+    ///   logged, how the day has split between you, the note they left) over
+    ///   today against the usual — on your own, today against the usual;
+    /// - **evening** (5 PM until tonight's window): his book — the day's
+    ///   photo, the day's moment, a month ago today;
+    /// - **night**, while tonight's window is open and with a co-parent: the
+    ///   two of you (whether they are in their planned sleep, what they last
+    ///   did, the night's plan to scale).
+    /// Asked again once a minute so "12 min ago" and the moment keep up with
+    /// the clock; a log or a sync re-renders it at once.
+    private func spreadDetailsPage(_ grid: SpreadGrid) -> some View {
+        TimelineView(.everyMinute) { ctx in
+            let now = max(ctx.date, .now)
+            let partner = spreadPartner
+            let moment = detailsMoment(now: now, hasPartner: partner != nil)
+            VStack(spacing: 0) {
+                spreadDetailsTitle(partner: partner, moment: moment)
+                    // As on every page: the title's own air, inside the
+                    // minimum that puts the first surface on the top line.
+                    .padding(.bottom, SpreadGrid.titleAir)
+                    .frame(minHeight: grid.titleHeight, alignment: .top)
+                SpreadPageScroll {
+                    switch moment {
+                    case .morning:
+                        fridgeDetails(now: now)
+                    case .evening:
+                        bookDetails(now: now)
+                    case .night:
+                        if let partner {
+                            tonightDetails(partner, now: now)
                         }
-                        .modifier(SleepAndDaycareAnimations(sleeping: active != nil,
-                                                           attending: attendance != nil,
-                                                           reduceMotion: reduceMotion))
-                        .frame(minHeight: page.size.height, alignment: .top)
+                    case .day:
+                        if let partner {
+                            partnerDayDetails(partner)
+                        }
+                        spreadTodayStatsCard
                     }
                 }
-                .scrollBounceBehavior(.basedOnSize)
             }
+            .frame(width: grid.pageWidth, height: max(grid.foot - grid.headY, 0), alignment: .top)
         }
-        .frame(width: grid.pageWidth, height: max(grid.foot - grid.headY, 0), alignment: .top)
         // One page is read to its end before the other begins.
         .accessibilityElement(children: .contain)
         .padding(.leading, grid.leadingPage.minX)
         .padding(.top, grid.headY)
     }
 
-    /// Whether `logButtons` has a tile to show at all: a paused tracker hides
-    /// its tile, and the Sleep tile steps aside for the running-sleep card.
-    /// With none, the spread leaves the row out rather than keep an empty one
-    /// — and the gap under it — between the Today card and the foot line.
-    private func hasLogTiles(sleeping: Bool) -> Bool {
-        isTracked(.feed) || isTracked(.diaper) || (isTracked(.sleep) && !sleeping)
+    /// Which details the leading page shows right now.
+    private enum SpreadDetailsMoment {
+        case morning, day, evening, night
     }
 
-    /// The spread's trailing page — stats beside the cover. The daycare
-    /// layer, SNOO suggestions, and tonight's schedule come first (same items
-    /// as the old "Recent" page), then a "Today so far" card comparing feeds,
-    /// sleep, and diapers against the 7-day average. The undo toast floats at
-    /// this page's foot so it never crosses the fold.
-    private func spreadStatsPage(_ grid: SpreadGrid) -> some View {
-        VStack(spacing: 0) {
-            PageTitle("Stats", subtitle: "today so far")
-                .padding(.bottom, SpreadGrid.titleAir)
-                .frame(minHeight: grid.titleHeight, alignment: .top)
-            SpreadPageScroll {
-                spreadLeadItems
-                spreadTodayStatsCard
+    /// Tonight's window comes first (with a co-parent: on your own the night
+    /// page has nobody to show, so the evening's book carries on); then the
+    /// clock — the fridge 5–10 AM, the book from 5 PM, the day between.
+    private func detailsMoment(now: Date, hasPartner: Bool) -> SpreadDetailsMoment {
+        let hour = Calendar.current.component(.hour, from: now)
+        if isNightWindowOpen(now: now) {
+            return hasPartner ? .night : (hour < 12 ? .morning : .evening)
+        }
+        if (5..<10).contains(hour) { return .morning }
+        if hour >= 17 { return .evening }
+        return .day
+    }
+
+    @ViewBuilder
+    private func spreadDetailsTitle(partner: Participant?, moment: SpreadDetailsMoment) -> some View {
+        switch moment {
+        case .morning:
+            PageTitle("The fridge", subtitle: "this morning, at a glance")
+        case .evening:
+            PageTitle("\(baby?.name ?? "Baby")'s book",
+                      subtitle: Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day())) {
+                weekStamp
+            }
+        case .night, .day:
+            if let partner {
+                PageTitle(moment == .night ? "Tonight" : partner.displayName,
+                          subtitle: moment == .night ? "the two of you" : "what you might have missed") {
+                    Avatar(photoData: partner.photoData, name: partner.displayName,
+                           colorHex: partner.colorHex, size: 52)
+                        .opacity(moment == .night ? 0.6 : 1)
+                        .accessibilityHidden(true)
+                }
+            } else {
+                PageTitle("Today", subtitle: "so far")
             }
         }
-        .frame(width: grid.pageWidth, height: max(grid.foot - grid.headY, 0), alignment: .top)
-        .loggedToast($toast, sideInset: SpreadGrid.toastSideInset,
-                     bottomInset: SpreadGrid.toastLift)
-        .accessibilityElement(children: .contain)
-        .padding(.leading, grid.trailingPage.minX)
-        .padding(.top, grid.headY)
+    }
+
+    /// "WEEK 14" — his age in weeks, as a stamp beside the book's title.
+    private var weekStamp: some View {
+        VStack(spacing: 0) {
+            Text("WEEK")
+                .font(.system(size: 9, weight: .bold))
+                .tracking(1)
+                .foregroundStyle(AppColor.text2)
+            Text("\(ageInDays / 7)")
+                .font(.system(size: 20, weight: .heavy, design: .rounded))
+                .foregroundStyle(AppColor.text)
+        }
+        .frame(width: 52, height: 52)
+        .overlay(Circle().strokeBorder(AppColor.text3, lineWidth: 1.5))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(ageInDays / 7) weeks old")
+    }
+
+    // MARK: The fridge (the spread's morning page)
+
+    /// The morning page: what anyone picking him up needs, in big print.
+    private func fridgeDetails(now: Date) -> some View {
+        let lastFeed = feeds.first
+        let lastDiaper = diapers.first
+        let medicine = medicationEvents.prefix(while: { $0.timestamp >= dayStart }).first
+        let since = Calendar.current.date(byAdding: .hour, value: -24, to: now) ?? now
+        let note = noteEvents.prefix(while: { $0.timestamp >= since }).first { !$0.text.isEmpty }
+        return VStack(spacing: SpreadGrid.surfaceGap) {
+            detailsCard {
+                fridgeRow("🍼", "Last bottle",
+                          value: lastFeed.map { "\(TimeFormatting.duration(from: $0.timestamp, to: now)) ago" } ?? "None yet",
+                          detail: lastFeed.map { feed in
+                              [TimeFormatting.clock(feed.timestamp), "\(OzFormat.string(feed.amountOz)) oz",
+                               feed.loggedByName].filter { !$0.isEmpty }.joined(separator: " · ")
+                          },
+                          tint: AppColor.accentFeed)
+                Divider()
+                fridgeRow(lastDiaper?.type == .wet ? "💧" : "💩", "Last diaper",
+                          value: lastDiaper.map { "\(TimeFormatting.duration(from: $0.timestamp, to: now)) ago" } ?? "None yet",
+                          detail: lastDiaper.map { "\(TimeFormatting.clock($0.timestamp)) · \($0.type.label.lowercased())" },
+                          tint: AppColor.accentDiaper)
+                Divider()
+                fridgeRow("⏰", "Next bottle", value: feedHint(now: now).text, detail: nil,
+                          tint: AppColor.text)
+                Divider()
+                if let sleep = activeSleep {
+                    fridgeRow("💤", "Sleeping", value: "since \(TimeFormatting.clock(sleep.startedAt))",
+                              detail: nil, tint: AppColor.accentSleep)
+                } else {
+                    fridgeRow("💤", "Next sleep", value: sleepHint(now: now, target: sleepTarget).text,
+                              detail: nil, tint: AppColor.accentSleep)
+                }
+                Divider()
+                fridgeRow("💊", "Medicine",
+                          value: medicine.map { "\($0.name.isEmpty ? "Given" : $0.name) at \(TimeFormatting.clock($0.timestamp))" }
+                              ?? "None logged today",
+                          detail: nil, tint: AppColor.text)
+            }
+            if let note {
+                detailsCard {
+                    Text("Note").sectionLabelStyle(color: AppColor.accentNote)
+                    Text(note.text)
+                        .font(.body)
+                        .foregroundStyle(AppColor.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    private func fridgeRow(_ emoji: String, _ label: String, value: String, detail: String?,
+                           tint: Color) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text(emoji)
+                .font(.system(size: 26))
+                .frame(width: 34)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label).sectionLabelStyle()
+                Text(value)
+                    .font(.system(.title3, design: .rounded).weight(.heavy))
+                    .foregroundStyle(tint)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                if let detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(AppColor.text2)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: His book (the spread's evening page)
+
+    /// The evening page: a baby-book page that fills itself in — the day's
+    /// photo, the day's moment, and a month ago today.
+    private func bookDetails(now: Date) -> some View {
+        let photos = mediaEvents.prefix(while: { $0.timestamp >= dayStart })
+            .filter { $0.timestamp <= now }
+        let milestone = milestoneEvents.first { $0.timestamp >= dayStart }
+        let month = StatsEngine(feeds: feeds, sleeps: sleeps, diapers: diapers)
+            .dailySummaries(days: 31)
+        return VStack(spacing: SpreadGrid.surfaceGap) {
+            if let photo = photos.first {
+                Button { viewingMedia = MediaViewing(events: Array(photos)) } label: {
+                    Color.clear
+                        .aspectRatio(4 / 3, contentMode: .fit)
+                        .overlay {
+                            GeometryReader { slot in
+                                MediaThumbnail(event: photo,
+                                               size: max(slot.size.width, slot.size.height),
+                                               cornerRadius: 0)
+                                    .frame(width: slot.size.width, height: slot.size.height)
+                            }
+                        }
+                        .clipShape(.rect(cornerRadius: 18))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Today's photos, \(photos.count)")
+                .accessibilityHint("Opens the photos")
+            } else if let data = milestone?.photoData, let image = UIImage(data: data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .aspectRatio(4 / 3, contentMode: .fit)
+                    .clipShape(.rect(cornerRadius: 18))
+                    .accessibilityLabel(milestone?.text ?? "Today's photo")
+            }
+            bookMomentCard(milestone: milestone, days: month)
+            if let then = month.first, then.feedCount > 0 || then.sleepSeconds > 0 {
+                detailsCard {
+                    Text("A month ago today").sectionLabelStyle()
+                    Text("\(then.day.formatted(.dateTime.month(.abbreviated).day())) · \(max(ageInDays - 30, 0) / 7) weeks old")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppColor.text)
+                    Text("\(Plural.count(then.feedCount, "feed")) · \(OzFormat.string(then.feedOz)) oz · slept \(TimeFormatting.duration(from: then.day, to: then.day.addingTimeInterval(then.sleepSeconds)))")
+                        .font(.footnote)
+                        .foregroundStyle(AppColor.text2)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    /// The day's moment: a milestone logged today, or else the day's longest
+    /// sleep — flagged when it beats the rest of the last month.
+    @ViewBuilder
+    private func bookMomentCard(milestone: MilestoneEvent?, days: [DaySummary]) -> some View {
+        if let milestone {
+            detailsCard {
+                Text("Today").sectionLabelStyle(color: AppColor.accentMilestone)
+                Text("🏆 \(milestone.text)")
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .foregroundStyle(AppColor.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+        } else if let today = days.last, today.longestStretch > 0 {
+            let earlierBest = days.dropLast().map(\.longestStretch).max() ?? 0
+            detailsCard {
+                Text("Today").sectionLabelStyle(color: AppColor.accentMilestone)
+                Text("Longest sleep: \(TimeFormatting.duration(from: today.day, to: today.day.addingTimeInterval(today.longestStretch)))")
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .foregroundStyle(AppColor.text)
+                if today.longestStretch > earlierBest, earlierBest > 0 {
+                    Text("🎉 His longest stretch this month")
+                        .font(.footnote)
+                        .foregroundStyle(AppColor.text2)
+                }
+            }
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    /// The other active parent: the first, in join order, who isn't this
+    /// phone's participant. Nil on your own — or before this phone knows who
+    /// it is, rather than guess and show your own day as theirs.
+    private var spreadPartner: Participant? {
+        guard let me = prefs.myParticipantID else { return nil }
+        return participants
+            .filter(\.isActive)
+            .sorted { ($0.invitedAt, $0.id.uuidString) < ($1.invitedAt, $1.id.uuidString) }
+            .first { $0.id != me }
+    }
+
+    /// Tonight's window is open (the night schedule's own reading).
+    private func isNightWindowOpen(now: Date) -> Bool {
+        switch nightState(now: now) {
+        case .active(_)?: return true
+        default: return false
+        }
+    }
+
+    /// A details card: a solid surface you read, not tap.
+    private func detailsCard<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .surfaceCard(cornerRadius: 18)
+    }
+
+    /// By day: what they last logged, how the day has split, their latest note.
+    @ViewBuilder
+    private func partnerDayDetails(_ partner: Participant) -> some View {
+        lastFromPartnerCard(partner)
+        betweenYouCard(partner, title: "Today, between you")
+        if let note = latestNote(from: partner) {
+            detailsCard {
+                HStack {
+                    Text("Note from \(partner.displayName)").sectionLabelStyle(color: AppColor.accentNote)
+                    Spacer(minLength: 8)
+                    Text(TimeFormatting.clock(note.timestamp))
+                        .font(.caption).foregroundStyle(AppColor.text3)
+                }
+                Text(note.text)
+                    .font(.body)
+                    .foregroundStyle(AppColor.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    /// Overnight: whether they are in their planned sleep, what they last
+    /// did, and the night's plan to scale.
+    @ViewBuilder
+    private func tonightDetails(_ partner: Participant, now: Date) -> some View {
+        if let wake = plannedWake(of: partner, now: now) {
+            detailsCard {
+                Text("\(partner.displayName) is asleep").sectionLabelStyle(color: AppColor.accentSleep)
+                Text("until \(wake)")
+                    .font(AppFont.display(34))
+                    .foregroundStyle(AppColor.nightlightCream)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text("In their planned sleep — their phone stays quiet until then.")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColor.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+        }
+        lastFromPartnerCard(partner)
+        if let settings = settingsList.first,
+           let scale = NightPlanScale(nightStartMinute: settings.nightStartMinute,
+                                      nightEndMinute: settings.nightEndMinute) {
+            let windows = sleepSlots.compactMap { SleepWindow(slot: $0) }
+            if !windows.isEmpty {
+                detailsCard {
+                    Text("Tonight's plan").sectionLabelStyle()
+                    NightPlanStrip(scale: scale, windows: windows, lanes: planLanes,
+                                   summary: planSummary)
+                        .padding(.top, 4)
+                }
+            }
+        }
+        betweenYouCard(partner, title: "Since midnight")
+    }
+
+    /// Their last entry on the timeline, drawn as the timeline draws it.
+    @ViewBuilder
+    private func lastFromPartnerCard(_ partner: Participant) -> some View {
+        if let last = timelineEntries.first(where: { $0.loggedByID == partner.id }) {
+            detailsCard {
+                HStack {
+                    Text("Last from \(partner.displayName)")
+                        .sectionLabelStyle(color: AppColor.accentSleep)
+                    Spacer(minLength: 8)
+                    Text("\(TimeFormatting.duration(from: last.sortDate, to: .now)) ago")
+                        .font(.caption).foregroundStyle(AppColor.text3)
+                }
+                DayTimelineRow(entry: last, loggedByPhoto: loggerPhoto[last.loggedByID],
+                               loggedByNameFallback: loggerName[last.loggedByID])
+            }
+        }
+    }
+
+    /// Today's feeds and diapers, each parent's side by side.
+    private func betweenYouCard(_ partner: Participant, title: String) -> some View {
+        let me = participants.first { $0.id == prefs.myParticipantID }
+        return detailsCard {
+            Text(title).sectionLabelStyle()
+            HStack(alignment: .top, spacing: 16) {
+                tallyColumn(name: partner.displayName, photo: partner.photoData,
+                            colorHex: partner.colorHex, tally: tally(for: partner.id))
+                if let me {
+                    tallyColumn(name: "You", photo: me.photoData, colorHex: me.colorHex,
+                                tally: tally(for: me.id))
+                }
+            }
+            .padding(.top, 4)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func tallyColumn(name: String, photo: Data?, colorHex: String,
+                             tally: LoggerTally) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Avatar(photoData: photo, name: name, colorHex: colorHex, size: 24)
+                Text(name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppColor.text)
+                    .lineLimit(1)
+            }
+            Text("🍼 \(Plural.count(tally.feeds, "feed")) · \(OzFormat.string(tally.oz)) oz")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppColor.accentFeed)
+            Text("💧 \(Plural.count(tally.diapers, "diaper"))")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppColor.accentDiaper)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// One parent's share of today.
+    private struct LoggerTally {
+        var feeds = 0
+        var oz: Double = 0
+        var diapers = 0
+    }
+
+    /// Today's feeds and diapers that one parent logged. The queries are
+    /// newest-first, so today's rows are a prefix.
+    private func tally(for id: UUID) -> LoggerTally {
+        var result = LoggerTally()
+        for feed in feeds.prefix(while: { $0.timestamp >= dayStart }) where feed.loggedByID == id {
+            result.feeds += 1
+            result.oz += feed.amountOz
+        }
+        result.diapers = diapers.prefix(while: { $0.timestamp >= dayStart })
+            .filter { $0.loggedByID == id }.count
+        return result
+    }
+
+    /// Their latest note from the last 24 hours.
+    private func latestNote(from partner: Participant) -> NoteEvent? {
+        let since = Calendar.current.date(byAdding: .hour, value: -24, to: .now) ?? .now
+        return noteEvents.prefix(while: { $0.timestamp >= since })
+            .first { $0.loggedByID == partner.id && !$0.text.isEmpty }
+    }
+
+    /// When their planned sleep ends, if they are in it now ("6:00 AM").
+    private func plannedWake(of partner: Participant, now: Date) -> String? {
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: now)
+        let minute = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+        guard let window = sleepSlots.compactMap({ SleepWindow(slot: $0) })
+            .first(where: { $0.parentID == partner.id && $0.contains(minuteOfDay: minute) })
+        else { return nil }
+        return NightScheduleSettingsSheet.clock(
+            minuteOfDay: (window.startMinute + window.durationMinutes) % 1440)
+    }
+
+    /// Active parents in join order — the plan strip's lane order and colours.
+    private var planLanes: [SleepLaneColumn.Lane] {
+        participants
+            .filter(\.isActive)
+            .sorted { ($0.invitedAt, $0.id.uuidString) < ($1.invitedAt, $1.id.uuidString) }
+            .map { .init(id: $0.id, name: $0.displayName, colorHex: $0.colorHex) }
+    }
+
+    /// The plan strip in one sentence, for VoiceOver.
+    private var planSummary: String {
+        let names = Dictionary(participants.map { ($0.id, $0.displayName) },
+                               uniquingKeysWith: { a, _ in a })
+        let parts = sleepSlots.compactMap { SleepWindow(slot: $0) }.map { w in
+            let start = NightScheduleSettingsSheet.clock(minuteOfDay: w.startMinute)
+            let end = NightScheduleSettingsSheet.clock(minuteOfDay: (w.startMinute + w.durationMinutes) % 1440)
+            return "\(names[w.parentID] ?? "Someone") sleeps \(start) to \(end)"
+        }
+        return "Tonight's plan: " + parts.joined(separator: ", ")
     }
 
     /// "Today so far" card for the spread: feeds/oz, sleep, and diapers with
@@ -788,29 +1106,6 @@ struct HomeView: View {
         let h = total / 60, m = total % 60
         let magnitude = h > 0 ? (m > 0 ? "\(h)h \(m)m" : "\(h)h") : "\(m)m"
         return "\(mins > 0 ? "+" : "−")\(magnitude) vs avg"
-    }
-
-    /// What leads the trailing page, each only when it exists today, in the
-    /// single column's order: the Today card's daycare layer (while the log
-    /// tiles have that card's page — see `spreadNowPage`), SNOO suggestions,
-    /// tonight's roster (or the one-line up next by day), the setup checklist.
-    private var spreadLeadItems: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { ctx in
-            let attendance = daycareAttendance(now: ctx.date)
-            VStack(spacing: SpreadGrid.surfaceGap) {
-                if attendance == nil, hasDaycareLayer(now: ctx.date, attendance: attendance) {
-                    heroCard(now: ctx.date, attendance: attendance, summary: nil,
-                             active: nil, condensedCaption: false, layers: .daycare)
-                }
-                snooCards(now: ctx.date)
-                scheduleRow(now: ctx.date, attendance: attendance)
-                if showChecklist {
-                    setupChecklist
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .fixedSize(horizontal: false, vertical: true)
-        }
     }
 
     // MARK: Panes (iPad wide; iPhone Duo in portrait and on its side)
