@@ -572,34 +572,46 @@ struct HomeView: View {
     /// system strip): the spread's phone page is never wider.
     private static let closedContentWidth: CGFloat = 382
 
-    /// The spread's leading page — the details a phone has no room for. With
-    /// a co-parent: by day, their side of today (what they last logged, how
-    /// the day has split between you, the note they left) over today against
-    /// the usual; overnight, while tonight's window is open, the two of you
-    /// (whether they are in their planned sleep, what they last did, the
-    /// night's plan to scale). On your own: today against the usual.
-    /// Asked again once a minute so "12 min ago" and the night window keep
-    /// up with the clock; a log or a sync re-renders it at once.
+    /// The spread's leading page — the details a phone has no room for,
+    /// following the day (`SpreadDetailsMoment`):
+    /// - **morning** (5–10 AM): the fridge — last bottle, last diaper, next
+    ///   bottle, sleep, medicine and the latest note, in big print for
+    ///   whoever is holding him;
+    /// - **day**, with a co-parent: their side of today (what they last
+    ///   logged, how the day has split between you, the note they left) over
+    ///   today against the usual — on your own, today against the usual;
+    /// - **evening** (5 PM until tonight's window): his book — the day's
+    ///   photo, the day's moment, a month ago today;
+    /// - **night**, while tonight's window is open and with a co-parent: the
+    ///   two of you (whether they are in their planned sleep, what they last
+    ///   did, the night's plan to scale).
+    /// Asked again once a minute so "12 min ago" and the moment keep up with
+    /// the clock; a log or a sync re-renders it at once.
     private func spreadDetailsPage(_ grid: SpreadGrid) -> some View {
         TimelineView(.everyMinute) { ctx in
             let now = max(ctx.date, .now)
             let partner = spreadPartner
-            let night = isNightWindowOpen(now: now)
+            let moment = detailsMoment(now: now, hasPartner: partner != nil)
             VStack(spacing: 0) {
-                spreadDetailsTitle(partner: partner, night: night)
+                spreadDetailsTitle(partner: partner, moment: moment)
                     // As on every page: the title's own air, inside the
                     // minimum that puts the first surface on the top line.
                     .padding(.bottom, SpreadGrid.titleAir)
                     .frame(minHeight: grid.titleHeight, alignment: .top)
                 SpreadPageScroll {
-                    if let partner {
-                        if night {
+                    switch moment {
+                    case .morning:
+                        fridgeDetails(now: now)
+                    case .evening:
+                        bookDetails(now: now)
+                    case .night:
+                        if let partner {
                             tonightDetails(partner, now: now)
-                        } else {
-                            partnerDayDetails(partner)
-                            spreadTodayStatsCard
                         }
-                    } else {
+                    case .day:
+                        if let partner {
+                            partnerDayDetails(partner)
+                        }
                         spreadTodayStatsCard
                     }
                 }
@@ -612,18 +624,225 @@ struct HomeView: View {
         .padding(.top, grid.headY)
     }
 
+    /// Which details the leading page shows right now.
+    private enum SpreadDetailsMoment {
+        case morning, day, evening, night
+    }
+
+    /// Tonight's window comes first (with a co-parent: on your own the night
+    /// page has nobody to show, so the evening's book carries on); then the
+    /// clock — the fridge 5–10 AM, the book from 5 PM, the day between.
+    private func detailsMoment(now: Date, hasPartner: Bool) -> SpreadDetailsMoment {
+        let hour = Calendar.current.component(.hour, from: now)
+        if isNightWindowOpen(now: now) {
+            return hasPartner ? .night : (hour < 12 ? .morning : .evening)
+        }
+        if (5..<10).contains(hour) { return .morning }
+        if hour >= 17 { return .evening }
+        return .day
+    }
+
     @ViewBuilder
-    private func spreadDetailsTitle(partner: Participant?, night: Bool) -> some View {
-        if let partner {
-            PageTitle(night ? "Tonight" : partner.displayName,
-                      subtitle: night ? "the two of you" : "what you might have missed") {
-                Avatar(photoData: partner.photoData, name: partner.displayName,
-                       colorHex: partner.colorHex, size: 52)
-                    .opacity(night ? 0.6 : 1)
-                    .accessibilityHidden(true)
+    private func spreadDetailsTitle(partner: Participant?, moment: SpreadDetailsMoment) -> some View {
+        switch moment {
+        case .morning:
+            PageTitle("The fridge", subtitle: "this morning, at a glance")
+        case .evening:
+            PageTitle("\(baby?.name ?? "Baby")'s book",
+                      subtitle: Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day())) {
+                weekStamp
             }
-        } else {
-            PageTitle("Today", subtitle: "so far")
+        case .night, .day:
+            if let partner {
+                PageTitle(moment == .night ? "Tonight" : partner.displayName,
+                          subtitle: moment == .night ? "the two of you" : "what you might have missed") {
+                    Avatar(photoData: partner.photoData, name: partner.displayName,
+                           colorHex: partner.colorHex, size: 52)
+                        .opacity(moment == .night ? 0.6 : 1)
+                        .accessibilityHidden(true)
+                }
+            } else {
+                PageTitle("Today", subtitle: "so far")
+            }
+        }
+    }
+
+    /// "WEEK 14" — his age in weeks, as a stamp beside the book's title.
+    private var weekStamp: some View {
+        VStack(spacing: 0) {
+            Text("WEEK")
+                .font(.system(size: 9, weight: .bold))
+                .tracking(1)
+                .foregroundStyle(AppColor.text2)
+            Text("\(ageInDays / 7)")
+                .font(.system(size: 20, weight: .heavy, design: .rounded))
+                .foregroundStyle(AppColor.text)
+        }
+        .frame(width: 52, height: 52)
+        .overlay(Circle().strokeBorder(AppColor.text3, lineWidth: 1.5))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(ageInDays / 7) weeks old")
+    }
+
+    // MARK: The fridge (the spread's morning page)
+
+    /// The morning page: what anyone picking him up needs, in big print.
+    private func fridgeDetails(now: Date) -> some View {
+        let lastFeed = feeds.first
+        let lastDiaper = diapers.first
+        let medicine = medicationEvents.prefix(while: { $0.timestamp >= dayStart }).first
+        let since = Calendar.current.date(byAdding: .hour, value: -24, to: now) ?? now
+        let note = noteEvents.prefix(while: { $0.timestamp >= since }).first { !$0.text.isEmpty }
+        return VStack(spacing: SpreadGrid.surfaceGap) {
+            detailsCard {
+                fridgeRow("🍼", "Last bottle",
+                          value: lastFeed.map { "\(TimeFormatting.duration(from: $0.timestamp, to: now)) ago" } ?? "None yet",
+                          detail: lastFeed.map { feed in
+                              [TimeFormatting.clock(feed.timestamp), "\(OzFormat.string(feed.amountOz)) oz",
+                               feed.loggedByName].filter { !$0.isEmpty }.joined(separator: " · ")
+                          },
+                          tint: AppColor.accentFeed)
+                Divider()
+                fridgeRow(lastDiaper?.type == .wet ? "💧" : "💩", "Last diaper",
+                          value: lastDiaper.map { "\(TimeFormatting.duration(from: $0.timestamp, to: now)) ago" } ?? "None yet",
+                          detail: lastDiaper.map { "\(TimeFormatting.clock($0.timestamp)) · \($0.type.label.lowercased())" },
+                          tint: AppColor.accentDiaper)
+                Divider()
+                fridgeRow("⏰", "Next bottle", value: feedHint(now: now).text, detail: nil,
+                          tint: AppColor.text)
+                Divider()
+                if let sleep = activeSleep {
+                    fridgeRow("💤", "Sleeping", value: "since \(TimeFormatting.clock(sleep.startedAt))",
+                              detail: nil, tint: AppColor.accentSleep)
+                } else {
+                    fridgeRow("💤", "Next sleep", value: sleepHint(now: now, target: sleepTarget).text,
+                              detail: nil, tint: AppColor.accentSleep)
+                }
+                Divider()
+                fridgeRow("💊", "Medicine",
+                          value: medicine.map { "\($0.name.isEmpty ? "Given" : $0.name) at \(TimeFormatting.clock($0.timestamp))" }
+                              ?? "None logged today",
+                          detail: nil, tint: AppColor.text)
+            }
+            if let note {
+                detailsCard {
+                    Text("Note").sectionLabelStyle(color: AppColor.accentNote)
+                    Text(note.text)
+                        .font(.body)
+                        .foregroundStyle(AppColor.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    private func fridgeRow(_ emoji: String, _ label: String, value: String, detail: String?,
+                           tint: Color) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text(emoji)
+                .font(.system(size: 26))
+                .frame(width: 34)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label).sectionLabelStyle()
+                Text(value)
+                    .font(.system(.title3, design: .rounded).weight(.heavy))
+                    .foregroundStyle(tint)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                if let detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(AppColor.text2)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: His book (the spread's evening page)
+
+    /// The evening page: a baby-book page that fills itself in — the day's
+    /// photo, the day's moment, and a month ago today.
+    private func bookDetails(now: Date) -> some View {
+        let photos = mediaEvents.prefix(while: { $0.timestamp >= dayStart })
+            .filter { $0.timestamp <= now }
+        let milestone = milestoneEvents.first { $0.timestamp >= dayStart }
+        let month = StatsEngine(feeds: feeds, sleeps: sleeps, diapers: diapers)
+            .dailySummaries(days: 31)
+        return VStack(spacing: SpreadGrid.surfaceGap) {
+            if let photo = photos.first {
+                Button { viewingMedia = MediaViewing(events: Array(photos)) } label: {
+                    Color.clear
+                        .aspectRatio(4 / 3, contentMode: .fit)
+                        .overlay {
+                            GeometryReader { slot in
+                                MediaThumbnail(event: photo,
+                                               size: max(slot.size.width, slot.size.height),
+                                               cornerRadius: 0)
+                                    .frame(width: slot.size.width, height: slot.size.height)
+                            }
+                        }
+                        .clipShape(.rect(cornerRadius: 18))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Today's photos, \(photos.count)")
+                .accessibilityHint("Opens the photos")
+            } else if let data = milestone?.photoData, let image = UIImage(data: data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .aspectRatio(4 / 3, contentMode: .fit)
+                    .clipShape(.rect(cornerRadius: 18))
+                    .accessibilityLabel(milestone?.text ?? "Today's photo")
+            }
+            bookMomentCard(milestone: milestone, days: month)
+            if let then = month.first, then.feedCount > 0 || then.sleepSeconds > 0 {
+                detailsCard {
+                    Text("A month ago today").sectionLabelStyle()
+                    Text("\(then.day.formatted(.dateTime.month(.abbreviated).day())) · \(max(ageInDays - 30, 0) / 7) weeks old")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppColor.text)
+                    Text("\(Plural.count(then.feedCount, "feed")) · \(OzFormat.string(then.feedOz)) oz · slept \(TimeFormatting.duration(from: then.day, to: then.day.addingTimeInterval(then.sleepSeconds)))")
+                        .font(.footnote)
+                        .foregroundStyle(AppColor.text2)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    /// The day's moment: a milestone logged today, or else the day's longest
+    /// sleep — flagged when it beats the rest of the last month.
+    @ViewBuilder
+    private func bookMomentCard(milestone: MilestoneEvent?, days: [DaySummary]) -> some View {
+        if let milestone {
+            detailsCard {
+                Text("Today").sectionLabelStyle(color: AppColor.accentMilestone)
+                Text("🏆 \(milestone.text)")
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .foregroundStyle(AppColor.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+        } else if let today = days.last, today.longestStretch > 0 {
+            let earlierBest = days.dropLast().map(\.longestStretch).max() ?? 0
+            detailsCard {
+                Text("Today").sectionLabelStyle(color: AppColor.accentMilestone)
+                Text("Longest sleep: \(TimeFormatting.duration(from: today.day, to: today.day.addingTimeInterval(today.longestStretch)))")
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .foregroundStyle(AppColor.text)
+                if today.longestStretch > earlierBest, earlierBest > 0 {
+                    Text("🎉 His longest stretch this month")
+                        .font(.footnote)
+                        .foregroundStyle(AppColor.text2)
+                }
+            }
+            .accessibilityElement(children: .combine)
         }
     }
 
