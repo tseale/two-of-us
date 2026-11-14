@@ -22,6 +22,10 @@ All notable changes to Two of Us are recorded here. The format loosely follows
   the Duo's screens, instead of a white band that started halfway down.
 
 ### Added — made for iPhone Duo, in every pose
+- **Opening the phone is seamless:** the right page of the open phone is the
+  closed phone's screen itself — the same width, margins and cards, and
+  the same scroll position — so nothing on it moves or reflows as the phone
+  opens; only the left page appears beside it.
 - **Open, in landscape (flat or folded like a book):** the right page is
   Home exactly as on the iPhone, and the left page shows what a phone has no
   room for, changing with the day — never a repeat of the right page. Each
