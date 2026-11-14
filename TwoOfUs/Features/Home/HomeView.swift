@@ -180,7 +180,13 @@ struct HomeView: View {
                         // Every iPhone: the whole reader, as always. The
                         // spread: the closed phone's own frame (`PhonePage`).
                         let frame = PhonePage.frame(spread: grid == nil ? nil : layout, in: proxy.size)
-                        compactList(spread: grid == nil ? nil : layout)
+                        // The cover — iPhone Duo closed and upright — read
+                        // from this reader too: the system strip down one
+                        // side. A slab iPhone is portrait-only and never has
+                        // a side inset, so this is never true on one.
+                        let strip = max(proxy.safeAreaInsets.leading, proxy.safeAreaInsets.trailing)
+                        compactList(spread: grid == nil ? nil : layout,
+                                    readerSaysCover: compact && isPhone && strip > 0)
                             .frame(width: frame.width, height: frame.height)
                             .padding(.leading, frame.minX)
                     }
@@ -331,7 +337,7 @@ struct HomeView: View {
     /// same width, margins and card sizes as on the closed phone, so opening
     /// the phone changes nothing on it but its ground: it sits on the light
     /// instead of its own background, with the details page beside it.
-    private func compactList(spread: PaneLayout? = nil) -> some View {
+    private func compactList(spread: PaneLayout? = nil, readerSaysCover: Bool = false) -> some View {
         let onSpread = spread != nil
         // The open display (669 pt) is short like the closed one (678 pt),
         // so both use the short sleep card — read from the layout on the
@@ -358,7 +364,13 @@ struct HomeView: View {
         //
         // On the spread the page is the cover's by definition: the same
         // margins as the closed phone, whatever the inner display measures.
-        let duoOuter = onSpread || (compactTopInset < 1 && isPhone
+        //
+        // The list's own readings alone weren't enough on the device: the
+        // closed Duo laid out with a slab iPhone's 8 / 16 pt while the open
+        // page had the cover's 22 / 20, so the header jumped and every card
+        // changed width as the phone opened. The body's reader sees the
+        // strip directly (`readerSaysCover`), so either reading counts.
+        let duoOuter = onSpread || readerSaysCover || (compactTopInset < 1 && isPhone
             && (compactSideInset > 0 || compactStartsAtWindowTop))
         let side: CGFloat = duoOuter ? PhonePage.margin : 16
         return List {
