@@ -663,17 +663,20 @@ struct HomeView: View {
                       subtitle: Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day())) {
                 weekStamp
             }
-        case .night, .day:
+        case .day:
+            // About him, not the other parent: their share is one card on
+            // the page, his rhythm and his bottles are the rest of it.
+            PageTitle("The day so far", subtitle: "against his usual")
+        case .night:
             if let partner {
-                PageTitle(moment == .night ? "Tonight" : partner.displayName,
-                          subtitle: moment == .night ? "the two of you" : "what you might have missed") {
+                PageTitle("Tonight", subtitle: "the two of you") {
                     Avatar(photoData: partner.photoData, name: partner.displayName,
                            colorHex: partner.colorHex, size: 52)
-                        .opacity(moment == .night ? 0.6 : 1)
+                        .opacity(0.6)
                         .accessibilityHidden(true)
                 }
             } else {
-                PageTitle("Today", subtitle: "against his usual")
+                PageTitle("Tonight", subtitle: "so far")
             }
         }
     }
