@@ -580,20 +580,26 @@ struct HomeView: View {
     private static let closedContentWidth: CGFloat = 382
 
     /// The spread's leading page — the details a phone has no room for,
-    /// following the day (`SpreadDetailsMoment`):
-    /// - **morning** (5–10 AM): the fridge — last bottle, last diaper, next
-    ///   bottle, sleep, medicine and the latest note, in big print for
-    ///   whoever is holding him;
-    /// - **day**, with a co-parent: their side of today (what they last
-    ///   logged, how the day has split between you, the note they left) over
-    ///   today against the usual — on your own, today against the usual;
+    /// following the day (`SpreadDetailsMoment`). The phone page beside it
+    /// already carries what happened last, what comes next, today's totals
+    /// and the 24-hour timeline, so this page never repeats them: it carries
+    /// the context — the night as a whole, today against his usual, the
+    /// other parent's share, the day worth keeping.
+    /// - **morning** (5–10 AM): last night — how long he slept against his
+    ///   week, his longest stretch, wake-ups, the night's bottles and who
+    ///   was up for them, and the week's nights drawn to scale;
+    /// - **day**: with a co-parent, how the day has split between you and
+    ///   the note they left; then his rhythm (bottle spacing and size, naps,
+    ///   wake window) and the day's bottles against his usual day;
     /// - **evening** (5 PM until tonight's window): his book — the day's
-    ///   photo, the day's moment, a month ago today;
-    /// - **night**, while tonight's window is open and with a co-parent: the
-    ///   two of you (whether they are in their planned sleep, what they last
-    ///   did, the night's plan to scale).
-    /// Asked again once a minute so "12 min ago" and the moment keep up with
-    /// the clock; a log or a sync re-renders it at once.
+    ///   photo, the day's highlights, a month ago today and what's coming up;
+    /// - **night**, while tonight's window is open and with a co-parent:
+    ///   whether they are in their planned sleep, tonight so far and who has
+    ///   been up, and the week's nights.
+    /// Every moment is one first screen (`SpreadFirstScreen`) with one
+    /// surface that takes the slack, so the page ends on the foot line.
+    /// Asked again once a minute so the figures keep up with the clock; a
+    /// log or a sync re-renders it at once.
     private func spreadDetailsPage(_ grid: SpreadGrid) -> some View {
         TimelineView(.everyMinute) { ctx in
             let now = max(ctx.date, .now)
@@ -606,20 +612,17 @@ struct HomeView: View {
                     .padding(.bottom, SpreadGrid.titleAir)
                     .frame(minHeight: grid.titleHeight, alignment: .top)
                 SpreadPageScroll {
-                    switch moment {
-                    case .morning:
-                        fridgeDetails(now: now)
-                    case .evening:
-                        bookDetails(now: now)
-                    case .night:
-                        if let partner {
-                            tonightDetails(partner, now: now)
+                    SpreadFirstScreen(height: max(grid.foot - grid.top, 0)) {
+                        switch moment {
+                        case .morning:
+                            nightDetails(now: now, partner: partner, tonight: false)
+                        case .evening:
+                            bookDetails(now: now)
+                        case .night:
+                            nightDetails(now: now, partner: partner, tonight: true)
+                        case .day:
+                            dayDetails(now: now, partner: partner)
                         }
-                    case .day:
-                        if let partner {
-                            partnerDayDetails(partner)
-                        }
-                        spreadTodayStatsCard
                     }
                 }
             }
@@ -637,8 +640,9 @@ struct HomeView: View {
     }
 
     /// Tonight's window comes first (with a co-parent: on your own the night
-    /// page has nobody to show, so the evening's book carries on); then the
-    /// clock — the fridge 5–10 AM, the book from 5 PM, the day between.
+    /// page has nobody to show, so the evening's book carries on, and after
+    /// midnight last night does); then the clock — last night 5–10 AM, the
+    /// book from 5 PM, the day between.
     private func detailsMoment(now: Date, hasPartner: Bool) -> SpreadDetailsMoment {
         let hour = Calendar.current.component(.hour, from: now)
         if isNightWindowOpen(now: now) {
@@ -653,7 +657,7 @@ struct HomeView: View {
     private func spreadDetailsTitle(partner: Participant?, moment: SpreadDetailsMoment) -> some View {
         switch moment {
         case .morning:
-            PageTitle("The fridge", subtitle: "this morning, at a glance")
+            PageTitle("Last night", subtitle: "how the night went")
         case .evening:
             PageTitle("\(baby?.name ?? "Baby")'s book",
                       subtitle: Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day())) {
@@ -669,7 +673,7 @@ struct HomeView: View {
                         .accessibilityHidden(true)
                 }
             } else {
-                PageTitle("Today", subtitle: "so far")
+                PageTitle("Today", subtitle: "against his usual")
             }
         }
     }
@@ -691,135 +695,366 @@ struct HomeView: View {
         .accessibilityLabel("\(ageInDays / 7) weeks old")
     }
 
-    // MARK: The fridge (the spread's morning page)
+    // MARK: Last night / tonight (the spread's morning and night pages)
 
-    /// The morning page: what anyone picking him up needs, in big print.
-    private func fridgeDetails(now: Date) -> some View {
-        let lastFeed = feeds.first
-        let lastDiaper = diapers.first
-        let medicine = medicationEvents.prefix(while: { $0.timestamp >= dayStart }).first
-        let since = Calendar.current.date(byAdding: .hour, value: -24, to: now) ?? now
-        let note = noteEvents.prefix(while: { $0.timestamp >= since }).first { !$0.text.isEmpty }
-        return VStack(spacing: SpreadGrid.surfaceGap) {
+    /// The night as a whole: last night in the morning, tonight so far while
+    /// the window is open. The week's nights take the slack.
+    @ViewBuilder
+    private func nightDetails(now: Date, partner: Participant?, tonight: Bool) -> some View {
+        let nights = nightReports(now: now)
+        if tonight, let partner, let wake = plannedWake(of: partner, now: now) {
             detailsCard {
-                fridgeRow("🍼", "Last bottle",
-                          value: lastFeed.map { "\(TimeFormatting.duration(from: $0.timestamp, to: now)) ago" } ?? "None yet",
-                          detail: lastFeed.map { feed in
-                              [TimeFormatting.clock(feed.timestamp), "\(OzFormat.string(feed.amountOz)) oz",
-                               feed.loggedByName].filter { !$0.isEmpty }.joined(separator: " · ")
-                          },
-                          tint: AppColor.accentFeed)
-                Divider()
-                fridgeRow(lastDiaper?.type == .wet ? "💧" : "💩", "Last diaper",
-                          value: lastDiaper.map { "\(TimeFormatting.duration(from: $0.timestamp, to: now)) ago" } ?? "None yet",
-                          detail: lastDiaper.map { "\(TimeFormatting.clock($0.timestamp)) · \($0.type.label.lowercased())" },
-                          tint: AppColor.accentDiaper)
-                Divider()
-                fridgeRow("⏰", "Next bottle", value: feedHint(now: now).text, detail: nil,
-                          tint: AppColor.text)
-                Divider()
-                if let sleep = activeSleep {
-                    fridgeRow("💤", "Sleeping", value: "since \(TimeFormatting.clock(sleep.startedAt))",
-                              detail: nil, tint: AppColor.accentSleep)
-                } else {
-                    fridgeRow("💤", "Next sleep", value: sleepHint(now: now, target: sleepTarget).text,
-                              detail: nil, tint: AppColor.accentSleep)
-                }
-                Divider()
-                fridgeRow("💊", "Medicine",
-                          value: medicine.map { "\($0.name.isEmpty ? "Given" : $0.name) at \(TimeFormatting.clock($0.timestamp))" }
-                              ?? "None logged today",
-                          detail: nil, tint: AppColor.text)
+                Text("\(partner.displayName) is asleep").sectionLabelStyle(color: AppColor.accentSleep)
+                Text("until \(wake)")
+                    .font(.system(.title2, design: .rounded).weight(.heavy))
+                    .foregroundStyle(AppColor.nightlightCream)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text("In their planned sleep — their phone stays quiet until then.")
+                    .font(.footnote)
+                    .foregroundStyle(AppColor.text2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            if let note {
+            .accessibilityElement(children: .combine)
+        }
+        nightHeadlineCard(nights.current, priorSoFar: nights.priorSoFar)
+        if let partner, nights.current.feeds + nights.current.diapers > 0 {
+            sharesCard(partner, title: nights.current.isComplete ? "Who was up" : "Up with him tonight") { id in
+                let share = nights.current.shares[id] ?? NightReport.Share()
+                return LoggerTally(feeds: share.feeds, oz: share.oz, diapers: share.diapers)
+            }
+        }
+        nightsCard(current: nights.current, prior: nights.priorWhole)
+    }
+
+    /// The current (or last) night, the nights before it stopped at the same
+    /// moment (for "against his usual"), and the same nights whole (for the
+    /// chart). Each query is newest-first, so the last week is a prefix.
+    private func nightReports(now: Date) -> (current: NightReport.Summary,
+                                             priorSoFar: [NightReport.Summary],
+                                             priorWhole: [NightReport.Summary]) {
+        let settings = settingsList.first
+        let night = NightReport.night(containing: now,
+                                      startMinute: settings?.nightStartMinute ?? 1200,
+                                      endMinute: settings?.nightEndMinute ?? 480)
+        let since = night.start.addingTimeInterval(-8 * 86_400)
+        let sleepValues = sleeps.prefix(while: { $0.startedAt >= since })
+            .map { NightReport.Sleep(start: $0.startedAt, end: $0.endedAt) }
+        let feedValues = feeds.prefix(while: { $0.timestamp >= since })
+            .map { NightReport.Feed(time: $0.timestamp, oz: $0.amountOz, loggedByID: $0.loggedByID) }
+        let diaperValues = diapers.prefix(while: { $0.timestamp >= since })
+            .map { NightReport.Diaper(time: $0.timestamp, loggedByID: $0.loggedByID) }
+        let summarize: (DateInterval, Date) -> NightReport.Summary = { window, moment in
+            NightReport.summarize(night: window, now: moment, sleeps: sleepValues,
+                                  feeds: feedValues, diapers: diaperValues)
+        }
+        let current = summarize(night, now)
+        let prior = NightReport.priorNights(before: night, now: now, count: 6)
+        let priorSoFar = prior.map { summarize($0.night, $0.now) }
+        let priorWhole = current.isComplete ? priorSoFar : prior.map { summarize($0.night, $0.night.end) }
+        return (current, priorSoFar, priorWhole)
+    }
+
+    /// How long he slept against the nights before (by the same moment),
+    /// then his longest stretch, wake-ups and bottles.
+    private func nightHeadlineCard(_ night: NightReport.Summary,
+                                   priorSoFar: [NightReport.Summary]) -> some View {
+        let usual = NightReport.usualAsleep(priorSoFar)
+        let tracked = priorSoFar.filter { $0.asleep > 0 }
+        let bestPrior = tracked.map(\.longestStretch).max() ?? 0
+        let usualWakeUps = tracked.isEmpty ? nil
+            : Double(tracked.reduce(0) { $0 + $1.wakeUps }) / Double(tracked.count)
+        let slept = night.asleep > 0
+        return detailsCard {
+            HStack(alignment: .firstTextBaseline) {
+                Text(night.isComplete ? "Asleep" : "Asleep so far")
+                    .sectionLabelStyle(color: AppColor.accentSleep)
+                Spacer(minLength: 8)
+                Text("\(TimeFormatting.clock(night.night.start)) – \(TimeFormatting.clock(night.night.end))")
+                    .font(.caption)
+                    .foregroundStyle(AppColor.text3)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(slept ? NightsChart.duration(night.asleep) : "None logged")
+                    .font(AppFont.display(34))
+                    .foregroundStyle(slept ? AppColor.text : AppColor.text3)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if slept, let usual {
+                    Text(sleepAgainstUsual(night.asleep - usual))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppColor.text2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+            }
+            HStack(alignment: .top, spacing: 12) {
+                RhythmFigure(
+                    label: "Longest",
+                    value: slept ? NightsChart.duration(night.longestStretch) : "—",
+                    usual: bestPrior <= 0 ? nil
+                        : night.longestStretch > bestPrior ? "best this week"
+                        : "best \(NightsChart.duration(bestPrior))",
+                    tint: AppColor.accentSleep)
+                RhythmFigure(
+                    label: "Woke",
+                    value: slept ? Plural.count(night.wakeUps, "time") : "—",
+                    usual: usualWakeUps.map { "usually \(Int($0.rounded()))" })
+                RhythmFigure(
+                    label: "Bottles",
+                    value: "\(night.feeds)",
+                    usual: night.feeds > 0 ? "\(OzFormat.string(night.oz)) oz" : nil,
+                    tint: AppColor.accentFeed)
+            }
+            .padding(.top, 4)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The last seven nights to scale, this one at the bottom — the surface
+    /// that takes the page's slack.
+    private func nightsCard(current: NightReport.Summary, prior: [NightReport.Summary]) -> some View {
+        var rows = prior.reversed().map { night in
+            NightsChart.Row(night: night.night, segments: night.segments, feedTimes: night.feedTimes,
+                            asleep: night.asleep, isCurrent: false)
+        }
+        rows.append(NightsChart.Row(night: current.night, segments: current.segments,
+                                    feedTimes: current.feedTimes, asleep: current.asleep,
+                                    isCurrent: true))
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text("His week of nights").sectionLabelStyle()
+                Spacer(minLength: 8)
+                legendDot(AppColor.accentSleep, "sleep")
+                legendDot(AppColor.accentFeed, "bottle")
+            }
+            NightsChart(rows: rows)
+                .frame(maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(16)
+        .surfaceCard(cornerRadius: 18)
+    }
+
+    private func legendDot(_ color: Color, _ label: String) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 7, height: 7)
+            Text(label).font(.caption2).foregroundStyle(AppColor.text3)
+        }
+        .accessibilityHidden(true)
+    }
+
+    /// "+35m vs usual", "−1h 10m vs usual", "about usual" (within 15 min).
+    private func sleepAgainstUsual(_ diffSeconds: Double) -> String {
+        let mins = (diffSeconds / 60).rounded()
+        if abs(mins) < 15 { return "about usual" }
+        return "\(mins > 0 ? "+" : "−")\(TimeFormatting.duration(minutes: Int(abs(mins)))) vs usual"
+    }
+
+    // MARK: The day (the spread's daytime page)
+
+    /// By day: the split between you and their note (with a co-parent), his
+    /// rhythm against his usual, and the day's bottles against his usual
+    /// day — that chart takes the slack.
+    @ViewBuilder
+    private func dayDetails(now: Date, partner: Participant?) -> some View {
+        let since = dayStart.addingTimeInterval(-8 * 86_400)
+        let feedValues = feeds.prefix(while: { $0.timestamp >= since })
+            .map { DayRhythm.Feed(time: $0.timestamp, oz: $0.amountOz) }
+        if let partner {
+            sharesCard(partner, title: "Today, between you") { tally(for: $0) }
+            if let note = latestNote(from: partner) {
                 detailsCard {
-                    Text("Note").sectionLabelStyle(color: AppColor.accentNote)
+                    HStack {
+                        Text("Note from \(partner.displayName)").sectionLabelStyle(color: AppColor.accentNote)
+                        Spacer(minLength: 8)
+                        Text(TimeFormatting.clock(note.timestamp))
+                            .font(.caption).foregroundStyle(AppColor.text3)
+                    }
                     Text(note.text)
-                        .font(.body)
+                        .font(.subheadline)
                         .foregroundStyle(AppColor.text)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(3)
                 }
                 .accessibilityElement(children: .combine)
             }
         }
+        rhythmCard(now: now, feeds: feedValues, since: since)
+        paceCard(DayRhythm.pace(feeds: feedValues, dayStart: dayStart, now: now))
     }
 
-    private func fridgeRow(_ emoji: String, _ label: String, value: String, detail: String?,
-                           tint: Color) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text(emoji)
-                .font(.system(size: 26))
-                .frame(width: 34)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(label).sectionLabelStyle()
-                Text(value)
-                    .font(.system(.title3, design: .rounded).weight(.heavy))
-                    .foregroundStyle(tint)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
-                if let detail, !detail.isEmpty {
-                    Text(detail)
-                        .font(.footnote)
+    /// Bottle spacing and size, naps by now, and the wake window he's
+    /// working with — each beside his usual by this time of day.
+    private func rhythmCard(now: Date, feeds feedValues: [DayRhythm.Feed], since: Date) -> some View {
+        let sleepValues = sleeps.prefix(while: { $0.startedAt >= since })
+            .map { DayRhythm.Sleep(start: $0.startedAt, end: min($0.endedAt ?? now, now)) }
+        let rhythm = DayRhythm.rhythm(feeds: feedValues, sleeps: sleepValues, dayStart: dayStart,
+                                      now: now,
+                                      dayBeginsMinute: settingsList.first?.nightEndMinute ?? 480)
+        let oz: (Double) -> String = { OzFormat.string(($0 * 10).rounded() / 10) }
+        return detailsCard {
+            Text("His rhythm, by this time").sectionLabelStyle()
+            HStack(alignment: .top, spacing: 12) {
+                RhythmFigure(label: "Bottles every",
+                             value: rhythm.feedGap.today.map(NightsChart.duration) ?? "—",
+                             usual: rhythm.feedGap.usual.map { "usually \(NightsChart.duration($0))" },
+                             tint: AppColor.accentFeed)
+                RhythmFigure(label: "Avg bottle",
+                             value: rhythm.bottle.today.map { "\(oz($0)) oz" } ?? "—",
+                             usual: rhythm.bottle.usual.map { "usually \(oz($0)) oz" },
+                             tint: AppColor.accentFeed)
+            }
+            .padding(.top, 4)
+            HStack(alignment: .top, spacing: 12) {
+                RhythmFigure(label: rhythm.napCount > 0 ? Plural.count(rhythm.napCount, "nap") : "Naps",
+                             value: rhythm.naps.today.map(NightsChart.duration) ?? "None yet",
+                             usual: rhythm.naps.usual.map { "usually \(NightsChart.duration($0))" },
+                             tint: AppColor.accentSleep)
+                RhythmFigure(label: "Wake window",
+                             value: "~\(WakeWindow.shortLabel(sleepTarget))",
+                             usual: "his age and his week",
+                             tint: AppColor.accentSleep)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The day's bottles, cumulative, against his usual day — the surface
+    /// that takes the page's slack.
+    private func paceCard(_ pace: DayRhythm.Pace) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Bottles through the day").sectionLabelStyle(color: AppColor.accentFeed)
+                Spacer(minLength: 8)
+                if let usual = pace.usualSoFar {
+                    Text(ozAgainstUsual(pace.ozSoFar - usual))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(AppColor.text2)
                 }
             }
-            Spacer(minLength: 0)
+            Text(paceSentence(pace))
+                .font(.subheadline)
+                .foregroundStyle(AppColor.text)
+                .fixedSize(horizontal: false, vertical: true)
+            PaceChart(pace: pace)
+                .frame(minHeight: 110, maxHeight: .infinity)
         }
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(16)
+        .surfaceCard(cornerRadius: 18)
+    }
+
+    private func paceSentence(_ pace: DayRhythm.Pace) -> String {
+        let soFar = "\(OzFormat.string(pace.ozSoFar.rounded())) oz so far"
+        guard let usualSoFar = pace.usualSoFar, let total = pace.usualTotal else {
+            return "\(soFar). His usual day draws in behind it after a day of logging."
+        }
+        return "\(soFar) — usually \(OzFormat.string(usualSoFar.rounded())) by now, "
+            + "and \(OzFormat.string(total.rounded())) by the end of the day."
+    }
+
+    /// "+2 oz vs usual", "−3 oz vs usual", "about usual".
+    private func ozAgainstUsual(_ diff: Double) -> String {
+        let r = diff.rounded()
+        if abs(r) < 1 { return "about usual" }
+        return "\(r > 0 ? "+" : "−")\(Int(abs(r))) oz vs usual"
     }
 
     // MARK: His book (the spread's evening page)
 
     /// The evening page: a baby-book page that fills itself in — the day's
-    /// photo, the day's moment, and a month ago today.
+    /// photo (it takes the slack), the day's highlights, a month ago today
+    /// and what's coming up. With no photo of the day, a milestone's photo or
+    /// his own; with none at all, the highlights take the slack.
+    @ViewBuilder
     private func bookDetails(now: Date) -> some View {
         let photos = mediaEvents.prefix(while: { $0.timestamp >= dayStart })
             .filter { $0.timestamp <= now }
         let milestone = milestoneEvents.first { $0.timestamp >= dayStart }
+        let stillImage = (milestone?.photoData ?? baby?.photoData).flatMap { UIImage(data: $0) }
         let month = StatsEngine(feeds: feeds, sleeps: sleeps, diapers: diapers)
             .dailySummaries(days: 31)
-        return VStack(spacing: SpreadGrid.surfaceGap) {
-            if let photo = photos.first {
-                Button { viewingMedia = MediaViewing(events: Array(photos)) } label: {
-                    Color.clear
-                        .aspectRatio(4 / 3, contentMode: .fit)
-                        .overlay {
-                            GeometryReader { slot in
-                                MediaThumbnail(event: photo,
-                                               size: max(slot.size.width, slot.size.height),
-                                               cornerRadius: 0)
-                                    .frame(width: slot.size.width, height: slot.size.height)
-                            }
-                        }
-                        .clipShape(.rect(cornerRadius: 18))
+        if let photo = photos.first {
+            Button { viewingMedia = MediaViewing(events: Array(photos)) } label: {
+                bookPhotoSlot { size in
+                    MediaThumbnail(event: photo, size: max(size.width, size.height), cornerRadius: 0)
+                        .frame(width: size.width, height: size.height)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Today's photos, \(photos.count)")
-                .accessibilityHint("Opens the photos")
-            } else if let data = milestone?.photoData, let image = UIImage(data: data) {
-                Image(uiImage: image)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Today's photos, \(photos.count)")
+            .accessibilityHint("Opens the photos")
+        } else if let stillImage {
+            bookPhotoSlot { size in
+                Image(uiImage: stillImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .aspectRatio(4 / 3, contentMode: .fit)
-                    .clipShape(.rect(cornerRadius: 18))
-                    .accessibilityLabel(milestone?.text ?? "Today's photo")
+                    .frame(width: size.width, height: size.height)
             }
-            bookHighlightsCard(now: now, days: month)
-            if let then = month.first, then.feedCount > 0 || then.sleepSeconds > 0 {
-                detailsCard {
+            .accessibilityLabel(milestone?.text ?? "\(baby?.name ?? "Baby")'s photo")
+        }
+        bookHighlightsCard(now: now, days: month, fills: photos.isEmpty && stillImage == nil)
+        thenAndNextCard(month: month, now: now)
+    }
+
+    /// A photo at the page's width, as tall as the page leaves it.
+    private func bookPhotoSlot<Content: View>(@ViewBuilder _ content: @escaping (CGSize) -> Content) -> some View {
+        Color.clear
+            .frame(maxWidth: .infinity, minHeight: 150, maxHeight: .infinity)
+            .overlay {
+                GeometryReader { slot in
+                    content(slot.size)
+                }
+            }
+            .clipShape(.rect(cornerRadius: 18))
+    }
+
+    /// A month ago today, and the next day worth looking forward to.
+    @ViewBuilder
+    private func thenAndNextCard(month: [DaySummary], now: Date) -> some View {
+        let then = month.first.flatMap { $0.feedCount > 0 || $0.sleepSeconds > 0 ? $0 : nil }
+        let next = baby.flatMap { AgeMarks.next(after: now, dateOfBirth: $0.dateOfBirth) }
+        if then != nil || next != nil {
+            detailsCard {
+                if let then {
                     Text("A month ago today").sectionLabelStyle()
                     Text("\(then.day.formatted(.dateTime.month(.abbreviated).day())) · \(max(ageInDays - 30, 0) / 7) weeks old")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppColor.text)
-                    Text("\(Plural.count(then.feedCount, "feed")) · \(OzFormat.string(then.feedOz)) oz · slept \(TimeFormatting.duration(from: then.day, to: then.day.addingTimeInterval(then.sleepSeconds)))")
+                    Text("\(Plural.count(then.feedCount, "feed")) · \(OzFormat.string(then.feedOz)) oz · slept \(NightsChart.duration(then.sleepSeconds))")
                         .font(.footnote)
                         .foregroundStyle(AppColor.text2)
                 }
-                .accessibilityElement(children: .combine)
+                if then != nil, next != nil {
+                    Divider().padding(.vertical, 2)
+                }
+                if let next {
+                    Text("Coming up").sectionLabelStyle(color: AppColor.accentMilestone)
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(next.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppColor.text)
+                        Spacer(minLength: 8)
+                        Text(comingUp(next.date, now: now))
+                            .font(.footnote)
+                            .foregroundStyle(AppColor.text2)
+                    }
+                }
             }
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    /// "today 🎉", "tomorrow", "on Thursday", "in 12 days · Dec 1".
+    private func comingUp(_ date: Date, now: Date) -> String {
+        let calendar = Calendar.current
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now),
+                                           to: calendar.startOfDay(for: date)).day ?? 0
+        switch days {
+        case ...0: return "today 🎉"
+        case 1: return "tomorrow"
+        case 2..<7: return "on \(date.formatted(.dateTime.weekday(.wide)))"
+        default: return "in \(days) days · \(date.formatted(.dateTime.month(.abbreviated).day()))"
         }
     }
 
@@ -827,9 +1062,9 @@ struct HomeView: View {
     /// only what is worth remembering (`DayHighlights`) — milestones, a
     /// record stretch of sleep, notes from either of you or from daycare,
     /// the day's photos, what he did at daycare, a standout bottle.
-    private func bookHighlightsCard(now: Date, days: [DaySummary]) -> some View {
+    private func bookHighlightsCard(now: Date, days: [DaySummary], fills: Bool) -> some View {
         let items = dayHighlights(now: now, days: days)
-        return detailsCard {
+        return detailsCard(fills: fills) {
             HStack {
                 Text("Today's highlights").sectionLabelStyle(color: AppColor.accentMilestone)
                 Spacer(minLength: 8)
@@ -942,103 +1177,37 @@ struct HomeView: View {
         }
     }
 
-    /// A details card: a solid surface you read, not tap.
-    private func detailsCard<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+    /// A details card: a solid surface you read, not tap. At its natural
+    /// height, or — `fills` — the surface that takes its page's slack.
+    private func detailsCard<Content: View>(fills: Bool = false,
+                                            @ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             content()
+            if fills {
+                Spacer(minLength: 0)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: fills ? .infinity : nil, alignment: .topLeading)
         .padding(16)
         .surfaceCard(cornerRadius: 18)
+        // In a first screen sharing out the page's height, a card that
+        // doesn't take the slack keeps the height its text needs.
+        .fixedSize(horizontal: false, vertical: !fills)
     }
 
-    /// By day: what they last logged, how the day has split, their latest note.
-    @ViewBuilder
-    private func partnerDayDetails(_ partner: Participant) -> some View {
-        lastFromPartnerCard(partner)
-        betweenYouCard(partner, title: "Today, between you")
-        if let note = latestNote(from: partner) {
-            detailsCard {
-                HStack {
-                    Text("Note from \(partner.displayName)").sectionLabelStyle(color: AppColor.accentNote)
-                    Spacer(minLength: 8)
-                    Text(TimeFormatting.clock(note.timestamp))
-                        .font(.caption).foregroundStyle(AppColor.text3)
-                }
-                Text(note.text)
-                    .font(.body)
-                    .foregroundStyle(AppColor.text)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .accessibilityElement(children: .combine)
-        }
-    }
-
-    /// Overnight: whether they are in their planned sleep, what they last
-    /// did, and the night's plan to scale.
-    @ViewBuilder
-    private func tonightDetails(_ partner: Participant, now: Date) -> some View {
-        if let wake = plannedWake(of: partner, now: now) {
-            detailsCard {
-                Text("\(partner.displayName) is asleep").sectionLabelStyle(color: AppColor.accentSleep)
-                Text("until \(wake)")
-                    .font(AppFont.display(34))
-                    .foregroundStyle(AppColor.nightlightCream)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Text("In their planned sleep — their phone stays quiet until then.")
-                    .font(.subheadline)
-                    .foregroundStyle(AppColor.text2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .accessibilityElement(children: .combine)
-        }
-        lastFromPartnerCard(partner)
-        if let settings = settingsList.first,
-           let scale = NightPlanScale(nightStartMinute: settings.nightStartMinute,
-                                      nightEndMinute: settings.nightEndMinute) {
-            let windows = sleepSlots.compactMap { SleepWindow(slot: $0) }
-            if !windows.isEmpty {
-                detailsCard {
-                    Text("Tonight's plan").sectionLabelStyle()
-                    NightPlanStrip(scale: scale, windows: windows, lanes: planLanes,
-                                   summary: planSummary)
-                        .padding(.top, 4)
-                }
-            }
-        }
-        betweenYouCard(partner, title: "Since midnight")
-    }
-
-    /// Their last entry on the timeline, drawn as the timeline draws it.
-    @ViewBuilder
-    private func lastFromPartnerCard(_ partner: Participant) -> some View {
-        if let last = timelineEntries.first(where: { $0.loggedByID == partner.id }) {
-            detailsCard {
-                HStack {
-                    Text("Last from \(partner.displayName)")
-                        .sectionLabelStyle(color: AppColor.accentSleep)
-                    Spacer(minLength: 8)
-                    Text("\(TimeFormatting.duration(from: last.sortDate, to: .now)) ago")
-                        .font(.caption).foregroundStyle(AppColor.text3)
-                }
-                DayTimelineRow(entry: last, loggedByPhoto: loggerPhoto[last.loggedByID],
-                               loggedByNameFallback: loggerName[last.loggedByID])
-            }
-        }
-    }
-
-    /// Today's feeds and diapers, each parent's side by side.
-    private func betweenYouCard(_ partner: Participant, title: String) -> some View {
+    /// Feeds and diapers, each parent's side by side — today's (by day) or
+    /// the night's. `tally` gives one participant's share.
+    private func sharesCard(_ partner: Participant, title: String,
+                            tally: (UUID) -> LoggerTally) -> some View {
         let me = participants.first { $0.id == prefs.myParticipantID }
         return detailsCard {
             Text(title).sectionLabelStyle()
             HStack(alignment: .top, spacing: 16) {
                 tallyColumn(name: partner.displayName, photo: partner.photoData,
-                            colorHex: partner.colorHex, tally: tally(for: partner.id))
+                            colorHex: partner.colorHex, tally: tally(partner.id))
                 if let me {
                     tallyColumn(name: "You", photo: me.photoData, colorHex: me.colorHex,
-                                tally: tally(for: me.id))
+                                tally: tally(me.id))
                 }
             }
             .padding(.top, 4)
@@ -1066,7 +1235,7 @@ struct HomeView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// One parent's share of today.
+    /// One parent's share of today, or of the night.
     private struct LoggerTally {
         var feeds = 0
         var oz: Double = 0
@@ -1102,87 +1271,6 @@ struct HomeView: View {
         else { return nil }
         return NightScheduleSettingsSheet.clock(
             minuteOfDay: (window.startMinute + window.durationMinutes) % 1440)
-    }
-
-    /// Active parents in join order — the plan strip's lane order and colours.
-    private var planLanes: [SleepLaneColumn.Lane] {
-        participants
-            .filter(\.isActive)
-            .sorted { ($0.invitedAt, $0.id.uuidString) < ($1.invitedAt, $1.id.uuidString) }
-            .map { .init(id: $0.id, name: $0.displayName, colorHex: $0.colorHex) }
-    }
-
-    /// The plan strip in one sentence, for VoiceOver.
-    private var planSummary: String {
-        let names = Dictionary(participants.map { ($0.id, $0.displayName) },
-                               uniquingKeysWith: { a, _ in a })
-        let parts = sleepSlots.compactMap { SleepWindow(slot: $0) }.map { w in
-            let start = NightScheduleSettingsSheet.clock(minuteOfDay: w.startMinute)
-            let end = NightScheduleSettingsSheet.clock(minuteOfDay: (w.startMinute + w.durationMinutes) % 1440)
-            return "\(names[w.parentID] ?? "Someone") sleeps \(start) to \(end)"
-        }
-        return "Tonight's plan: " + parts.joined(separator: ", ")
-    }
-
-    /// "Today so far" card for the spread: feeds/oz, sleep, and diapers with
-    /// a delta against the 7-day average on each row.
-    private var spreadTodayStatsCard: some View {
-        let engine = StatsEngine(feeds: feeds, sleeps: sleeps, diapers: diapers)
-        let t = engine.todayVsTypical()
-        let empty = t.feedsToday == 0 && t.diapersToday == 0 && t.sleepToday == 0
-        return Card(title: "Today so far") {
-            if empty {
-                Text("Log today's first event to see how it's going.")
-                    .font(.subheadline).foregroundStyle(AppColor.text3)
-                    .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
-            } else {
-                VStack(alignment: .leading, spacing: 10) {
-                    statsRow("🍼",
-                             "\(Plural.count(t.feedsToday, "feed")) · \(OzFormat.string(t.ozToday.rounded())) oz",
-                             t.hasHistory ? spreadOzDelta(t.ozToday - t.ozAvg) : nil)
-                    statsRow("💤",
-                             t.sleepToday > 0
-                             ? TimeFormatting.duration(from: .now, to: .now.addingTimeInterval(t.sleepToday))
-                             : "none yet",
-                             t.hasHistory ? spreadSleepDelta(t.sleepToday - t.sleepAvg) : nil)
-                    statsRow("💩",
-                             Plural.count(t.diapersToday, "diaper"),
-                             t.hasHistory ? spreadCountDelta(Double(t.diapersToday) - t.diapersAvg) : nil)
-                }
-            }
-        }
-    }
-
-    private func statsRow(_ emoji: String, _ value: String, _ delta: String?) -> some View {
-        HStack(spacing: 8) {
-            Text(emoji)
-            Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(AppColor.text)
-            Spacer(minLength: 8)
-            if let delta {
-                Text(delta).font(.caption).foregroundStyle(AppColor.text3)
-            }
-        }
-    }
-
-    private func spreadOzDelta(_ diff: Double) -> String {
-        let r = diff.rounded()
-        if abs(r) < 1 { return "about avg" }
-        return "\(r > 0 ? "+" : "−")\(Int(abs(r))) oz vs avg"
-    }
-
-    private func spreadCountDelta(_ diff: Double) -> String {
-        let r = diff.rounded()
-        if abs(r) < 1 { return "about avg" }
-        return "\(r > 0 ? "+" : "−")\(Int(abs(r))) vs avg"
-    }
-
-    private func spreadSleepDelta(_ diffSeconds: Double) -> String {
-        let mins = (diffSeconds / 60).rounded()
-        if abs(mins) < 15 { return "about avg" }
-        let total = Int(abs(mins))
-        let h = total / 60, m = total % 60
-        let magnitude = h > 0 ? (m > 0 ? "\(h)h \(m)m" : "\(h)h") : "\(m)m"
-        return "\(mins > 0 ? "+" : "−")\(magnitude) vs avg"
     }
 
     // MARK: Panes (iPad wide; iPhone Duo in portrait and on its side)
