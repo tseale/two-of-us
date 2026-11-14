@@ -81,11 +81,14 @@ def save(alpha, shade, lit, shadow, name, max_a=0.97):
 
 
 hx = lambda h: [int(h[i:i + 2], 16) for i in (1, 3, 5)]
-# (lit tops, shaded undersides) for each light.
+# (lit tops, shaded undersides) for each light. Hushed to match SkyPalette:
+# a fifth of the original colour, the undersides pulled 55 % of the way to the
+# page's lightness. (The full-colour originals were FFFFFF/B9C9E6,
+# FFF4EC/D8AEBE and FFEFE8/BFA1CF.)
 LIGHTS = {
-    'day': (hx('#FFFFFF'), hx('#B9C9E6')),
-    'dawn': (hx('#FFF4EC'), hx('#D8AEBE')),
-    'dusk': (hx('#FFEFE8'), hx('#BFA1CF')),
+    'day': (hx('#FFFFFF'), hx('#DCDFE5')),
+    'dawn': (hx('#F8F6F4'), hx('#E0D7DA')),
+    'dusk': (hx('#F5F2F0'), hx('#D7D1DA')),
 }
 CLOUDS = {  # SkyPalette.cloudArt, in order
     1: dict(W=560, H=310, seed=3, n_base=5, n_mid=5, n_top=7, base_y=0.84, height=0.5),
