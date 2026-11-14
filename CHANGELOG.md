@@ -24,16 +24,20 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 ### Added — made for iPhone Duo, in every pose
 - **Open, in landscape (flat or folded like a book):** the right page is
   Home exactly as on the iPhone, and the left page shows what a phone has no
-  room for, changing with the day. In the morning: the fridge — last
-  bottle, last diaper, next bottle, sleep, medicine and the latest note in
-  big print. By day: your partner's side of today — what they last logged,
-  how today's feeds and diapers split between you, the note they left — and
-  today against the usual. In the evening: his book — today's photo, a
-  list of the day's highlights that grows as the day goes (milestones, a
-  record stretch of sleep, notes, daycare photos and activities, a standout
-  bottle), and a month ago today. Overnight: whether they're in their planned sleep
-  and until when, what they last did, and the night's plan to scale. Nothing
-  ever sits on the crease.
+  room for, changing with the day — never a repeat of the right page. Each
+  left page fills the screen, ending on the bottom edge. In the morning:
+  **last night** — how long he slept against his week, his longest stretch,
+  how often he woke, the night's bottles and who was up for them, and his
+  last seven nights drawn to scale. By day: your partner's share of today
+  and the note they left, then his rhythm by this time of day (how often he
+  is eating, his average bottle, naps, his wake window), each beside his
+  usual, and the day's bottles as a line against his usual day. In the
+  evening: his book — today's photo (or a milestone's, or his own) as large
+  as the page allows, a list of the day's highlights that grows as the day
+  goes, a month ago today, and what's coming up ("100 days old · on
+  Thursday"). Overnight: whether your partner is in their planned sleep and
+  until when, tonight so far against the same point of his other nights,
+  who has been up, and the week of nights. Nothing ever sits on the crease.
 - **Nighttime, History and Stats** open on the same two pages, titles and
   bottom edges on the same lines: Nighttime puts tonight on the left and the
   plan on the right, now drawn to scale (each parent's sleep window across
