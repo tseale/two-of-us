@@ -38,6 +38,26 @@ final class SkyPaletteTests: XCTestCase {
         XCTAssertLessThan(noon.red, morning.red)
     }
 
+    func testTheSkyStaysQuietBehindTheCards() {
+        // By day every colour the sky paints behind the cards is light and
+        // nearly grey, so the app's teal, amber and lavender always lead.
+        for frame in SkyPalette.dayFrames {
+            let look = frame.look
+            for colour in [look.top, look.mid, look.haze, look.deep] + look.hills {
+                let high = max(colour.red, colour.green, colour.blue)
+                let low = min(colour.red, colour.green, colour.blue)
+                XCTAssertLessThan(high - low, 0.12, "barely tinted")
+                XCTAssertGreaterThan(low, 0.75, "light")
+            }
+        }
+    }
+
+    func testTheNightIsDeeperSoTheStarsShow() {
+        let night = SkyPalette.look(at: 0.5, in: SkyPalette.nightFrames).top
+        let day = SkyPalette.look(at: 0.5, in: SkyPalette.dayFrames).top
+        XCTAssertLessThan(night.red + night.green + night.blue, day.red + day.green + day.blue)
+    }
+
     func testTheNightJoinsTheDayAtBothEnds() {
         assertEqual(SkyPalette.look(at: 0, in: SkyPalette.nightFrames).top,
                     SkyPalette.look(at: 1, in: SkyPalette.dayFrames).top)
@@ -115,6 +135,52 @@ final class SkyPaletteTests: XCTestCase {
             XCTAssertTrue((0...1).contains(star.x))
             XCTAssertTrue((0...0.36).contains(star.y))
             XCTAssertTrue((0...1).contains(star.alpha))
+            XCTAssertTrue((2.4...5.2).contains(star.period))
+            XCTAssertTrue((0..<1).contains(star.phase))
+        }
+        XCTAssertTrue(phone.contains { $0.twinkles }, "most twinkle")
+        XCTAssertTrue(phone.contains { !$0.twinkles }, "a few hold steady")
+    }
+
+    func testStarsComeOutAfterSunsetAndGoBeforeSunrise() {
+        XCTAssertEqual(SkyPalette.starOpacity(nightProgress: 0), 0, accuracy: 0.0001)
+        XCTAssertEqual(SkyPalette.starOpacity(nightProgress: 0.02), 0, accuracy: 0.0001)
+        XCTAssertEqual(SkyPalette.starOpacity(nightProgress: 0.05), 0.5, accuracy: 0.0001)
+        XCTAssertEqual(SkyPalette.starOpacity(nightProgress: 0.08), 1, accuracy: 0.0001)
+        XCTAssertEqual(SkyPalette.starOpacity(nightProgress: 0.5), 1, accuracy: 0.0001)
+        XCTAssertEqual(SkyPalette.starOpacity(nightProgress: 0.95), 0.5, accuracy: 0.0001)
+        XCTAssertEqual(SkyPalette.starOpacity(nightProgress: 1), 0, accuracy: 0.0001)
+    }
+
+    func testATwinkleSwellsBetweenAFifthAndFull() {
+        let star = SkyPalette.Star(x: 0.5, y: 0.1, size: 2, alpha: 1, twinkles: true, period: 4, phase: 0)
+        XCTAssertEqual(SkyPalette.twinkle(star, at: 0), 1, accuracy: 0.0001)
+        XCTAssertEqual(SkyPalette.twinkle(star, at: 2), 0.22, accuracy: 0.0001)
+        for step in 0...80 {
+            let value = SkyPalette.twinkle(star, at: Double(step) / 10)
+            XCTAssertGreaterThanOrEqual(value, 0.2199)
+            XCTAssertLessThanOrEqual(value, 1.0001)
+        }
+        let steady = SkyPalette.Star(x: 0.5, y: 0.1, size: 2, alpha: 1, twinkles: false, period: 4, phase: 0)
+        XCTAssertEqual(SkyPalette.twinkle(steady, at: 2), 1)
+    }
+
+    func testGlintsPulseOnTheirOwnRhythm() {
+        XCTAssertEqual(SkyPalette.glints(wide: false).count, 5)
+        XCTAssertEqual(SkyPalette.glints(wide: true).count, 7)
+        for wide in [false, true] {
+            let glints = SkyPalette.glints(wide: wide)
+            XCTAssertEqual(Set(glints.map(\.phase)).count, glints.count, "out of step with one another")
+            for glint in glints {
+                XCTAssertTrue((0...1).contains(glint.x))
+                XCTAssertTrue((0...1).contains(glint.y))
+                for step in 0...40 {
+                    let time = Double(step) / 4
+                    let value = SkyPalette.sparkle(glint, at: time)
+                    XCTAssertTrue((-0.0001...1.0001).contains(value))
+                    XCTAssertEqual(value, SkyPalette.sparkle(glint, at: time + glint.period), accuracy: 0.000001)
+                }
+            }
         }
     }
 

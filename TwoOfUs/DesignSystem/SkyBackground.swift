@@ -5,10 +5,16 @@ import SwiftUI
 /// night, a crescent moon and stars) where it really is in the sky, a few
 /// soft cumulus clouds by day, and four layers of hills along the bottom
 /// edge that melt into valley mist rather than meeting at outlines. The
-/// colours follow the light outside — peach and periwinkle at sunrise, blue
-/// by day, lavender at sunset, indigo at night — by the real sunrise and
-/// sunset for `location` (`SolarClock`), so a winter dusk comes at a winter
-/// hour.
+/// colours follow the light outside — a blush at sunrise, blue by day,
+/// lilac at sunset, periwinkle at night — by the real sunrise and sunset for
+/// `location` (`SolarClock`), so a winter dusk comes at a winter hour.
+///
+/// It is hushed on purpose: every colour keeps its hue at a fifth of its
+/// strength and sits close to the page's own grey, the sun's glow and the
+/// clouds are faint, so the app's teal, amber and lavender always lead. By
+/// night it is a shade deeper, and the stars come out over the first hour
+/// after sunset, twinkle, and a few brighter glints slowly pulse and turn
+/// (still under Reduce Motion).
 ///
 /// Nothing in it has a hard edge: the sun is a soft disc in a bloom, the
 /// clouds are painted textures (`SkyCloud*`, lit separately for dawn, day
@@ -58,7 +64,7 @@ private struct SkyScene: View {
                 sky(in: size, orb: orb)
 
                 if scene.isNight {
-                    stars(in: size)
+                    StarField(size: size, visibility: scene.starOpacity)
                     moon
                         .position(orb)
                 } else {
@@ -102,7 +108,7 @@ private struct SkyScene: View {
                         .init(color: look.haze.color, location: 1)],
                 startPoint: .top, endPoint: .bottom)
 
-            pool(look.warm, alpha: 0.45, at: orb, rx: size.width * 0.7, ry: size.height * 0.36)
+            pool(look.warm, alpha: 0.45 * SkyPalette.glow, at: orb, rx: size.width * 0.7, ry: size.height * 0.36)
 
             if scene.isNight {
                 RadialGradient(
@@ -112,9 +118,9 @@ private struct SkyScene: View {
                     center: centre, startRadius: 0, endRadius: reach * 0.25)
             } else {
                 RadialGradient(
-                    stops: [.init(color: look.sun.color.opacity(0.55), location: 0),
-                            .init(color: look.sun.color.opacity(0.25), location: 0.12),
-                            .init(color: look.sun.color.opacity(0.1), location: 0.3),
+                    stops: [.init(color: look.sun.color.opacity(0.55 * SkyPalette.glow), location: 0),
+                            .init(color: look.sun.color.opacity(0.25 * SkyPalette.glow), location: 0.12),
+                            .init(color: look.sun.color.opacity(0.1 * SkyPalette.glow), location: 0.3),
                             .init(color: look.sun.color.opacity(0), location: 0.6)],
                     center: centre, startRadius: 0, endRadius: reach * 0.5)
             }
@@ -164,19 +170,6 @@ private struct SkyScene: View {
             .shadow(color: AppColor.nightlightCream.opacity(0.85), radius: 9)
     }
 
-    private func stars(in size: CGSize) -> some View {
-        let stars = SkyPalette.stars(width: size.width)
-        return ForEach(stars.indices, id: \.self) { index in
-            let star = stars[index]
-            Circle()
-                .fill(Color.white)
-                .frame(width: star.size, height: star.size)
-                .shadow(color: Color.white.opacity(0.9), radius: star.size > 2 ? 2.5 : 1)
-                .opacity(star.alpha)
-                .position(x: star.x * size.width, y: star.y * size.height)
-        }
-    }
-
     // MARK: Clouds
 
     private func clouds(in size: CGSize) -> some View {
@@ -187,7 +180,7 @@ private struct SkyScene: View {
             ForEach(wisps.indices, id: \.self) { index in
                 let wisp = wisps[index]
                 cloudImage(SkyPalette.wispArt, width: wisp.width)
-                    .opacity(wisp.alpha)
+                    .opacity(wisp.alpha * SkyPalette.cloudStrength)
                     .position(x: wisp.x * size.width, y: wisp.y * size.height)
             }
             ForEach(clouds.indices, id: \.self) { index in
@@ -195,6 +188,7 @@ private struct SkyScene: View {
                 let art = SkyPalette.cloudArt[cloud.art]
                 // `y` is where the cloud's flat base sits: 84 % down its texture.
                 cloudImage(art, width: cloud.width)
+                    .opacity(SkyPalette.cloudStrength)
                     .scaleEffect(x: cloud.flipped ? -1 : 1, y: 1)
                     .position(x: cloud.x * size.width,
                               y: cloud.y * size.height - cloud.width * art.aspect * 0.34)
@@ -266,6 +260,79 @@ private struct SkyScene: View {
             .frame(width: width + 40, height: 54)
             .blur(radius: 6)
             .position(x: width / 2, y: centreY)
+    }
+}
+
+/// The night's stars: most twinkle slowly, out of step with one another, and
+/// a few brighter four-point glints pulse and turn, where the screen's own
+/// sky shows. Animated on its own timeline (only at night, only while it is
+/// on screen); held still under Reduce Motion. `visibility` fades the whole
+/// field in after sunset and out before sunrise.
+private struct StarField: View {
+    let size: CGSize
+    let visibility: Double
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        if reduceMotion {
+            field(at: nil)
+        } else {
+            TimelineView(.animation(minimumInterval: 1.0 / 24)) { context in
+                field(at: context.date.timeIntervalSinceReferenceDate)
+            }
+        }
+    }
+
+    /// One frame; `time` nil draws the stars still (full brightness, glints
+    /// part-way open).
+    private func field(at time: TimeInterval?) -> some View {
+        let stars = SkyPalette.stars(width: size.width)
+        let glints = SkyPalette.glints(wide: size.width > SkyPalette.wideLayoutWidth)
+        return ZStack(alignment: .topLeading) {
+            ForEach(stars.indices, id: \.self) { index in
+                let star = stars[index]
+                let twinkle = time.map { SkyPalette.twinkle(star, at: $0) } ?? 1
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: star.size, height: star.size)
+                    .shadow(color: Color.white.opacity(0.9), radius: star.size > 2 ? 2.5 : 1)
+                    .opacity(star.alpha * twinkle * visibility)
+                    .position(x: star.x * size.width, y: star.y * size.height)
+            }
+            ForEach(glints.indices, id: \.self) { index in
+                let glint = glints[index]
+                let sparkle = time.map { SkyPalette.sparkle(glint, at: $0) } ?? 0.6
+                GlintShape()
+                    .fill(SkyPalette.glintColor.color)
+                    .frame(width: glint.size, height: glint.size)
+                    .scaleEffect(CGFloat(0.45 + 0.55 * sparkle))
+                    .rotationEffect(.degrees(25 * sparkle))
+                    .shadow(color: SkyPalette.glintColor.color.opacity(0.95), radius: 2)
+                    .shadow(color: AppColor.nightlightCream.opacity(0.7), radius: 6)
+                    .opacity((0.3 + 0.7 * sparkle) * visibility)
+                    .position(x: glint.x * size.width, y: glint.y * size.height)
+            }
+        }
+    }
+}
+
+/// A four-point star: long thin rays meeting at a small waist.
+private struct GlintShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let corners: [(CGFloat, CGFloat)] = [(0.5, 0), (0.56, 0.44), (1, 0.5), (0.56, 0.56),
+                                             (0.5, 1), (0.44, 0.56), (0, 0.5), (0.44, 0.44)]
+        var path = Path()
+        for (index, corner) in corners.enumerated() {
+            let point = CGPoint(x: rect.minX + corner.0 * rect.width, y: rect.minY + corner.1 * rect.height)
+            if index == 0 {
+                path.move(to: point)
+            } else {
+                path.addLine(to: point)
+            }
+        }
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -379,31 +446,40 @@ enum SkyPalette {
         }
     }
 
-    private static let greenHills = [RGB(hex: 0xC8DEE6), RGB(hex: 0xB5D5D0), RGB(hex: 0xA0CABD), RGB(hex: 0x8DBEAB)]
+    /// How strong the sun's glow and warm pool are, against the original
+    /// (fully coloured) sky.
+    static let glow = 0.32
+    /// How opaque the clouds and wisps are.
+    static let cloudStrength = 0.8
+
+    // The keyframes, hushed: each colour keeps its hue at a fifth of its
+    // chroma (OKLCH) and sits 55 % of the way to the page's lightness (night
+    // a little less, so the stars show). Mist stays near white.
+    private static let sageHills = [RGB(hex: 0xE4E8EA), RGB(hex: 0xDDE3E2), RGB(hex: 0xD5DDDB), RGB(hex: 0xCED7D3)]
 
     private static let dawn = Look(
-        top: RGB(hex: 0xA6B1E1), mid: RGB(hex: 0xF0D8DE), sun: RGB(hex: 0xFFB088), core: RGB(hex: 0xFFF3E6),
-        warm: RGB(hex: 0xFFCBAF), haze: RGB(hex: 0xF6E3DF), mist: RGB(hex: 0xFFF0EC), mistAlpha: 0.6,
-        hills: [RGB(hex: 0xE8D7E3), RGB(hex: 0xDCC6DA), RGB(hex: 0xCEB7D4), RGB(hex: 0xBFA8CB)],
-        deep: RGB(hex: 0xB09AC2), light: .ofDawn)
+        top: RGB(hex: 0xD3D5DF), mid: RGB(hex: 0xEDE8E9), sun: RGB(hex: 0xDEBEAE), core: RGB(hex: 0xF9F4EF),
+        warm: RGB(hex: 0xEFE4DE), haze: RGB(hex: 0xF1EDEC), mist: RGB(hex: 0xFFF0EC), mistAlpha: 0.6,
+        hills: [RGB(hex: 0xEBE7EA), RGB(hex: 0xE5E0E4), RGB(hex: 0xDEDAE0), RGB(hex: 0xD8D3DA)],
+        deep: RGB(hex: 0xD1CDD5), light: .ofDawn)
     private static let morning = Look(
-        top: RGB(hex: 0x89BAEE), mid: RGB(hex: 0xCADFF6), sun: RGB(hex: 0xFFE49C), core: RGB(hex: 0xFFFDF2),
-        warm: RGB(hex: 0xFFF0C6), haze: RGB(hex: 0xE4EEF6), mist: RGB(hex: 0xFFFFFF), mistAlpha: 0.62,
-        hills: greenHills, deep: RGB(hex: 0x80B39F), light: .ofDay)
+        top: RGB(hex: 0xCED8E3), mid: RGB(hex: 0xE5E9EE), sun: RGB(hex: 0xF0E6CA), core: RGB(hex: 0xFEFDF8),
+        warm: RGB(hex: 0xF4F2E9), haze: RGB(hex: 0xEEF0F2), mist: RGB(hex: 0xFFFFFF), mistAlpha: 0.62,
+        hills: sageHills, deep: RGB(hex: 0xC8D2CE), light: .ofDay)
     private static let noon = Look(
-        top: RGB(hex: 0x76ADEC), mid: RGB(hex: 0xC0DAF7), sun: RGB(hex: 0xFFEDB6), core: RGB(hex: 0xFFFFF8),
-        warm: RGB(hex: 0xFFF6D8), haze: RGB(hex: 0xE2EEF7), mist: RGB(hex: 0xFFFFFF), mistAlpha: 0.62,
-        hills: greenHills, deep: RGB(hex: 0x80B39F), light: .ofDay)
+        top: RGB(hex: 0xC7D2DF), mid: RGB(hex: 0xE1E7ED), sun: RGB(hex: 0xF4EED8), core: RGB(hex: 0xFFFFFC),
+        warm: RGB(hex: 0xF6F4EE), haze: RGB(hex: 0xEEF0F2), mist: RGB(hex: 0xFFFFFF), mistAlpha: 0.62,
+        hills: sageHills, deep: RGB(hex: 0xC8D2CE), light: .ofDay)
     private static let dusk = Look(
-        top: RGB(hex: 0x9B8DDA), mid: RGB(hex: 0xEFC6D2), sun: RGB(hex: 0xFFA07C), core: RGB(hex: 0xFFE9DB),
-        warm: RGB(hex: 0xFFC0A0), haze: RGB(hex: 0xF2DBE4), mist: RGB(hex: 0xFFECF2), mistAlpha: 0.55,
-        hills: [RGB(hex: 0xE3CFE4), RGB(hex: 0xD4BEDC), RGB(hex: 0xC3ADD5), RGB(hex: 0xB19BCB)],
-        deep: RGB(hex: 0xA28CC1), light: .ofDusk)
+        top: RGB(hex: 0xCAC8D8), mid: RGB(hex: 0xEAE2E4), sun: RGB(hex: 0xD9B2A4), core: RGB(hex: 0xF5ECE6),
+        warm: RGB(hex: 0xEDE0D9), haze: RGB(hex: 0xEEEAEB), mist: RGB(hex: 0xFFECF2), mistAlpha: 0.55,
+        hills: [RGB(hex: 0xE8E4E9), RGB(hex: 0xE1DDE3), RGB(hex: 0xDAD5DE), RGB(hex: 0xD2CDD7)],
+        deep: RGB(hex: 0xCBC7D2), light: .ofDusk)
     private static let night = Look(
-        top: RGB(hex: 0x6E78BC), mid: RGB(hex: 0xAAAEDD), sun: RGB(hex: 0xFFF4E8), core: RGB(hex: 0xFFFFFF),
-        warm: RGB(hex: 0xC4C0EA), haze: RGB(hex: 0xCDD0EC), mist: RGB(hex: 0xDEE0F6), mistAlpha: 0.4,
-        hills: [RGB(hex: 0xBFC2E4), RGB(hex: 0xACB1DC), RGB(hex: 0x9AA0D2), RGB(hex: 0x8A91C9)],
-        deep: RGB(hex: 0x7F86C1), light: .ofDay)
+        top: RGB(hex: 0x9C9FAD), mid: RGB(hex: 0xC3C5CE), sun: RGB(hex: 0xFAF5F0), core: RGB(hex: 0xFFFFFF),
+        warm: RGB(hex: 0xD3D2DA), haze: RGB(hex: 0xDBDBE1), mist: RGB(hex: 0xDEE0F6), mistAlpha: 0.4,
+        hills: [RGB(hex: 0xD1D2D9), RGB(hex: 0xC5C6CF), RGB(hex: 0xB9BBC5), RGB(hex: 0xAEB0BC)],
+        deep: RGB(hex: 0xA7A9B5), light: .ofDay)
 
     /// The day's looks against its own light: 0 at sunrise, 1 at sunset.
     static let dayFrames: [(at: Double, look: Look)] = [
@@ -439,6 +515,9 @@ enum SkyPalette {
         let body: (x: Double, y: Double)
         /// Clouds are a daytime thing: faded in after sunrise, out before sunset.
         let cloudOpacity: Double
+        /// Stars are a night thing: out over the first hour after sunset, in
+        /// before sunrise (`starOpacity(nightProgress:)`).
+        let starOpacity: Double
     }
 
     static func scene(at date: Date, location: (latitude: Double, longitude: Double)?,
@@ -451,10 +530,11 @@ enum SkyPalette {
         case .day(let p):
             return Scene(look: look(at: p, in: dayFrames), isNight: false,
                          body: bodyPosition(progress: p),
-                         cloudOpacity: min(1, min(p, 1 - p) / 0.1))
+                         cloudOpacity: min(1, min(p, 1 - p) / 0.1), starOpacity: 0)
         case .night(let q):
             return Scene(look: look(at: q, in: nightFrames), isNight: true,
-                         body: bodyPosition(progress: q), cloudOpacity: 0)
+                         body: bodyPosition(progress: q), cloudOpacity: 0,
+                         starOpacity: starOpacity(nightProgress: q))
         }
     }
 
@@ -568,12 +648,26 @@ enum SkyPalette {
 
     // MARK: Stars
 
-    /// A star: where (fractions of the screen), how big (points), how bright.
+    /// How much of the starfield shows, `nightProgress` 0 at sunset to 1 at
+    /// sunrise: none for the first ~20 minutes, all of it about an hour after
+    /// sunset (as the sky darkens), and gone again by sunrise.
+    static func starOpacity(nightProgress q: Double) -> Double {
+        let rise = (q - 0.02) / 0.06
+        let fall = (0.98 - q) / 0.06
+        return min(1, max(0, min(rise, fall)))
+    }
+
+    /// A star: where (fractions of the screen), how big (points), how bright,
+    /// and — for the two in three that twinkle — how long one twinkle takes
+    /// (seconds) and where in it the star starts (a fraction of the period).
     struct Star: Equatable {
         let x: Double
         let y: Double
         let size: CGFloat
         let alpha: Double
+        let twinkles: Bool
+        let period: Double
+        let phase: Double
     }
 
     /// Fixed stars (the same every frame, so they never jump), in the top
@@ -592,8 +686,60 @@ enum SkyPalette {
             let size = 0.9 + next() * 1.6
             let x = next()
             let alpha = (0.45 + next() * 0.5) * (1 - 0.55 * depth)
-            stars.append(Star(x: x, y: depth * 0.36, size: CGFloat(size), alpha: alpha))
+            let period = 2.4 + next() * 2.8
+            let twinkles = next() < 0.65
+            let phase = twinkles ? next() : 0
+            stars.append(Star(x: x, y: depth * 0.36, size: CGFloat(size), alpha: alpha,
+                              twinkles: twinkles, period: period, phase: phase))
         }
         return stars
+    }
+
+    /// A star's brightness at `time` (seconds, any epoch), as a fraction of
+    /// its own: a slow swell between 22 % and full; 1 for the steady ones.
+    static func twinkle(_ star: Star, at time: TimeInterval) -> Double {
+        guard star.twinkles, star.period > 0 else { return 1 }
+        return 0.61 + 0.39 * cos(2 * Double.pi * (time / star.period + star.phase))
+    }
+
+    /// A brighter four-point glint: its centre (fractions of the screen), its
+    /// size (points), and its slow pulse (period in seconds, starting phase).
+    struct Glint: Equatable {
+        let x: Double
+        let y: Double
+        let size: CGFloat
+        let period: Double
+        let phase: Double
+    }
+
+    /// The glints' warm white.
+    static let glintColor = RGB(hex: 0xFFFBF2)
+
+    /// Where the screen's own sky shows: beside the cards and behind the
+    /// header on a phone; the margins and between the pages on the open Duo.
+    static func glints(wide: Bool) -> [Glint] {
+        let spots: [(x: Double, y: Double, size: CGFloat)]
+        if wide {
+            spots = [(x: 0.035, y: 0.22, size: 17), (x: 0.07, y: 0.62, size: 13), (x: 0.49, y: 0.1, size: 16),
+                     (x: 0.505, y: 0.47, size: 12), (x: 0.935, y: 0.32, size: 14), (x: 0.965, y: 0.07, size: 18),
+                     (x: 0.27, y: 0.035, size: 13)]
+        } else {
+            spots = [(x: 0.93, y: 0.07, size: 17), (x: 0.84, y: 0.3, size: 13), (x: 0.6, y: 0.115, size: 14),
+                     (x: 0.965, y: 0.5, size: 12), (x: 0.03, y: 0.42, size: 12)]
+        }
+        var glints: [Glint] = []
+        for (index, spot) in spots.enumerated() {
+            let period = 3.6 + Double(index % 3) * 1.1
+            let phase = (Double(index) * 1.37).truncatingRemainder(dividingBy: period) / period
+            glints.append(Glint(x: spot.x, y: spot.y, size: spot.size, period: period, phase: phase))
+        }
+        return glints
+    }
+
+    /// How open a glint is at `time` (seconds, any epoch): 0 at rest (small,
+    /// dim, upright), 1 at full sparkle (full size and brightness, turned 25°).
+    static func sparkle(_ glint: Glint, at time: TimeInterval) -> Double {
+        guard glint.period > 0 else { return 0 }
+        return 0.5 - 0.5 * cos(2 * Double.pi * (time / glint.period + glint.phase))
     }
 }
