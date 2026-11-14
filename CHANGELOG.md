@@ -9,8 +9,9 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 ### Added — the sky outside
 - In light mode Home's background is a little sky: a sun that sits where
   the real sun is (by sunrise and sunset at your daycare's location, or your
-  time zone), soft clouds by day, a crescent moon and stars at night, and
-  three rolling hills along the bottom. The colours follow the light
+  time zone), soft painted clouds by day, a crescent moon and stars at
+  night, and misty layers of hills along the bottom — drawn soft all the
+  way through, with no hard outlines. The colours follow the light
   outside — peach at sunrise, blue by day, lavender at sunset, indigo at
   night — so a November dusk comes at a November hour. Dark mode keeps its black ground. Off under Reduce Transparency and
   Increase Contrast.
