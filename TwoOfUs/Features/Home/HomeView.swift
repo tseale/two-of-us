@@ -177,10 +177,11 @@ struct HomeView: View {
                         }
                     }
                     if layout == nil || grid != nil {
-                        let frame = phonePageFrame(spread: grid == nil ? nil : layout, in: proxy.size)
+                        // Every iPhone: the whole reader, as always. The
+                        // spread: the closed phone's own frame (`PhonePage`).
+                        let frame = PhonePage.frame(spread: grid == nil ? nil : layout, in: proxy.size)
                         compactList(spread: grid == nil ? nil : layout)
                             .frame(width: frame.width, height: frame.height)
-                            .accessibilityElement(children: .contain)
                             .padding(.leading, frame.minX)
                     }
                 }
@@ -359,7 +360,7 @@ struct HomeView: View {
         // margins as the closed phone, whatever the inner display measures.
         let duoOuter = onSpread || (compactTopInset < 1 && isPhone
             && (compactSideInset > 0 || compactStartsAtWindowTop))
-        let side: CGFloat = duoOuter ? Self.phonePageMargin : 16
+        let side: CGFloat = duoOuter ? PhonePage.margin : 16
         return List {
             Section {
                 header
@@ -433,15 +434,17 @@ struct HomeView: View {
         }
         .listStyle(.plain)
         // The ground is the sky (the light appearance's time-of-day
-        // gradient; plain `bg` in the dark) — or, on the spread, whatever
-        // the spread draws behind both pages.
+        // gradient; plain `bg` in the dark) — the same ground, the same
+        // view, closed or open: on the spread it still fills the page out
+        // to the display's edges (with the strip, the cover's 466 pt), so
+        // the sky behind the page doesn't change as the phone opens. There
+        // it feathers in across its leading margin — over the fold band,
+        // under no row — from the leading page's sky. (Every other iPhone:
+        // no feather and no mask — the ground exactly as before.)
         .scrollContentBackground(.hidden)
         .background {
-            if onSpread {
-                Color.clear
-            } else {
-                SkyBackground(location: daycareSettings?.daycareCoordinate)
-            }
+            SkyBackground(location: daycareSettings?.daycareCoordinate,
+                          leadingFeather: onSpread ? PhonePage.featherWidth : 0)
         }
         .loggedToast($toast)
         // The list's top edge: its top inset, and whether it starts at the
@@ -567,7 +570,7 @@ struct HomeView: View {
     /// Home on iPhone Duo's open display in landscape, except its phone
     /// page. The trailing page is the iPhone app's Home exactly — the closed
     /// phone's own list (`compactList`), which `body` places over this at
-    /// `phonePageFrame`, under the right thumb. This draws what lies around
+    /// `PhonePage.frame`, under the right thumb. This draws what lies around
     /// it: the light behind both pages, and the leading page — what a phone
     /// has no room for (`spreadDetailsPage`). Nothing textual or tappable
     /// sits on the fold.
@@ -580,7 +583,8 @@ struct HomeView: View {
             // into a night's sleep on the clock alone (the two-hour
             // crossover), with no log or sync to re-render for it.
             // In the light appearance, the sky — the same time-of-day
-            // ground as the closed phone.
+            // ground as the closed phone. Either way the phone page covers
+            // this from the fold band on with the closed phone's own ground.
             if colorScheme == .dark {
                 TimelineView(.everyMinute) { ctx in
                     // ctx.date is the minute's start, and stays there when a
@@ -593,7 +597,10 @@ struct HomeView: View {
                                 topOffset: layout.topOffset)
                 }
             } else {
-                SkyBackground(location: daycareSettings?.daycareCoordinate)
+                // The phone page brings its own sky (the cover's, sun and
+                // all) and covers this one from the fold on; this is the
+                // leading page's, the same sky without a second sun or moon.
+                SkyBackground(location: daycareSettings?.daycareCoordinate, showsOrb: false)
             }
             // The leading page; the phone page follows it in `body` — the
             // order VoiceOver reads.
@@ -601,30 +608,6 @@ struct HomeView: View {
         }
         .frame(width: layout.size.width, height: layout.size.height, alignment: .topLeading)
     }
-
-    /// Where the phone page goes: the whole reader when the phone is closed
-    /// (or any slab iPhone); on the spread, a page exactly as wide as the
-    /// closed phone's content, so not one row reflows when the phone opens.
-    /// It starts at the fold band's edge when the trailing side has room for
-    /// all of it; when it doesn't (the system strip on the trailing side
-    /// leaves 371.5 pt), it ends at the strip instead and reaches back over
-    /// the band — the list's own 20 pt margins still keep every row
-    /// `SpreadGrid.bandClearance` clear of it. Only a reader too narrow even
-    /// for that gives the page less than the closed phone's width.
-    private func phonePageFrame(spread layout: PaneLayout?, in size: CGSize) -> CGRect {
-        guard let layout else { return CGRect(origin: .zero, size: size) }
-        let earliest = layout.band.maxX + SpreadGrid.bandClearance - Self.phonePageMargin
-        let x = max(min(layout.band.maxX, size.width - Self.closedContentWidth), earliest)
-        let width = max(min(Self.closedContentWidth, size.width - x), 0)
-        return CGRect(x: x, y: 0, width: width, height: layout.size.height)
-    }
-
-    /// The phone page's side margin on the cover and the spread (`duoOuter`).
-    private static let phonePageMargin: CGFloat = 20
-
-    /// The closed phone's content width (the outer display beside its
-    /// system strip): the spread's phone page is never wider.
-    private static let closedContentWidth: CGFloat = 382
 
     /// The spread's leading page — the details a phone has no room for,
     /// following the day (`SpreadDetailsMoment`). The phone page beside it

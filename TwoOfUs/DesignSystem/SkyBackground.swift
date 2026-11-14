@@ -31,6 +31,15 @@ struct SkyBackground: View {
     /// Where the sky is, for sunrise and sunset; nil falls back to the time
     /// zone's own meridian (`SolarClock.approximateLocation`).
     var location: (latitude: Double, longitude: Double)? = nil
+    /// Whether the sun (or the moon) is drawn, with its glow. False only
+    /// for the leading page of iPhone Duo's spread, whose phone page beside
+    /// it brings its own sky, sun and all — one sun to a sky.
+    var showsOrb = true
+    /// A fade-in from the leading edge, in points: on iPhone Duo's spread
+    /// the phone page's sky feathers in across the fold band from the
+    /// leading page's. Zero — every iPhone, the closed Duo — draws no mask
+    /// at all.
+    var leadingFeather: CGFloat = 0
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.colorSchemeContrast) private var contrast
@@ -38,23 +47,44 @@ struct SkyBackground: View {
 
     var body: some View {
         Group {
-            if colorScheme == .dark || reduceTransparency || contrast == .increased {
-                AppColor.bg
+            if leadingFeather > 0 {
+                // Masked before `ignoresSafeArea`, so the mask spans the
+                // same display-wide frame as the sky it masks.
+                ground
+                    .mask(alignment: .leading) {
+                        HStack(spacing: 0) {
+                            LinearGradient(colors: [.clear, .black],
+                                           startPoint: .leading, endPoint: .trailing)
+                                .frame(width: leadingFeather)
+                            Color.black
+                        }
+                    }
             } else {
-                TimelineView(.everyMinute) { ctx in
-                    SkyScene(scene: SkyPalette.scene(at: max(ctx.date, .now), location: location))
-                }
+                ground
             }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
+
+    @ViewBuilder
+    private var ground: some View {
+        if colorScheme == .dark || reduceTransparency || contrast == .increased {
+            AppColor.bg
+        } else {
+            TimelineView(.everyMinute) { ctx in
+                SkyScene(scene: SkyPalette.scene(at: max(ctx.date, .now), location: location),
+                         showsOrb: showsOrb)
+            }
+        }
+    }
 }
 
 /// One frame of the sky, drawn at whatever size it is given.
 private struct SkyScene: View {
     let scene: SkyPalette.Scene
+    var showsOrb = true
 
     var body: some View {
         GeometryReader { geo in
@@ -65,11 +95,15 @@ private struct SkyScene: View {
 
                 if scene.isNight {
                     StarField(size: size, visibility: scene.starOpacity)
-                    moon
-                        .position(orb)
+                    if showsOrb {
+                        moon
+                            .position(orb)
+                    }
                 } else {
-                    sun
-                        .position(orb)
+                    if showsOrb {
+                        sun
+                            .position(orb)
+                    }
                     clouds(in: size)
                         .opacity(scene.cloudOpacity)
                 }
@@ -108,15 +142,18 @@ private struct SkyScene: View {
                         .init(color: look.haze.color, location: 1)],
                 startPoint: .top, endPoint: .bottom)
 
-            pool(look.warm, alpha: 0.45 * SkyPalette.glow, at: orb, rx: size.width * 0.7, ry: size.height * 0.36)
+            if showsOrb {
+                pool(look.warm, alpha: 0.45 * SkyPalette.glow, at: orb, rx: size.width * 0.7, ry: size.height * 0.36)
+            }
 
-            if scene.isNight {
+            // No sun or moon (`showsOrb` false), no glow around one.
+            if showsOrb, scene.isNight {
                 RadialGradient(
                     stops: [.init(color: AppColor.nightlightCream.opacity(0.4), location: 0),
                             .init(color: AppColor.nightlightCream.opacity(0.12), location: 0.35),
                             .init(color: AppColor.nightlightCream.opacity(0), location: 1)],
                     center: centre, startRadius: 0, endRadius: reach * 0.25)
-            } else {
+            } else if showsOrb {
                 RadialGradient(
                     stops: [.init(color: look.sun.color.opacity(0.55 * SkyPalette.glow), location: 0),
                             .init(color: look.sun.color.opacity(0.25 * SkyPalette.glow), location: 0.12),
