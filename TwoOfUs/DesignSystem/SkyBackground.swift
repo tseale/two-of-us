@@ -22,9 +22,15 @@ import SwiftUI
 /// the far ones more — and a fine grain (`SkyGrain`) keeps the gradients
 /// from banding.
 ///
+/// The dark appearance has the same sky after dark: the same clock, sun,
+/// moon, clouds, stars and hills, in deep colours that fall away to the
+/// black page (`SkyPalette.darkDayFrames`/`darkNightFrames`) — a dusky blue
+/// by day, purple twilight at sunset, near-black night ink with the stars
+/// after dark. The clouds are faint there and the moon's glow is quieter,
+/// so a 3 AM feed never lights the room.
+///
 /// Cards and text sit in front of it as they sit on any page; it is ground,
-/// not a surface. The dark appearance keeps the plain ground
-/// (`AppColor.bg`). Plain `AppColor.bg` under Reduce Transparency and
+/// not a surface. Plain `AppColor.bg` under Reduce Transparency and
 /// Increase Contrast. Hidden from VoiceOver, never takes a touch. Fills the
 /// whole display by itself.
 struct SkyBackground: View {
@@ -70,11 +76,13 @@ struct SkyBackground: View {
 
     @ViewBuilder
     private var ground: some View {
-        if colorScheme == .dark || reduceTransparency || contrast == .increased {
+        if reduceTransparency || contrast == .increased {
             AppColor.bg
         } else {
+            let dark = colorScheme == .dark
             TimelineView(.everyMinute) { ctx in
-                SkyScene(scene: SkyPalette.scene(at: max(ctx.date, .now), location: location),
+                SkyScene(scene: SkyPalette.scene(at: max(ctx.date, .now), location: location,
+                                                 dark: dark),
                          showsOrb: showsOrb)
             }
         }
@@ -126,7 +134,7 @@ private struct SkyScene: View {
     /// moon, and the sun's bloom.
     private func sky(in size: CGSize, orb: CGPoint) -> some View {
         let look = scene.look
-        let page = SkyPalette.page
+        let page = scene.page
         let reach = max(size.width, size.height)
         let centre = UnitPoint(x: size.width > 0 ? orb.x / size.width : 0.5,
                                y: size.height > 0 ? orb.y / size.height : 0)
@@ -149,8 +157,8 @@ private struct SkyScene: View {
             // No sun or moon (`showsOrb` false), no glow around one.
             if showsOrb, scene.isNight {
                 RadialGradient(
-                    stops: [.init(color: AppColor.nightlightCream.opacity(0.4), location: 0),
-                            .init(color: AppColor.nightlightCream.opacity(0.12), location: 0.35),
+                    stops: [.init(color: AppColor.nightlightCream.opacity(0.4 * scene.moonGlow), location: 0),
+                            .init(color: AppColor.nightlightCream.opacity(0.12 * scene.moonGlow), location: 0.35),
                             .init(color: AppColor.nightlightCream.opacity(0), location: 1)],
                     center: centre, startRadius: 0, endRadius: reach * 0.25)
             } else if showsOrb {
@@ -217,7 +225,7 @@ private struct SkyScene: View {
             ForEach(wisps.indices, id: \.self) { index in
                 let wisp = wisps[index]
                 cloudImage(SkyPalette.wispArt, width: wisp.width)
-                    .opacity(wisp.alpha * SkyPalette.cloudStrength)
+                    .opacity(wisp.alpha * scene.cloudStrength)
                     .position(x: wisp.x * size.width, y: wisp.y * size.height)
             }
             ForEach(clouds.indices, id: \.self) { index in
@@ -225,7 +233,7 @@ private struct SkyScene: View {
                 let art = SkyPalette.cloudArt[cloud.art]
                 // `y` is where the cloud's flat base sits: 84 % down its texture.
                 cloudImage(art, width: cloud.width)
-                    .opacity(SkyPalette.cloudStrength)
+                    .opacity(scene.cloudStrength)
                     .scaleEffect(x: cloud.flipped ? -1 : 1, y: 1)
                     .position(x: cloud.x * size.width,
                               y: cloud.y * size.height - cloud.width * art.aspect * 0.34)
@@ -430,6 +438,8 @@ enum SkyPalette {
 
     /// The light page colour the sky fades into (`AppColor.bg`, light).
     static let page = RGB(hex: 0xF2F2F7)
+    /// The dark page colour the dark sky fades into (`AppColor.bg`, dark).
+    static let darkPage = RGB(hex: 0x000000)
 
     /// How much of each cloud lighting (dawn, day, dusk) to show. A
     /// keyframe is all of one; between keyframes the weights still sum to 1.
@@ -488,6 +498,12 @@ enum SkyPalette {
     static let glow = 0.32
     /// How opaque the clouds and wisps are.
     static let cloudStrength = 0.8
+    /// …and in the dark appearance, where the painted (light) textures
+    /// would otherwise glow against the deep sky: a faint, moonlit veil.
+    static let darkCloudStrength = 0.16
+    /// The moon's glow in the dark appearance, against the light one's: on
+    /// the deep night ink the same glow reads far brighter.
+    static let darkMoonGlow = 0.55
 
     // The keyframes, hushed: each colour keeps its hue at a fifth of its
     // chroma (OKLCH) and sits 55 % of the way to the page's lightness (night
@@ -518,6 +534,40 @@ enum SkyPalette {
         hills: [RGB(hex: 0xD1D2D9), RGB(hex: 0xC5C6CF), RGB(hex: 0xB9BBC5), RGB(hex: 0xAEB0BC)],
         deep: RGB(hex: 0xA7A9B5), light: .ofDay)
 
+    // The dark appearance's keyframes: the same hues, deep, falling away to
+    // the black page by the middle of the screen; below the zenith every
+    // tone is under a card's own grey, so a card never looks sunk into the
+    // sky and its text reads exactly as on `bg`. The hills are silhouettes, a touch
+    // darker than the haze they stand in, with a faint mist between them.
+    // Night is the darkest — near the night ink (`AppColor.nightInk`) at the
+    // top — so the stars show and a 3 AM feed never lights the room;
+    // sunset and sunrise carry the twilight purple and mauve.
+    private static let darkDawn = Look(
+        top: RGB(hex: 0x23233F), mid: RGB(hex: 0x1F171F), sun: RGB(hex: 0xC99A88), core: RGB(hex: 0xF2E2D8),
+        warm: RGB(hex: 0x3A2A2E), haze: RGB(hex: 0x17121A), mist: RGB(hex: 0x3B2E36), mistAlpha: 0.32,
+        hills: [RGB(hex: 0x1B1620), RGB(hex: 0x16121B), RGB(hex: 0x110E15), RGB(hex: 0x0C0A0F)],
+        deep: RGB(hex: 0x070609), light: .ofDawn)
+    private static let darkMorning = Look(
+        top: RGB(hex: 0x172540), mid: RGB(hex: 0x121927), sun: RGB(hex: 0xCFC6A2), core: RGB(hex: 0xF2EEDF),
+        warm: RGB(hex: 0x262B38), haze: RGB(hex: 0x0F131A), mist: RGB(hex: 0x28323A), mistAlpha: 0.3,
+        hills: [RGB(hex: 0x141B1D), RGB(hex: 0x111719), RGB(hex: 0x0D1214), RGB(hex: 0x090D0E)],
+        deep: RGB(hex: 0x050708), light: .ofDay)
+    private static let darkNoon = Look(
+        top: RGB(hex: 0x1A2B4A), mid: RGB(hex: 0x131B2A), sun: RGB(hex: 0xD6CFAE), core: RGB(hex: 0xF5F2E6),
+        warm: RGB(hex: 0x282E3C), haze: RGB(hex: 0x10141B), mist: RGB(hex: 0x29343C), mistAlpha: 0.3,
+        hills: [RGB(hex: 0x151C1E), RGB(hex: 0x12181A), RGB(hex: 0x0E1315), RGB(hex: 0x090D0E)],
+        deep: RGB(hex: 0x050708), light: .ofDay)
+    private static let darkDusk = Look(
+        top: RGB(hex: 0x2C2050), mid: RGB(hex: 0x23162A), sun: RGB(hex: 0xC4877A), core: RGB(hex: 0xEFD6CB),
+        warm: RGB(hex: 0x3C2534), haze: RGB(hex: 0x181020), mist: RGB(hex: 0x3D2B48), mistAlpha: 0.34,
+        hills: [RGB(hex: 0x1F1629), RGB(hex: 0x191222), RGB(hex: 0x130E1B), RGB(hex: 0x0D0A13)],
+        deep: RGB(hex: 0x07050A), light: .ofDusk)
+    private static let darkNight = Look(
+        top: RGB(hex: 0x1C1636), mid: RGB(hex: 0x110D1F), sun: RGB(hex: 0xFAF5F0), core: RGB(hex: 0xFFFFFF),
+        warm: RGB(hex: 0x231D38), haze: RGB(hex: 0x0D0A16), mist: RGB(hex: 0x2A2448), mistAlpha: 0.3,
+        hills: [RGB(hex: 0x151127), RGB(hex: 0x110E20), RGB(hex: 0x0D0A18), RGB(hex: 0x09070F)],
+        deep: RGB(hex: 0x040308), light: .ofDay)
+
     /// The day's looks against its own light: 0 at sunrise, 1 at sunset.
     static let dayFrames: [(at: Double, look: Look)] = [
         (0, dawn), (0.18, morning), (0.5, noon), (0.82, morning), (1, dusk),
@@ -525,6 +575,14 @@ enum SkyPalette {
     /// The night's: 0 at sunset, 1 at the next sunrise.
     static let nightFrames: [(at: Double, look: Look)] = [
         (0, dusk), (0.12, night), (0.88, night), (1, dawn),
+    ]
+
+    /// The dark appearance's day and night, on the same clock.
+    static let darkDayFrames: [(at: Double, look: Look)] = [
+        (0, darkDawn), (0.18, darkMorning), (0.5, darkNoon), (0.82, darkMorning), (1, darkDusk),
+    ]
+    static let darkNightFrames: [(at: Double, look: Look)] = [
+        (0, darkDusk), (0.12, darkNight), (0.88, darkNight), (1, darkDawn),
     ]
 
     static func look(at progress: Double, in frames: [(at: Double, look: Look)]) -> Look {
@@ -555,23 +613,33 @@ enum SkyPalette {
         /// Stars are a night thing: out over the first hour after sunset, in
         /// before sunrise (`starOpacity(nightProgress:)`).
         let starOpacity: Double
+        /// The dark appearance's sky.
+        var isDark = false
+
+        /// The page colour the sky fades into a little past halfway down.
+        var page: RGB { isDark ? SkyPalette.darkPage : SkyPalette.page }
+        /// How opaque the clouds and wisps are.
+        var cloudStrength: Double { isDark ? SkyPalette.darkCloudStrength : SkyPalette.cloudStrength }
+        /// The moon's glow, as a fraction of the light appearance's.
+        var moonGlow: Double { isDark ? SkyPalette.darkMoonGlow : 1 }
     }
 
     static func scene(at date: Date, location: (latitude: Double, longitude: Double)?,
-                      calendar: Calendar = .current) -> Scene {
+                      dark: Bool = false, calendar: Calendar = .current) -> Scene {
         let place = location ?? SolarClock.approximateLocation(at: date)
         let solar = SolarClock.day(containing: date, latitude: place.latitude,
                                    longitude: place.longitude, calendar: calendar)
             ?? fallbackDay(containing: date, calendar: calendar)
         switch SolarClock.phase(at: date, in: solar) {
         case .day(let p):
-            return Scene(look: look(at: p, in: dayFrames), isNight: false,
+            return Scene(look: look(at: p, in: dark ? darkDayFrames : dayFrames), isNight: false,
                          body: bodyPosition(progress: p),
-                         cloudOpacity: min(1, min(p, 1 - p) / 0.1), starOpacity: 0)
+                         cloudOpacity: min(1, min(p, 1 - p) / 0.1), starOpacity: 0,
+                         isDark: dark)
         case .night(let q):
-            return Scene(look: look(at: q, in: nightFrames), isNight: true,
+            return Scene(look: look(at: q, in: dark ? darkNightFrames : nightFrames), isNight: true,
                          body: bodyPosition(progress: q), cloudOpacity: 0,
-                         starOpacity: starOpacity(nightProgress: q))
+                         starOpacity: starOpacity(nightProgress: q), isDark: dark)
         }
     }
 

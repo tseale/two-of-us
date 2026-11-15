@@ -8,7 +8,6 @@ struct HomeView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var hSize
     @Environment(\.verticalSizeClass) private var vSize
-    @Environment(\.colorScheme) private var colorScheme
 
     @Query private var babies: [Baby]
     @Query private var participants: [Participant]
@@ -445,8 +444,8 @@ struct HomeView: View {
             timelineSection(leading: side, trailing: side, card: true)
         }
         .listStyle(.plain)
-        // The ground is the sky (the light appearance's time-of-day
-        // gradient; plain `bg` in the dark) — the same ground, the same
+        // The ground is the sky (the time-of-day gradient, deep in the
+        // dark appearance) — the same ground, the same
         // view, closed or open: on the spread it still fills the page out
         // to the display's edges (with the strip, the cover's 466 pt), so
         // the sky behind the page doesn't change as the phone opens. There
@@ -455,19 +454,8 @@ struct HomeView: View {
         // no feather and no mask — the ground exactly as before.)
         .scrollContentBackground(.hidden)
         .background {
-            // Except the dark spread: there the ground under BOTH pages is
-            // the light (`CradleField`, in `spreadBehindPhone`), and the
-            // phone page's own plain black would cover its trailing half —
-            // cutting the glow in the hinge in two and hiding the trailing
-            // pool, so the page read as a black slab beside a lit one. The
-            // light already is the closed phone's black wherever it isn't
-            // lit, so nothing changes as the phone opens.
-            if onSpread && colorScheme == .dark {
-                Color.clear
-            } else {
-                SkyBackground(location: daycareSettings?.daycareCoordinate,
-                              leadingFeather: onSpread ? PhonePage.featherWidth : 0)
-            }
+            SkyBackground(location: daycareSettings?.daycareCoordinate,
+                          leadingFeather: onSpread ? PhonePage.featherWidth : 0)
         }
         .loggedToast($toast)
         // The list's top edge: its top inset, and whether it starts at the
@@ -505,15 +493,6 @@ struct HomeView: View {
                     compactFullHeight = height
                 }
         }
-    }
-
-    /// Any sleep in progress, for the light: a parent-logged (or SNOO) one,
-    /// or the nap Brightwheel has started and not yet ended while he is at
-    /// daycare — the same pair that makes the Today card's strip glow, so the
-    /// hinge light and the strip's bead come on, and go out, together.
-    private func sleepingSince(now: Date) -> Date? {
-        let liveNap = daycareAttendance(now: now) != nil ? liveNapToday : nil
-        return liveNap ?? activeSleep?.startedAt
     }
 
     // MARK: Roomy layouts (iPhone Duo open or on its side, iPad)
@@ -594,37 +573,19 @@ struct HomeView: View {
     /// page. The trailing page is the iPhone app's Home exactly — the closed
     /// phone's own list (`compactList`), which `body` places over this at
     /// `PhonePage.frame`, under the right thumb. This draws what lies around
-    /// it: the light behind both pages, and the leading page — what a phone
+    /// it: the sky behind the leading page, and the leading page — what a phone
     /// has no room for (`spreadDetailsPage`). Nothing textual or tappable
     /// sits on the fold.
     private func spreadBehindPhone(_ layout: PaneLayout, grid: SpreadGrid) -> some View {
         ZStack(alignment: .topLeading) {
-            // The light, behind everything. It takes this reader's frame —
-            // the one `PaneLayout` measured, so the crease is `band.midX`
-            // whichever side the system strip is on — and paints out through
-            // the safe area by itself. Asked again once a minute: a nap turns
-            // into a night's sleep on the clock alone (the two-hour
-            // crossover), with no log or sync to re-render for it.
-            // In the light appearance, the sky — the same time-of-day
-            // ground as the closed phone. Either way the phone page covers
-            // this from the fold band on with the closed phone's own ground.
-            if colorScheme == .dark {
-                TimelineView(.everyMinute) { ctx in
-                    // ctx.date is the minute's start, and stays there when a
-                    // @Query change re-runs this closure — up to 59 s stale.
-                    let now = max(ctx.date, .now)
-                    // (`topOffset`: under the demo-mode pill's row the field
-                    // cannot reach the display's top edge, and softens its own.)
-                    CradleField(hinge: .verticalCrease(x: layout.band.midX),
-                                sleepingSince: sleepingSince(now: now), now: now,
-                                topOffset: layout.topOffset)
-                }
-            } else {
-                // The phone page brings its own sky (the cover's, sun and
-                // all) and covers this one from the fold on; this is the
-                // leading page's, the same sky without a second sun or moon.
-                SkyBackground(location: daycareSettings?.daycareCoordinate, showsOrb: false)
-            }
+            // The sky, in both appearances — the same time-of-day ground as
+            // the closed phone (deep, with the stars after dark, in the dark
+            // appearance). The phone page brings its own sky (the cover's,
+            // sun and all) and covers this one from the fold on; this is
+            // the leading page's, the same sky without a second sun or moon.
+            // (Home's spread carries the sky instead of the light, which the
+            // other tabs' spreads keep: see IPHONE_DUO.md.)
+            SkyBackground(location: daycareSettings?.daycareCoordinate, showsOrb: false)
             // The leading page; the phone page follows it in `body` — the
             // order VoiceOver reads.
             spreadDetailsPage(grid)
