@@ -260,4 +260,22 @@ final class SkyPaletteTests: XCTestCase {
         XCTAssertTrue(dark.isDark)
         XCTAssertLessThan(luminance(dark.look.top), luminance(light.look.top))
     }
+
+    func testASkyBesideAnotherRunsItsRidgesOn() {
+        // The spread's leading sky lays its hills out on the phone page's x,
+        // so at the phone page's origin both skies' ridges are at one height.
+        let origin = 485.0
+        for ridge in SkyPalette.ridges {
+            let leading = ridge.points(width: 951, height: 669, xOffset: origin)
+            let phone = ridge.points(width: 466, height: 669)
+            for point in leading {
+                XCTAssertEqual(Double(point.y), ridge.y(at: Double(point.x) - origin, height: 669), accuracy: 0.0001)
+            }
+            let atSeam = leading.first { abs(Double($0.x) - origin - 5) < 0.001 }!
+            let phoneNearSeam = phone.first { abs(Double($0.x) - 5) < 0.001 }
+            if let phoneNearSeam {
+                XCTAssertEqual(Double(atSeam.y), Double(phoneNearSeam.y), accuracy: 0.0001)
+            }
+        }
+    }
 }

@@ -170,7 +170,8 @@ struct HomeView: View {
                 ZStack(alignment: .topLeading) {
                     if let layout {
                         if let grid {
-                            spreadBehindPhone(layout, grid: grid)
+                            spreadBehindPhone(layout, grid: grid,
+                                              phoneSky: phonePageSky(layout, in: proxy))
                         } else {
                             panes(layout)
                         }
@@ -576,16 +577,34 @@ struct HomeView: View {
     /// it: the sky behind the leading page, and the leading page — what a phone
     /// has no room for (`spreadDetailsPage`). Nothing textual or tappable
     /// sits on the fold.
-    private func spreadBehindPhone(_ layout: PaneLayout, grid: SpreadGrid) -> some View {
+    /// Where the phone page's sky is, in the leading page's sky's
+    /// coordinates — both paint out to the display's edges, so that is the
+    /// display's: the page's frame, from the display's leading edge, out to
+    /// the trailing edge it reaches (`PhonePage.frame` always ends at the
+    /// reader's trailing edge, so its sky runs on through the safe area
+    /// there).
+    private func phonePageSky(_ layout: PaneLayout, in proxy: GeometryProxy) -> SkyCompanion {
+        let frame = PhonePage.frame(spread: layout, in: proxy.size)
+        return SkyCompanion(originX: frame.minX + proxy.safeAreaInsets.leading,
+                            width: frame.width + proxy.safeAreaInsets.trailing)
+    }
+
+    private func spreadBehindPhone(_ layout: PaneLayout, grid: SpreadGrid,
+                                   phoneSky: SkyCompanion) -> some View {
         ZStack(alignment: .topLeading) {
             // The sky, in both appearances — the same time-of-day ground as
             // the closed phone (deep, with the stars after dark, in the dark
             // appearance). The phone page brings its own sky (the cover's,
             // sun and all) and covers this one from the fold on; this is
-            // the leading page's, the same sky without a second sun or moon.
+            // the leading page's, the same sky without a second sun or moon —
+            // but running on from the phone page's: its hills continue the
+            // phone page's ridges and it carries that sun's or moon's glow,
+            // so across the fold band the two skies meet with no seam (on
+            // the dark night sky an edge in the moon's glow would show).
             // (Home's spread carries the sky instead of the light, which the
             // other tabs' spreads keep: see IPHONE_DUO.md.)
-            SkyBackground(location: daycareSettings?.daycareCoordinate, showsOrb: false)
+            SkyBackground(location: daycareSettings?.daycareCoordinate, showsOrb: false,
+                          companion: phoneSky)
             // The leading page; the phone page follows it in `body` — the
             // order VoiceOver reads.
             spreadDetailsPage(grid)

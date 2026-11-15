@@ -41,6 +41,15 @@ struct SkyBackground: View {
     /// for the leading page of iPhone Duo's spread, whose phone page beside
     /// it brings its own sky, sun and all — one sun to a sky.
     var showsOrb = true
+    /// The sky this one sits beside and should run on from, in this sky's
+    /// own coordinates: on iPhone Duo's spread, the phone page's (the
+    /// cover's) sky, which starts at `originX` and is `width` wide. With it,
+    /// this sky lays its hills out on the phone page's x, so the ridges run
+    /// on unbroken across the fold, and draws the phone page's sun or moon
+    /// glow (not the disc: one sun to a sky) where that sky puts it, so the
+    /// glow feathers across the fold instead of ending at it. Nil — every
+    /// other sky — changes nothing.
+    var companion: SkyCompanion? = nil
     /// A fade-in from the leading edge, in points: on iPhone Duo's spread
     /// the phone page's sky feathers in across the fold band from the
     /// leading page's. Zero — every iPhone, the closed Duo — draws no mask
@@ -83,21 +92,35 @@ struct SkyBackground: View {
             TimelineView(.everyMinute) { ctx in
                 SkyScene(scene: SkyPalette.scene(at: max(ctx.date, .now), location: location,
                                                  dark: dark),
-                         showsOrb: showsOrb)
+                         showsOrb: showsOrb, companion: companion)
             }
         }
     }
 }
 
 /// One frame of the sky, drawn at whatever size it is given.
+/// Where a neighbouring sky starts and how wide it is (see
+/// `SkyBackground.companion`).
+struct SkyCompanion: Equatable {
+    var originX: CGFloat
+    var width: CGFloat
+}
+
 private struct SkyScene: View {
     let scene: SkyPalette.Scene
     var showsOrb = true
+    var companion: SkyCompanion? = nil
+
+    /// The sun's or moon's glow is drawn for this sky's own orb, or for the
+    /// companion's.
+    private var drawsGlow: Bool { showsOrb || companion != nil }
 
     var body: some View {
         GeometryReader { geo in
             let size = geo.size
-            let orb = CGPoint(x: scene.body.x * size.width, y: scene.body.y * size.height)
+            let orb = companion.map {
+                CGPoint(x: $0.originX + scene.body.x * $0.width, y: scene.body.y * size.height)
+            } ?? CGPoint(x: scene.body.x * size.width, y: scene.body.y * size.height)
             ZStack(alignment: .topLeading) {
                 sky(in: size, orb: orb)
 
@@ -135,7 +158,11 @@ private struct SkyScene: View {
     private func sky(in size: CGSize, orb: CGPoint) -> some View {
         let look = scene.look
         let page = scene.page
-        let reach = max(size.width, size.height)
+        // The glow is sized by the sky whose orb it is — the companion's,
+        // when this sky draws the phone page's glow — so the two match
+        // exactly where they feather into each other.
+        let orbSkyWidth = companion?.width ?? size.width
+        let reach = max(orbSkyWidth, size.height)
         let centre = UnitPoint(x: size.width > 0 ? orb.x / size.width : 0.5,
                                y: size.height > 0 ? orb.y / size.height : 0)
         return ZStack(alignment: .topLeading) {
@@ -150,18 +177,19 @@ private struct SkyScene: View {
                         .init(color: look.haze.color, location: 1)],
                 startPoint: .top, endPoint: .bottom)
 
-            if showsOrb {
-                pool(look.warm, alpha: 0.45 * SkyPalette.glow, at: orb, rx: size.width * 0.7, ry: size.height * 0.36)
+            if drawsGlow {
+                pool(look.warm, alpha: 0.45 * SkyPalette.glow, at: orb, rx: orbSkyWidth * 0.7, ry: size.height * 0.36)
             }
 
-            // No sun or moon (`showsOrb` false), no glow around one.
-            if showsOrb, scene.isNight {
+            // No sun or moon (`showsOrb` false, no companion), no glow
+            // around one.
+            if drawsGlow, scene.isNight {
                 RadialGradient(
                     stops: [.init(color: AppColor.nightlightCream.opacity(0.4 * scene.moonGlow), location: 0),
                             .init(color: AppColor.nightlightCream.opacity(0.12 * scene.moonGlow), location: 0.35),
                             .init(color: AppColor.nightlightCream.opacity(0), location: 1)],
                     center: centre, startRadius: 0, endRadius: reach * 0.25)
-            } else if showsOrb {
+            } else if drawsGlow {
                 RadialGradient(
                     stops: [.init(color: look.sun.color.opacity(0.55 * SkyPalette.glow), location: 0),
                             .init(color: look.sun.color.opacity(0.25 * SkyPalette.glow), location: 0.12),
@@ -280,7 +308,7 @@ private struct SkyScene: View {
                 let isFront = index == ridges.count - 1
                 let foot = isFront ? look.deep : crest.mixed(with: look.haze, by: 0.5)
                 let footY = isFront ? height : ridges[index + 1].baseline(height: height) + 6
-                RidgeShape(ridge: ridge)
+                RidgeShape(ridge: ridge, xOffset: Double(companion?.originX ?? 0))
                     .fill(LinearGradient(
                         colors: [crest.color, foot.color],
                         startPoint: UnitPoint(x: 0.5, y: ridge.crestTop(height: height) / height),
@@ -384,9 +412,13 @@ private struct GlintShape: Shape {
 /// One ridge of hills, filled down to (and past) the bottom edge.
 private struct RidgeShape: Shape {
     let ridge: SkyPalette.Ridge
+    /// Where the ridge's own x = 0 is in this shape (see
+    /// `SkyBackground.companion`).
+    var xOffset: Double = 0
 
     func path(in rect: CGRect) -> Path {
-        let points = ridge.points(width: Double(rect.width), height: Double(rect.height))
+        let points = ridge.points(width: Double(rect.width), height: Double(rect.height),
+                                  xOffset: xOffset)
         var path = Path()
         guard points.count > 2, let first = points.first, let last = points.last else { return path }
         path.move(to: first)
@@ -677,9 +709,14 @@ enum SkyPalette {
         /// Where the crest colour starts (just under the highest crests).
         func crestTop(height: Double) -> Double { height - base * height - amplitude * height * 0.8 }
 
-        /// Samples every 10 pt, from just past the left edge to just past the right.
-        func points(width: Double, height: Double) -> [CGPoint] {
-            stride(from: -30.0, through: width + 30, by: 10).map { CGPoint(x: $0, y: y(at: $0, height: height)) }
+        /// Samples every 10 pt, from just past the left edge to just past
+        /// the right. `xOffset` is where the ridge's own x = 0 sits: a sky
+        /// beside another (`SkyBackground.companion`) runs the other's
+        /// ridges on rather than starting its own.
+        func points(width: Double, height: Double, xOffset: Double = 0) -> [CGPoint] {
+            stride(from: -30.0, through: width + 30, by: 10).map {
+                CGPoint(x: $0, y: y(at: $0 - xOffset, height: height))
+            }
         }
     }
 
