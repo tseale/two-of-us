@@ -455,8 +455,19 @@ struct HomeView: View {
         // no feather and no mask — the ground exactly as before.)
         .scrollContentBackground(.hidden)
         .background {
-            SkyBackground(location: daycareSettings?.daycareCoordinate,
-                          leadingFeather: onSpread ? PhonePage.featherWidth : 0)
+            // Except the dark spread: there the ground under BOTH pages is
+            // the light (`CradleField`, in `spreadBehindPhone`), and the
+            // phone page's own plain black would cover its trailing half —
+            // cutting the glow in the hinge in two and hiding the trailing
+            // pool, so the page read as a black slab beside a lit one. The
+            // light already is the closed phone's black wherever it isn't
+            // lit, so nothing changes as the phone opens.
+            if onSpread && colorScheme == .dark {
+                Color.clear
+            } else {
+                SkyBackground(location: daycareSettings?.daycareCoordinate,
+                              leadingFeather: onSpread ? PhonePage.featherWidth : 0)
+            }
         }
         .loggedToast($toast)
         // The list's top edge: its top inset, and whether it starts at the
