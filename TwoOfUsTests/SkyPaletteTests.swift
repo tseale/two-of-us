@@ -278,4 +278,65 @@ final class SkyPaletteTests: XCTestCase {
             }
         }
     }
+
+    // MARK: The moon
+
+    private func utc(_ text: String) -> Date {
+        let formatter = ISO8601DateFormatter()
+        return formatter.date(from: text)!
+    }
+
+    /// Distance between two phases around the cycle.
+    private func phaseGap(_ a: Double, _ b: Double) -> Double {
+        let d = abs(a - b).truncatingRemainder(dividingBy: 1)
+        return min(d, 1 - d)
+    }
+
+    func testTheMoonFollowsTheRealPhase() {
+        // Within a day (1/29.5 of the cycle) of known new and full moons.
+        let tolerance = 1 / SkyPalette.synodicMonth
+        XCTAssertLessThan(phaseGap(SkyPalette.moonPhase(at: utc("2024-04-08T18:21:00Z")), 0), tolerance, "new moon (eclipse)")
+        XCTAssertLessThan(phaseGap(SkyPalette.moonPhase(at: utc("2024-09-18T02:34:00Z")), 0.5), tolerance, "full moon")
+        XCTAssertLessThan(phaseGap(SkyPalette.moonPhase(at: utc("2026-01-03T10:03:00Z")), 0.5), tolerance, "full moon")
+        // Always in 0..<1, before the reference date too.
+        for date in [utc("1990-03-01T00:00:00Z"), utc("2026-11-14T23:00:00Z"), utc("2040-07-04T12:00:00Z")] {
+            let phase = SkyPalette.moonPhase(at: date)
+            XCTAssertGreaterThanOrEqual(phase, 0)
+            XCTAssertLessThan(phase, 1)
+        }
+    }
+
+    func testTheMoonIsLitByPhase() {
+        XCTAssertEqual(SkyPalette.moonIllumination(phase: 0), 0, accuracy: 0.0001)
+        XCTAssertEqual(SkyPalette.moonIllumination(phase: 0.25), 0.5, accuracy: 0.0001)
+        XCTAssertEqual(SkyPalette.moonIllumination(phase: 0.5), 1, accuracy: 0.0001)
+        XCTAssertEqual(SkyPalette.moonIllumination(phase: 0.75), 0.5, accuracy: 0.0001)
+    }
+
+    func testTheMoonShapeWaxesOnTheRightAndWanesOnTheLeft() {
+        let rect = CGRect(x: 0, y: 0, width: 32, height: 32)
+        let waxing = MoonPhaseShape(phase: 0.15).path(in: rect).boundingRect
+        XCTAssertGreaterThan(waxing.midX, 16, "a waxing crescent is lit on the right")
+        let waning = MoonPhaseShape(phase: 0.85).path(in: rect).boundingRect
+        XCTAssertLessThan(waning.midX, 16, "a waning crescent on the left")
+        let south = MoonPhaseShape(phase: 0.15, mirrored: true).path(in: rect).boundingRect
+        XCTAssertLessThan(south.midX, 16, "the other way up south of the equator")
+        let full = MoonPhaseShape(phase: 0.5).path(in: rect).boundingRect
+        XCTAssertEqual(full.width, 32, accuracy: 0.5, "full: the whole disc")
+        let new = MoonPhaseShape(phase: 0).path(in: rect).boundingRect
+        XCTAssertLessThan(new.width, 33)
+        XCTAssertTrue(MoonPhaseShape(phase: 0.15).path(in: rect).contains(CGPoint(x: 30, y: 16)))
+        XCTAssertFalse(MoonPhaseShape(phase: 0.15).path(in: rect).contains(CGPoint(x: 10, y: 16)))
+    }
+
+    func testTheDarkStarsAndMoonAreQuieter() {
+        let date = utc("2026-11-15T05:00:00Z")
+        let light = SkyPalette.scene(at: date, location: (40, -75))
+        let dark = SkyPalette.scene(at: date, location: (40, -75), dark: true)
+        XCTAssertLessThan(dark.starStrength, light.starStrength)
+        XCTAssertLessThan(dark.moonGlowByPhase, light.moonGlowByPhase)
+        XCTAssertEqual(dark.moonPhase, light.moonPhase)
+        XCTAssertFalse(light.southern)
+        XCTAssertTrue(SkyPalette.scene(at: date, location: (-33.9, 151.2)).southern)
+    }
 }
