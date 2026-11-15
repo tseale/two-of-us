@@ -2,7 +2,8 @@ import SwiftUI
 
 /// The sky outside, as Home's background in the light appearance: a sky
 /// gradient that reaches about halfway down the screen, the sun (or, at
-/// night, the moon in its real phase and stars) where it really is in the sky, a few
+/// night, stars) where it really is in the sky, the moon wherever it really
+/// is — risen or set, in its real phase and tilt (`MoonClock`) — a few
 /// soft cumulus clouds by day, and four layers of hills along the bottom
 /// edge that melt into valley mist rather than meeting at outlines. The
 /// colours follow the light outside — a blush at sunrise, blue by day,
@@ -98,7 +99,6 @@ struct SkyBackground: View {
     }
 }
 
-/// One frame of the sky, drawn at whatever size it is given.
 /// Where a neighbouring sky starts and how wide it is (see
 /// `SkyBackground.companion`).
 struct SkyCompanion: Equatable {
@@ -106,37 +106,51 @@ struct SkyCompanion: Equatable {
     var width: CGFloat
 }
 
+/// One frame of the sky, drawn at whatever size it is given.
 private struct SkyScene: View {
     let scene: SkyPalette.Scene
     var showsOrb = true
     var companion: SkyCompanion? = nil
 
-    /// The sun's or moon's glow is drawn for this sky's own orb, or for the
-    /// companion's.
+    /// The sun's and moon's glows are drawn for this sky's own sun and
+    /// moon, or for the companion's.
     private var drawsGlow: Bool { showsOrb || companion != nil }
+
+    /// A point on the sky's arc (fractions of the sky), in this view: on the
+    /// companion's sky when there is one, so the glows land where that
+    /// sky's sun and moon are.
+    private func point(_ position: (x: Double, y: Double), in size: CGSize) -> CGPoint {
+        if let companion {
+            return CGPoint(x: companion.originX + position.x * companion.width,
+                           y: position.y * size.height)
+        }
+        return CGPoint(x: position.x * size.width, y: position.y * size.height)
+    }
 
     var body: some View {
         GeometryReader { geo in
             let size = geo.size
-            let orb = companion.map {
-                CGPoint(x: $0.originX + scene.body.x * $0.width, y: scene.body.y * size.height)
-            } ?? CGPoint(x: scene.body.x * size.width, y: scene.body.y * size.height)
+            let sunPoint = scene.isNight ? nil : point(scene.body, in: size)
+            let moonPoint = scene.moon.map { point(($0.x, $0.y), in: size) }
             ZStack(alignment: .topLeading) {
-                sky(in: size, orb: orb)
+                sky(in: size, sun: sunPoint, moon: moonPoint)
 
                 if scene.isNight {
                     StarField(size: size, visibility: scene.starOpacity * scene.starStrength)
-                    if showsOrb {
-                        moon
-                            .position(orb)
-                    }
                 } else {
-                    if showsOrb {
+                    if showsOrb, let sunPoint {
                         sun
-                            .position(orb)
+                            .position(sunPoint)
                     }
                     clouds(in: size)
                         .opacity(scene.cloudOpacity)
+                }
+                // The moon wherever it really is while it is up — by day
+                // too, pale, as it is outside.
+                if showsOrb, let moon = scene.moon, let moonPoint {
+                    moonDisc(moon)
+                        .opacity(moon.inDaylight ? SkyPalette.daytimeMoonOpacity : 1)
+                        .position(moonPoint)
                 }
 
                 hills(in: size)
@@ -153,18 +167,25 @@ private struct SkyScene: View {
     // MARK: Sky
 
     /// The gradient (sky at the top, the page in the middle, the haze the
-    /// hills stand in at the bottom), a warm pool of light around the sun or
-    /// moon, and the sun's bloom.
-    private func sky(in size: CGSize, orb: CGPoint) -> some View {
+    /// hills stand in at the bottom), a warm pool of light around the sun
+    /// by day and the moon by night (when it is up), the sun's bloom and the
+    /// moon's glow.
+    private func sky(in size: CGSize, sun: CGPoint?, moon: CGPoint?) -> some View {
         let look = scene.look
         let page = scene.page
-        // The glow is sized by the sky whose orb it is — the companion's,
-        // when this sky draws the phone page's glow — so the two match
-        // exactly where they feather into each other.
+        // The glows are sized by the sky whose sun and moon they are — the
+        // companion's, when this sky draws the phone page's — so the two
+        // match exactly where they feather into each other.
         let orbSkyWidth = companion?.width ?? size.width
         let reach = max(orbSkyWidth, size.height)
-        let centre = UnitPoint(x: size.width > 0 ? orb.x / size.width : 0.5,
-                               y: size.height > 0 ? orb.y / size.height : 0)
+        let unit = { (p: CGPoint) in
+            UnitPoint(x: size.width > 0 ? p.x / size.width : 0.5,
+                      y: size.height > 0 ? p.y / size.height : 0)
+        }
+        // By night the moon's light, by day the sun's; no glow (`showsOrb`
+        // false, no companion) without a sun or moon of one's own.
+        let nightMoon = scene.isNight ? moon : nil
+        let pooled = drawsGlow ? (sun ?? nightMoon) : nil
         return ZStack(alignment: .topLeading) {
             LinearGradient(
                 stops: [.init(color: look.top.color, location: 0),
@@ -177,25 +198,25 @@ private struct SkyScene: View {
                         .init(color: look.haze.color, location: 1)],
                 startPoint: .top, endPoint: .bottom)
 
-            if drawsGlow {
-                pool(look.warm, alpha: 0.45 * SkyPalette.glow, at: orb, rx: orbSkyWidth * 0.7, ry: size.height * 0.36)
+            if let pooled {
+                pool(look.warm, alpha: 0.45 * SkyPalette.glow * (sun == nil ? scene.moonPoolByPhase : 1),
+                     at: pooled, rx: orbSkyWidth * 0.7, ry: size.height * 0.36)
             }
 
-            // No sun or moon (`showsOrb` false, no companion), no glow
-            // around one.
-            if drawsGlow, scene.isNight {
+            if drawsGlow, let nightMoon {
                 RadialGradient(
                     stops: [.init(color: AppColor.nightlightCream.opacity(0.4 * scene.moonGlowByPhase), location: 0),
                             .init(color: AppColor.nightlightCream.opacity(0.12 * scene.moonGlowByPhase), location: 0.35),
                             .init(color: AppColor.nightlightCream.opacity(0), location: 1)],
-                    center: centre, startRadius: 0, endRadius: reach * 0.25)
-            } else if drawsGlow {
+                    center: unit(nightMoon), startRadius: 0, endRadius: reach * 0.25)
+            }
+            if drawsGlow, let sun {
                 RadialGradient(
                     stops: [.init(color: look.sun.color.opacity(0.55 * SkyPalette.glow), location: 0),
                             .init(color: look.sun.color.opacity(0.25 * SkyPalette.glow), location: 0.12),
                             .init(color: look.sun.color.opacity(0.1 * SkyPalette.glow), location: 0.3),
                             .init(color: look.sun.color.opacity(0), location: 0.6)],
-                    center: centre, startRadius: 0, endRadius: reach * 0.5)
+                    center: unit(sun), startRadius: 0, endRadius: reach * 0.5)
             }
         }
     }
@@ -227,17 +248,20 @@ private struct SkyScene: View {
             .shadow(color: look.sun.color.opacity(0.55), radius: 17)
     }
 
-    /// Tonight's moon, in its real phase (`MoonPhaseShape`): the lit part
-    /// in cream with a soft glow, and the rest of the disc a faint
-    /// earthshine, so the sky shows through the dark part.
-    private var moon: some View {
-        let lit = SkyPalette.moonIllumination(phase: scene.moonPhase)
-        return ZStack {
+    /// The moon as it really looks now (`MoonPhaseShape`): the lit part in
+    /// cream with a soft glow, turned so its bright edge faces the way it
+    /// does in the sky, and the rest of the disc a faint earthshine, so the
+    /// sky shows through the dark part.
+    private func moonDisc(_ moon: SkyPalette.Moon) -> some View {
+        ZStack {
             Circle()
                 .fill(AppColor.nightlightCream.opacity(0.06 * scene.starStrength))
-            MoonPhaseShape(phase: scene.moonPhase, mirrored: scene.southern)
+            MoonPhaseShape(lit: moon.fraction)
                 .fill(AppColor.nightlightCream)
-                .shadow(color: AppColor.nightlightCream.opacity(0.85 * (0.4 + 0.6 * lit) * scene.moonGlow),
+                .rotationEffect(.radians(moon.rotation))
+                .shadow(color: AppColor.nightlightCream
+                            .opacity(0.85 * (0.4 + 0.6 * moon.fraction) * scene.moonGlow
+                                     * (moon.inDaylight ? 0 : 1)),
                         radius: 9)
         }
         .frame(width: 32, height: 32)
@@ -390,34 +414,31 @@ private struct StarField: View {
     }
 }
 
-/// The lit part of the moon's face at `phase` (0 new, 0.5 full): the limb
-/// on the lit side — the right while it waxes, the left as it wanes — and
-/// the terminator, an ellipse across the face whose width follows the
-/// phase, from a sliver through the half moon to the full disc. `mirrored`
-/// flips it for the southern hemisphere.
+/// The lit part of the moon's face, `lit` of it (0 new, 1 full), with the
+/// bright edge on the right: the limb on that side and the terminator, an
+/// ellipse across the face whose width follows the lit fraction — from a
+/// sliver through the half moon to the full disc. Turned to the moon's real
+/// bright-limb angle where it is drawn (`SkyPalette.Moon.rotation`).
 struct MoonPhaseShape: Shape {
-    var phase: Double
-    var mirrored = false
+    var lit: Double
 
     func path(in rect: CGRect) -> Path {
         let r = min(rect.width, rect.height) / 2
         let centre = CGPoint(x: rect.midX, y: rect.midY)
-        let waxing = phase < 0.5
-        let side: CGFloat = (waxing ? 1 : -1) * (mirrored ? -1 : 1)
-        let terminator = CGFloat(cos(2 * Double.pi * phase))
+        // 1 at new moon (the terminator on the limb), 0 at half, −1 full.
+        let terminator = CGFloat(1 - 2 * min(max(lit, 0), 1))
         let steps = 48
         var path = Path()
         // Down the limb, top to bottom…
         for step in 0...steps {
             let t = Double.pi * Double(step) / Double(steps)
-            let point = CGPoint(x: centre.x + side * r * CGFloat(sin(t)),
-                                y: centre.y - r * CGFloat(cos(t)))
+            let point = CGPoint(x: centre.x + r * CGFloat(sin(t)), y: centre.y - r * CGFloat(cos(t)))
             if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
         }
         // …and back up the terminator.
         for step in stride(from: steps, through: 0, by: -1) {
             let t = Double.pi * Double(step) / Double(steps)
-            path.addLine(to: CGPoint(x: centre.x + side * terminator * r * CGFloat(sin(t)),
+            path.addLine(to: CGPoint(x: centre.x + terminator * r * CGFloat(sin(t)),
                                      y: centre.y - r * CGFloat(cos(t))))
         }
         path.closeSubpath()
@@ -700,18 +721,17 @@ enum SkyPalette {
         /// The stars' and glints' brightness, as a fraction of the light
         /// appearance's.
         var starStrength: Double { isDark ? SkyPalette.darkStarStrength : 1 }
-        /// The moon's real phase tonight (`moonPhase(at:)`): 0 new, 0.5
-        /// full.
-        var moonPhase: Double = 0.5
-        /// South of the equator the moon is seen the other way up: a waxing
-        /// moon lit on its left.
-        var southern = false
+        /// The moon, while it is above the horizon (`MoonClock`); nil
+        /// while it is down — then there is no moon and no moonlight.
+        var moon: Moon? = nil
 
         /// How much of the moon's glow shows: a thin crescent barely
         /// glows, a full moon fully.
         var moonGlowByPhase: Double {
-            moonGlow * (0.35 + 0.65 * SkyPalette.moonIllumination(phase: moonPhase))
+            moonGlow * (0.35 + 0.65 * (moon?.fraction ?? 0))
         }
+        /// The warm pool around the moon at night, by the same rule.
+        var moonPoolByPhase: Double { 0.35 + 0.65 * (moon?.fraction ?? 0) }
     }
 
     static func scene(at date: Date, location: (latitude: Double, longitude: Double)?,
@@ -720,42 +740,69 @@ enum SkyPalette {
         let solar = SolarClock.day(containing: date, latitude: place.latitude,
                                    longitude: place.longitude, calendar: calendar)
             ?? fallbackDay(containing: date, calendar: calendar)
-        let moon = moonPhase(at: date)
-        let southern = place.latitude < 0
-        switch SolarClock.phase(at: date, in: solar) {
+        let phase = SolarClock.phase(at: date, in: solar)
+        let isDay: Bool
+        if case .day = phase { isDay = true } else { isDay = false }
+        let moonNow = moon(at: date, latitude: place.latitude, longitude: place.longitude, inDaylight: isDay)
+        switch phase {
         case .day(let p):
             return Scene(look: look(at: p, in: dark ? darkDayFrames : dayFrames), isNight: false,
                          body: bodyPosition(progress: p),
                          cloudOpacity: min(1, min(p, 1 - p) / 0.1), starOpacity: 0,
-                         isDark: dark, moonPhase: moon, southern: southern)
+                         isDark: dark, moon: moonNow)
         case .night(let q):
             return Scene(look: look(at: q, in: dark ? darkNightFrames : nightFrames), isNight: true,
                          body: bodyPosition(progress: q), cloudOpacity: 0,
                          starOpacity: starOpacity(nightProgress: q), isDark: dark,
-                         moonPhase: moon, southern: southern)
+                         moon: moonNow)
         }
     }
 
     // MARK: The moon
 
-    /// The mean synodic month, in days.
-    static let synodicMonth = 29.530588853
-    /// A new moon to count from: 2000-01-06 18:14 UTC.
-    static let referenceNewMoon = Date(timeIntervalSince1970: 947_182_440)
-
-    /// The moon's phase at `date`, from the mean lunar cycle: 0 at new
-    /// moon, 0.25 first quarter, 0.5 full, 0.75 last quarter. Within about
-    /// half a day of the true phase — far finer than a 32 pt moon shows.
-    static func moonPhase(at date: Date) -> Double {
-        let days = date.timeIntervalSince(referenceNewMoon) / 86_400
-        let cycles = days / synodicMonth
-        let phase = cycles - cycles.rounded(.down)
-        return phase < 0 ? phase + 1 : phase
+    /// The moon as it is now, for the sky.
+    struct Moon: Equatable {
+        /// On the sky's arc (fractions of the screen), by how far it is
+        /// through its own pass from moonrise to moonset — the same arc the
+        /// sun takes from sunrise to sunset.
+        let x: Double
+        let y: Double
+        /// The lit fraction of its face: 0 new, 1 full.
+        let fraction: Double
+        /// 0 new, 0.25 first quarter, 0.5 full, 0.75 last quarter.
+        let phase: Double
+        /// The turn (radians, clockwise on screen) that takes a moon lit on
+        /// its right to the bright limb's real angle from the zenith — so a
+        /// waxing crescent at dusk is lit low on its right, towards the sun
+        /// that has just set.
+        let rotation: Double
+        /// It is up while the sun is: drawn pale and without its glow.
+        let inDaylight: Bool
     }
 
-    /// The lit fraction of the moon's face at `phase`: 0 new, 1 full.
-    static func moonIllumination(phase: Double) -> Double {
-        (1 - cos(2 * Double.pi * phase)) / 2
+    /// How opaque the moon is in the daytime sky.
+    static let daytimeMoonOpacity = 0.55
+
+    /// The moon at `date` from `latitude`/`longitude`, or nil while it is
+    /// below the horizon.
+    static func moon(at date: Date, latitude: Double, longitude: Double, inDaylight: Bool) -> Moon? {
+        guard let progress = MoonClock.passProgress(at: date, latitude: latitude, longitude: longitude) else {
+            return nil
+        }
+        let illumination = MoonClock.illumination(at: date)
+        let position = bodyPosition(progress: progress)
+        let chi = MoonClock.brightLimbZenithAngle(at: date, latitude: latitude, longitude: longitude)
+        return Moon(x: position.x, y: position.y, fraction: illumination.fraction,
+                    phase: illumination.phase, rotation: brightLimbRotation(zenithAngle: chi),
+                    inDaylight: inDaylight)
+    }
+
+    /// The on-screen turn for a bright limb at `zenithAngle` χ (radians,
+    /// reckoned from the zenith towards the east — to the left as you face
+    /// the moon): the drawn moon is lit on its right, so it is turned until
+    /// its right points along (−sin χ, −cos χ), y down.
+    static func brightLimbRotation(zenithAngle chi: Double) -> Double {
+        atan2(-cos(chi), -sin(chi))
     }
 
     /// Where the sun neither rises nor sets: a plain 6:45-to-6:15 day.
