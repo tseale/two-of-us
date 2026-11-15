@@ -191,4 +191,135 @@ final class SkyPaletteTests: XCTestCase {
             }
         }
     }
+
+    // MARK: The dark appearance
+
+    private func luminance(_ c: SkyPalette.RGB) -> Double {
+        0.2126 * c.red + 0.7152 * c.green + 0.0722 * c.blue
+    }
+
+    func testTheDarkSkyStaysDeepBehindTheCards() {
+        // Every colour the dark sky paints is deep, and below the zenith
+        // darker than a card (#1C1C1E), so cards and white text read as on
+        // the black page and nothing lights the room at night.
+        for frames in [SkyPalette.darkDayFrames, SkyPalette.darkNightFrames] {
+            for frame in frames {
+                let look = frame.look
+                for colour in [look.top, look.mid, look.haze, look.deep, look.warm] + look.hills {
+                    XCTAssertLessThan(luminance(colour), 0.2, "deep")
+                }
+                for colour in [look.mid, look.haze, look.deep] + look.hills {
+                    XCTAssertLessThan(luminance(colour), luminance(SkyPalette.RGB(hex: 0x1C1C1E)),
+                                      "under a card's own grey")
+                }
+            }
+        }
+    }
+
+    func testTheDarkNightIsTheDeepestAndPurple() {
+        let night = SkyPalette.look(at: 0.5, in: SkyPalette.darkNightFrames).top
+        let noon = SkyPalette.look(at: 0.5, in: SkyPalette.darkDayFrames).top
+        let dusk = SkyPalette.look(at: 1, in: SkyPalette.darkDayFrames).top
+        XCTAssertLessThan(luminance(night), luminance(noon))
+        XCTAssertLessThan(luminance(night), luminance(dusk))
+        // Twilight and night lean violet: blue first, then red over green.
+        for colour in [night, dusk] {
+            XCTAssertGreaterThan(colour.blue, colour.red)
+            XCTAssertGreaterThan(colour.red, colour.green)
+        }
+    }
+
+    func testTheDarkNightJoinsTheDarkDayAtBothEnds() {
+        assertEqual(SkyPalette.look(at: 0, in: SkyPalette.darkNightFrames).top,
+                    SkyPalette.look(at: 1, in: SkyPalette.darkDayFrames).top)
+        assertEqual(SkyPalette.look(at: 1, in: SkyPalette.darkNightFrames).top,
+                    SkyPalette.look(at: 0, in: SkyPalette.darkDayFrames).top)
+    }
+
+    func testDarkLooksHaveFourHillsAndWholeCloudCrossfades() {
+        for frames in [SkyPalette.darkDayFrames, SkyPalette.darkNightFrames] {
+            for frame in frames {
+                XCTAssertEqual(frame.look.hills.count, SkyPalette.ridges.count)
+            }
+            for step in 0...40 {
+                let light = SkyPalette.look(at: Double(step) / 40, in: frames).light
+                XCTAssertEqual(light.dawn + light.day + light.dusk, 1, accuracy: 0.0001)
+            }
+        }
+    }
+
+    func testTheDarkSceneFadesToTheBlackPageWithFaintClouds() {
+        let noon = Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: .now)!
+        let light = SkyPalette.scene(at: noon, location: (40, -75))
+        let dark = SkyPalette.scene(at: noon, location: (40, -75), dark: true)
+        assertEqual(light.page, SkyPalette.page)
+        assertEqual(dark.page, SkyPalette.darkPage)
+        XCTAssertLessThan(dark.cloudStrength, light.cloudStrength)
+        XCTAssertLessThan(dark.moonGlow, light.moonGlow)
+        XCTAssertFalse(light.isDark)
+        XCTAssertTrue(dark.isDark)
+        XCTAssertLessThan(luminance(dark.look.top), luminance(light.look.top))
+    }
+
+    func testASkyBesideAnotherRunsItsRidgesOn() {
+        // The spread's leading sky lays its hills out on the phone page's x,
+        // so at the phone page's origin both skies' ridges are at one height.
+        let origin = 485.0
+        for ridge in SkyPalette.ridges {
+            let leading = ridge.points(width: 951, height: 669, xOffset: origin)
+            let phone = ridge.points(width: 466, height: 669)
+            for point in leading {
+                XCTAssertEqual(Double(point.y), ridge.y(at: Double(point.x) - origin, height: 669), accuracy: 0.0001)
+            }
+            let atSeam = leading.first { abs(Double($0.x) - origin - 5) < 0.001 }!
+            let phoneNearSeam = phone.first { abs(Double($0.x) - 5) < 0.001 }
+            if let phoneNearSeam {
+                XCTAssertEqual(Double(atSeam.y), Double(phoneNearSeam.y), accuracy: 0.0001)
+            }
+        }
+    }
+
+    // MARK: The moon
+
+    func testTheMoonShapeIsLitOnTheRightByFraction() {
+        let rect = CGRect(x: 0, y: 0, width: 32, height: 32)
+        let crescent = MoonPhaseShape(lit: 0.27).path(in: rect)
+        XCTAssertGreaterThan(crescent.boundingRect.midX, 16, "lit on its right before it is turned")
+        XCTAssertTrue(crescent.contains(CGPoint(x: 30, y: 16)))
+        XCTAssertFalse(crescent.contains(CGPoint(x: 10, y: 16)))
+        let full = MoonPhaseShape(lit: 1).path(in: rect).boundingRect
+        XCTAssertEqual(full.width, 32, accuracy: 0.5, "full: the whole disc")
+        let half = MoonPhaseShape(lit: 0.5).path(in: rect).boundingRect
+        XCTAssertEqual(half.minX, 16, accuracy: 0.5, "half: the terminator straight down the middle")
+    }
+
+    func testTheSceneHasTheMoonOnlyWhileItIsUp() throws {
+        let chicago = (latitude: 41.9, longitude: -87.6)
+        // 6:16 PM CST, 2026-11-14: the crescent is up in the south-west.
+        let dusk = SkyPalette.scene(at: utc("2026-11-15T00:16:00Z"), location: chicago, dark: true)
+        let moon = try XCTUnwrap(dusk.moon)
+        XCTAssertEqual(moon.fraction, 0.28, accuracy: 0.01)
+        XCTAssertGreaterThan(moon.x, 0.5, "past the middle of its arc, towards where it sets")
+        XCTAssertFalse(moon.inDaylight)
+        // Midnight: it has set — no moon, no moonlight.
+        let midnight = SkyPalette.scene(at: utc("2026-11-15T06:00:00Z"), location: chicago, dark: true)
+        XCTAssertNil(midnight.moon)
+        XCTAssertEqual(midnight.moonGlowByPhase, midnight.moonGlow * 0.35, accuracy: 1e-9)
+        // Early afternoon: it is up in the daytime sky, drawn pale.
+        let afternoon = SkyPalette.scene(at: utc("2026-11-14T20:00:00Z"), location: chicago)
+        XCTAssertEqual(afternoon.moon?.inDaylight, true)
+    }
+
+    func testTheDarkStarsAndMoonAreQuieter() {
+        let date = utc("2026-11-15T00:16:00Z")
+        let light = SkyPalette.scene(at: date, location: (41.9, -87.6))
+        let dark = SkyPalette.scene(at: date, location: (41.9, -87.6), dark: true)
+        XCTAssertLessThan(dark.starStrength, light.starStrength)
+        XCTAssertLessThan(dark.moonGlowByPhase, light.moonGlowByPhase)
+        XCTAssertEqual(dark.moon, light.moon)
+    }
+
+    private func utc(_ text: String) -> Date {
+        ISO8601DateFormatter().date(from: text)!
+    }
 }
