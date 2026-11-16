@@ -762,9 +762,10 @@ enum SkyPalette {
 
     /// The moon as it is now, for the sky.
     struct Moon: Equatable {
-        /// On the sky's arc (fractions of the screen), by how far it is
-        /// through its own pass from moonrise to moonset — the same arc the
-        /// sun takes from sunrise to sunset.
+        /// Where it sits (fractions of the screen): across by how far it is
+        /// through its own pass from moonrise to moonset, as the sun crosses
+        /// from sunrise to sunset; up by its real altitude
+        /// (`altitudeHeight`), so a low winter moon stays low.
         let x: Double
         let y: Double
         /// The lit fraction of its face: 0 new, 1 full.
@@ -790,11 +791,19 @@ enum SkyPalette {
             return nil
         }
         let illumination = MoonClock.illumination(at: date)
-        let position = bodyPosition(progress: progress)
+        let altitude = MoonClock.position(at: date, latitude: latitude, longitude: longitude).altitude
+        let position = (x: bodyPosition(progress: progress).x, y: altitudeHeight(altitude))
         let chi = MoonClock.brightLimbZenithAngle(at: date, latitude: latitude, longitude: longitude)
         return Moon(x: position.x, y: position.y, fraction: illumination.fraction,
                     phase: illumination.phase, rotation: brightLimbRotation(zenithAngle: chi),
                     inDaylight: inDaylight)
+    }
+
+    /// The screen height (fraction from the top) for a real altitude: the
+    /// horizon where the arc meets it, the zenith at the top edge.
+    static func altitudeHeight(_ altitude: Double) -> Double {
+        let horizonY = bodyPosition(progress: 0).y
+        return horizonY * (1 - min(max(altitude / (Double.pi / 2), 0), 1))
     }
 
     /// The on-screen turn for a bright limb at `zenithAngle` χ (radians,
