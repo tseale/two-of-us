@@ -310,6 +310,19 @@ final class SkyPaletteTests: XCTestCase {
         XCTAssertEqual(afternoon.moon?.inDaylight, true)
     }
 
+    func testTheMoonSitsAsHighAsItReallyIs() throws {
+        // Nov 16 2026, 4:47 PM CST, 40°N 90°W: a near-first-quarter moon
+        // about 40% through its pass but only ~33° up in the south-southeast —
+        // a third of the way up the sky, not peeking over the top edge.
+        let date = ISO8601DateFormatter().date(from: "2026-11-16T22:47:00Z")!
+        let moon = try XCTUnwrap(SkyPalette.moon(at: date, latitude: 40, longitude: -90, inDaylight: false))
+        XCTAssertEqual(moon.x, 0.41, accuracy: 0.03)
+        XCTAssertEqual(moon.y, 0.30 * (1 - 33.0 / 90), accuracy: 0.015)
+        XCTAssertEqual(SkyPalette.altitudeHeight(0), 0.30, accuracy: 1e-9)
+        XCTAssertEqual(SkyPalette.altitudeHeight(.pi / 2), 0, accuracy: 1e-9)
+        XCTAssertEqual(SkyPalette.altitudeHeight(-0.1), 0.30, accuracy: 1e-9)
+    }
+
     func testTheDarkStarsAndMoonAreQuieter() {
         let date = utc("2026-11-15T00:16:00Z")
         let light = SkyPalette.scene(at: date, location: (41.9, -87.6))
