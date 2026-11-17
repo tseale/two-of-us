@@ -43,21 +43,27 @@ struct DayTimelineRow: View {
     }
 
     private var rowContent: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: TimelineMetrics.railGap) {
             timeColumn
 
             rail
 
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Text(entry.emoji).font(.callout)
                 VStack(alignment: .leading, spacing: 1) {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        titleText
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(AppColor.text)
-                            .fixedSize(horizontal: false, vertical: true)
-                        if entry.isFromSnoo { SnooTag() }
-                        if entry.isFromDaycare { DaycareTag(color: accent) }
+                    // Title and source tag share a line when they fit; when
+                    // they don't (a photo row gives up width to its stack),
+                    // the tag drops under the title whole — never squeezed
+                    // into a hyphenated "Day-care".
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            title
+                            tags
+                        }
+                        VStack(alignment: .leading, spacing: 3) {
+                            title.fixedSize(horizontal: false, vertical: true)
+                            tags
+                        }
                     }
                     // Notes render in full — a daycare provider's "he spat up
                     // after the bottle…" is exactly the context this timeline
@@ -91,6 +97,23 @@ struct DayTimelineRow: View {
                            colorHex: entry.loggedByColorHex, size: 24)
                 }
             }
+        }
+    }
+
+    private var title: some View {
+        titleText
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(AppColor.text)
+    }
+
+    @ViewBuilder
+    private var tags: some View {
+        if entry.isFromSnoo || entry.isFromDaycare {
+            HStack(spacing: 6) {
+                if entry.isFromSnoo { SnooTag() }
+                if entry.isFromDaycare { DaycareTag(color: accent) }
+            }
+            .fixedSize()
         }
     }
 
@@ -229,7 +252,7 @@ struct LiveDaycareNapRow: View {
 
     var body: some View {
         TimelineView(.everyMinute) { ctx in
-            HStack(spacing: 10) {
+            HStack(spacing: TimelineMetrics.railGap) {
                 Text(TimeFormatting.clock(start))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(AppColor.text3)
@@ -245,7 +268,7 @@ struct LiveDaycareNapRow: View {
                         .overlay(Capsule().strokeBorder(AppColor.card, lineWidth: 2))
                 }
                 .frame(width: 16)
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Text("💤").font(.callout)
                     Text("\(SleepLanguage.gerund(start: start, now: ctx.date).capitalized) · \(TimeFormatting.duration(from: start, to: ctx.date))")
                         .monospacedDigit()
@@ -305,10 +328,13 @@ struct SnooTag: View {
 /// schedule tab slots its sleep lanes between the label and the rail so the
 /// bands run through NOW unbroken; everyone else takes the empty default.
 struct TimelineNowCap<Lanes: View>: View {
+    /// Matches the rows beneath: Home's tight rail gap by default; the
+    /// schedule's lane rows keep their own.
+    var spacing: CGFloat = TimelineMetrics.railGap
     @ViewBuilder var lanes: Lanes
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: spacing) {
             Text("NOW")
                 .sectionLabelStyle(color: AppColor.text3)
                 .frame(width: 64, alignment: .trailing)
@@ -374,4 +400,11 @@ extension TimelineNowCap where Lanes == EmptyView {
     }
     .listStyle(.plain)
     .background(AppColor.bg)
+}
+
+/// Shared horizontal rhythm of the rail rows, so the NOW cap, event rows and
+/// the live daycare nap keep one rail line. Tight on purpose: the page is the
+/// closed phone's width, and every point here goes to the event text.
+enum TimelineMetrics {
+    static let railGap: CGFloat = 6
 }
