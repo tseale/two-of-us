@@ -999,49 +999,37 @@ struct HomeView: View {
     // MARK: His book (the spread's evening page)
 
     /// The evening page: a baby-book page that fills itself in — the day's
-    /// photo (it takes the slack), the day's highlights, a month ago today
-    /// and what's coming up. With no photo of the day, a milestone's photo or
-    /// his own; with none at all, the highlights take the slack.
+    /// photos (daycare's first; they take the slack, shown whole rather than
+    /// cropped), the day's highlights, a month ago today and what's coming
+    /// up. With no new photo today the highlights take the slack.
     @ViewBuilder
     private func bookDetails(now: Date) -> some View {
-        let photos = mediaEvents.prefix(while: { $0.timestamp >= dayStart })
-            .filter { $0.timestamp <= now }
-        let milestone = milestoneEvents.first { $0.timestamp >= dayStart }
-        let stillImage = (milestone?.photoData ?? baby?.photoData).flatMap { UIImage(data: $0) }
+        let today = mediaEvents.prefix(while: { $0.timestamp >= dayStart })
+            .filter { $0.timestamp <= now && $0.kind == .photo }
+        let photos = today.filter(\.isFromDaycare) + today.filter { !$0.isFromDaycare }
+        let milestoneImage = milestoneEvents.first { $0.timestamp >= dayStart }
+            .flatMap { $0.photoData }.flatMap { UIImage(data: $0) }
         let month = StatsEngine(feeds: feeds, sleeps: sleeps, diapers: diapers)
             .dailySummaries(days: 31)
         if let photo = photos.first {
-            Button { viewingMedia = MediaViewing(events: Array(photos)) } label: {
-                bookPhotoSlot { size in
-                    MediaThumbnail(event: photo, size: max(size.width, size.height), cornerRadius: 0)
-                        .frame(width: size.width, height: size.height)
-                }
+            Button { viewingMedia = MediaViewing(events: photos) } label: {
+                bookPhotoSlot { WholePhoto(event: photo) }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Today's photos, \(photos.count)")
+            .accessibilityLabel(photo.isFromDaycare ? "Today's daycare photos, \(photos.count)" : "Today's photos, \(photos.count)")
             .accessibilityHint("Opens the photos")
-        } else if let stillImage {
-            bookPhotoSlot { size in
-                Image(uiImage: stillImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: size.width, height: size.height)
-            }
-            .accessibilityLabel(milestone?.text ?? "\(baby?.name ?? "Baby")'s photo")
+        } else if let milestoneImage {
+            bookPhotoSlot { WholePhoto(image: Image(uiImage: milestoneImage)) }
+                .accessibilityLabel("Today's milestone photo")
         }
-        bookHighlightsCard(now: now, days: month, fills: photos.isEmpty && stillImage == nil)
+        bookHighlightsCard(now: now, days: month, fills: photos.isEmpty && milestoneImage == nil)
         thenAndNextCard(month: month, now: now)
     }
 
     /// A photo at the page's width, as tall as the page leaves it.
-    private func bookPhotoSlot<Content: View>(@ViewBuilder _ content: @escaping (CGSize) -> Content) -> some View {
-        Color.clear
+    private func bookPhotoSlot<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
             .frame(maxWidth: .infinity, minHeight: 150, maxHeight: .infinity)
-            .overlay {
-                GeometryReader { slot in
-                    content(slot.size)
-                }
-            }
             .clipShape(.rect(cornerRadius: 18))
     }
 

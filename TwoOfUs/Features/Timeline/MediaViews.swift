@@ -279,3 +279,47 @@ struct MediaViewerSheet: View {
         .frame(maxWidth: .infinity, minHeight: 240)
     }
 }
+
+/// A photo shown whole: the entire frame fitted inside whatever space it's
+/// given, over a soft blurred copy of itself so the leftover bands read as
+/// part of the picture rather than as letterboxing. Never crops.
+struct WholePhoto: View {
+    private let event: MediaEvent?
+    private let image: Image?
+
+    init(event: MediaEvent) {
+        self.event = event
+        self.image = event.mediaData.flatMap(UIImage.init(data:)).map(Image.init(uiImage:))
+    }
+
+    init(image: Image) {
+        self.event = nil
+        self.image = image
+    }
+
+    var body: some View {
+        Group {
+            if let image {
+                fitted(image)
+            } else if let url = event?.remoteURL.flatMap(URL.init(string:)) {
+                AsyncImage(url: url) { phase in
+                    if let loaded = phase.image { fitted(loaded) } else { AppColor.card2 }
+                }
+            } else {
+                AppColor.card2
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func fitted(_ image: Image) -> some View {
+        ZStack {
+            image.resizable().scaledToFill()
+                .blur(radius: 30)
+                .overlay(Color.black.opacity(0.25))
+            image.resizable().scaledToFit()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+    }
+}
