@@ -557,7 +557,7 @@ struct ScheduleView: View {
             ForEach(Array(earlier.enumerated()), id: \.element.id) { index, occ in
                 row(occ, now: now, lanes: lanes, spans: spans, slices: slices(index))
             }
-            TimelineNowCap {
+            TimelineNowCap(spacing: 10) {
                 if !lanes.isEmpty {
                     SleepLaneColumn(lanes: lanes, slices: slices(nowIndex))
                 }
