@@ -12,8 +12,8 @@ All notable changes to Two of Us are recorded here. The format loosely follows
   with the teacher's name, on both phones.
 - Health alerts: when a daycare message, staff note, or health check
   mentions a fever, a temperature of 99.5° or higher, sickness, "please pick
-  him up", or an incident, both phones get a time-sensitive alert with
-  sound. Everything else stays a quiet ping. Toggle it under Notifications →
+  him up", or an incident, both phones get a time-sensitive alert (silent,
+  like the rest of the app). Everything else stays a quiet ping. Toggle it under Notifications →
   When the daycare logs → Health alerts.
 - Brightwheel now syncs in the background too (when iOS allows), so a
   message can alert without anyone opening the app.

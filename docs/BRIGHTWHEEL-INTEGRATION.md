@@ -314,15 +314,14 @@ latest message is older than 3 days are skipped without a request.
 note, `ac_incident`, health check, or medication whose text mentions fever,
 temperature, a reading ≥ 99.5°, vomiting, rash, "pick him up", "send home",
 an injury, etc. posts `NotificationManager.postDaycareHealthAlert` —
-`.timeSensitive`, with sound (the only sounding notification in the app),
+`.timeSensitive` and silent like every other notification,
 a 12-hour freshness window instead of the pings' 10 minutes, its own
 per-device toggle (default on), and ignoring quiet hours. The importing
 phone alerts from the importer; the other phone alerts from
 `SyncManager.notifyDaycareRecord` on the synced `StaffNoteEvent` /
 `HealthCheckEvent`, under the same dedupe key. Note: until the
 time-sensitive entitlement is restored (docs/NOTIFICATIONS.md), iOS delivers
-these at the normal "active" level — still with sound, but they don't break
-through Focus.
+these at the normal "active" level, so they don't break through Focus.
 
 **Background refresh**: `BGAppRefreshTask`
 `com.taylorseale.twoofus.brightwheel.refresh` (registered in `AppDelegate`,

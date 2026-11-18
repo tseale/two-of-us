@@ -309,7 +309,12 @@ final class BrightwheelManager {
             let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: now) ?? now
             activities = BrightwheelMockDay.activities(for: yesterday)
         }
-        let summary = BrightwheelImporter(context: context).importActivities(activities)
+        let importer = BrightwheelImporter(context: context)
+        var summary = importer.importActivities(activities)
+        let sampleDay = activities.first?.when ?? now
+        let messages = BrightwheelMockDay.messages(for: sampleDay)
+            .filter { fullDay || ($0.when ?? .distantFuture) <= now }
+        summary.messages = importer.importMessages(messages).messages
         // The sample day exercises the live-nap path too: loaded mid-nap, the
         // unpaired start pulses on Home exactly as a real one would.
         liveNapStartedAt = summary.openNapStartedAt
@@ -328,7 +333,11 @@ final class BrightwheelManager {
                                                        _ externalID: (T) -> String?,
                                                        _ predicate: Predicate<T>) {
             let events = (try? context.fetch(FetchDescriptor<T>(predicate: predicate))) ?? []
-            for event in events where externalID(event)?.hasPrefix(BrightwheelMockDay.idPrefix) == true {
+            // Sample messages carry the importer's "msg-" prefix ahead of the mock one.
+            let messagePrefix = BrightwheelImporter.messageExternalID(BrightwheelMockDay.idPrefix)
+            for event in events {
+                guard let id = externalID(event),
+                      id.hasPrefix(BrightwheelMockDay.idPrefix) || id.hasPrefix(messagePrefix) else { continue }
                 store.softDelete(event)
                 removed += 1
             }

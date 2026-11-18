@@ -520,7 +520,7 @@ enum NotificationManager {
 
     /// The one LOUD daycare notification: a fever call, "please pick him
     /// up", an incident. Time-sensitive (breaks through Focus and the
-    /// summary) and the only notification in the app with a sound. Quiet
+    /// summary), silent like every notification in the app. Quiet
     /// hours don't apply — a daycare health call happens during the day,
     /// and missing it is the failure this exists to prevent. Same
     /// externalID dedupe as the quiet pings, under its own key, so both
@@ -538,7 +538,6 @@ enum NotificationManager {
             threadID: NotificationID.Thread.daycareHealth,
             level: .timeSensitive, relevanceScore: 1.0
         )
-        content.sound = .default
         Task {
             try? await center.add(UNNotificationRequest(
                 identifier: NotificationID.Request.daycareHealth(dedupeKey),

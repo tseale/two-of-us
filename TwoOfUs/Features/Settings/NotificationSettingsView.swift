@@ -80,7 +80,7 @@ struct NotificationSettingsView: View {
             } header: {
                 Text("When the daycare logs")
             } footer: {
-                Text("Daycare events: a quiet ping when staff log a feed, nap, diaper, photo, or message in Brightwheel. Health alerts: a time-sensitive alert, with sound, when a message or health check mentions a fever, sickness, or an incident. This device only — each parent chooses for their own phone.")
+                Text("Daycare events: a quiet ping when staff log a feed, nap, diaper, photo, or message in Brightwheel. Health alerts: a time-sensitive alert when a message or health check mentions a fever, sickness, or an incident. This device only — each parent chooses for their own phone.")
             }
 
             Section {
