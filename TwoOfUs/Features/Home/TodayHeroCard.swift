@@ -15,13 +15,17 @@ struct DaycareDaySummary: Equatable {
     var activityCount = 0
     var photoCount = 0
     var medicationCount = 0
+    /// Today's latest daycare health news, as a short label ("Fever ·
+    /// 100.5°") — from a message, staff note, or health check that
+    /// `DaycareHealthAlert` flags. Derived at render time; nothing stored.
+    var healthHeadline: String?
     var checkIn: Date?          // first check-in of the day
     var checkOut: Date?         // last check-out of the day
     var hasAnythingElse = false // any other daycare event (note, mood, milestone…)
 
     var isEmpty: Bool {
         feedCount == 0 && napCount == 0 && diaperCount == 0 && activityCount == 0
-            && photoCount == 0 && medicationCount == 0
+            && photoCount == 0 && medicationCount == 0 && healthHeadline == nil
             && checkIn == nil && checkOut == nil && !hasAnythingElse
     }
 }
@@ -725,6 +729,7 @@ struct TodayHeroCard: View {
             if !logged.isEmpty {
                 recapItems(logged)
             }
+            healthRow
             medsRow
         }
     }
@@ -843,6 +848,7 @@ struct TodayHeroCard: View {
                 }
                 Spacer(minLength: 0)
             }
+            healthRow
             medsRow
         }
     }
@@ -889,6 +895,17 @@ struct TodayHeroCard: View {
             }
         }
         .lineLimit(1)
+    }
+
+    /// Health news from daycare — a fever call, a pick-up request, an
+    /// incident — in the same red as Meds: the rows that demand attention.
+    @ViewBuilder private var healthRow: some View {
+        if let headline = daycare.healthHeadline {
+            splitRow(systemImage: "thermometer.medium", tint: AppColor.accentMedication,
+                     title: "Health",
+                     text: "\(headline) — see timeline",
+                     textTint: AppColor.accentMedication)
+        }
     }
 
     @ViewBuilder private var medsRow: some View {
@@ -1007,6 +1024,9 @@ struct TodayHeroCard: View {
         }
         if !daycare.isEmpty || attendingSince != nil {
             parts.append("at daycare: " + (recap.isEmpty ? "nothing yet" : recap.joined(separator: ", ")))
+        }
+        if let headline = daycare.healthHeadline {
+            parts.append("health note from daycare: \(headline), see the timeline")
         }
         if daycare.medicationCount > 0 {
             parts.append("\(Plural.count(daycare.medicationCount, "medication")) given, see the timeline")

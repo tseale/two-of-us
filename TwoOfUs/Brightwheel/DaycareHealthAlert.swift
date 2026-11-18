@@ -50,6 +50,25 @@ enum DaycareHealthAlert {
         return isConcerning(notes)
     }
 
+    /// A short label for the Today card's Health row — "Fever", "Pick-up
+    /// request", "Rash or reaction". Nil when the text isn't health news.
+    /// Never quotes a number from free text: "100.5 is our cut off" is a
+    /// threshold, not his temperature — logged health checks carry the
+    /// real reading.
+    static func headline(for text: String?) -> String? {
+        guard let text, isConcerning(text) else { return nil }
+        let lower = text.lowercased()
+        func has(_ pattern: String) -> Bool { (try? Regex(pattern)).map { lower.contains($0) } ?? false }
+        if has(#"\bfever"#) || has(#"\btemp"#)
+            || (highestTemperature(in: lower) ?? 0) >= temperatureThreshold { return "Fever" }
+        if has(#"\bsen[dt]\s+(\w+\s+){0,2}home\b|\bpick\s+\w+\s+up\b|\bpick[- ]?up\s+(early|soon|asap|now)\b|\bcome\s+(get|pick)\b"#) { return "Pick-up request" }
+        if has(#"\bvomit|\bthrew\s+up|\bthrowing\s+up"#) { return "Vomiting" }
+        if has(#"\bdiarrh?ea"#) { return "Diarrhea" }
+        if has(#"\brash|\bhives|\ballergic|\breaction|\bswelling"#) { return "Rash or reaction" }
+        if has(#"\binjur|\bincident|\bbump|\bbit(ten)?\s+by|\bbiting|\bbleed|\bhit\s+\w+\s+head|\bfell\s+(down|off|over)"#) { return "Incident" }
+        return "Not feeling well"
+    }
+
     /// The highest plausible body temperature written in the text — "99.9",
     /// "100.5°", "101 F". Only decimals or explicit degree marks count, so a
     /// "100 days" or "4 oz" never trips it.
@@ -63,4 +82,12 @@ enum DaycareHealthAlert {
             }
         return readings.max()
     }
+}
+
+extension StaffNoteEvent {
+    /// A daycare note or message that reads as health news (fever, pick-up
+    /// request, incident) — styled red with a 🌡️ on the timeline. Computed
+    /// from the text, so no stored field or schema change. (Lives here, not
+    /// on the model, because the model file is shared with the extensions.)
+    var isHealthNews: Bool { isFromDaycare && DaycareHealthAlert.isConcerning(text) }
 }

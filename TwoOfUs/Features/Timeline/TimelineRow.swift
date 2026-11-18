@@ -53,7 +53,7 @@ struct TimelineRow: View {
         case .mood:        return AppColor.accentMood
         case .potty:       return AppColor.accentPotty
         case .milestone:   return AppColor.accentMilestone
-        case .staffNote:   return AppColor.accentNote
+        case .staffNote(let e): return e.isHealthNews ? AppColor.accentMedication : AppColor.accentNote
         }
     }
 }

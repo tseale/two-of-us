@@ -46,4 +46,14 @@ final class DaycareHealthAlertTests: XCTestCase {
         XCTAssertFalse(DaycareHealthAlert.isConcerning(type: .temperature, value: 98.4, notes: "All good"))
         XCTAssertTrue(DaycareHealthAlert.isConcerning(type: .weight, value: 18, notes: "Seems sick today"))
     }
+
+    func testHeadlinesForTheTodayCard() {
+        XCTAssertEqual(DaycareHealthAlert.headline(for: feverMessage), "Fever",
+                       "never quote a number from prose — 100.5 there is the cutoff")
+        XCTAssertEqual(DaycareHealthAlert.headline(for: "He has a fever"), "Fever")
+        XCTAssertEqual(DaycareHealthAlert.headline(for: "Can someone come pick him up?"), "Pick-up request")
+        XCTAssertEqual(DaycareHealthAlert.headline(for: "He threw up after lunch"), "Vomiting")
+        XCTAssertEqual(DaycareHealthAlert.headline(for: "He bumped his head on the shelf"), "Incident")
+        XCTAssertNil(DaycareHealthAlert.headline(for: "Miller was so smiley today!"))
+    }
 }

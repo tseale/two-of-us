@@ -323,6 +323,15 @@ phone alerts from the importer; the other phone alerts from
 time-sensitive entitlement is restored (docs/NOTIFICATIONS.md), iOS delivers
 these at the normal "active" level, so they don't break through Focus.
 
+**In the app**: the Today card's red **Health** row (`TodayHeroCard.healthRow`,
+fed by `DaycareDay.healthHeadline`) shows today's latest flagged note or
+health check as a short label from `DaycareHealthAlert.headline` ("Fever",
+"Pick-up request", "Incident"; a logged health check shows its real reading).
+It never quotes a number from message text, which is often a threshold
+("100.5 is our cut off"), not his temperature. On the timeline, a flagged
+staff note gets 🌡️ and the medication red (`StaffNoteEvent.isHealthNews`).
+Both are computed from the stored text when displayed, so there's no schema change.
+
 **Background refresh**: `BGAppRefreshTask`
 `com.taylorseale.twoofus.brightwheel.refresh` (registered in `AppDelegate`,
 `fetch` background mode) runs `syncNow` while connected with auto-import on,

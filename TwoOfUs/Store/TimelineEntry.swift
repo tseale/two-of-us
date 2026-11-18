@@ -86,7 +86,7 @@ enum TimelineEntry: Identifiable {
         case .mood(let e): return e.level.emoji
         case .potty: return "🚽"
         case .milestone: return "🏆"
-        case .staffNote: return "💬"
+        case .staffNote(let e): return e.isHealthNews ? "🌡️" : "💬"
         default: return kind?.emoji ?? ""
         }
     }
