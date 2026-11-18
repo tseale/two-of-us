@@ -1766,6 +1766,23 @@ struct HomeView: View {
         day.activityCount = activityEvents.prefix(while: { $0.timestamp >= dayStart }).filter { $0.isFromDaycare && isToday($0.timestamp) }.count
         day.photoCount = mediaEvents.prefix(while: { $0.timestamp >= dayStart }).filter { $0.isFromDaycare && isToday($0.timestamp) }.count
         day.medicationCount = medicationEvents.prefix(while: { $0.timestamp >= dayStart }).filter { $0.isFromDaycare && isToday($0.timestamp) }.count
+        // Newest first (both queries sort descending), so the first hit is
+        // the latest news. A health check's own reading counts too.
+        let todaysNotes = staffNoteEvents.prefix(while: { $0.timestamp >= dayStart })
+            .filter { $0.isFromDaycare && isToday($0.timestamp) }
+        let noteHeadline = todaysNotes.lazy.compactMap { note in
+            DaycareHealthAlert.headline(for: note.text).map { (note.timestamp, $0) }
+        }.first
+        let checkHeadline = healthCheckEvents.prefix(while: { $0.timestamp >= dayStart })
+            .lazy.filter { $0.isFromDaycare && isToday($0.timestamp) }
+            .compactMap { check -> (Date, String)? in
+                guard DaycareHealthAlert.isConcerning(type: check.type, value: check.value, notes: check.notes) else { return nil }
+                let label = check.type == .temperature
+                    ? "Temp \(check.type.format(check.value))"
+                    : (DaycareHealthAlert.headline(for: check.notes) ?? "Health check")
+                return (check.timestamp, label)
+            }.first
+        day.healthHeadline = [noteHeadline, checkHeadline].compactMap { $0 }.max { $0.0 < $1.0 }?.1
         day.checkIn = dayChecks.filter { $0.type == .checkIn }.map(\.timestamp).min()
         day.checkOut = dayChecks.filter { $0.type == .checkOut }.map(\.timestamp).max()
         // A lone drop-off note, mood, or staff note still counts — the card

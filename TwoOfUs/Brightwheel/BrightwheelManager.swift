@@ -1,3 +1,4 @@
+import BackgroundTasks
 import Foundation
 import Observation
 import SwiftData
@@ -46,7 +47,10 @@ final class BrightwheelManager {
     /// Device-local (UserDefaults, not the synced settings): it configures
     /// this phone's fetching, and only one phone needs it on.
     var autoImport: Bool {
-        didSet { UserDefaults.standard.set(autoImport, forKey: Self.autoImportKey) }
+        didSet {
+            UserDefaults.standard.set(autoImport, forKey: Self.autoImportKey)
+            scheduleBackgroundRefresh()
+        }
     }
 
     // MARK: Sign-in / out
@@ -73,6 +77,7 @@ final class BrightwheelManager {
         store.save(session)
         self.session = session
         publishHouseholdStatus(context: context)
+        scheduleBackgroundRefresh()
         return session
     }
 
@@ -111,6 +116,7 @@ final class BrightwheelManager {
         store.clear()
         session = nil
         liveNapStartedAt = nil
+        scheduleBackgroundRefresh()   // not connected → cancels
         // Clear the household status only when the advertised connection is
         // THIS phone's: a cookie-less phone disconnecting must not sever a
         // connection the other parent is running.
@@ -137,13 +143,17 @@ final class BrightwheelManager {
         Task { await syncNow(context: context) }
     }
 
-    /// One import pass over today's activities. Returns the summary for the
-    /// Settings "Sync now" path; nil when not connected or the fetch failed.
+    /// One import pass over today's activities, then recent messages.
+    /// Returns the summary for the Settings "Sync now" path; nil when not
+    /// connected or the activity fetch failed.
     @discardableResult
     func syncNow(context: ModelContext) async -> BrightwheelImporter.Summary? {
         guard let session, !isSyncing else { return nil }
         isSyncing = true
         defer { isSyncing = false }
+        // Messages first and independently: they're on API v2, so a v2
+        // hiccup must never cost the day's activities (or vice versa).
+        let messageCount = await syncMessages(session: session, context: context)
         do {
             let activities = try await client.activities(
                 cookie: session.cookie, studentID: session.studentID, day: .now)
@@ -162,14 +172,115 @@ final class BrightwheelManager {
                     body: NotificationManager.DaycareText.napStarted(name), at: start)
             }
             markSynced()
-            if summary.imported > 0 {
-                AppLog.store.info("Brightwheel: imported \(summary.imported) event(s)")
+            var total = summary
+            total.messages = messageCount
+            if total.imported > 0 {
+                AppLog.store.info("Brightwheel: imported \(total.imported) event(s)")
             }
-            return summary
+            return total
         } catch {
             AppLog.store.error("Brightwheel sync failed: \(error)")
             return nil
         }
+    }
+
+    // MARK: Messages
+
+    /// How far back a sync looks for messages. Threads whose latest message
+    /// is older are skipped without a request, so a typical sync costs one
+    /// threads call plus one call per active thread.
+    static let messageLookback: TimeInterval = 3 * 24 * 60 * 60
+
+    /// Pulls recent staff messages from every guardian thread and imports
+    /// them as staff notes (health news alerts loudly — see
+    /// `BrightwheelImporter.importMessages`). Returns how many imported;
+    /// failures are logged and leave the activity import untouched.
+    private func syncMessages(session: BrightwheelSession, context: ModelContext) async -> Int {
+        let cutoff = Date.now.addingTimeInterval(-Self.messageLookback)
+        do {
+            let threads = try await client.messageThreads(
+                cookie: session.cookie, guardianID: session.guardianID)
+            var messages: [BrightwheelMessage] = []
+            for thread in threads {
+                guard let threadID = thread.id else { continue }
+                // A thread whose latest message we can date and is stale has
+                // nothing new; an undatable one is fetched to be safe.
+                if let latest = thread.message?.when, latest < cutoff { continue }
+                let page = try await client.threadMessages(
+                    cookie: session.cookie, guardianID: session.guardianID, threadID: threadID)
+                messages += page.filter { ($0.when ?? .distantPast) >= cutoff }
+            }
+            let summary = BrightwheelImporter(context: context, notifiesNewEvents: true)
+                .importMessages(messages)
+            return summary.messages
+        } catch {
+            AppLog.store.error("Brightwheel message sync failed: \(error)")
+            return 0
+        }
+    }
+
+    /// The raw threads + latest thread's messages, for the Settings debug
+    /// console — the first real response confirms the v2 shapes.
+    func fetchMessagesRawSummary() async throws -> String {
+        guard let session else { throw BrightwheelAPIError.unauthorized }
+        let threads = try await client.messageThreads(cookie: session.cookie, guardianID: session.guardianID)
+        var lines = ["\(threads.count) thread(s)"]
+        for thread in threads.prefix(5) {
+            lines.append("• \(thread.type ?? "?") \(thread.id ?? "no id") — latest: \(thread.message?.createdAt ?? "?")")
+        }
+        if let id = threads.first?.id {
+            let messages = try await client.threadMessages(
+                cookie: session.cookie, guardianID: session.guardianID, threadID: id)
+            lines.append("\nLatest thread, \(messages.count) message(s):")
+            for m in messages.prefix(10) {
+                lines.append("• \(m.createdAt ?? "?") \(m.sender?.displayName ?? "?") [\(m.sender?.userType ?? "?")]: \(m.body?.prefix(80) ?? "")")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    // MARK: Background refresh
+
+    static let refreshTaskID = "com.taylorseale.twoofus.brightwheel.refresh"
+    /// iOS treats this as a floor, not a schedule — in practice runs land
+    /// every 15 minutes to a few hours depending on how the phone is used.
+    private static let refreshInterval: TimeInterval = 15 * 60
+
+    /// Registers the background-refresh handler. Must run before launch
+    /// finishes (AppDelegate), on every launch including background ones.
+    nonisolated static func registerBackgroundRefresh() {
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: refreshTaskID, using: nil) { task in
+            guard let task = task as? BGAppRefreshTask else { return }
+            Task { @MainActor in
+                BrightwheelManager.shared.handleBackgroundRefresh(task)
+            }
+        }
+    }
+
+    /// Asks iOS for the next background pass. Only while connected with
+    /// auto-import on — the same switch that governs foreground pulls.
+    func scheduleBackgroundRefresh() {
+        guard isConnected, autoImport else {
+            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.refreshTaskID)
+            return
+        }
+        let request = BGAppRefreshTaskRequest(identifier: Self.refreshTaskID)
+        request.earliestBeginDate = Date.now.addingTimeInterval(Self.refreshInterval)
+        do { try BGTaskScheduler.shared.submit(request) }
+        catch { AppLog.store.error("Brightwheel: background refresh not scheduled: \(error)") }
+    }
+
+    private func handleBackgroundRefresh(_ task: BGAppRefreshTask) {
+        scheduleBackgroundRefresh()   // chain the next pass first
+        guard isConnected, autoImport, !LocalPrefs.shared.demoModeEnabled else {
+            task.setTaskCompleted(success: true)
+            return
+        }
+        let work = Task { @MainActor in
+            let summary = await syncNow(context: AppModelContainer.shared.mainContext)
+            task.setTaskCompleted(success: summary != nil)
+        }
+        task.expirationHandler = { work.cancel() }
     }
 
     // MARK: Sample day (preview before Miller's first real day)
@@ -198,7 +309,12 @@ final class BrightwheelManager {
             let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: now) ?? now
             activities = BrightwheelMockDay.activities(for: yesterday)
         }
-        let summary = BrightwheelImporter(context: context).importActivities(activities)
+        let importer = BrightwheelImporter(context: context)
+        var summary = importer.importActivities(activities)
+        let sampleDay = activities.first?.when ?? now
+        let messages = BrightwheelMockDay.messages(for: sampleDay)
+            .filter { fullDay || ($0.when ?? .distantFuture) <= now }
+        summary.messages = importer.importMessages(messages).messages
         // The sample day exercises the live-nap path too: loaded mid-nap, the
         // unpaired start pulses on Home exactly as a real one would.
         liveNapStartedAt = summary.openNapStartedAt
@@ -217,7 +333,11 @@ final class BrightwheelManager {
                                                        _ externalID: (T) -> String?,
                                                        _ predicate: Predicate<T>) {
             let events = (try? context.fetch(FetchDescriptor<T>(predicate: predicate))) ?? []
-            for event in events where externalID(event)?.hasPrefix(BrightwheelMockDay.idPrefix) == true {
+            // Sample messages carry the importer's "msg-" prefix ahead of the mock one.
+            let messagePrefix = BrightwheelImporter.messageExternalID(BrightwheelMockDay.idPrefix)
+            for event in events {
+                guard let id = externalID(event),
+                      id.hasPrefix(BrightwheelMockDay.idPrefix) || id.hasPrefix(messagePrefix) else { continue }
                 store.softDelete(event)
                 removed += 1
             }

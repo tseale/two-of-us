@@ -6,6 +6,21 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Added — daycare messages and health alerts
+- Brightwheel messages now come into Two of Us. When a teacher writes in
+  Brightwheel's Messages tab, it lands on the timeline as a daycare note,
+  with the teacher's name, on both phones.
+- Health alerts: when a daycare message, staff note, or health check
+  mentions a fever, a temperature of 99.5° or higher, sickness, "please pick
+  him up", or an incident, both phones get a time-sensitive alert (silent,
+  like the rest of the app). Everything else stays a quiet ping. Toggle it under Notifications →
+  When the daycare logs → Health alerts.
+- Health news shows in the app, not just in the notification: a red
+  **Health** row on the Today card ("Fever — see timeline"), next to Meds,
+  and a 🌡️ with a red accent on that note in the timeline.
+- Brightwheel now syncs in the background too (when iOS allows), so a
+  message can alert without anyone opening the app.
+
 ### Added — the sky outside
 - In light mode Home's background is a little sky: a sun that sits where
   the real sun is (by sunrise and sunset at your daycare's location, or your

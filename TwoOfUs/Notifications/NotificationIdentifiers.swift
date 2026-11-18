@@ -45,6 +45,7 @@ enum NotificationID {
         static let dailyMilestone = "milestone.daily"
         static func coParent(_ key: String) -> String { "coparent.\(key)" }
         static func daycare(_ key: String) -> String { "daycare.\(key)" }
+        static func daycareHealth(_ key: String) -> String { "daycare.health.\(key)" }
         /// Geofence prompts replace by direction: a second drop-off ask (edge
         /// jitter) supersedes the first instead of stacking.
         static func geofence(_ direction: String) -> String { "geofence.\(direction)" }
@@ -67,5 +68,7 @@ enum NotificationID {
         /// Daycare events group per DAY, so a busy morning stacks into one
         /// lock-screen bundle instead of a flood.
         static func daycare(day: String) -> String { "thread.daycare.\(day)" }
+        /// Health alerts stay out of the day's quiet stack so they never hide in it.
+        static let daycareHealth = "thread.daycare.health"
     }
 }

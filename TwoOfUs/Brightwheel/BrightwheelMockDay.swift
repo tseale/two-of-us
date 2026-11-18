@@ -139,4 +139,28 @@ enum BrightwheelMockDay {
         ]
         return (try? JSONSerialization.data(withJSONObject: page)) ?? Data()
     }
+
+    /// One sample staff message for the day, in the v2 messages wire format
+    /// (`{results: [{message: …}]}`), decoded through the real DTOs — so
+    /// the sample day previews how a Brightwheel chat message looks on the
+    /// timeline. A health message on purpose: it's the case that matters.
+    static func messages(for day: Date = .now, calendar: Calendar = .current) -> [BrightwheelMessage] {
+        let dayKey = day.formatted(.iso8601.year().month().day())
+        let date = calendar.date(bySettingHour: 15, minute: 0, second: 0, of: day) ?? day
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let message: [String: Any] = [
+            "object_id": "\(idPrefix)\(dayKey)-message-1",
+            "message_content_id": "\(idPrefix)\(dayKey)-content-1",
+            "type": "simple_message", "read": false, "force_delivery": false,
+            "body": "Good afternoon, just letting you know he has a low grade fever — 99.9 under the arm. 100.5 is our cut off to send children home, so we'll check again when he wakes from his nap and keep you updated.",
+            "created_at": f.string(from: date),
+            "attachments": [], "deleted_at": NSNull(), "deleted_by": NSNull(),
+            "sender": ["object_id": "\(idPrefix)staff-1", "first_name": "Ms.", "last_name": "Sarah",
+                       "user_type": "teacher"],
+        ]
+        let page: [String: Any] = ["results": [["message": message]], "has_more": false, "page_size": 25]
+        guard let data = try? JSONSerialization.data(withJSONObject: page) else { return [] }
+        return (try? JSONDecoder().decode(BrightwheelMessagePage.self, from: data))?.messages ?? []
+    }
 }

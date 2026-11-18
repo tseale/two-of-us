@@ -784,6 +784,34 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
                 dedupeKey: dedupe,
                 body: NotificationManager.DaycareText.photo, at: at,
                 photoURLString: r["remoteURL"] as? String)
+        case SyncConstants.RecordType.staffNote:
+            // Staff notes and Brightwheel messages: health news alerts
+            // loudly, a message gets the quiet ping. Same dedupe keys as the
+            // importer, so neither phone double-posts.
+            guard let at = r["timestamp"] as? Date,
+                  let text = r["text"] as? String, !text.isEmpty else { return }
+            let author = r["authorName"] as? String
+            if DaycareHealthAlert.isConcerning(text) {
+                NotificationManager.postDaycareHealthAlert(
+                    dedupeKey: dedupe,
+                    body: NotificationManager.DaycareText.healthAlert(author: author, text: text),
+                    at: at)
+            } else if dedupe.hasPrefix("msg-") {
+                NotificationManager.postDaycareActivity(
+                    dedupeKey: dedupe,
+                    body: NotificationManager.DaycareText.message(author: author, body: text), at: at)
+            }
+        case SyncConstants.RecordType.healthCheck:
+            guard let at = r["timestamp"] as? Date,
+                  let type = HealthCheckType(rawValue: r["typeRaw"] as? String ?? ""),
+                  let value = r["value"] as? Double else { return }
+            let notes = r["notes"] as? String
+            guard DaycareHealthAlert.isConcerning(type: type, value: value, notes: notes) else { return }
+            let reading = NotificationManager.DaycareText.healthCheck(babyName, type: type, value: value)
+            NotificationManager.postDaycareHealthAlert(
+                dedupeKey: dedupe,
+                body: [reading, notes].compactMap { $0 }.joined(separator: " — "),
+                at: at)
         default:
             break
         }

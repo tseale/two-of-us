@@ -48,6 +48,22 @@ struct BrightwheelImporter {
             photoURLString: photoURL)
     }
 
+    /// The loud path: a health alert when the text reads as health news.
+    /// Same `notifiesNewEvents` gate as the quiet pings, so sample days and
+    /// tests stay silent. Returns whether it alerted, so callers can skip the
+    /// redundant quiet ping.
+    @discardableResult
+    private func alertIfHealthNews(_ text: String?, author: String?, at when: Date,
+                                   dedupe: String?, force: Bool = false) -> Bool {
+        guard notifiesNewEvents, let text, !text.isEmpty,
+              force || DaycareHealthAlert.isConcerning(text) else { return false }
+        NotificationManager.postDaycareHealthAlert(
+            dedupeKey: dedupe ?? UUID().uuidString,
+            body: NotificationManager.DaycareText.healthAlert(author: author, text: text),
+            at: when)
+        return true
+    }
+
     private var babyName: String { store.baby?.name ?? "Baby" }
 
     struct Summary: Equatable {
@@ -64,6 +80,8 @@ struct BrightwheelImporter {
         var potties = 0
         var milestones = 0
         var staffNotes = 0
+        /// Brightwheel chat messages from staff, imported as staff notes.
+        var messages = 0
         var skippedDuplicates = 0
         var skippedUnmapped = 0
         /// A fell-asleep with no woke-up yet: the nap is still running at
@@ -75,6 +93,7 @@ struct BrightwheelImporter {
         var imported: Int {
             feeds + sleeps + diapers + notes + activities + media + checks
                 + medications + healthChecks + moods + potties + milestones + staffNotes
+                + messages
         }
 
         var line: String {
@@ -142,6 +161,49 @@ struct BrightwheelImporter {
         }
         return summary
     }
+
+    // MARK: Messages
+
+    /// Brightwheel chat messages (the Messages tab — where a teacher writes
+    /// "Miller has a low grade fever") as staff notes on the timeline,
+    /// through the same model, sync, and dedupe as `ac_note` activities.
+    /// Parents' own messages and deleted ones are skipped; health news gets
+    /// the loud alert, everything else the usual quiet ping.
+    ///
+    /// Dedupe is the message's `object_id` under a `msg-` prefix (activity
+    /// and message ids are separate namespaces in Brightwheel).
+    @discardableResult
+    func importMessages(_ messages: [BrightwheelMessage]) -> Summary {
+        var summary = Summary()
+        let ordered = messages.sorted { ($0.when ?? .distantPast) < ($1.when ?? .distantPast) }
+        for message in ordered {
+            guard let objectID = message.objectID, let when = message.when,
+                  let body = message.body?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !body.isEmpty, message.deletedAt == nil, !message.isFromGuardian else {
+                summary.skippedUnmapped += 1
+                continue
+            }
+            let id = Self.messageExternalID(objectID)
+            guard !hasEvent(externalID: id) else {
+                summary.skippedDuplicates += 1
+                continue
+            }
+            let author = message.sender?.displayName
+            guard store.logStaffNote(body, authorName: author, at: when,
+                                     source: .brightwheel, externalID: id) != nil else {
+                summary.skippedUnmapped += 1
+                continue
+            }
+            summary.messages += 1
+            if !alertIfHealthNews(body, author: author, at: when, dedupe: id) {
+                notifyDaycare(NotificationManager.DaycareText.message(author: author, body: body),
+                              at: when, dedupe: id)
+            }
+        }
+        return summary
+    }
+
+    static func messageExternalID(_ objectID: String) -> String { "msg-\(objectID)" }
 
     // MARK: Attached photos
 
@@ -342,18 +404,29 @@ struct BrightwheelImporter {
                                    administeredBy: staffName(activity), notes: activity.note,
                                    source: .brightwheel, externalID: id) != nil {
                 summary.medications += 1
+                let name = activity.detailsBlob?.medicationName
+                let text = [name.map { "💊 \($0)" }, activity.note].compactMap { $0 }.joined(separator: " — ")
+                if DaycareHealthAlert.isConcerning(text) {
+                    alertIfHealthNews(text, author: staffName(activity), at: when, dedupe: id, force: true)
+                }
             }
         case "ac_health_check", "ac_health_screen":
             if let (type, value) = healthMeasurement(from: activity) {
                 if store.logHealthCheck(type, value: value, at: when, notes: activity.note,
                                         source: .brightwheel, externalID: id) != nil {
                     summary.healthChecks += 1
+                    if DaycareHealthAlert.isConcerning(type: type, value: value, notes: activity.note) {
+                        let reading = NotificationManager.DaycareText.healthCheck(babyName, type: type, value: value)
+                        alertIfHealthNews([reading, activity.note].compactMap { $0 }.joined(separator: " — "),
+                                          author: staffName(activity), at: when, dedupe: id, force: true)
+                    }
                 }
             } else if let text = activity.note,
                       store.logStaffNote(text, authorName: staffName(activity), at: when,
                                          source: .brightwheel, externalID: id) != nil {
                 // A check with no parseable measurement is still worth reading.
                 summary.staffNotes += 1
+                alertIfHealthNews(text, author: staffName(activity), at: when, dedupe: id)
             } else {
                 summary.skippedUnmapped += 1
             }
@@ -382,6 +455,10 @@ struct BrightwheelImporter {
             } else if store.logStaffNote(text, authorName: staffName(activity), at: when,
                                          source: .brightwheel, externalID: id) != nil {
                 summary.staffNotes += 1
+                // An incident report always alerts; any other note when it
+                // reads as health news.
+                alertIfHealthNews(text, author: staffName(activity), at: when, dedupe: id,
+                                  force: action == "ac_incident")
             }
         default:
             // ac_absence, ac_internal_checkin, and anything Brightwheel adds
