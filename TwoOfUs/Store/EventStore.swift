@@ -407,6 +407,15 @@ struct EventStore {
     }
 
     @discardableResult
+    /// Re-keys an imported staff note (Brightwheel messages learn they're
+    /// announcements after the fact) and syncs the change to both phones.
+    func retagStaffNote(_ note: StaffNoteEvent, externalID: String) {
+        guard note.externalID != externalID else { return }
+        note.externalID = externalID
+        guard save() else { return }
+        sync(save: [note.id])
+    }
+
     func logStaffNote(_ text: String, authorName: String? = nil, at date: Date = .now,
                       source: EventSource? = nil, externalID: String? = nil) -> StaffNoteEvent? {
         guard let owner = requireOwner() else { return nil }

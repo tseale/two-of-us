@@ -69,11 +69,20 @@ struct DayTimelineRow: View {
                     // after the bottle…" is exactly the context this timeline
                     // exists to carry, so the row grows rather than the text
                     // truncating.
+                    // Brightwheel chat messages are the exception: they can
+                    // run to paragraphs, so they clamp (health news gets a
+                    // line more) and the full text opens in a sheet on tap.
                     if let note = entry.notes, !note.isEmpty {
                         Text(note)
                             .font(.caption)
                             .foregroundStyle(AppColor.text2)
+                            .lineLimit(messageLineLimit)
                             .fixedSize(horizontal: false, vertical: true)
+                        if let limit = messageLineLimit, note.count > limit * 45 {
+                            Text("Read more")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(accent)
+                        }
                     }
                 }
                 Spacer(minLength: 8)
@@ -98,6 +107,12 @@ struct DayTimelineRow: View {
                 }
             }
         }
+    }
+
+    /// Line clamp for daycare messages; nil (render in full) for everything else.
+    private var messageLineLimit: Int? {
+        guard case .staffNote(let e) = entry, e.isDaycareMessage else { return nil }
+        return e.isHealthNews ? 4 : 3
     }
 
     private var title: some View {
