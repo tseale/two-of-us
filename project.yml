@@ -95,6 +95,13 @@ targets:
         NSLocationAlwaysAndWhenInUseUsageDescription: With Always access, Two of Us can offer the drop-off and pick-up prompts when you arrive at daycare, even with the app closed. Your location never leaves your phone.
         UIBackgroundModes:
           - remote-notification
+          # Brightwheel background refresh (BrightwheelManager): pulls new
+          # daycare activities + messages between app opens so a health
+          # message alerts without anyone opening Two of Us. Best-effort —
+          # iOS decides how often it runs.
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.taylorseale.twoofus.brightwheel.refresh
     entitlements:
       path: TwoOfUs/TwoOfUs.entitlements
       properties:

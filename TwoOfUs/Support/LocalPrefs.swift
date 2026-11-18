@@ -48,6 +48,7 @@ final class LocalPrefs {
         static let gentleReminders = "notify.gentleReminders"
         static let notifyMilestones = "notify.milestones"
         static let notifyDaycare = "notify.daycare"
+        static let notifyDaycareHealth = "notify.daycareHealth"
         static let quietHoursEnabled = "notify.quietHours.enabled"
         static let quietHoursStart = "notify.quietHours.start"
         static let quietHoursEnd = "notify.quietHours.end"
@@ -106,6 +107,14 @@ final class LocalPrefs {
         didSet { defaults.set(daycareNotificationsEnabled, forKey: Key.notifyDaycare) }
     }
 
+    /// Loud, time-sensitive alerts when a daycare message, staff note, or
+    /// health check reads as health news (fever, "please pick him up",
+    /// incident). Independent of the quiet pings above, default ON, and
+    /// per-device like them.
+    var daycareHealthAlertsEnabled: Bool {
+        didSet { defaults.set(daycareHealthAlertsEnabled, forKey: Key.notifyDaycareHealth) }
+    }
+
     /// Loud AlarmKit alarm for the next *schedule slot assigned to me* — the
     /// "actually wake me at 3am through Silent" opt-in. Device-local like the
     /// feed alarm; the interval feed alarm stands down around an armed slot so
@@ -159,6 +168,7 @@ final class LocalPrefs {
         gentleRemindersEnabled = defaults.object(forKey: Key.gentleReminders) as? Bool ?? false
         notifyMilestones = defaults.object(forKey: Key.notifyMilestones) as? Bool ?? false
         daycareNotificationsEnabled = defaults.object(forKey: Key.notifyDaycare) as? Bool ?? true
+        daycareHealthAlertsEnabled = defaults.object(forKey: Key.notifyDaycareHealth) as? Bool ?? true
         quietHoursEnabled = defaults.object(forKey: Key.quietHoursEnabled) as? Bool ?? false
         quietHoursStartMinutes = defaults.object(forKey: Key.quietHoursStart) as? Int ?? (22 * 60)
         quietHoursEndMinutes = defaults.object(forKey: Key.quietHoursEnd) as? Int ?? (7 * 60)

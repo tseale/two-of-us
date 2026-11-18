@@ -282,3 +282,51 @@ New module `TwoOfUs/Brightwheel/`:
 3. Cookie lifetime: signed in 2026-09-28; note the date if a fetch ever comes
    back 401/403. Test the same cookie from the second phone before deciding
    on the shared-CloudKit-blob design (§5).
+
+## 9. Messages + health alerts (2026-11-17)
+
+The activity feed (§2) never carried Brightwheel's **Messages** tab — the
+teacher-to-parent chat where a fever call actually arrives (Miller's first
+one, 2026-11-17, was a chat message, not an `ac_health_check`). Messaging is
+on **API v2**, found in the live web bundle
+(`cdn.mybrightwheel.com/static/assets/bootstrap.*.chunk.js`, fetched
+2026-11-17 — `getGuardianThreads` / `getGuardianThreadMessages` and their zod
+schemas):
+
+| Endpoint | Shape |
+|---|---|
+| `GET /api/v2/guardians/{guardian_id}/message_threads?page_limit=25` | `{results: [{object_id, thread_id, type, student, message}], has_more, page_size}` — `message` is the thread's latest |
+| `GET /api/v2/guardians/{guardian_id}/message_threads/{thread_id}/messages?page_limit=25&starting_after=` | `{results: [{message: {object_id, body, created_at, type, broadcast, sender: {first_name, last_name, user_type}, deleted_at, attachments}}], has_more, page_size}` |
+| `GET /api/v2/users/{user_id}/message_count` | `{unread_count, unread_parent_count, unread_staff_count}` (not used yet) |
+
+Same cookie as v1. Status: shapes are verified-in-bundle; confirm against the
+live account with Settings → Brightwheel → **Fetch recent messages (raw)**.
+
+**Import** (`BrightwheelImporter.importMessages`): each staff message is a
+`StaffNoteEvent` (author = sender name, timestamp = `created_at`,
+`externalID = "msg-<object_id>"`) — no new model, record type, or schema
+change. Guardian-sent (`user_type == "guardian"`) and deleted messages are
+skipped. `BrightwheelManager.syncNow` fetches messages before activities and
+independently (a v2 failure never costs the day's activities); threads whose
+latest message is older than 3 days are skipped without a request.
+
+**Health alerts** (`DaycareHealthAlert`, pure + tested): a message, staff
+note, `ac_incident`, health check, or medication whose text mentions fever,
+temperature, a reading ≥ 99.5°, vomiting, rash, "pick him up", "send home",
+an injury, etc. posts `NotificationManager.postDaycareHealthAlert` —
+`.timeSensitive`, with sound (the only sounding notification in the app),
+a 12-hour freshness window instead of the pings' 10 minutes, its own
+per-device toggle (default on), and ignoring quiet hours. The importing
+phone alerts from the importer; the other phone alerts from
+`SyncManager.notifyDaycareRecord` on the synced `StaffNoteEvent` /
+`HealthCheckEvent`, under the same dedupe key. Note: until the
+time-sensitive entitlement is restored (docs/NOTIFICATIONS.md), iOS delivers
+these at the normal "active" level — still with sound, but they don't break
+through Focus.
+
+**Background refresh**: `BGAppRefreshTask`
+`com.taylorseale.twoofus.brightwheel.refresh` (registered in `AppDelegate`,
+`fetch` background mode) runs `syncNow` while connected with auto-import on,
+asking for every 15 minutes. iOS decides the real cadence, so foreground
+sync stays the primary path; the phone that's connected to Brightwheel is the
+one that refreshes, and the other phone hears via CloudKit's silent push.

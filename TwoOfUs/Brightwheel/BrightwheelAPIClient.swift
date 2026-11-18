@@ -11,6 +11,13 @@ struct BrightwheelAPIConfig: Sendable {
     var mePath = "/users/me"
     func studentsPath(guardianID: String) -> String { "/guardians/\(guardianID)/students" }
     func activitiesPath(studentID: String) -> String { "/students/\(studentID)/activities" }
+    /// Messaging lives on API v2 (the web bundle's `getGuardianThreads` /
+    /// `getGuardianThreadMessages`), so its paths carry the version.
+    var v2BaseURL = URL(string: "https://schools.mybrightwheel.com/api/v2")!
+    func threadsPath(guardianID: String) -> String { "/guardians/\(guardianID)/message_threads" }
+    func threadMessagesPath(guardianID: String, threadID: String) -> String {
+        "/guardians/\(guardianID)/message_threads/\(threadID)/messages"
+    }
     /// Honest User-Agent (same policy as SNOO). If the API turns out to gate
     /// on browser UAs this is the first knob to check — see the doc §5.
     var userAgent = "TwoOfUs-iOS (unofficial personal Brightwheel integration)"
@@ -109,6 +116,24 @@ struct BrightwheelAPIClient: Sendable {
         return string
     }
 
+    /// The guardian's message threads, newest activity first.
+    func messageThreads(cookie: String, guardianID: String) async throws -> [BrightwheelThread] {
+        let data = try await get(config.threadsPath(guardianID: guardianID), cookie: cookie,
+                                 baseURL: config.v2BaseURL,
+                                 query: [URLQueryItem(name: "page_limit", value: "25")])
+        return try decode(BrightwheelThreadPage.self, from: data).results
+    }
+
+    /// The most recent page of one thread's messages.
+    func threadMessages(cookie: String, guardianID: String,
+                        threadID: String) async throws -> [BrightwheelMessage] {
+        let data = try await get(
+            config.threadMessagesPath(guardianID: guardianID, threadID: threadID), cookie: cookie,
+            baseURL: config.v2BaseURL,
+            query: [URLQueryItem(name: "page_limit", value: "25")])
+        return try decode(BrightwheelMessagePage.self, from: data).messages
+    }
+
     private func activitiesData(cookie: String, studentID: String, day: Date) async throws -> Data {
         // end_date is EXCLUSIVE (verified by the brightwheel-home-assistant
         // integration, whose same-day fetches came back empty until it used
@@ -126,10 +151,10 @@ struct BrightwheelAPIClient: Sendable {
         )
     }
 
-    private func get(_ path: String, cookie: String,
+    private func get(_ path: String, cookie: String, baseURL: URL? = nil,
                      query: [URLQueryItem] = []) async throws -> Data {
         var components = URLComponents(
-            url: config.baseURL.appending(path: path), resolvingAgainstBaseURL: false)!
+            url: (baseURL ?? config.baseURL).appending(path: path), resolvingAgainstBaseURL: false)!
         if !query.isEmpty { components.queryItems = query }
         var request = URLRequest(url: components.url!)
         request.setValue("\(BrightwheelAPIConfig.cookieName)=\(cookie)",

@@ -56,4 +56,25 @@ final class DaycareNotificationTests: XCTestCase {
         XCTAssertTrue(NotificationManager.isFreshDaycareEvent(now.addingTimeInterval(30), now: now),
                       "small clock skew from the daycare's server is forgiven")
     }
+
+    // MARK: Messages and health alerts
+
+    func testMessageAndHealthBodies() {
+        XCTAssertEqual(NotificationManager.DaycareText.message(author: "Chelsea Peacock", body: "Hi!"),
+                       "💬 Chelsea Peacock: Hi!")
+        XCTAssertEqual(NotificationManager.DaycareText.message(author: nil, body: "Hi!"), "💬 Hi!")
+        XCTAssertEqual(NotificationManager.DaycareText.healthAlert(author: "Chelsea Peacock", text: "Fever"),
+                       "Chelsea Peacock: Fever")
+        XCTAssertEqual(NotificationManager.DaycareText.healthCheck("Miller", type: .temperature, value: 100.5),
+                       "🌡️ Miller's temperature was 100.5°")
+    }
+
+    func testHealthAlertsReachFurtherBackThanPings() {
+        let now = date(hour: 17)
+        XCTAssertTrue(NotificationManager.isRecentHealthEvent(date(hour: 15), now: now),
+                      "a 3pm fever call seen at 5pm must still alert")
+        XCTAssertFalse(NotificationManager.isFreshDaycareEvent(date(hour: 15), now: now))
+        XCTAssertFalse(NotificationManager.isRecentHealthEvent(
+            now.addingTimeInterval(-13 * 3600), now: now), "a backfill stays silent")
+    }
 }

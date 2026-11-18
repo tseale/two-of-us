@@ -73,10 +73,14 @@ struct NotificationSettingsView: View {
                                       tint: AppColor.accentCheck)
                 }
                 .onChange(of: prefs.daycareNotificationsEnabled) { _, _ in notificationsChanged() }
+                Toggle(isOn: $prefs.daycareHealthAlertsEnabled) {
+                    SettingsIconLabel(title: "Health alerts", systemImage: "thermometer.medium",
+                                      tint: AppColor.urgencyAmber)
+                }
             } header: {
                 Text("When the daycare logs")
             } footer: {
-                Text("A quiet ping when staff log a feed, nap, diaper, or photo in Brightwheel. This device only — each parent chooses for their own phone.")
+                Text("Daycare events: a quiet ping when staff log a feed, nap, diaper, photo, or message in Brightwheel. Health alerts: a time-sensitive alert, with sound, when a message or health check mentions a fever, sickness, or an incident. This device only — each parent chooses for their own phone.")
             }
 
             Section {

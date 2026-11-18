@@ -488,6 +488,62 @@ enum NotificationManager {
             return "💤 \(babyName) woke up — \(verb) \(TimeFormatting.duration(from: start, to: end))"
         }
         static let photo = "📸 New photo from daycare"
+        /// A message from the daycare — "💬 Chelsea Peacock: Good afternoon…".
+        static func message(author: String?, body: String) -> String {
+            guard let author, !author.isEmpty else { return "💬 \(body)" }
+            return "💬 \(author): \(body)"
+        }
+        /// The loud health alert's body: who said it, then exactly what they
+        /// said — the expanded notification is the whole message.
+        static func healthAlert(author: String?, text: String) -> String {
+            guard let author, !author.isEmpty else { return text }
+            return "\(author): \(text)"
+        }
+        static func healthCheck(_ babyName: String, type: HealthCheckType, value: Double) -> String {
+            switch type {
+            case .temperature: return "🌡️ \(babyName)'s temperature was \(value.formatted(.number.precision(.fractionLength(0...1))))°"
+            case .weight: return "⚖️ \(babyName) weighed \(value.formatted(.number.precision(.fractionLength(0...2)))) lb"
+            }
+        }
+    }
+
+    /// Health alerts reach further back than the 10-minute ping window: the
+    /// fetch rides app opens and background refresh, so a fever call can be
+    /// an hour old by the time a phone sees it — still exactly when a parent
+    /// needs to hear it. Past this, a re-install backfill stays silent.
+    static let daycareHealthAlertWindow: TimeInterval = 12 * 60 * 60
+
+    static func isRecentHealthEvent(_ when: Date, now: Date = .now) -> Bool {
+        now.timeIntervalSince(when) <= daycareHealthAlertWindow
+            && when.timeIntervalSince(now) <= 60
+    }
+
+    /// The one LOUD daycare notification: a fever call, "please pick him
+    /// up", an incident. Time-sensitive (breaks through Focus and the
+    /// summary) and the only notification in the app with a sound. Quiet
+    /// hours don't apply — a daycare health call happens during the day,
+    /// and missing it is the failure this exists to prevent. Same
+    /// externalID dedupe as the quiet pings, under its own key, so both
+    /// phones (importer + sync path) can call in safely.
+    static func postDaycareHealthAlert(dedupeKey: String, body: String, at when: Date) {
+        guard prefs.daycareHealthAlertsEnabled, !prefs.demoModeEnabled else { return }
+        guard isRecentHealthEvent(when) else { return }
+        let key = "daycare-health-\(dedupeKey)"
+        guard !hasPosted(key) else { return }
+        markPosted(key)
+
+        let content = makeContent(
+            title: "Daycare · Health", body: body,
+            category: NotificationID.Category.daycare,
+            threadID: NotificationID.Thread.daycareHealth,
+            level: .timeSensitive, relevanceScore: 1.0
+        )
+        content.sound = .default
+        Task {
+            try? await center.add(UNNotificationRequest(
+                identifier: NotificationID.Request.daycareHealth(dedupeKey),
+                content: content, trigger: nil))
+        }
     }
 
     /// Posts one quiet daycare ping. Gated on the per-device toggle, demo

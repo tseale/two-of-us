@@ -334,4 +334,55 @@ final class BrightwheelImporterTests: XCTestCase {
         XCTAssertEqual(summary.sleeps, 1)
         XCTAssertEqual(summary.openNapStartedAt, afternoon.when)
     }
+
+    // MARK: Messages
+
+    private func message(id: String, minutesAgo: Int, body: String,
+                         userType: String = "teacher", deleted: Bool = false) throws -> BrightwheelMessage {
+        let when = ISO8601DateFormatter()
+            .string(from: Date(timeIntervalSinceNow: -Double(minutesAgo) * 60))
+        var dict: [String: Any] = [
+            "object_id": id, "message_content_id": "c-\(id)", "type": "simple_message",
+            "body": body, "read": false, "force_delivery": false, "created_at": when,
+            "attachments": [],
+            "sender": ["object_id": "u-\(id)", "first_name": "Chelsea", "last_name": "Peacock",
+                       "user_type": userType],
+        ]
+        dict["deleted_at"] = deleted ? when : NSNull()
+        let page: [String: Any] = ["results": [["message": dict]], "has_more": false, "page_size": 25]
+        return try XCTUnwrap(JSONDecoder().decode(
+            BrightwheelMessagePage.self,
+            from: JSONSerialization.data(withJSONObject: page)).messages.first)
+    }
+
+    func testStaffMessagesImportAsStaffNotes() throws {
+        let summary = BrightwheelImporter(context: container.mainContext).importMessages([
+            try message(id: "m1", minutesAgo: 30, body: "Miller has a low grade fever"),
+        ])
+        XCTAssertEqual(summary.messages, 1)
+        let notes = try container.mainContext.fetch(FetchDescriptor<StaffNoteEvent>())
+        XCTAssertEqual(notes.count, 1)
+        XCTAssertEqual(notes.first?.text, "Miller has a low grade fever")
+        XCTAssertEqual(notes.first?.authorName, "Chelsea Peacock")
+        XCTAssertEqual(notes.first?.externalID, "msg-m1")
+        XCTAssertTrue(notes.first?.isFromDaycare == true)
+    }
+
+    func testParentAndDeletedMessagesAreSkipped() throws {
+        let summary = BrightwheelImporter(context: container.mainContext).importMessages([
+            try message(id: "m1", minutesAgo: 20, body: "Thanks, on my way", userType: "guardian"),
+            try message(id: "m2", minutesAgo: 10, body: "Oops", deleted: true),
+        ])
+        XCTAssertEqual(summary.messages, 0)
+        XCTAssertEqual(try container.mainContext.fetchCount(FetchDescriptor<StaffNoteEvent>()), 0)
+    }
+
+    func testMessagesDedupeOnReimport() throws {
+        let importer = BrightwheelImporter(context: container.mainContext)
+        let batch = [try message(id: "m1", minutesAgo: 5, body: "Hello from the infant room")]
+        XCTAssertEqual(importer.importMessages(batch).messages, 1)
+        let again = importer.importMessages(batch)
+        XCTAssertEqual(again.messages, 0)
+        XCTAssertEqual(again.skippedDuplicates, 1)
+    }
 }

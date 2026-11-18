@@ -152,7 +152,7 @@ struct BrightwheelDetailView: View {
                                    value: last.formatted(.relative(presentation: .named)))
                 }
             } footer: {
-                Text("Auto-import pulls today's report each time the app opens. Imported events land on the timeline with a Daycare tag and sync to both phones.")
+                Text("Auto-import pulls today's report and staff messages each time the app opens, and in the background when iOS allows it. Imported events land on the timeline with a Daycare tag and sync to both phones.")
             }
 
             Section {
@@ -191,6 +191,12 @@ struct BrightwheelDetailView: View {
                             ProgressView()
                         }
                     }
+                }
+                .disabled(isFetching)
+                Button {
+                    fetchMessages()
+                } label: {
+                    Text("Fetch recent messages (raw)")
                 }
                 .disabled(isFetching)
             } footer: {
@@ -236,6 +242,22 @@ struct BrightwheelDetailView: View {
             Button("Disconnect", role: .destructive) {
                 manager.disconnect(context: context)
                 dismiss()
+            }
+        }
+    }
+
+    private func fetchMessages() {
+        isFetching = true
+        fetchError = nil
+        Task {
+            defer { isFetching = false }
+            do {
+                fetchOutput = try await manager.fetchMessagesRawSummary()
+                Haptics.success()
+            } catch let error as BrightwheelAPIError {
+                fetchError = error.userMessage
+            } catch {
+                fetchError = "Something went wrong. Try again."
             }
         }
     }

@@ -32,6 +32,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             DaycareGeofenceManager.shared.refreshMonitoring()
         }
 
+        // Brightwheel background refresh: the handler must be registered
+        // before launch finishes, on every launch — a background refresh
+        // launch never connects a scene.
+        BrightwheelManager.registerBackgroundRefresh()
+
         // Local notifications: become the delegate so action buttons route to us,
         // and register the categories that give those buttons their layout.
         UNUserNotificationCenter.current().delegate = self
@@ -89,6 +94,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             // Re-aim the daycare geofence: the co-parent's settings edits
             // (new pin, radius, on/off) arrive via sync while we're away.
             DaycareGeofenceManager.shared.refreshMonitoring()
+            BrightwheelManager.shared.scheduleBackgroundRefresh()
         }
         // Reconcile against the SAME store the UI reads (the shared container's
         // main context) — not a QuickLogger-built throwaway container whose
