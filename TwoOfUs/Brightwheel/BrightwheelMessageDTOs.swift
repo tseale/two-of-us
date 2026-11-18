@@ -39,10 +39,49 @@ struct BrightwheelThread: Decodable, Sendable {
     var id: String? { threadID ?? objectID }
 }
 
+/// A list of messages in whichever wrapper the route uses: v2's
+/// `{results: [{message: …}]}`, a flat `{results|messages|data: […]}`, or a
+/// bare array. Only the v2 shape is in the bundle's schemas; the v1
+/// per-child route's isn't, so this takes any of them.
 struct BrightwheelMessagePage: Decodable, Sendable {
-    struct Entry: Decodable, Sendable { let message: BrightwheelMessage? }
-    let results: [Entry]
-    var messages: [BrightwheelMessage] { results.compactMap(\.message) }
+    let messages: [BrightwheelMessage]
+
+    private struct Key: CodingKey {
+        var stringValue: String
+        var intValue: Int? { nil }
+        init(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { nil }
+    }
+
+    /// One array element: either `{message: {...}}` or the message itself.
+    private struct Element: Decodable {
+        let message: BrightwheelMessage?
+        init(from decoder: Decoder) throws {
+            let keyed = try? decoder.container(keyedBy: Key.self)
+            if let keyed, keyed.contains(Key(stringValue: "message")),
+               let wrapped = try? keyed.decode(BrightwheelMessage.self, forKey: Key(stringValue: "message")) {
+                message = wrapped
+            } else {
+                message = try? BrightwheelMessage(from: decoder)
+            }
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        if let array = try? decoder.singleValueContainer().decode([Element].self) {
+            messages = array.compactMap(\.message)
+            return
+        }
+        let keyed = try decoder.container(keyedBy: Key.self)
+        for name in ["results", "messages", "data"] {
+            if let array = try? keyed.decode([Element].self, forKey: Key(stringValue: name)) {
+                messages = array.compactMap(\.message)
+                return
+            }
+        }
+        throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath,
+                                                debugDescription: "no message list"))
+    }
 }
 
 struct BrightwheelMessage: Decodable, Sendable {
