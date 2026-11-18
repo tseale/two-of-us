@@ -196,7 +196,7 @@ struct BrightwheelDetailView: View {
                 Button {
                     fetchMessages()
                 } label: {
-                    Text("Fetch recent messages (raw)")
+                    Text("Check message routes (raw)")
                 }
                 .disabled(isFetching)
             } footer: {
@@ -252,7 +252,7 @@ struct BrightwheelDetailView: View {
         Task {
             defer { isFetching = false }
             do {
-                fetchOutput = try await manager.fetchMessagesRawSummary()
+                fetchOutput = try await manager.probeMessageRoutes()
                 Haptics.success()
             } catch let error as BrightwheelAPIError {
                 fetchError = error.userMessage

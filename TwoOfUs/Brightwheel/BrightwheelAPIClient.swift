@@ -15,6 +15,11 @@ struct BrightwheelAPIConfig: Sendable {
     /// `getGuardianThreadMessages`), so its paths carry the version.
     var v2BaseURL = URL(string: "https://schools.mybrightwheel.com/api/v2")!
     func threadsPath(guardianID: String) -> String { "/guardians/\(guardianID)/message_threads" }
+    /// The per-child thread on API v1 (the web bundle's
+    /// `getStudentThreadMessages`) — what the parent app shows as the
+    /// "Miller Seale" conversation. The v2 guardian-threads route 404'd for
+    /// a guardian account on 2026-11-17, so this is tried first.
+    func studentMessagesPath(studentID: String) -> String { "/students/\(studentID)/messages" }
     func threadMessagesPath(guardianID: String, threadID: String) -> String {
         "/guardians/\(guardianID)/message_threads/\(threadID)/messages"
     }
@@ -132,6 +137,31 @@ struct BrightwheelAPIClient: Sendable {
             baseURL: config.v2BaseURL,
             query: [URLQueryItem(name: "page_limit", value: "25")])
         return try decode(BrightwheelMessagePage.self, from: data).messages
+    }
+
+    /// The child's message thread (v1). Decodes leniently — see
+    /// `BrightwheelMessagePage` — because this route's response shape isn't
+    /// in the bundle's schemas.
+    func studentMessages(cookie: String, studentID: String) async throws -> [BrightwheelMessage] {
+        let data = try await get(config.studentMessagesPath(studentID: studentID), cookie: cookie,
+                                 query: [URLQueryItem(name: "page_size", value: "25")])
+        return try decode(BrightwheelMessagePage.self, from: data).messages
+    }
+
+    /// Diagnostic GET that never throws on HTTP status: returns the status
+    /// (nil on a network failure) and the body as text. Settings' route
+    /// probe uses it to show what each candidate endpoint answers.
+    func probe(cookie: String, baseURL: URL, path: String,
+               query: [URLQueryItem] = []) async -> (status: Int?, body: String) {
+        var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)!
+        if !query.isEmpty { components.queryItems = query }
+        var request = URLRequest(url: components.url!)
+        request.setValue("\(BrightwheelAPIConfig.cookieName)=\(cookie)", forHTTPHeaderField: "Cookie")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(config.userAgent, forHTTPHeaderField: "User-Agent")
+        request.httpShouldHandleCookies = false
+        guard let (data, response) = try? await urlSession.data(for: request) else { return (nil, "") }
+        return ((response as? HTTPURLResponse)?.statusCode, String(data: data, encoding: .utf8) ?? "")
     }
 
     private func activitiesData(cookie: String, studentID: String, day: Date) async throws -> Data {

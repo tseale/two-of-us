@@ -191,13 +191,30 @@ final class BrightwheelManager {
     /// threads call plus one call per active thread.
     static let messageLookback: TimeInterval = 3 * 24 * 60 * 60
 
-    /// Pulls recent staff messages from every guardian thread and imports
-    /// them as staff notes (health news alerts loudly — see
-    /// `BrightwheelImporter.importMessages`). Returns how many imported;
-    /// failures are logged and leave the activity import untouched.
-    private func syncMessages(session: BrightwheelSession, context: ModelContext) async -> Int {
-        let cutoff = Date.now.addingTimeInterval(-Self.messageLookback)
-        do {
+    /// The two message routes found in Brightwheel's web bundle. Which one
+    /// a guardian account answers isn't documented anywhere — v2 guardian
+    /// threads 404'd on Taylor's account — so syncs try them in order and
+    /// remember the first that works.
+    enum MessageRoute: String, CaseIterable {
+        case studentThread      // v1 /students/{id}/messages
+        case guardianThreads    // v2 /guardians/{id}/message_threads (+ /messages)
+    }
+
+    private static let messageRouteKey = "brightwheel.messageRoute"
+
+    private var messageRouteOrder: [MessageRoute] {
+        let remembered = UserDefaults.standard.string(forKey: Self.messageRouteKey)
+            .flatMap(MessageRoute.init(rawValue:))
+        guard let remembered else { return MessageRoute.allCases }
+        return [remembered] + MessageRoute.allCases.filter { $0 != remembered }
+    }
+
+    private func fetchMessages(_ route: MessageRoute, session: BrightwheelSession,
+                               cutoff: Date) async throws -> [BrightwheelMessage] {
+        switch route {
+        case .studentThread:
+            return try await client.studentMessages(cookie: session.cookie, studentID: session.studentID)
+        case .guardianThreads:
             let threads = try await client.messageThreads(
                 cookie: session.cookie, guardianID: session.guardianID)
             var messages: [BrightwheelMessage] = []
@@ -206,35 +223,64 @@ final class BrightwheelManager {
                 // A thread whose latest message we can date and is stale has
                 // nothing new; an undatable one is fetched to be safe.
                 if let latest = thread.message?.when, latest < cutoff { continue }
-                let page = try await client.threadMessages(
+                messages += try await client.threadMessages(
                     cookie: session.cookie, guardianID: session.guardianID, threadID: threadID)
-                messages += page.filter { ($0.when ?? .distantPast) >= cutoff }
             }
-            let summary = BrightwheelImporter(context: context, notifiesNewEvents: true)
-                .importMessages(messages)
-            return summary.messages
-        } catch {
-            AppLog.store.error("Brightwheel message sync failed: \(error)")
-            return 0
+            return messages
         }
     }
 
-    /// The raw threads + latest thread's messages, for the Settings debug
-    /// console — the first real response confirms the v2 shapes.
-    func fetchMessagesRawSummary() async throws -> String {
-        guard let session else { throw BrightwheelAPIError.unauthorized }
-        let threads = try await client.messageThreads(cookie: session.cookie, guardianID: session.guardianID)
-        var lines = ["\(threads.count) thread(s)"]
-        for thread in threads.prefix(5) {
-            lines.append("• \(thread.type ?? "?") \(thread.id ?? "no id") — latest: \(thread.message?.createdAt ?? "?")")
-        }
-        if let id = threads.first?.id {
-            let messages = try await client.threadMessages(
-                cookie: session.cookie, guardianID: session.guardianID, threadID: id)
-            lines.append("\nLatest thread, \(messages.count) message(s):")
-            for m in messages.prefix(10) {
-                lines.append("• \(m.createdAt ?? "?") \(m.sender?.displayName ?? "?") [\(m.sender?.userType ?? "?")]: \(m.body?.prefix(80) ?? "")")
+    /// Pulls recent staff messages and imports them as staff notes (health
+    /// news alerts — see `BrightwheelImporter.importMessages`). Tries each
+    /// route until one answers, remembering the winner. Returns how many
+    /// imported; failures are logged and leave the activity import untouched.
+    private func syncMessages(session: BrightwheelSession, context: ModelContext) async -> Int {
+        let cutoff = Date.now.addingTimeInterval(-Self.messageLookback)
+        for route in messageRouteOrder {
+            do {
+                let messages = try await fetchMessages(route, session: session, cutoff: cutoff)
+                    .filter { ($0.when ?? .distantPast) >= cutoff }
+                UserDefaults.standard.set(route.rawValue, forKey: Self.messageRouteKey)
+                let summary = BrightwheelImporter(context: context, notifiesNewEvents: true)
+                    .importMessages(messages)
+                return summary.messages
+            } catch BrightwheelAPIError.unauthorized {
+                AppLog.store.error("Brightwheel message sync: session rejected")
+                return 0
+            } catch {
+                AppLog.store.error("Brightwheel message route \(route.rawValue, privacy: .public) failed: \(error)")
             }
+        }
+        return 0
+    }
+
+    /// Settings' debug console: what every candidate message route answers
+    /// (HTTP status), then the body of the first one that returned 200 —
+    /// one tap tells us which route this account uses and its exact shape.
+    func probeMessageRoutes() async throws -> String {
+        guard let session else { throw BrightwheelAPIError.unauthorized }
+        let v1 = BrightwheelAPIConfig().baseURL
+        let v2 = BrightwheelAPIConfig().v2BaseURL
+        let sid = session.studentID, gid = session.guardianID
+        let candidates: [(URL, String, String)] = [
+            (v1, "/students/\(sid)/messages", "v1 student messages"),
+            (v2, "/students/\(sid)/messages", "v2 student messages"),
+            (v2, "/guardians/\(gid)/message_threads", "v2 guardian threads"),
+            (v1, "/guardians/\(gid)/message_threads", "v1 guardian threads"),
+            (v1, "/guardians/\(gid)/messages", "v1 guardian messages"),
+            (v1, "/students/\(sid)/threads", "v1 student threads"),
+            (v2, "/users/\(gid)/message_count", "v2 unread count"),
+        ]
+        var lines: [String] = []
+        var firstBody: (String, String)?
+        for (base, path, label) in candidates {
+            let (status, body) = await client.probe(cookie: session.cookie, baseURL: base, path: path,
+                                                    query: [URLQueryItem(name: "page_size", value: "5")])
+            lines.append("\(status.map(String.init) ?? "ERR")  \(label)")
+            if status == 200, firstBody == nil, label != "v2 unread count" { firstBody = (label, body) }
+        }
+        if let (label, body) = firstBody {
+            lines.append("\n— \(label) —\n" + String(body.prefix(3000)))
         }
         return lines.joined(separator: "\n")
     }

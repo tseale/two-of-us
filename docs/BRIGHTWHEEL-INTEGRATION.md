@@ -299,8 +299,15 @@ schemas):
 | `GET /api/v2/guardians/{guardian_id}/message_threads/{thread_id}/messages?page_limit=25&starting_after=` | `{results: [{message: {object_id, body, created_at, type, broadcast, sender: {first_name, last_name, user_type}, deleted_at, attachments}}], has_more, page_size}` |
 | `GET /api/v2/users/{user_id}/message_count` | `{unread_count, unread_parent_count, unread_staff_count}` (not used yet) |
 
-Same cookie as v1. Status: shapes are verified-in-bundle; confirm against the
-live account with Settings → Brightwheel → **Fetch recent messages (raw)**.
+Same cookie as v1. **Live result (2026-11-17): the v2 guardian-threads route
+returned 404 on Taylor's guardian account.** The bundle's other candidate is
+v1 `GET /students/{student_id}/messages` (`getStudentThreadMessages` — the
+per-child thread the parent app shows as "Miller Seale"). Syncs now try the
+student thread first, then guardian threads, and remember the first that
+answers (`BrightwheelManager.MessageRoute`); `BrightwheelMessagePage` decodes
+any list wrapper since the v1 shape isn't in the schemas. Settings →
+Brightwheel → **Check message routes (raw)** lists the HTTP status of every
+candidate route and the body of the first 200, so it shows which route works.
 
 **Import** (`BrightwheelImporter.importMessages`): each staff message is a
 `StaffNoteEvent` (author = sender name, timestamp = `created_at`,

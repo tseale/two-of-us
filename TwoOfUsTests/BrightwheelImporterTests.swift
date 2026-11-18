@@ -385,4 +385,20 @@ final class BrightwheelImporterTests: XCTestCase {
         XCTAssertEqual(again.messages, 0)
         XCTAssertEqual(again.skippedDuplicates, 1)
     }
+
+    func testMessageListDecodesEveryWrapper() throws {
+        let msg: [String: Any] = ["object_id": "m1", "body": "Hi", "created_at": "2026-11-17T21:00:00.000Z",
+                                  "sender": ["first_name": "Chelsea", "user_type": "teacher"]]
+        let shapes: [Any] = [
+            ["results": [["message": msg]]],
+            ["results": [msg]],
+            ["messages": [msg]],
+            [msg],
+        ]
+        for shape in shapes {
+            let page = try JSONDecoder().decode(BrightwheelMessagePage.self,
+                                                from: JSONSerialization.data(withJSONObject: shape))
+            XCTAssertEqual(page.messages.first?.objectID, "m1", "\(shape)")
+        }
+    }
 }
