@@ -49,6 +49,7 @@ struct HomeView: View {
     @State private var dropoffBoard: DropoffBoardInfo?
     @State private var editing: TimelineEntry?
     @State private var viewingMedia: MediaViewing?
+    @State private var readingMessage: StaffNoteEvent?
     @State private var editingSleepStart = false
     @State private var toast: ToastData?
     @State private var showSettings = false
@@ -244,6 +245,9 @@ struct HomeView: View {
             }
             .sheet(item: $viewingMedia) { viewing in
                 MediaViewerSheet(events: viewing.events)
+            }
+            .sheet(item: $readingMessage) { note in
+                DaycareMessageSheet(note: note, thread: staffNoteEvents)
             }
             .sheet(isPresented: $editingSleepStart) {
                 if let sleep = activeSleep {
@@ -2603,6 +2607,8 @@ struct HomeView: View {
                         viewingMedia = MediaViewing(events: [e])
                     } else if case .mediaGroup(let events) = entry {
                         viewingMedia = MediaViewing(events: events)
+                    } else if case .staffNote(let note) = entry, note.isFromDaycare {
+                        readingMessage = note
                     } else if entry.isEditable, !entry.isActiveSleep {
                         // A running sleep has no end to edit yet — its
                         // controls live on the active card above.
@@ -2612,7 +2618,7 @@ struct HomeView: View {
                 // The row is tappable but nothing tells VoiceOver that —
                 // without the trait + hint it reads as inert text.
                 .accessibilityAddTraits(.isButton)
-                .accessibilityHint("Edits this entry")
+                .accessibilityHint(entry.isDaycareNote ? "Opens the full message" : "Edits this entry")
                 .swipeActions(edge: .trailing) {
                     Button(role: .destructive) { delete(entry) } label: {
                         Label("Delete", systemImage: "trash")

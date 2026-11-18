@@ -6,6 +6,15 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Changed — daycare messages read better
+- Long Brightwheel messages no longer take over the timeline. They show 3
+  lines (4 for health news) with "Read more", and tapping one opens a
+  chat-style sheet with the full message and the rest of that day's daycare
+  messages, so a follow-up reads right under the first message.
+- Center-wide announcements collapse to a single 📣 line with their headline
+  (e.g. "Book of the Month"); tap to read. They never notify or trigger
+  health alerts.
+
 ### Added — daycare messages and health alerts
 - Brightwheel messages now come into Two of Us. When a teacher writes in
   Brightwheel's Messages tab, it lands on the timeline as a daycare note,

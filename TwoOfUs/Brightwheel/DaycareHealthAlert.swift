@@ -89,5 +89,37 @@ extension StaffNoteEvent {
     /// request, incident) — styled red with a 🌡️ on the timeline. Computed
     /// from the text, so no stored field or schema change. (Lives here, not
     /// on the model, because the model file is shared with the extensions.)
-    var isHealthNews: Bool { isFromDaycare && DaycareHealthAlert.isConcerning(text) }
+    var isHealthNews: Bool { isFromDaycare && !isAnnouncement && DaycareHealthAlert.isConcerning(text) }
+
+    /// A Brightwheel chat message (vs. an `ac_note` activity).
+    var isDaycareMessage: Bool { externalID?.hasPrefix("msg-") == true }
+
+    /// A center-wide Brightwheel broadcast — collapses to one line.
+    var isAnnouncement: Bool { externalID?.hasPrefix("msg-b-") == true }
+
+    /// The announcement's headline: its first line, minus decorative emoji,
+    /// and out of ALL CAPS — "🍂 BOARD BOOK OF THE MONTH 🍂" → "Board Book
+    /// of the Month".
+    var announcementTitle: String {
+        StaffNoteEvent.headline(from: text)
+    }
+
+    static func headline(from text: String) -> String {
+        let firstLine = text.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { !$0.isEmpty } ?? ""
+        var line = firstLine.unicodeScalars
+            .filter { !($0.properties.isEmojiPresentation || $0.properties.isEmoji && $0.value > 0x2000) }
+            .reduce(into: "") { $0.unicodeScalars.append($1) }
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters.subtracting(CharacterSet(charactersIn: "!?"))))
+        let letters = line.filter(\.isLetter)
+        if !letters.isEmpty, letters.allSatisfy(\.isUppercase) {
+            let small: Set<String> = ["a", "an", "and", "at", "for", "in", "of", "on", "or", "the", "to"]
+            line = line.lowercased().split(separator: " ").enumerated().map { i, word in
+                i > 0 && small.contains(String(word)) ? String(word) : word.prefix(1).uppercased() + word.dropFirst()
+            }.joined(separator: " ")
+        }
+        if line.count > 60 { line = String(line.prefix(57)).trimmingCharacters(in: .whitespaces) + "…" }
+        return line.isEmpty ? "Announcement" : line
+    }
 }

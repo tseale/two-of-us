@@ -338,7 +338,8 @@ final class BrightwheelImporterTests: XCTestCase {
     // MARK: Messages
 
     private func message(id: String, minutesAgo: Int, body: String,
-                         userType: String = "teacher", deleted: Bool = false) throws -> BrightwheelMessage {
+                         userType: String = "teacher", deleted: Bool = false,
+                         broadcast: Bool = false) throws -> BrightwheelMessage {
         let when = ISO8601DateFormatter()
             .string(from: Date(timeIntervalSinceNow: -Double(minutesAgo) * 60))
         var dict: [String: Any] = [
@@ -349,6 +350,7 @@ final class BrightwheelImporterTests: XCTestCase {
                        "user_type": userType],
         ]
         dict["deleted_at"] = deleted ? when : NSNull()
+        dict["broadcast"] = broadcast
         let page: [String: Any] = ["results": [["message": dict]], "has_more": false, "page_size": 25]
         return try XCTUnwrap(JSONDecoder().decode(
             BrightwheelMessagePage.self,
@@ -400,5 +402,31 @@ final class BrightwheelImporterTests: XCTestCase {
                                                 from: JSONSerialization.data(withJSONObject: shape))
             XCTAssertEqual(page.messages.first?.objectID, "m1", "\(shape)")
         }
+    }
+
+    func testAnnouncementsImportUnderTheirOwnKey() throws {
+        let summary = BrightwheelImporter(context: container.mainContext).importMessages([
+            try message(id: "b1", minutesAgo: 30, body: "🍂 BOARD BOOK OF THE MONTH 🍂\nDear families…", broadcast: true),
+        ])
+        XCTAssertEqual(summary.messages, 1)
+        let note = try XCTUnwrap(try container.mainContext.fetch(FetchDescriptor<StaffNoteEvent>()).first)
+        XCTAssertEqual(note.externalID, "msg-b-b1")
+        XCTAssertTrue(note.isAnnouncement)
+        XCTAssertEqual(note.announcementTitle, "Board Book of the Month")
+    }
+
+    func testAnnouncementImportedBeforeTaggingIsRekeyedNotDuplicated() throws {
+        let importer = BrightwheelImporter(context: container.mainContext)
+        importer.importMessages([try message(id: "b1", minutesAgo: 30, body: "News")])   // old build: untagged
+        importer.importMessages([try message(id: "b1", minutesAgo: 30, body: "News", broadcast: true)])
+        let notes = try container.mainContext.fetch(FetchDescriptor<StaffNoteEvent>())
+        XCTAssertEqual(notes.count, 1)
+        XCTAssertEqual(notes.first?.externalID, "msg-b-b1")
+    }
+
+    func testAnnouncementHeadlines() {
+        XCTAssertEqual(StaffNoteEvent.headline(from: "Picture day is Friday!\nWear your best."), "Picture day is Friday!")
+        XCTAssertEqual(StaffNoteEvent.headline(from: "🦃 HAPPY THANKSGIVING FROM ALL OF US 🦃"), "Happy Thanksgiving From All of Us")
+        XCTAssertEqual(StaffNoteEvent.headline(from: "   "), "Announcement")
     }
 }

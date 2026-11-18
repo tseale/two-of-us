@@ -86,7 +86,7 @@ enum TimelineEntry: Identifiable {
         case .mood(let e): return e.level.emoji
         case .potty: return "🚽"
         case .milestone: return "🏆"
-        case .staffNote(let e): return e.isHealthNews ? "🌡️" : "💬"
+        case .staffNote(let e): return e.isAnnouncement ? "📣" : (e.isHealthNews ? "🌡️" : "💬")
         default: return kind?.emoji ?? ""
         }
     }
@@ -216,7 +216,8 @@ enum TimelineEntry: Identifiable {
         case .potty(let e): return e.notes
         case .milestone(let e): return e.notes
         // Quote-card style: the staff's words read as a quotation.
-        case .staffNote(let e): return "“\(e.text)”"
+        // Announcements collapse to their title row; the text lives in the sheet.
+        case .staffNote(let e): return e.isAnnouncement ? nil : "“\(e.text)”"
         }
     }
 
@@ -265,6 +266,7 @@ enum TimelineEntry: Identifiable {
         case .milestone(let e):
             return "Milestone · " + e.text
         case .staffNote(let e):
+            if e.isAnnouncement { return e.announcementTitle }
             if let author = e.authorName, !author.isEmpty {
                 return "Note from \(author)"
             }
@@ -277,5 +279,13 @@ enum TimelineEntry: Identifiable {
         case .feed(let e): return "Feed · " + OzFormat.string(e.amountOz) + " oz"
         default: return detail
         }
+    }
+}
+
+extension TimelineEntry {
+    /// A note from daycare staff — tapping opens the message sheet.
+    var isDaycareNote: Bool {
+        if case .staffNote(let e) = self { return e.isFromDaycare }
+        return false
     }
 }

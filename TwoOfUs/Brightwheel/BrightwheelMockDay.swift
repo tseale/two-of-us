@@ -149,17 +149,31 @@ enum BrightwheelMockDay {
         let date = calendar.date(bySettingHour: 15, minute: 0, second: 0, of: day) ?? day
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let message: [String: Any] = [
-            "object_id": "\(idPrefix)\(dayKey)-message-1",
-            "message_content_id": "\(idPrefix)\(dayKey)-content-1",
-            "type": "simple_message", "read": false, "force_delivery": false,
-            "body": "Good afternoon, just letting you know he has a low grade fever — 99.9 under the arm. 100.5 is our cut off to send children home, so we'll check again when he wakes from his nap and keep you updated.",
-            "created_at": f.string(from: date),
-            "attachments": [], "deleted_at": NSNull(), "deleted_by": NSNull(),
-            "sender": ["object_id": "\(idPrefix)staff-1", "first_name": "Ms.", "last_name": "Sarah",
-                       "user_type": "teacher"],
+        func at(_ hour: Int, _ minute: Int) -> String {
+            f.string(from: calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? date)
+        }
+        func message(_ slot: String, _ time: String, _ body: String, broadcast: Bool = false,
+                     sender: (String, String) = ("Ms.", "Sarah")) -> [String: Any] {
+            [
+                "object_id": "\(idPrefix)\(dayKey)-\(slot)",
+                "message_content_id": "\(idPrefix)\(dayKey)-content-\(slot)",
+                "type": "simple_message", "read": false, "force_delivery": false,
+                "broadcast": broadcast, "body": body, "created_at": time,
+                "attachments": [], "deleted_at": NSNull(), "deleted_by": NSNull(),
+                "sender": ["object_id": "\(idPrefix)staff-\(sender.1)", "first_name": sender.0,
+                           "last_name": sender.1, "user_type": "teacher"],
+            ]
+        }
+        let messages = [
+            message("message-2", at(16, 5), "Rechecked after his nap and he's at 99.1 — much happier and playing on the mat now. 😊"),
+            message("message-1", f.string(from: date), "Good afternoon, just letting you know he has a low grade fever — 99.9 under the arm. 100.5 is our cut off to send children home, so we'll check again when he wakes from his nap and keep you updated."),
+            message("announcement-1", at(8, 15), """
+                🍂 BOOK OF THE MONTH 🍂
+                This month's board book is all about gratitude. As you read it together, talk with your little one about the people and moments that make your family happy.
+                Please write something your family is thankful for on the paper leaf in your cubby and bring it back — we'll add every leaf to our gratitude tree in the lobby!
+                """, broadcast: true, sender: ("Front", "Desk")),
         ]
-        let page: [String: Any] = ["results": [["message": message]], "has_more": false, "page_size": 25]
+        let page: [String: Any] = ["results": messages.map { ["message": $0] }, "has_more": false, "page_size": 25]
         guard let data = try? JSONSerialization.data(withJSONObject: page) else { return [] }
         return (try? JSONDecoder().decode(BrightwheelMessagePage.self, from: data))?.messages ?? []
     }

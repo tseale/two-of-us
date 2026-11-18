@@ -183,8 +183,18 @@ struct BrightwheelImporter {
                 summary.skippedUnmapped += 1
                 continue
             }
-            let id = Self.messageExternalID(objectID)
-            guard !hasEvent(externalID: id) else {
+            let isAnnouncement = message.broadcast == true
+            let id = isAnnouncement ? Self.announcementExternalID(objectID) : Self.messageExternalID(objectID)
+            // Announcements imported before the broadcast tag existed carry
+            // the plain "msg-" id: re-key them in place instead of importing
+            // a second copy.
+            let plainID = Self.messageExternalID(objectID)
+            if isAnnouncement, let old = staffNote(externalID: plainID) {
+                store.retagStaffNote(old, externalID: id)
+                summary.skippedDuplicates += 1
+                continue
+            }
+            guard !hasEvent(externalID: id), !hasEvent(externalID: plainID) else {
                 summary.skippedDuplicates += 1
                 continue
             }
@@ -195,6 +205,9 @@ struct BrightwheelImporter {
                 continue
             }
             summary.messages += 1
+            // Center-wide announcements never alert and never ping — they're
+            // newsletters, not news about him.
+            if isAnnouncement { continue }
             if !alertIfHealthNews(body, author: author, at: when, dedupe: id) {
                 notifyDaycare(NotificationManager.DaycareText.message(author: author, body: body),
                               at: when, dedupe: id)
@@ -204,6 +217,16 @@ struct BrightwheelImporter {
     }
 
     static func messageExternalID(_ objectID: String) -> String { "msg-\(objectID)" }
+    /// Broadcasts (`broadcast: true` — center-wide newsletters) are keyed
+    /// "msg-b-…", which is how the timeline knows to collapse them without a
+    /// schema change.
+    static func announcementExternalID(_ objectID: String) -> String { "msg-b-\(objectID)" }
+
+    private func staffNote(externalID id: String) -> StaffNoteEvent? {
+        var descriptor = FetchDescriptor<StaffNoteEvent>(predicate: #Predicate { $0.externalID == id })
+        descriptor.fetchLimit = 1
+        return (try? context.fetch(descriptor))?.first
+    }
 
     // MARK: Attached photos
 

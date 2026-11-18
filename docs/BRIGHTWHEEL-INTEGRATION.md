@@ -345,3 +345,14 @@ Both are computed from the stored text when displayed, so there's no schema chan
 asking for every 15 minutes. iOS decides the real cadence, so foreground
 sync stays the primary path; the phone that's connected to Brightwheel is the
 one that refreshes, and the other phone hears via CloudKit's silent push.
+
+**Display (2026-11-17)**: daycare messages clamp to 3 lines (4 for health
+news) in `DayTimelineRow`; tapping any daycare staff note opens
+`DaycareMessageSheet`, a chat-style view of that day's daycare messages.
+Broadcasts (`broadcast: true`) import as `externalID = "msg-b-<id>"`, which
+the timeline reads as an announcement: a one-line 📣 row titled by
+`StaffNoteEvent.headline(from:)`, no notifications, no health alert.
+Broadcasts imported before this change were stored as `msg-<id>`; they get re-keyed in
+place on the next sync (`EventStore.retagStaffNote`). No schema change. The
+sender's profile photo isn't stored (it would need a new field), so the sheet
+shows an initial instead.

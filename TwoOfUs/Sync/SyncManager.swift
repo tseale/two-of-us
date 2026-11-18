@@ -789,7 +789,8 @@ final class SyncManager: NSObject, CKSyncEngineDelegate {
             // loudly, a message gets the quiet ping. Same dedupe keys as the
             // importer, so neither phone double-posts.
             guard let at = r["timestamp"] as? Date,
-                  let text = r["text"] as? String, !text.isEmpty else { return }
+                  let text = r["text"] as? String, !text.isEmpty,
+                  !dedupe.hasPrefix("msg-b-") else { return }   // announcements stay silent
             let author = r["authorName"] as? String
             if DaycareHealthAlert.isConcerning(text) {
                 NotificationManager.postDaycareHealthAlert(
