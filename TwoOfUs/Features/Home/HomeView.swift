@@ -2524,27 +2524,73 @@ struct HomeView: View {
         // Performance: assembled once per body, not once for isEmpty and again
         // for the ForEach.
         let entries = timelineEntries
-        Section {
-            if entries.isEmpty {
-                timelineEmptyState(paneMode: paneMode)
-                    .listRowBackground(Color.clear)
-            } else {
-                timelineRows(entries, leading: leading, trailing: trailing, card: card)
+        if card {
+            // On a card (the phone, closed or as the spread's page) the
+            // header is the card's own title row and scrolls with it. As a
+            // pinned list header it stuck to the top as a grey band wider
+            // than the card, out of line with it — silly on the open book.
+            Section {
+                let headerInsets = EdgeInsets(top: 14, leading: leading + TimelineCard.padding,
+                                              bottom: 2, trailing: trailing + TimelineCard.padding)
+                if entries.isEmpty {
+                    // No card to title: the header sits on the sky.
+                    timelineHeader(card: true)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(headerInsets)
+                        .listRowBackground(Color.clear)
+                    timelineEmptyState(paneMode: paneMode)
+                        .listRowBackground(Color.clear)
+                } else {
+                    timelineHeader(card: true)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(headerInsets)
+                        .modifier(TimelineCard(active: true, top: true, bottom: false,
+                                               leading: leading, trailing: trailing))
+                    timelineRows(entries, leading: leading, trailing: trailing,
+                                 card: true, cardHasHeader: true)
+                }
             }
-        } header: {
-            HStack {
-                Text("Recent · last 24 hours").foregroundStyle(AppColor.text3)
-                Spacer()
-                // Deliberately quiet — an inline header affordance, not a log
-                // tile: notes are far less frequent than feeds/diapers.
-                Button("+ Add note") { activeSheet = .note }
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(AppColor.accentNote)
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Add note")
-                    .accessibilityHint("Writes a timestamped note on the timeline")
+        } else {
+            Section {
+                if entries.isEmpty {
+                    timelineEmptyState(paneMode: paneMode)
+                        .listRowBackground(Color.clear)
+                } else {
+                    timelineRows(entries, leading: leading, trailing: trailing, card: false)
+                }
+            } header: {
+                timelineHeader(card: false)
             }
         }
+    }
+
+    /// "Recent · last 24 hours" and the Add note button.
+    private func timelineHeader(card: Bool) -> some View {
+        HStack(alignment: .center) {
+            if card {
+                Text("Recent · last 24 hours").sectionLabelStyle()
+            } else {
+                Text("Recent · last 24 hours").foregroundStyle(AppColor.text3)
+            }
+            Spacer(minLength: 8)
+            // Still secondary to the log tiles — notes are far rarer than
+            // feeds and diapers — but a tinted pill reads as tappable where
+            // bare coloured text read as a caption.
+            Button { activeSheet = .note } label: {
+                Label("Add note", systemImage: "plus")
+                    .font(.footnote.weight(.semibold))
+                    .labelStyle(.titleAndIcon)
+                    .foregroundStyle(AppColor.accentNote)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(AppColor.accentNote.opacity(0.16), in: Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Add note")
+            .accessibilityHint("Writes a timestamped note on the timeline")
+        }
+        .textCase(nil)
     }
 
     /// The timeline's empty state. `paneMode` words it for layouts where the
@@ -2567,16 +2613,19 @@ struct HomeView: View {
     /// `card`: the rows sit on one rounded card whose edges are `leading` /
     /// `trailing` in from the list's sides, the rows `TimelineCard.padding`
     /// further in.
+    /// `cardHasHeader`: the card's title row sits above, so the NOW cap
+    /// isn't the card's top.
     private func timelineRows(_ entries: [TimelineEntry], leading: CGFloat,
-                              trailing: CGFloat, card: Bool = false) -> some View {
+                              trailing: CGFloat, card: Bool = false,
+                              cardHasHeader: Bool = false) -> some View {
         let pad = card ? TimelineCard.padding : 0
         let rowLeading = leading + pad
         let rowTrailing = trailing + pad
         let lastID = entries.last?.id
         TimelineNowCap()
             .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: card ? 6 : 0, leading: rowLeading, bottom: 0, trailing: rowTrailing))
-            .modifier(TimelineCard(active: card, top: true, bottom: false,
+            .listRowInsets(EdgeInsets(top: card && !cardHasHeader ? 6 : 0, leading: rowLeading, bottom: 0, trailing: rowTrailing))
+            .modifier(TimelineCard(active: card, top: !cardHasHeader, bottom: false,
                                    leading: leading, trailing: trailing))
         // Brightwheel's in-progress nap has no SleepEvent yet (the
         // pair imports whole at wake), so its live row is synthesized
