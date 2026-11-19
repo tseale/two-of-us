@@ -258,8 +258,7 @@ struct TodayHeroCard: View {
                 // and read smaller than the capsule beside it — too quiet to
                 // anchor the hero.
                 Text("Today")
-                    .font(.system(.title3, design: .rounded).weight(.semibold))
-                    .foregroundStyle(AppColor.text)
+                    .cardTitleStyle()
                 Spacer()
                 // Today's date — the daycare window lives on the Daycare
                 // recap row now, where the place's numbers already are.

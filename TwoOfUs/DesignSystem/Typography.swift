@@ -73,6 +73,14 @@ extension View {
             .tracking(0.6)
             .foregroundStyle(color)
     }
+
+    /// A card's own title — "Today" on the hero, "Recent" on the timeline:
+    /// rounded title3, semibold, full-strength text. One style so the cards
+    /// stacked down Home read as a set.
+    func cardTitleStyle() -> some View {
+        self.font(.system(.title3, design: .rounded).weight(.semibold))
+            .foregroundStyle(AppColor.text)
+    }
 }
 
 /// A vertically-stacked "eyebrow label + big value + optional caption" metric —
