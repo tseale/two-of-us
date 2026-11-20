@@ -2530,13 +2530,19 @@ struct HomeView: View {
             // pinned list header it stuck to the top as a grey band wider
             // than the card, out of line with it — silly on the open book.
             Section {
-                let headerInsets = EdgeInsets(top: 14, leading: leading + TimelineCard.padding,
-                                              bottom: 2, trailing: trailing + TimelineCard.padding)
+                // The title row sits as far inside the card as "Today" does
+                // inside the hero (16 pt), and the card's top is held
+                // `TimelineCard.gap` below the row's, so the gap above it
+                // matches the 12 pt between the cards over it.
+                let headerInsets = EdgeInsets(top: TimelineCard.gap + TimelineCard.titleInset,
+                                              leading: leading + TimelineCard.titleInset,
+                                              bottom: 2, trailing: trailing + TimelineCard.titleInset)
                 if entries.isEmpty {
                     // No card to title: the header sits on the sky.
                     timelineHeader(card: true)
                         .listRowSeparator(.hidden)
-                        .listRowInsets(headerInsets)
+                        .listRowInsets(EdgeInsets(top: 14, leading: leading + TimelineCard.padding,
+                                                  bottom: 2, trailing: trailing + TimelineCard.padding))
                         .listRowBackground(Color.clear)
                     timelineEmptyState(paneMode: paneMode)
                         .listRowBackground(Color.clear)
@@ -2568,7 +2574,17 @@ struct HomeView: View {
     private func timelineHeader(card: Bool) -> some View {
         HStack(alignment: .center) {
             if card {
-                Text("Recent · last 24 hours").sectionLabelStyle()
+                // The hero card's title idiom ("Today" over its date), so
+                // the two cards' headers match.
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Recent").cardTitleStyle()
+                    Text("Last 24 hours")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColor.text2)
+                        .lineLimit(1)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
             } else {
                 Text("Recent · last 24 hours").foregroundStyle(AppColor.text3)
             }
@@ -2624,7 +2640,7 @@ struct HomeView: View {
         let lastID = entries.last?.id
         TimelineNowCap()
             .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: card && !cardHasHeader ? 6 : 0, leading: rowLeading, bottom: 0, trailing: rowTrailing))
+            .listRowInsets(EdgeInsets(top: card && !cardHasHeader ? TimelineCard.gap + 6 : 0, leading: rowLeading, bottom: 0, trailing: rowTrailing))
             .modifier(TimelineCard(active: card, top: !cardHasHeader, bottom: false,
                                    leading: leading, trailing: trailing))
         // Brightwheel's in-progress nap has no SleepEvent yet (the
@@ -2892,6 +2908,13 @@ private struct TimelineCard: ViewModifier {
     /// How far the rows sit inside the card's edges.
     static let padding: CGFloat = 12
     static let radius: CGFloat = 20
+    /// How far the title row sits inside the card — the hero card's padding.
+    static let titleInset: CGFloat = 16
+    /// Extra air above the card's top edge. The list row above ends 4 pt
+    /// down; this brings the space between the cards to the 12 pt the
+    /// stack over them uses. (A row background fills its insets, so the
+    /// air is carved out of the background, not added as an inset.)
+    static let gap: CGFloat = 8
 
     let active: Bool
     let top: Bool
@@ -2908,6 +2931,7 @@ private struct TimelineCard: ViewModifier {
                                        bottomTrailingRadius: bottom ? Self.radius : 0,
                                        topTrailingRadius: top ? Self.radius : 0)
                     .fill(AppColor.card)
+                    .padding(.top, top ? Self.gap : 0)
                     .padding(.leading, leading)
                     .padding(.trailing, trailing))
         } else {
