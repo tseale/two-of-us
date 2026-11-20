@@ -97,6 +97,27 @@ extension StaffNoteEvent {
     /// A center-wide Brightwheel broadcast — collapses to one line.
     var isAnnouncement: Bool { externalID?.hasPrefix("msg-b-") == true }
 
+    /// The Brightwheel message's own `object_id` (the external id minus its
+    /// "msg-"/"msg-b-" tag) — what its imported photos are keyed under.
+    var brightwheelMessageID: String? {
+        guard let id = externalID else { return nil }
+        for prefix in ["msg-b-", "msg-"] where id.hasPrefix(prefix) {
+            let rest = String(id.dropFirst(prefix.count))
+            return rest.isEmpty ? nil : rest
+        }
+        return nil
+    }
+
+    /// This message's attached photos/videos, picked out of `media` (any
+    /// order), oldest first so they read in the order they were attached.
+    func attachedPhotos(in media: [MediaEvent]) -> [MediaEvent] {
+        guard let messageID = brightwheelMessageID else { return [] }
+        let prefix = BrightwheelImporter.messagePhotoPrefix(messageID)
+        return media
+            .filter { $0.deletedAt == nil && $0.externalID?.hasPrefix(prefix) == true }
+            .sorted { ($0.externalID ?? "").localizedStandardCompare($1.externalID ?? "") == .orderedAscending }
+    }
+
     /// The announcement's headline: its first line, minus decorative emoji,
     /// and out of ALL CAPS — "🍂 BOARD BOOK OF THE MONTH 🍂" → "Board Book
     /// of the Month".

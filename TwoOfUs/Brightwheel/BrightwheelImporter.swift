@@ -178,12 +178,26 @@ struct BrightwheelImporter {
         let ordered = messages.sorted { ($0.when ?? .distantPast) < ($1.when ?? .distantPast) }
         for message in ordered {
             guard let objectID = message.objectID, let when = message.when,
-                  let body = message.body?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !body.isEmpty, message.deletedAt == nil, !message.isFromGuardian else {
+                  message.deletedAt == nil, !message.isFromGuardian else {
                 summary.skippedUnmapped += 1
                 continue
             }
             let isAnnouncement = message.broadcast == true
+            // Photos first and on their own dedupe keys: a message whose text
+            // landed before photo import existed still gets its photos, and
+            // a photo-only message (no body) still shows up.
+            let newPhotos = importMessagePhotos(message, objectID: objectID, when: when,
+                                                into: &summary)
+            guard let body = message.body?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !body.isEmpty else {
+                if message.visualAttachments.isEmpty {
+                    summary.skippedUnmapped += 1
+                } else if let first = newPhotos.first, !isAnnouncement {
+                    notifyDaycare(NotificationManager.DaycareText.photo, at: when,
+                                  dedupe: first.externalID, photoURL: first.remoteURL)
+                }
+                continue
+            }
             let id = isAnnouncement ? Self.announcementExternalID(objectID) : Self.messageExternalID(objectID)
             // Announcements imported before the broadcast tag existed carry
             // the plain "msg-" id: re-key them in place instead of importing
@@ -210,11 +224,45 @@ struct BrightwheelImporter {
             if isAnnouncement { continue }
             if !alertIfHealthNews(body, author: author, at: when, dedupe: id) {
                 notifyDaycare(NotificationManager.DaycareText.message(author: author, body: body),
-                              at: when, dedupe: id)
+                              at: when, dedupe: id,
+                              photoURL: newPhotos.first { $0.kind == .photo }?.remoteURL)
             }
         }
         return summary
     }
+
+    /// A message's photo/video attachments as `MediaEvent`s at the message's
+    /// time, captioned with its text, each under
+    /// `messagePhotoExternalID` so it dedupes apart from the note and from
+    /// its siblings. No new model or field: the message sheet finds them by
+    /// that id prefix. Returns the events created this pass.
+    private func importMessagePhotos(_ message: BrightwheelMessage, objectID: String, when: Date,
+                                     into summary: inout Summary) -> [MediaEvent] {
+        var created: [MediaEvent] = []
+        let caption = message.body?.trimmingCharacters(in: .whitespacesAndNewlines)
+        for (index, attachment) in message.visualAttachments.enumerated() {
+            let id = Self.messagePhotoExternalID(objectID, attachmentID: attachment.objectID, index: index)
+            guard !hasEvent(externalID: id) else {
+                summary.skippedDuplicates += 1
+                continue
+            }
+            let kind: MediaKind = attachment.kind == .video ? .video : .photo
+            if let event = store.logMedia(kind, at: when, caption: caption, remoteURL: attachment.url,
+                                          source: .brightwheel, externalID: id) {
+                summary.media += 1
+                created.append(event)
+            }
+        }
+        return created
+    }
+
+    /// "msg-<message id>-photo-<attachment id or position>". Keeps the
+    /// "msg-<id>" prefix so sample-day cleanup sweeps it with its message.
+    static func messagePhotoExternalID(_ messageID: String, attachmentID: String?, index: Int) -> String {
+        "\(messagePhotoPrefix(messageID))\(attachmentID ?? String(index))"
+    }
+
+    static func messagePhotoPrefix(_ messageID: String) -> String { "msg-\(messageID)-photo-" }
 
     static func messageExternalID(_ objectID: String) -> String { "msg-\(objectID)" }
     /// Broadcasts (`broadcast: true` — center-wide newsletters) are keyed

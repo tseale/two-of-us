@@ -339,13 +339,13 @@ final class BrightwheelImporterTests: XCTestCase {
 
     private func message(id: String, minutesAgo: Int, body: String,
                          userType: String = "teacher", deleted: Bool = false,
-                         broadcast: Bool = false) throws -> BrightwheelMessage {
+                         broadcast: Bool = false, attachments: [Any] = []) throws -> BrightwheelMessage {
         let when = ISO8601DateFormatter()
             .string(from: Date(timeIntervalSinceNow: -Double(minutesAgo) * 60))
         var dict: [String: Any] = [
             "object_id": id, "message_content_id": "c-\(id)", "type": "simple_message",
             "body": body, "read": false, "force_delivery": false, "created_at": when,
-            "attachments": [],
+            "attachments": attachments,
             "sender": ["object_id": "u-\(id)", "first_name": "Chelsea", "last_name": "Peacock",
                        "user_type": userType],
         ]
@@ -386,6 +386,95 @@ final class BrightwheelImporterTests: XCTestCase {
         let again = importer.importMessages(batch)
         XCTAssertEqual(again.messages, 0)
         XCTAssertEqual(again.skippedDuplicates, 1)
+    }
+
+    func testMessagePhotoImportsAsAPhotoEventBesideTheNote() throws {
+        let flyer: [String: Any] = ["object_id": "att1", "content_type": "image/jpeg",
+                                    "url": "https://cdn.example/flyer.jpg",
+                                    "thumbnail_url": "https://cdn.example/flyer-thumb.jpg"]
+        let summary = BrightwheelImporter(context: container.mainContext).importMessages([
+            try message(id: "m1", minutesAgo: 30, body: "Next weeks festive days!", attachments: [flyer]),
+        ])
+        XCTAssertEqual(summary.messages, 1)
+        XCTAssertEqual(summary.media, 1)
+        let photo = try XCTUnwrap(try container.mainContext.fetch(FetchDescriptor<MediaEvent>()).first)
+        XCTAssertEqual(photo.externalID, "msg-m1-photo-att1")
+        XCTAssertEqual(photo.remoteURL, "https://cdn.example/flyer.jpg", "full size over the thumbnail")
+        XCTAssertEqual(photo.caption, "Next weeks festive days!")
+        XCTAssertEqual(photo.kind, .photo)
+        XCTAssertTrue(photo.isFromDaycare)
+
+        let note = try XCTUnwrap(try container.mainContext.fetch(FetchDescriptor<StaffNoteEvent>()).first)
+        XCTAssertEqual(note.attachedPhotos(in: [photo]).map(\.id), [photo.id])
+    }
+
+    func testMessagePhotosArriveForANoteImportedBeforePhotoSupport() throws {
+        let importer = BrightwheelImporter(context: container.mainContext)
+        importer.importMessages([try message(id: "m1", minutesAgo: 30, body: "Festive days!")])
+        let flyer = ["url": "https://cdn.example/flyer.jpg"]
+        let batch = [try message(id: "m1", minutesAgo: 30, body: "Festive days!", attachments: [flyer])]
+        let again = importer.importMessages(batch)
+        XCTAssertEqual(again.messages, 0, "the note itself is already there")
+        XCTAssertEqual(again.media, 1, "but its photo is new")
+        XCTAssertEqual(try container.mainContext.fetch(FetchDescriptor<MediaEvent>()).first?.externalID,
+                       "msg-m1-photo-0", "no attachment id: keyed by position")
+        let third = importer.importMessages(batch)
+        XCTAssertEqual(third.media, 0, "and it dedupes after that")
+        XCTAssertEqual(try container.mainContext.fetchCount(FetchDescriptor<MediaEvent>()), 1)
+    }
+
+    func testPhotoOnlyMessageImportsItsPhoto() throws {
+        let summary = BrightwheelImporter(context: container.mainContext).importMessages([
+            try message(id: "m1", minutesAgo: 10, body: "",
+                        attachments: [["image_url": "https://cdn.example/smile.png"]]),
+        ])
+        XCTAssertEqual(summary.messages, 0)
+        XCTAssertEqual(summary.media, 1)
+        XCTAssertEqual(summary.skippedUnmapped, 0)
+        XCTAssertNil(try container.mainContext.fetch(FetchDescriptor<MediaEvent>()).first?.caption)
+    }
+
+    func testParentMessagePhotosAreSkipped() throws {
+        let summary = BrightwheelImporter(context: container.mainContext).importMessages([
+            try message(id: "m1", minutesAgo: 10, body: "Look!", userType: "guardian",
+                        attachments: [["url": "https://cdn.example/ours.jpg"]]),
+        ])
+        XCTAssertEqual(summary.media, 0)
+        XCTAssertEqual(try container.mainContext.fetchCount(FetchDescriptor<MediaEvent>()), 0)
+    }
+
+    func testMessageAttachmentShapesDecodeLeniently() throws {
+        let attachments: [Any] = [
+            ["object_id": "a", "file": ["url": "https://cdn.example/nested.jpeg"]],     // nested
+            ["thumbnail_url": "https://cdn.example/only-thumb"],                        // thumbnail only
+            "https://cdn.example/bare.heic",                                            // bare string
+            ["id": 42, "mime_type": "video/mp4", "url": "https://cdn.example/clip"],     // video by type
+            ["object_id": "d", "url": "https://cdn.example/menu.pdf"],                  // document
+            ["object_id": "x", "name": "no link here"],                                 // nothing usable
+        ]
+        let msg = try message(id: "m1", minutesAgo: 5, body: "Hi", attachments: attachments)
+        XCTAssertEqual(msg.attachments.map(\.url), [
+            "https://cdn.example/nested.jpeg", "https://cdn.example/only-thumb",
+            "https://cdn.example/bare.heic", "https://cdn.example/clip", "https://cdn.example/menu.pdf",
+        ])
+        XCTAssertEqual(msg.attachments.map(\.objectID), ["a", nil, nil, "42", "d"])
+        XCTAssertEqual(msg.attachments.map(\.kind), [.image, .image, .image, .video, .document])
+        XCTAssertEqual(msg.visualAttachments.count, 4, "documents aren't photos")
+
+        let summary = BrightwheelImporter(context: container.mainContext).importMessages([msg])
+        XCTAssertEqual(summary.media, 4)
+        let kinds = try container.mainContext.fetch(FetchDescriptor<MediaEvent>()).map(\.kind)
+        XCTAssertEqual(kinds.filter { $0 == .video }.count, 1)
+    }
+
+    func testMessageWithoutAttachmentsFieldStillDecodes() throws {
+        let msg: [String: Any] = ["object_id": "m1", "body": "Hi", "created_at": "2026-11-17T21:00:00.000Z",
+                                  "attachments": NSNull(),
+                                  "sender": ["first_name": "Chelsea", "user_type": "teacher"]]
+        let page = try JSONDecoder().decode(BrightwheelMessagePage.self,
+                                            from: JSONSerialization.data(withJSONObject: [msg]))
+        XCTAssertEqual(page.messages.first?.body, "Hi")
+        XCTAssertEqual(page.messages.first?.attachments.isEmpty, true)
     }
 
     func testMessageListDecodesEveryWrapper() throws {

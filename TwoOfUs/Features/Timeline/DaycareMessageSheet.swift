@@ -9,7 +9,17 @@ struct DaycareMessageSheet: View {
     /// Every staff note the caller already queries (newest first); the sheet
     /// picks that day's daycare messages out of it.
     let thread: [StaffNoteEvent]
+    /// Media events the caller already queries; each message's attached
+    /// photos are picked out by id (see `StaffNoteEvent.attachedPhotos`).
+    var media: [MediaEvent] = []
     @Environment(\.dismiss) private var dismiss
+    @State private var viewing: PhotoViewing?
+
+    private struct PhotoViewing: Identifiable {
+        let events: [MediaEvent]
+        let start: Int
+        var id: UUID { events[start].id }
+    }
 
     private var dayMessages: [StaffNoteEvent] {
         let calendar = Calendar.current
@@ -48,6 +58,49 @@ struct DaycareMessageSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .sheet(item: $viewing) { viewing in
+            // The viewer pages from its first event; lead with the tapped one.
+            MediaViewerSheet(events: Array(viewing.events[viewing.start...] + viewing.events[..<viewing.start]))
+        }
+    }
+
+    /// Attached photos under the bubble: one wide image when it's a single
+    /// photo (the usual flyer), a row of square tiles for several.
+    @ViewBuilder
+    private func photos(_ photos: [MediaEvent]) -> some View {
+        if photos.count == 1, let photo = photos.first {
+            Button { viewing = PhotoViewing(events: photos, start: 0) } label: {
+                WholePhoto(event: photo)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 280)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 16)
+                            .strokeBorder(AppColor.separator.opacity(0.5), lineWidth: 0.5)
+                    }
+                    .overlay(alignment: .bottomTrailing) {
+                        if photo.kind == .video {
+                            Image(systemName: "play.fill")
+                                .foregroundStyle(.white)
+                                .padding(8)
+                                .background(.black.opacity(0.45), in: Circle())
+                                .padding(8)
+                        }
+                    }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(photo.kind == .video ? "Attached video" : "Attached photo")
+        } else if !photos.isEmpty {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 88), spacing: 6)], spacing: 6) {
+                ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
+                    Button { viewing = PhotoViewing(events: photos, start: index) } label: {
+                        MediaThumbnail(event: photo, size: 88, cornerRadius: 12)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Attached \(photo.kind == .video ? "video" : "photo") \(index + 1) of \(photos.count)")
+                }
+            }
+        }
     }
 
     private func bubble(_ message: StaffNoteEvent, selected: Bool) -> some View {
@@ -71,6 +124,7 @@ struct DaycareMessageSheet: View {
                             .foregroundStyle(tint)
                     }
                 }
+                let attached = message.attachedPhotos(in: media)
                 Text(message.text)
                     .font(.callout)
                     .foregroundStyle(AppColor.text)
@@ -83,8 +137,9 @@ struct DaycareMessageSheet: View {
                         RoundedRectangle(cornerRadius: 16)
                             .strokeBorder(tint.opacity(selected ? 0.6 : 0), lineWidth: 1.5)
                     }
+                photos(attached)
             }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 }

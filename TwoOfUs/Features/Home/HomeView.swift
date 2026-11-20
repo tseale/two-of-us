@@ -247,7 +247,7 @@ struct HomeView: View {
                 MediaViewerSheet(events: viewing.events)
             }
             .sheet(item: $readingMessage) { note in
-                DaycareMessageSheet(note: note, thread: staffNoteEvents)
+                DaycareMessageSheet(note: note, thread: staffNoteEvents, media: mediaEvents)
             }
             .sheet(isPresented: $editingSleepStart) {
                 if let sleep = activeSleep {
