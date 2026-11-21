@@ -130,8 +130,8 @@
   .dots { display: flex; gap: 4px; flex-wrap: wrap; }
   .dots button { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 5px 8px; cursor: pointer; font: 500 12px/1.2 var(--text); color: var(--ink-2); font-variant-numeric: tabular-nums; }
   .dots button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-  .variants { display: flex; gap: 2px; padding: 2px; border-radius: 9px; border: 1px solid var(--line); margin-left: auto; }
-  .variants button { border: 0; background: none; padding: 4px 9px; border-radius: 7px; cursor: pointer; font: 500 12.5px/1.2 var(--text); color: var(--ink-2); }
+  .variants { display: flex; flex-wrap: wrap; gap: 2px; padding: 2px; border-radius: 9px; border: 1px solid var(--line); margin-left: auto; max-width: 100%; }
+  .variants button { border: 0; background: none; white-space: nowrap; padding: 4px 9px; border-radius: 7px; cursor: pointer; font: 500 12.5px/1.2 var(--text); color: var(--ink-2); }
   .variants button[aria-pressed="true"] { background: var(--line); color: var(--ink); }
   .missing { display: none; }
 
