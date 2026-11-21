@@ -1,0 +1,390 @@
+<title>Home Sky Directions</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Nunito:wght@700;800;900&display=swap">
+<style>
+  /* Layout: a review wall. One strip of viewing conditions drives every picture on the page,
+     so the six skies are always seen at the same hour, on the same display, in the same appearance. */
+  :root {
+    --bg: #F3F2F7;
+    --surface: #FFFFFF;
+    --ink: #17141D;
+    --ink-2: #625E6E;
+    --line: #DCD9E5;
+    --accent: #5350C4;
+    --accent-ink: #FFFFFF;
+    --pick: #A45F0C;
+    --pick-bg: #FBEEDC;
+    --stage: #E6E4EE;
+    --shadow: 0 1px 2px rgba(23, 20, 29, .06), 0 12px 32px rgba(23, 20, 29, .10);
+    --display: "Nunito", ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+    --text: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --gutter-l: max(16px, env(safe-area-inset-left, 0px));
+    --gutter-r: max(16px, env(safe-area-inset-right, 0px));
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F0D14; --surface: #1A1722; --ink: #F2EEF6; --ink-2: #A39EB1; --line: #2C2836;
+      --accent: #A7A5FF; --accent-ink: #14121F; --pick: #F5B971; --pick-bg: #2E2416; --stage: #060509;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 16px 40px rgba(0, 0, 0, .55);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F0D14; --surface: #1A1722; --ink: #F2EEF6; --ink-2: #A39EB1; --line: #2C2836;
+    --accent: #A7A5FF; --accent-ink: #14121F; --pick: #F5B971; --pick-bg: #2E2416; --stage: #060509;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 16px 40px rgba(0, 0, 0, .55);
+    color-scheme: dark;
+  }
+
+  body { background: var(--bg); color: var(--ink); font: 400 16px/1.55 var(--text); -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1180px; margin-inline: auto; padding-left: var(--gutter-l); padding-right: var(--gutter-r); }
+  h1, h2, h3 { font-family: var(--display); font-weight: 800; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+  p { margin: 0; }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+  /* ── Intro ── */
+  .intro { padding-block: 44px 28px; display: grid; gap: 18px; }
+  .eyebrow { font: 600 12px/1 var(--text); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-2); }
+  .intro h1 { font-size: clamp(30px, 5vw, 46px); line-height: 1.08; }
+  .lede { max-width: 66ch; color: var(--ink-2); font-size: 17px; }
+  .lede strong { color: var(--ink); font-weight: 600; }
+  .mine { max-width: 76ch; display: grid; gap: 10px; padding: 18px 20px; border-radius: 16px; background: var(--pick-bg); }
+  .mine h2 { font-size: 17px; color: var(--pick); }
+  .mine p { font-size: 15.5px; }
+
+  /* ── The conditions bar ── */
+  .bar { background: color-mix(in srgb, var(--bg) 88%, transparent); border-block: 1px solid var(--line); z-index: 5; }
+  @media (min-width: 820px) { .bar { position: sticky; top: env(safe-area-inset-top, 0px); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); } }
+  .bar .wrap { display: flex; flex-wrap: wrap; gap: 10px 22px; padding-block: 10px; align-items: center; }
+  .group { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .group > span { font: 600 11px/1 var(--text); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); flex: none; }
+  .seg { display: flex; gap: 2px; padding: 3px; border-radius: 11px; background: var(--surface); border: 1px solid var(--line); overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+  .seg button { border: 0; background: none; padding: 6px 11px; border-radius: 8px; cursor: pointer; white-space: nowrap; font: 500 13.5px/1.2 var(--text); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .seg button small { font-size: 11.5px; opacity: .8; margin-left: 4px; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .seg button:disabled { opacity: .35; cursor: default; }
+  .hours { flex: 1 1 420px; }
+
+  /* ── Side by side ── */
+  .compare { padding-block: 26px 8px; }
+  .compare h2, .closing h2 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: var(--ink-2); font-size: 14.5px; max-width: 70ch; }
+  .row { display: grid; gap: 14px; margin-top: 16px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .row[data-device="spread"] { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+  .thumb { display: grid; gap: 7px; text-align: left; border: 0; background: none; padding: 0; cursor: pointer; min-width: 0; }
+  .thumb b { font: 800 14.5px/1.2 var(--display); }
+  .thumb i { font-style: normal; font-size: 12px; color: var(--pick); font-weight: 600; margin-left: 6px; }
+  .shot { display: block; width: 100%; height: auto; border-radius: 14px; background: var(--stage); box-shadow: var(--shadow); }
+  .row[data-device="cover"] .shot { aspect-ratio: 466 / 678; }
+  .row[data-device="spread"] .shot { aspect-ratio: 951 / 669; }
+  .row[data-device="iphone"] .shot { aspect-ratio: 402 / 874; }
+
+  /* ── A direction ── */
+  .chapter { padding-block: 46px 10px; border-top: 1px solid var(--line); margin-top: 34px; scroll-margin-top: 70px; }
+  .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+  .head h2 { font-size: clamp(26px, 3.6vw, 36px); line-height: 1.1; }
+  .badge { font: 600 12px/1 var(--text); letter-spacing: .04em; padding: 5px 9px; border-radius: 99px; background: var(--pick-bg); color: var(--pick); }
+  .line { color: var(--ink-2); font-size: 17px; margin-top: 6px; max-width: 62ch; }
+  .lay { display: grid; gap: 22px 34px; margin-top: 22px; align-items: start; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 900px) { .lay[data-device="cover"], .lay[data-device="iphone"] { grid-template-columns: minmax(0, 430px) minmax(0, 1fr); } }
+  .stage { margin: 0; min-width: 0; }
+  .stage button { display: block; border: 0; padding: 0; background: none; cursor: zoom-in; width: 100%; }
+  .stage .shot { border-radius: 22px; }
+  .lay[data-device="cover"] .stage .shot { aspect-ratio: 466 / 678; }
+  .lay[data-device="spread"] .stage .shot { aspect-ratio: 951 / 669; }
+  .lay[data-device="iphone"] .stage .shot { aspect-ratio: 402 / 874; max-width: 380px; }
+  figcaption, .cap { font-size: 12.5px; color: var(--ink-2); margin-top: 8px; font-variant-numeric: tabular-nums; }
+  .notes { display: grid; gap: 16px; min-width: 0; max-width: 66ch; }
+  .notes h3 { font: 600 11.5px/1 var(--text); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 7px; }
+  .notes ul { margin: 0; padding-left: 1.1em; display: grid; gap: 5px; }
+  .notes li, .notes p { font-size: 15px; }
+
+  .strip { margin-top: 30px; min-width: 0; }
+  .strip > h3 { font-size: 18px; }
+  .strip > .sub { margin-top: 2px; }
+  .film { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(118px, 1fr); gap: 10px; margin-top: 12px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; }
+  .film[data-device="spread"] { grid-auto-columns: minmax(230px, 1fr); }
+  .film button { border: 0; background: none; padding: 0; cursor: pointer; display: grid; gap: 5px; text-align: left; min-width: 0; }
+  .film .shot { border-radius: 10px; box-shadow: none; outline: 1px solid var(--line); }
+  .film[data-device="cover"] .shot { aspect-ratio: 466 / 678; }
+  .film[data-device="spread"] .shot { aspect-ratio: 951 / 669; }
+  .film[data-device="iphone"] .shot { aspect-ratio: 402 / 874; }
+  .film button[aria-pressed="true"] .shot { outline: 2px solid var(--accent); }
+  .film span { font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+  .pair { display: grid; gap: 26px 30px; margin-top: 30px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+  @media (min-width: 900px) { .pair { grid-template-columns: minmax(0, 0.62fr) minmax(0, 1.38fr); } }
+  .pair .strip { margin-top: 0; }
+  .player { margin-top: 12px; }
+  .reel { position: relative; border-radius: 16px; overflow: hidden; background: var(--stage); box-shadow: var(--shadow); cursor: zoom-in; }
+  .reel[data-device="cover"] { aspect-ratio: 466 / 678; max-width: 380px; }
+  .reel[data-device="spread"] { aspect-ratio: 951 / 669; }
+  .reel img { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity .55s ease; }
+  .reel img.on { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .reel img { transition: none; } }
+  .transport { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+  .play { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 6px 14px; cursor: pointer; font: 600 13px/1.2 var(--text); }
+  .dots { display: flex; gap: 4px; flex-wrap: wrap; }
+  .dots button { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 5px 8px; cursor: pointer; font: 500 12px/1.2 var(--text); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .dots button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .variants { display: flex; gap: 2px; padding: 2px; border-radius: 9px; border: 1px solid var(--line); margin-left: auto; }
+  .variants button { border: 0; background: none; padding: 4px 9px; border-radius: 7px; cursor: pointer; font: 500 12.5px/1.2 var(--text); color: var(--ink-2); }
+  .variants button[aria-pressed="true"] { background: var(--line); color: var(--ink); }
+  .missing { display: none; }
+
+  /* ── Closing ── */
+  .closing { padding-block: 44px 70px; border-top: 1px solid var(--line); margin-top: 44px; display: grid; gap: 14px; }
+  .closing ul { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; max-width: 72ch; color: var(--ink-2); font-size: 14.5px; }
+
+  /* ── Lightbox ── */
+  .box { position: fixed; inset: 0; z-index: 20; background: rgba(6, 5, 9, .92); overflow: auto; cursor: zoom-out; padding: 24px 16px; text-align: center; }
+  .box img { max-width: none; width: min(100%, var(--natural, 951px)); height: auto; border-radius: 18px; }
+  .box p { color: #CFCAD9; font-size: 13px; margin-top: 10px; }
+</style>
+
+<header class="intro wrap">
+  <p class="eyebrow">Two of Us · Home’s sky · round one</p>
+  <h1 id="title">Five skies for Miller’s Home</h1>
+  <p class="lede" id="lede"></p>
+  <div class="mine" id="mine"></div>
+</header>
+
+<div class="bar">
+  <div class="wrap" role="group" aria-label="Viewing conditions">
+    <div class="group"><span>Look</span><div class="seg" id="seg-scheme"></div></div>
+    <div class="group"><span>Display</span><div class="seg" id="seg-device"></div></div>
+    <div class="group hours"><span>Hour</span><div class="seg" id="seg-time"></div></div>
+  </div>
+</div>
+
+<section class="compare wrap" aria-labelledby="compare-title">
+  <h2 id="compare-title">Side by side</h2>
+  <p class="sub" id="compare-sub"></p>
+  <div class="row" id="row"></div>
+</section>
+
+<main id="chapters"></main>
+
+<footer class="closing wrap" id="closing"></footer>
+
+<div class="box" id="box" hidden><img id="box-img" alt=""><p id="box-cap"></p></div>
+
+<script>
+/* ───────────────────────────── what is on the wall ───────────────────────────── */
+const PAGE = /*PAGE*/{
+  lede: 'Placeholder lede.',
+  mine: { title: 'Where I would go', paragraphs: ['Placeholder.'] },
+  closing: { title: 'About these mockups', points: ['Placeholder.'] },
+}/*END*/;
+
+const SKIES = /*SKIES*/[
+  { id: 'baseline', name: 'Today’s sky', line: 'What ships now, for reference.', reference: true },
+  { id: 'true-light', name: 'True light', line: 'Placeholder.', idea: 'Placeholder.', works: ['a'], notyet: ['b'], build: 'c' },
+]/*END*/;
+
+const MANIFEST = /*MANIFEST*/{}/*END*/;
+
+/* ───────────────────────────── conditions ───────────────────────────── */
+const TIMES = [
+  { key: '0650', label: '6:50', note: 'sunrise' },
+  { key: '0930', label: '9:30', note: '' },
+  { key: '1230', label: '12:30', note: 'midday' },
+  { key: '1610', label: '4:10', note: 'golden hour' },
+  { key: '1640', label: '4:40', note: 'afterglow' },
+  { key: '1730', label: '5:30', note: 'dusk' },
+  { key: '2100', label: '9:00', note: 'night' },
+  { key: '0300', label: '3:00', note: 'a.m.' },
+];
+const IPHONE_TIMES = ['0650', '1230', '1610', '2100'];
+const DEVICES = [
+  { key: 'cover', label: 'Duo closed', natural: 466 },
+  { key: 'spread', label: 'Duo open', natural: 951 },
+  { key: 'iphone', label: 'iPhone', natural: 402 },
+];
+const BED = [['t0', '0 s'], ['t0_7', '0.7'], ['t1_6', '1.6'], ['t3', '3'], ['t5', '5'], ['t6_5', '6.5'], ['t9', '9'], ['t40', '40 s']];
+const OPEN = [['t0', '0 s'], ['t0_45', '0.45'], ['t1_1', '1.1'], ['t1_8', '1.8'], ['t3', '3'], ['t8', '8 s']];
+const SEASONS = [['autumn', 'Mid-October'], ['winter', 'Mid-January'], ['spring', 'Late April'], ['summer', 'Early July']];
+
+const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+const rootTheme = document.documentElement.dataset.theme;
+const state = { scheme: rootTheme || (prefersDark ? 'dark' : 'light'), device: 'cover', time: '1610' };
+try { Object.assign(state, JSON.parse(localStorage.getItem('sky-wall') || '{}')); } catch (e) {}
+const save = () => { try { localStorage.setItem('sky-wall', JSON.stringify(state)); } catch (e) {} };
+
+const has = (sky, key) => !MANIFEST[sky] || MANIFEST[sky].includes(key);
+const src = (sky, key) => `img/${sky}/${key}.webp`;
+const el = (tag, attrs = {}, ...kids) => {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') node.className = v;
+    else if (k === 'text') node.textContent = v;
+    else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) node.setAttribute(k, v === true ? '' : v);
+  }
+  for (const kid of kids.flat()) if (kid != null) node.append(kid);
+  return node;
+};
+const timeOf = (key) => TIMES.find((t) => t.key === key);
+const deviceOf = (key) => DEVICES.find((d) => d.key === key);
+const sayTime = (key) => { const t = timeOf(key); return `${t.label}${t.note ? ' ' + t.note : ''}`; };
+const dayKey = () => `day-${state.device}-${state.scheme}-${state.time}`;
+
+/* ───────────────────────────── lightbox ───────────────────────────── */
+const box = document.getElementById('box');
+function zoom(url, caption, natural) {
+  const img = document.getElementById('box-img');
+  img.src = url; img.alt = caption;
+  box.style.setProperty('--natural', `${natural}px`);
+  document.getElementById('box-cap').textContent = caption;
+  box.hidden = false;
+}
+box.addEventListener('click', () => { box.hidden = true; });
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') box.hidden = true; });
+
+function shot(sky, key, alt, eager) {
+  return el('img', { class: 'shot', src: src(sky, key), alt, loading: eager ? 'eager' : 'lazy', decoding: 'async' });
+}
+
+/* ───────────────────────────── the bar ───────────────────────────── */
+function segment(id, options, current, pick, disabled = () => false) {
+  const host = document.getElementById(id);
+  host.replaceChildren(...options.map((o) => {
+    const button = el('button', { type: 'button', 'aria-pressed': String(o.key === current), disabled: disabled(o.key), onclick: () => pick(o.key) }, o.label);
+    if (o.note) button.append(el('small', { text: o.note }));
+    return button;
+  }));
+}
+function set(patch) {
+  Object.assign(state, patch);
+  if (state.device === 'iphone' && !IPHONE_TIMES.includes(state.time)) {
+    state.time = { '0930': '1230', '1640': '1610', '1730': '2100', '0300': '2100' }[state.time] || '1610';
+  }
+  save();
+  paint();
+}
+
+/* ───────────────────────────── players ───────────────────────────── */
+function player(sky, title, sub, variants) {
+  // variants: [{ label, device, natural, frames: [[key, label]], poster }]
+  let variant = variants[0];
+  let index = 0;
+  let timer = null;
+  const reel = el('div', { class: 'reel' });
+  const dots = el('div', { class: 'dots' });
+  const play = el('button', { class: 'play', type: 'button' }, 'Play');
+  const pickers = el('div', { class: 'variants' });
+  const stop = () => { clearInterval(timer); timer = null; play.textContent = 'Play'; };
+  const show = (i) => {
+    index = i;
+    [...reel.children].forEach((img, n) => img.classList.toggle('on', n === i));
+    [...dots.children].forEach((b, n) => b.setAttribute('aria-pressed', String(n === i)));
+  };
+  const load = (v) => {
+    stop();
+    variant = v;
+    reel.dataset.device = v.device;
+    reel.replaceChildren(...v.frames.map(([key, label]) => el('img', { src: src(sky, key), alt: `${title}, ${label}`, loading: 'lazy', decoding: 'async' })));
+    dots.replaceChildren(...v.frames.map(([key, label], i) => el('button', { type: 'button', onclick: () => { stop(); show(i); } }, label)));
+    [...pickers.children].forEach((b) => b.setAttribute('aria-pressed', String(b.textContent === v.label)));
+    show(Math.max(0, v.frames.findIndex(([key]) => key === v.poster)));
+  };
+  play.addEventListener('click', () => {
+    if (timer) { stop(); return; }
+    play.textContent = 'Pause';
+    show(0);
+    timer = setInterval(() => { if (index + 1 >= variant.frames.length) stop(); else show(index + 1); }, 1250);
+  });
+  reel.addEventListener('click', () => zoom(src(sky, variant.frames[index][0]), `${title} · ${variant.label} · ${variant.frames[index][1]}`, variant.natural));
+  const usable = variants.filter((v) => v.frames.every(([key]) => has(sky, key)));
+  if (!usable.length) return null;
+  if (usable.length > 1) pickers.append(...usable.map((v) => el('button', { type: 'button', onclick: () => load(v) }, v.label)));
+  load(usable[0]);
+  return el('section', { class: 'strip' }, el('h3', { text: title }), el('p', { class: 'sub', text: sub }),
+    el('div', { class: 'player' }, reel, el('div', { class: 'transport' }, play, dots, usable.length > 1 ? pickers : null)));
+}
+
+/* ───────────────────────────── paint ───────────────────────────── */
+const chapters = document.getElementById('chapters');
+const built = new Map();   // sky id → { stageImg, cap, lay, film, seasons, panos }
+
+function buildChapter(sky) {
+  const stageImg = el('img', { class: 'shot', alt: '', decoding: 'async' });
+  const cap = el('figcaption');
+  const stage = el('figure', { class: 'stage' }, el('button', { type: 'button', onclick: () => zoom(stageImg.src, `${sky.name} · ${cap.textContent}`, deviceOf(state.device).natural) }, stageImg), cap);
+  const notes = el('div', { class: 'notes' });
+  if (sky.idea) notes.append(el('div', {}, el('h3', { text: 'The idea' }), el('p', { text: sky.idea })));
+  if (sky.works) notes.append(el('div', {}, el('h3', { text: 'What works' }), el('ul', {}, sky.works.map((t) => el('li', { text: t })))));
+  if (sky.notyet) notes.append(el('div', {}, el('h3', { text: 'Not there yet' }), el('ul', {}, sky.notyet.map((t) => el('li', { text: t })))));
+  if (sky.build) notes.append(el('div', {}, el('h3', { text: 'To build it' }), el('p', { text: sky.build })));
+  const lay = el('div', { class: 'lay' }, stage, notes);
+  const film = el('div', { class: 'film' });
+  const head = el('div', { class: 'head' }, el('h2', { text: sky.name }), sky.badge ? el('span', { class: 'badge', text: sky.badge }) : null);
+  const section = el('section', { class: 'chapter wrap', id: sky.id }, head, el('p', { class: 'line', text: sky.line }), lay,
+    el('section', { class: 'strip' }, el('h3', { text: 'Through the day' }), el('p', { class: 'sub', text: 'The same Saturday in late November, sunrise to 3 a.m. Tap an hour to hold it across the page.' }), film));
+  const entry = { stageImg, cap, lay, film };
+  if (!sky.reference) {
+    const bedtime = player(sky.id, 'Bedtime', 'He goes down for the night at 7:40. The cards fall back, his star for tonight is lit, the others answer, the cards return.', [
+      { label: 'November', device: 'cover', natural: 466, poster: 'bed-nov-cover-dark-t3', frames: BED.map(([f, l]) => [`bed-nov-cover-dark-${f}`, l]) },
+      { label: 'July, sun still up', device: 'cover', natural: 466, poster: 'bed-jul-cover-dark-t3', frames: BED.map(([f, l]) => [`bed-jul-cover-dark-${f}`, l]) },
+    ]);
+    const opening = player(sky.id, 'Opening the Duo', 'The closed phone’s sky is already on the right-hand page. The left page arrives as bare panorama, holds a beat, and then its cards land.', [
+      { label: 'Golden hour, light', device: 'spread', natural: 951, poster: 'open-golden-light-t0_45', frames: OPEN.map(([f, l]) => [`open-golden-light-${f}`, l]) },
+      { label: 'Golden hour, dark', device: 'spread', natural: 951, poster: 'open-golden-dark-t0_45', frames: OPEN.map(([f, l]) => [`open-golden-dark-${f}`, l]) },
+      { label: 'Night', device: 'spread', natural: 951, poster: 'open-night-dark-t0_45', frames: OPEN.map(([f, l]) => [`open-night-dark-${f}`, l]) },
+    ]);
+    if (bedtime || opening) section.append(el('div', { class: 'pair' }, bedtime, opening));
+    entry.seasons = el('div', { class: 'film', 'data-device': 'spread' });
+    section.append(el('section', { class: 'strip' }, el('h3', { text: 'His first year' }), el('p', { class: 'sub', text: 'Fourteen minutes before sunset in each season, Duo open.' }), entry.seasons));
+    entry.panos = el('div', { class: 'film', 'data-device': 'spread' });
+    section.append(el('section', { class: 'strip' }, el('h3', { text: 'The whole picture' }), el('p', { class: 'sub', text: 'With the cards taken away — what the two set pieces reveal.' }), entry.panos));
+  }
+  chapters.append(section);
+  built.set(sky.id, entry);
+}
+
+function paint() {
+  segment('seg-scheme', [{ key: 'light', label: 'Light' }, { key: 'dark', label: 'Dark' }], state.scheme, (scheme) => set({ scheme }));
+  segment('seg-device', DEVICES, state.device, (device) => set({ device }));
+  segment('seg-time', TIMES, state.time, (time) => set({ time }), (key) => state.device === 'iphone' && !IPHONE_TIMES.includes(key));
+
+  const device = deviceOf(state.device);
+  const where = `${device.label}, ${state.scheme} appearance, ${sayTime(state.time)}`;
+  document.getElementById('compare-sub').textContent = `All six at once: ${where}. Tap one to jump to it.`;
+  const row = document.getElementById('row');
+  row.dataset.device = state.device;
+  row.replaceChildren(...SKIES.filter((sky) => has(sky.id, dayKey())).map((sky) =>
+    el('button', { class: 'thumb', type: 'button', onclick: () => document.getElementById(sky.id).scrollIntoView({ behavior: 'smooth', block: 'start' }) },
+      shot(sky.id, dayKey(), `${sky.name}: ${where}`, true),
+      el('b', {}, sky.name, sky.badge ? el('i', { text: sky.badge }) : null))));
+
+  for (const sky of SKIES) {
+    const entry = built.get(sky.id);
+    entry.lay.dataset.device = state.device;
+    entry.stageImg.src = src(sky.id, dayKey());
+    entry.stageImg.alt = `${sky.name}: ${where}`;
+    entry.cap.textContent = where;
+    entry.film.dataset.device = state.device;
+    const hours = TIMES.filter((t) => state.device !== 'iphone' || IPHONE_TIMES.includes(t.key));
+    entry.film.replaceChildren(...hours.map((t) => el('button', { type: 'button', 'aria-pressed': String(t.key === state.time), onclick: () => set({ time: t.key }) },
+      shot(sky.id, `day-${state.device}-${state.scheme}-${t.key}`, `${sky.name} at ${sayTime(t.key)}`), el('span', { text: sayTime(t.key) }))));
+    if (entry.seasons) {
+      entry.seasons.replaceChildren(...SEASONS.filter(([name]) => has(sky.id, `season-${name}-spread-${state.scheme}-pre`)).map(([name, label]) => {
+        const key = `season-${name}-spread-${state.scheme}-pre`;
+        return el('button', { type: 'button', onclick: () => zoom(src(sky.id, key), `${sky.name} · ${label}`, 951) }, shot(sky.id, key, `${sky.name} in ${label}`), el('span', { text: label }));
+      }));
+      entry.panos.replaceChildren(...['0650', '1610', '1640', '2100'].filter((t) => has(sky.id, `bare-spread-${state.scheme}-${t}`)).map((t) => {
+        const key = `bare-spread-${state.scheme}-${t}`;
+        return el('button', { type: 'button', onclick: () => zoom(src(sky.id, key), `${sky.name} · no cards · ${sayTime(t)}`, 951) }, shot(sky.id, key, `${sky.name} with no cards at ${sayTime(t)}`), el('span', { text: sayTime(t) }));
+      }));
+    }
+  }
+}
+
+/* ───────────────────────────── words ───────────────────────────── */
+document.getElementById('lede').innerHTML = PAGE.lede;
+document.getElementById('mine').append(el('h2', { text: PAGE.mine.title }), ...PAGE.mine.paragraphs.map((t) => el('p', { text: t })));
+document.getElementById('closing').append(el('h2', { text: PAGE.closing.title }), el('ul', {}, PAGE.closing.points.map((t) => el('li', { text: t }))));
+SKIES.forEach(buildChapter);
+paint();
+</script>
