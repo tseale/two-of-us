@@ -9,7 +9,8 @@
 //   · the first night is the brightest star in his sky
 //   · each month-birthday night is a brighter star with a four-point glint
 //   · tonight's star is warm (nightlight cream) and is only lit once he is down
-//     for the night; in the morning it cools and joins the rest
+//     for the night; in the morning it cools and joins the rest. The lab says
+//     when with `state.tonightLit` (README): nights(state.ageDays, { tonightLit: state.tonightLit })
 //
 // Pure. Positions are (u, v) in 0–1: u across the sky's width (the WORLD's, see
 // the README: a sky decides how wide its world is — the same star is in the same
@@ -37,7 +38,7 @@ const monthsBy = (n) => Math.floor((n - 1) / 30.4375);
 /**
  * The stars of his sky on night `ageDays + 1`.
  *   ageDays     whole days since he was born (0 on his birthday)
- *   tonightLit  his star for tonight has been lit (he is down for the night)
+ *   tonightLit  his star for tonight has been lit (he is down for the night) — `state.tonightLit`
  * → [{ night, u, v, magnitude, warmth, kind, twinkle: { period, phase } }]
  *   magnitude 0–1 (1 brightest), warmth −1 cool blue-white … +1 warm cream
  *   kind: 'first' | 'month' | 'tonight' | 'night'

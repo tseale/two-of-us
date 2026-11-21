@@ -4,8 +4,30 @@
 // Pure. From the day of the year and the latitude's sign (the southern
 // hemisphere is half a year out of step). Everything is continuous — there is no
 // day on which the hills change.
+//
+//   season(dayOfYear, latitude?, { snowfall }?)   or   season(state)
+//
+// One thing can be told from outside: the snow in the air. `snowfall=` in the
+// viewer's URL (0–1; README) is `state.snowfall`, and the viewer also hands it
+// to forceSnowfall() here, so season(state.dayOfYear, state.latitude) — the
+// call every sky already makes — answers with it too. Only `snowfall` is
+// forced: the snow lying on the land is still the date's (shoot a winter day).
 
 import { smoothstep } from './oklab.js';
+
+let forcedSnowfall = null;
+const unit = (value) => {
+  if (value == null || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(1, Math.max(0, number)) : null;
+};
+
+/** The lab's override: every season() from now on says this much snow is in
+ *  the air (0–1; 0 is a clear day), until it is called with null. The viewer
+ *  calls it each frame with the URL's `snowfall`; nothing else should. */
+export function forceSnowfall(value) {
+  forcedSnowfall = unit(value);
+}
 
 /** 1 inside [start, end] (days of the year, wrapping past 365), easing in and
  *  out over `soft` days. */
@@ -31,8 +53,16 @@ function window(day, start, end, soft) {
  *   grass,           0 dormant straw … 1 green
  *   frost            0–1 hoar on the ground at dawn
  * }
+ *
+ * `options.snowfall` (0–1) says how much snow is in the air instead of the
+ * day's own roll; so does the lab's `snowfall=` (forceSnowfall, above).
+ * `season(state)` reads the day, the latitude and `state.snowfall` off a state.
  */
-export function season(dayOfYear, latitude = 41.88) {
+export function season(dayOfYear, latitude = 41.88, options = {}) {
+  if (dayOfYear !== null && typeof dayOfYear === 'object') {
+    const state = dayOfYear;
+    return season(state.dayOfYear, state.latitude ?? 41.88, { snowfall: state.snowfall });
+  }
   const day = latitude < 0 ? dayOfYear + 182.5 : dayOfYear;
   const angle = (2 * Math.PI * (day - 15)) / 365;           // 0 in mid-January
   const raw = {
@@ -59,7 +89,8 @@ export function season(dayOfYear, latitude = 41.88) {
   // Snow falls on about two winter days in five; the lab can force it with snowfall=1.
   const seed = Math.sin(Math.floor(dayOfYear) * 127.1) * 43758.5453;
   const daySeed = seed - Math.floor(seed);
-  const snowfall = snow > 0.5 && daySeed < 0.4 ? 0.5 + daySeed : 0;
+  const told = unit(options?.snowfall) ?? forcedSnowfall;
+  const snowfall = told ?? (snow > 0.5 && daySeed < 0.4 ? 0.5 + daySeed : 0);
 
   return { name, weights, snow, snowfall, foliage, leafHue, leafFall, blossom, petals: blossom * 0.8,
            fireflies, grass, frost };

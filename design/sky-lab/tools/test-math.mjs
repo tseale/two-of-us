@@ -22,11 +22,18 @@
 //    and the sun's worked-out halo is the Gaussian blur it stands for. (What
 //    the canvas then makes of those calls is checked by eye and by pixel, in
 //    a browser — not here.)
+// 5. What the viewer adds to the state (lab/core.js): `sun.x` (equal to the
+//    baseline's rule by day, continuous through sunset and sunrise),
+//    `tonightLit` against the chrome's sample night, `snowfall` through the URL
+//    and through lab/season.js, the layout's stand-in.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as solar from '../lab/solar.js';
 import * as palette from '../lab/palette.js';
+import * as core from '../lab/core.js';
+import { season, forceSnowfall } from '../lab/season.js';
+import { sampleNight } from '../lab/chrome.js';
 import { sunHalo } from '../skies/baseline.js';
 
 const { SkyPalette, rgb, mix, css } = palette;
@@ -1253,6 +1260,199 @@ test('the sun and the moon are where an almanac puts them', () => {
   const evening = palette.scene({ date: at(21), latitude: lat, longitude: lon, tzOffsetHours: CST });
   ok(evening.isNight && evening.starOpacity === 1 && evening.cloudOpacity === 0, 'night at nine: stars, no clouds');
   near(unwrap(evening.moon, 'the moon at 21:00').x, 0.47, 0.05, 'the moon mid-sky');
+});
+
+// ═════════════════════════════════════ What the viewer adds to the state ══
+section('What the viewer adds to the state (lab/core.js, lab/season.js)');
+
+/** state.sun.x at an instant, the way buildState works it out. */
+function sunXAt(date, place, tz) {
+  const day = solar.solarDay(date, place.latitude, place.longitude, tz) ?? palette.fallbackDay(date, tz);
+  return core.sunX(solar.solarPhase(date, day), day);
+}
+
+const SUN_X_PLACES = [
+  ['Chicago, November', { latitude: 41.88, longitude: -87.63 }, CST, [2026, 11, 21]],
+  ['Chicago, January', { latitude: 41.88, longitude: -87.63 }, CST, [2027, 1, 15]],
+  ['Chicago, July', { latitude: 41.88, longitude: -87.63 }, -5, [2027, 7, 4]],
+  ['Chicago, the equinox', { latitude: 41.88, longitude: -87.63 }, -5, [2027, 3, 20]],
+  ['London, December', { latitude: 51.5, longitude: -0.13 }, 0, [2026, 12, 21]],
+  ['Stockholm, June', { latitude: 59.33, longitude: 18.07 }, 2, [2027, 6, 21]],
+  ['Sydney, January', { latitude: -33.87, longitude: 151.21 }, 11, [2027, 1, 15]],
+];
+
+test('sun.x is the baseline\'s rule while the sun is up', () => {
+  let count = 0;
+  for (const [name, place, tz, [y, m, d]] of SUN_X_PLACES) {
+    for (let minute = 0; minute < 1440; minute += 7) {
+      const date = local(tz, y, m, d, 0, minute);
+      const scene = palette.scene({ date, latitude: place.latitude, longitude: place.longitude, tzOffsetHours: tz });
+      if (scene.isNight) continue;
+      count += 1;
+      equal(sunXAt(date, place, tz), scene.body.x, `${name}, ${minute} min past midnight`);
+    }
+  }
+  ok(count > 400, `daylight minutes were checked (${count})`);
+  // …and through buildState, on the lab's default day.
+  for (const time of ['06:50', '09:30', '12:30', '16:10']) {
+    const state = core.buildState(core.parseParams({ time }));
+    ok(!state.sun.isNight, `the sun is up at ${time}`);
+    equal(state.sun.x, state.scene.body.x, `state.sun.x at ${time}`);
+  }
+  return `${count} daylight instants`;
+});
+
+test('sun.x is continuous, at one pace, through sunset and sunrise', () => {
+  for (const [name, place, tz, [y, m, d]] of SUN_X_PLACES) {
+    const day = unwrap(solar.solarDay(local(tz, y, m, d), place.latitude, place.longitude, tz), `${name}: a sunrise and a sunset`);
+    const x = (ms) => sunXAt(new Date(ms), place, tz);
+    const perSecond = 0.92 / ((day.sunset - day.sunrise) / 1000);
+    for (const [what, edge, at] of [['sunset', day.sunset.getTime(), 0.96], ['sunrise', day.sunrise.getTime(), 0.04]]) {
+      near(x(edge), at, 1e-9, `${name}: at ${what}`);
+      // No jump: a second either side differs by a second's travel.
+      near(x(edge + 1000) - x(edge - 1000), 2 * perSecond, 1e-9, `${name}: across ${what}, two seconds' travel`);
+      // No change of pace: ten minutes before and ten minutes after cover the same ground.
+      near(x(edge + 600_000) - x(edge), x(edge) - x(edge - 600_000), 1e-9, `${name}: the pace either side of ${what}`);
+    }
+    // Off to the right after sunset, back from the left before sunrise: it
+    // crosses the window's edge when the day's pace has carried it the last 0.04
+    // (25 min in a Chicago November, 49 in a Stockholm June).
+    const toTheEdge = 0.04 / perSecond * 1000;
+    ok(x(day.sunset.getTime() + 1) > 0.96, `${name}: past 0.96 the moment the sun has set`);
+    near(x(day.sunset.getTime() + toTheEdge), 1, 1e-6, `${name}: at the right edge ${(toTheEdge / 60_000).toFixed(0)} min after sunset`);
+    ok(x(day.sunset.getTime() + toTheEdge + 60_000) > 1, `${name}: off the right edge a minute later`);
+    ok(x(day.sunrise.getTime() - 1) < 0.04, `${name}: short of 0.04 the moment before sunrise`);
+    near(x(day.sunrise.getTime() - toTheEdge), 0, 1e-6, `${name}: at the left edge ${(toTheEdge / 60_000).toFixed(0)} min before sunrise`);
+    ok(x(day.sunrise.getTime() - toTheEdge - 60_000) < 0, `${name}: off the left edge a minute earlier`);
+  }
+});
+
+test('sun.x jumps once a day, in the middle of the night', () => {
+  for (const [name, place, tz, [y, m, d]] of SUN_X_PLACES) {
+    // Noon to noon, minute by minute: it only ever moves right, a minute's
+    // travel at a time, but for the one wrap from far right to far left.
+    const start = local(tz, y, m, d, 12).getTime();
+    const jumps = [];
+    let previous = sunXAt(new Date(start), place, tz);
+    let worst = 0;
+    for (let minute = 1; minute <= 1440; minute += 1) {
+      const date = new Date(start + minute * 60_000);
+      const now = sunXAt(date, place, tz);
+      const step = now - previous;
+      if (step < -0.9) jumps.push({ minute, date, from: previous, to: now });
+      else worst = Math.max(worst, Math.abs(step));
+      previous = now;
+    }
+    equal(jumps.length, 1, `${name}: wraps`);
+    // A minute's travel, and at local midnight the hop SolarClock.phase itself
+    // makes as one day's sunrise and sunset hand over to the next: up to 0.004 of
+    // the window, two or three minutes' travel (README).
+    ok(worst < 0.012, `${name}: every other minute is a small step (largest ${worst.toFixed(4)})`);
+    if (jumps.length === 1) {
+      const [jump] = jumps;
+      const day = solar.solarDay(jump.date, place.latitude, place.longitude, tz);
+      const phase = solar.solarPhase(jump.date, day);
+      ok(phase.isNight, `${name}: the wrap is at night`);
+      near(phase.progress, 0.5, 0.01, `${name}: at the middle of the night`);
+      // How far out depends on the night: 1.65 in a Chicago November, 1.09 in a Stockholm June.
+      ok(jump.from > 1 && jump.to < 0, `${name}: from off the right (${jump.from.toFixed(2)}) to off the left (${jump.to.toFixed(2)})`);
+      near(jump.from - 0.96, 0.04 - jump.to, 0.01, `${name}: as far out on one side as on the other`);
+    }
+  }
+});
+
+test('tonightLit: asleep for the night, or inside the sample day\'s night', () => {
+  // lab/core.js keeps a copy of the chrome's sample night (or 19:40–06:30 if the sample had none).
+  same(core.SAMPLE_NIGHT, sampleNight() ?? { bedtime: 19 * 60 + 40, wake: 6 * 60 + 30 }, 'SAMPLE_NIGHT is lab/chrome.js\'s sampleNight()');
+  same(core.SAMPLE_NIGHT, { bedtime: 1210, wake: 400 }, 'down at 20:10, up at 06:40');
+  const lit = (query) => core.buildState(core.parseParams(query)).tonightLit;
+  for (const [time, expected] of [['20:09', false], ['20:10', true], ['21:00', true], ['23:59', true], ['00:00', true],
+    ['03:00', true], ['06:39', true], ['06:40', false], ['06:50', false], ['12:30', false], ['16:10', false], ['19:40', false]]) {
+    equal(lit({ time }), expected, `awake at ${time}`);
+  }
+  equal(lit({ time: '12:30', asleep: 'night' }), true, 'asleep for the night at midday');
+  equal(lit({ time: '19:40', asleep: 'night' }), true, 'asleep for the night at 19:40');
+  equal(lit({ time: '12:30', asleep: 'nap' }), false, 'a nap lights nothing');
+  equal(lit({ time: '21:00', asleep: 'nap' }), true, 'a nap inside the sample night changes nothing');
+  equal(lit({ time: '12:30', lit: '1' }), true, 'lit=1 forces it');
+  equal(lit({ time: '21:00', lit: '0' }), false, 'lit=0 forces it off');
+  equal(lit({ time: '21:00', asleep: 'night', lit: '0' }), false, 'lit=0 wins over asleep=night');
+  equal(typeof lit({}), 'boolean', 'always a boolean');
+});
+
+test('snowfall, lit and the rest of the URL round-trip', () => {
+  const defaults = core.parseParams('');
+  equal(defaults.snowfall, null, 'snowfall is unset by default');
+  equal(defaults.lit, null, 'lit is unset by default');
+  equal(core.toSearch(defaults), '', 'the defaults are an empty query');
+  ok(!('snowfall' in core.buildState(defaults)), 'state.snowfall is absent until asked for');
+  for (const [query, snowfall, lit] of [['snowfall=1', 1, null], ['snowfall=0', 0, null], ['snowfall=0.4&lit=1', 0.4, true],
+    ['lit=0', null, false], ['snowfall=7', 1, null], ['snowfall=-2', 0, null], ['snowfall=deep&lit=perhaps', null, null]]) {
+    const params = core.parseParams(query);
+    equal(params.snowfall, snowfall, `${query}: snowfall`);
+    equal(params.lit, lit, `${query}: lit`);
+    same(core.parseParams(core.toSearch(params)), params, `${query}: toSearch and back`);
+    equal(core.buildState(params).snowfall, snowfall ?? undefined, `${query}: state.snowfall`);
+  }
+  const busy = 'sky=wet-wash&device=spread&scheme=light&date=2027-01-15&time=17:22&tz=-5&asleep=night&age=197&chrome=0&t=12'
+    + '&motion=0&event=bedtime&eventAge=3&lead=0.3&veil=0.5&tilt=-1,0.5&toast=1&snowfall=1&lit=0';
+  equal(core.toSearch(core.parseParams(busy)), busy, 'every parameter comes back in toSearch\'s order');
+});
+
+test('season() says what the lab says is in the air', () => {
+  const winter = 15;                      // the review set's winter day: snow lying, none falling
+  const natural = season(winter, 41.88);
+  equal(natural.snow, 1, 'snow lies in mid-January');
+  equal(natural.snowfall, 0, 'none in the air that day');
+  same(season(winter), natural, 'the latitude still defaults');
+  // An option, or a whole state…
+  equal(season(winter, 41.88, { snowfall: 1 }).snowfall, 1, 'options.snowfall');
+  equal(season(winter, 41.88, { snowfall: 0.25 }).snowfall, 0.25, 'options.snowfall, a part');
+  equal(season(1, 41.88, { snowfall: 0 }).snowfall, 0, 'options.snowfall = 0 clears a snowy day');
+  ok(season(1, 41.88).snowfall > 0, '(day 1 is one)');
+  const state = core.buildState(core.parseParams({ date: '2027-01-15', snowfall: '1' }));
+  equal(state.snowfall, 1, 'state.snowfall');
+  equal(season(state).snowfall, 1, 'season(state)');
+  same({ ...season(state), snowfall: 0 }, season(state.dayOfYear, state.latitude), 'season(state) is otherwise the day\'s');
+  same(season(core.buildState(core.parseParams({ date: '2027-01-15' }))), natural, 'season(state) without snowfall is the day\'s own');
+  // …or the lab's override, for the two-argument call every sky makes.
+  forceSnowfall(1);
+  try {
+    equal(season(winter, 41.88).snowfall, 1, 'forced: the two-argument call');
+    same({ ...season(winter, 41.88), snowfall: 0 }, natural, 'forced: nothing else changes');
+    equal(season(200, 41.88).snow, 0, 'forced: no snow lies in July for it');
+    equal(season(winter, 41.88, { snowfall: 0.5 }).snowfall, 0.5, 'an explicit option still wins');
+    forceSnowfall(0);
+    equal(season(1, 41.88).snowfall, 0, 'forced to 0: a snowy day is clear');
+  } finally {
+    forceSnowfall(null);
+  }
+  same(season(winter, 41.88), natural, 'and back to the day\'s own');
+});
+
+test('state.layout has a stand-in wherever no chrome was measured', () => {
+  const fields = ['measured', 'name', 'age', 'avatar', 'gear', 'firstCardTop', 'stripClear', 'title', 'subtitle'];
+  for (const device of ['cover', 'spread', 'iphone']) {
+    const layout = core.buildState(core.parseParams({ device })).layout;
+    same(Object.keys(layout), fields, `${device}: the fields, in order`);
+    equal(layout.measured, false, `${device}: marked as not measured`);
+    for (const key of ['name', 'age', 'avatar', 'gear']) {
+      const r = unwrap(layout[key], `${device}: ${key}`);
+      ok([r.x, r.y, r.width, r.height].every(Number.isFinite) && r.width > 0 && r.height > 0, `${device}: ${key} is a rect`);
+      ok(r.y + r.height <= layout.firstCardTop, `${device}: ${key} is above the first card`);
+    }
+    equal(layout.stripClear === null, device === 'iphone', `${device}: stripClear only on the Duo`);
+    equal(layout.title === null, device !== 'spread', `${device}: a title only on the spread`);
+    equal(layout.subtitle === null, device !== 'spread', `${device}: a subtitle only on the spread`);
+  }
+  const awake = core.estimateLayout('cover', false).stripClear;
+  const asleep = core.estimateLayout('cover', 'night').stripClear;
+  same(Object.keys(awake), ['x', 'width', 'yMin', 'yMax'], 'stripClear\'s fields');
+  ok(asleep.yMin > awake.yMin && asleep.yMax === awake.yMax, 'the island grows down when a sleep is running');
+  equal(awake.x + awake.width, core.DEVICES.cover.width, 'the window runs to the display\'s edge');
+  // A measured layout handed to buildState is the one in the state.
+  const measured = { measured: true };
+  ok(core.buildState(core.parseParams(''), 0, [], measured).layout === measured, 'buildState passes a measured layout through');
 });
 
 // The sun's halo is pure maths, so it is checked wherever the lab is.

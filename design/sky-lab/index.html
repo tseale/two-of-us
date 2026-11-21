@@ -8,7 +8,9 @@
 <style>
   /* The viewer (README, "The viewer's URL"). lab/core.js mounts everything:
        #display        the device's display, exactly width × height CSS px;
-                       a sky host underneath, the chrome's root above it
+                       a sky host underneath (#sky-host, its own stacking
+                       context), the chrome's root above it (#chrome-root —
+                       hidden, but still laid out, with chrome=0)
        #device         the bezel around it        (bezel=1)
        #panel          the controls beside it     (ui=1)
      With neither, #display sits at the page's top-left with nothing around it,
@@ -18,6 +20,9 @@
   body[data-scheme="light"] { background: #c9c9cf; }
   #display { position: relative; overflow: hidden; background: #000; }
   body[data-scheme="light"] #display { background: #f2f2f7; }
+  /* Whatever a sky stacks inside its host — a canvas with a z-index — stays
+     under the chrome. (lab/core.js sets the same on the element.) */
+  #sky-host { isolation: isolate; }
 
   /* ── bare: nothing but the display ── */
   html.lab-bare { overflow: hidden; }

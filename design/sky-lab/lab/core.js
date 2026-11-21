@@ -6,7 +6,10 @@
 //   DEFAULTS                             every URL parameter's default
 //   parseParams(searchParams) → params   the URL, validated and filled in
 //   toSearch(params) → string            the way back: a query without defaults
-//   buildState(params, t, cards) → state the README's `state` object (pure)
+//   buildState(params, t, cards, layout) → state   the README's `state` object (pure)
+//   sunX(phase, day) → number            state.sun.x: the sun's x, by day and on past sunset
+//   SAMPLE_NIGHT                         the sample day's bedtime and wake, for state.tonightLit
+//   estimateLayout(device, asleep)       state.layout where no chrome has been measured
 //   run() → Promise<lab>                 mounts the viewer into #display (browser only)
 //
 // Nothing at the top level touches the DOM, so node can import this file too
@@ -14,6 +17,7 @@
 
 import * as solar from './solar.js';
 import * as palette from './palette.js';
+import { forceSnowfall } from './season.js';
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
@@ -61,8 +65,9 @@ const BEZEL = 10;
 // ───────────────────────────────────────────────────────────── parameters ──
 
 /** Every parameter's default (README, "The viewer's URL"), then the lab's
- *  additions: `event` + `eventAge`, `lead`, `tilt`, `toast` (fields BRIEF.md
- *  and lab/chrome.js read from the state) and `zoom` (the panel's). */
+ *  additions: `event` + `eventAge`, `lead`, `veil`, `tilt`, `toast`, `snowfall`,
+ *  `lit` (fields BRIEF.md, lab/chrome.js and the helpers read from the state)
+ *  and `zoom` (the panel's). */
 export const DEFAULTS = Object.freeze({
   sky: 'baseline',
   device: 'cover',
@@ -86,6 +91,8 @@ export const DEFAULTS = Object.freeze({
   veil: null,          // null | 0–1 → state.veil (how far the phone page's cards have fallen back)
   tilt: null,          // null | { x, y }, −1…1 each → state.tilt
   toast: false,        // true → state.toast (the undo toast)
+  snowfall: null,      // null | 0–1 → state.snowfall, and what lab/season.js's season() says is in the air
+  lit: null,           // null | true | false → state.tonightLit, forced
   zoom: 1,             // the display's magnification, with ui=1 or bezel=1 only
 });
 
@@ -157,6 +164,8 @@ export function parseParams(searchParams) {
     ? get('event') : D.event;
   const lead = number(get('lead'), null, 0, 1);
   const veil = number(get('veil'), null, 0, 1);
+  const snowfall = number(get('snowfall'), null, 0, 1);
+  const lit = flag(get('lit'), null);
   const tiltParts = String(get('tilt') ?? '').split(',').map((part) => Number(part));
   const tilt = tiltParts.length === 2 && tiltParts.every(Number.isFinite) && String(get('tilt')).trim() !== ''
     ? { x: clamp(tiltParts[0], -1, 1), y: clamp(tiltParts[1], -1, 1) }
@@ -185,6 +194,8 @@ export function parseParams(searchParams) {
     veil,
     tilt,
     toast: flag(get('toast'), D.toast),
+    snowfall,
+    lit,
     zoom: number(get('zoom'), D.zoom, 0.25, 4),
   };
 }
@@ -215,6 +226,8 @@ export function toSearch(params) {
   put('veil', p.veil, p.veil == null);
   put('tilt', p.tilt ? `${p.tilt.x},${p.tilt.y}` : '', p.tilt == null);
   put('toast', 1, !p.toast);
+  put('snowfall', p.snowfall, p.snowfall == null);
+  put('lit', p.lit ? 1 : 0, p.lit == null);
   put('ui', 1, !p.ui);
   put('bezel', 1, !p.bezel);
   put('zoom', p.zoom, p.zoom === D.zoom);
@@ -233,22 +246,109 @@ function fallbackDay(date, tzOffsetHours) {
 }
 
 /**
+ * state.sun.x — the sun's horizontal place as a fraction of the anchor window.
+ * By day it is the baseline's rule, `palette.bodyPosition(progress).x`: 0.04 at
+ * sunrise, 0.96 at sunset (so it equals `scene.body.x` while the sun is up).
+ * After sunset it keeps going at the pace it had by day, off to the right
+ * (> 1); in the second half of the night it comes back from the left (< 0) at
+ * that pace, to be at 0.04 at sunrise. Continuous, with no change of pace,
+ * through sunset and sunrise; the one jump, from far right to far left, is at
+ * the middle of the night (night progress 0.5), where nothing of it shows.
+ * How far out it gets is the night's length at the day's pace: 1.65 and −0.65
+ * in a Chicago November, 1.09 and −0.09 in a Stockholm June.
+ *
+ * @param {{ isNight: boolean, progress: number }} phase  `solar.solarPhase`
+ * @param {{ sunrise: Date, sunset: Date }} day           `solar.solarDay` (or the fallback day)
+ */
+export function sunX(phase, day) {
+  const rise = palette.bodyPosition(0).x;
+  const set = palette.bodyPosition(1).x;
+  if (!phase.isNight) return palette.bodyPosition(phase.progress).x;
+  // solarPhase's own lengths: the night is the rest of 24 h.
+  const dayLength = Math.max(day.sunset.getTime() - day.sunrise.getTime(), 1000);
+  const nightLength = Math.max(DAY_MS - dayLength, 1000);
+  const span = (set - rise) * (nightLength / dayLength);     // a whole night's travel at the day's pace
+  return phase.progress < 0.5 ? set + span * phase.progress : rise - span * (1 - phase.progress);
+}
+
+/** The sample day's night (lab/chrome.js's TEMPLATE; its `sampleNight()`), in
+ *  minutes from local midnight: down for the night at 20:10, up at 06:40.
+ *  tools/test-math.mjs checks this copy against the chrome's data. */
+export const SAMPLE_NIGHT = Object.freeze({ bedtime: 20 * 60 + 10, wake: 6 * 60 + 40 });
+
+/** state.tonightLit, unforced: he is down for the night now, or the sample
+ *  day's bedtime has passed and its morning wake has not. */
+function litTonight(asleep, minutes) {
+  if (asleep === 'night') return true;
+  const { bedtime, wake } = SAMPLE_NIGHT;
+  return bedtime > wake ? minutes >= bedtime || minutes < wake : minutes >= bedtime && minutes < wake;
+}
+
+const rect = (x, y, width, height) => ({ x, y, width, height });
+
+/**
+ * state.layout where the chrome has not been laid out and measured (node; a
+ * viewer whose lab/chrome.js failed): the same fields from numbers measured
+ * once in headless Chromium (Nunito, and Inter standing in for SF), with
+ * `measured: false`. The viewer's own layout comes from the chrome's DOM
+ * (lab/chrome.js, `measure`) and replaces this.
+ */
+export function estimateLayout(device, asleep = false) {
+  const table = LAYOUT_ESTIMATE[Object.hasOwn(LAYOUT_ESTIMATE, device) ? device : DEFAULTS.device];
+  const copy = (r) => (r ? { ...r } : null);
+  const clear = table.stripClear ? { ...table.stripClear, yMin: asleep ? table.stripClear.yMinAsleep : table.stripClear.yMin } : null;
+  if (clear) delete clear.yMinAsleep;
+  return {
+    measured: false,
+    name: copy(table.name), age: copy(table.age), avatar: copy(table.avatar), gear: copy(table.gear),
+    firstCardTop: table.firstCardTop,
+    stripClear: clear,
+    title: copy(table.title), subtitle: copy(table.subtitle),
+  };
+}
+
+// Awake at 16:10 on the default day, four months old ("Miller", "4 months old";
+// the spread's title is the widest of its four, "The day so far").
+const LAYOUT_ESTIMATE = deepFreeze({
+  cover: {
+    name: rect(96, 29, 92.04, 26), age: rect(94, 67.59, 90.63, 12),
+    avatar: rect(20, 22, 60, 60), gear: rect(318, 22, 44, 44), firstCardTop: 88.59,
+    stripClear: { x: 362, width: 104, yMin: 151, yMinAsleep: 185, yMax: 396 },
+    title: null, subtitle: null,
+  },
+  spread: {
+    name: rect(581, 29, 92.04, 26), age: rect(579, 67.59, 90.63, 12),
+    avatar: rect(505, 22, 60, 60), gear: rect(803, 22, 44, 44), firstCardTop: 88.59,
+    stripClear: { x: 847, width: 104, yMin: 151, yMinAsleep: 185, yMax: 387 },
+    title: rect(97.5, 29, 230.8, 32), subtitle: rect(97.5, 66.59, 114.66, 16),
+  },
+  iphone: {
+    name: rect(92, 77, 92.04, 26), age: rect(90, 115.59, 90.63, 12),
+    avatar: rect(16, 70, 60, 60), gear: rect(342, 70, 44, 44), firstCardTop: 136.59,
+    stripClear: null, title: null, subtitle: null,
+  },
+});
+
+/**
  * The README's `state` for these params at animation time `t` (seconds).
  * Pure: the same arguments give an equal state. Every object in it is fresh
- * except `cards`, which is the array passed in (the chrome refills its own in
- * place, so whoever holds the state sees a re-measure).
+ * except `cards` and `layout`, which are the ones passed in (the chrome
+ * refills its own in place, so whoever holds the state sees a re-measure).
  *
- * Beyond the README's fields, in this order after them:
- *   tilt   { x, y }, −1…1 each — the device's tilt, for parallax (0, 0 unless `tilt=`)
- *   event  null | { kind, age } — lab/presence.js's events (`event=`, `eventAge=`)
- *   lead   0–1, only when `lead=` is given — the leading page's opacity (lab/chrome.js)
- *   toast  { message }, only with `toast=1` — the undo toast (lab/chrome.js)
+ * After the README's first fields, in this order:
+ *   tilt      { x, y }, −1…1 each — the device's tilt, for parallax (0, 0 unless `tilt=`)
+ *   event     null | { kind, age } — lab/presence.js's events (`event=`, `eventAge=`)
+ *   lead      0–1, only when `lead=` is given — the leading page's opacity (lab/chrome.js)
+ *   veil      0–1, only when `veil=` is given — how far the phone page's cards have fallen back
+ *   snowfall  0–1, only when `snowfall=` is given — snow in the air (lab/season.js)
+ *   toast     { message }, only with `toast=1` — the undo toast (lab/chrome.js)
  *
  * @param {ReturnType<typeof parseParams>} params
  * @param {number} [t]      seconds; defaults to `params.t`, else 0
- * @param {Array<{x:number,y:number,width:number,height:number,kind:string}>} [cards]
+ * @param {Array<{x:number,y:number,width:number,height:number,kind:string,opacity:number}>} [cards]
+ * @param {object} [layout] the chrome's measured layout; `estimateLayout` without one
  */
-export function buildState(params, t, cards = []) {
+export function buildState(params, t, cards = [], layout = null) {
   const p = params;
   const device = Object.hasOwn(DEVICES, p.device) ? p.device : DEFAULTS.device;
   const preset = DEVICES[device];
@@ -292,6 +392,7 @@ export function buildState(params, t, cards = []) {
       progress: phase.progress,
       sunrise: day.sunrise,
       sunset: day.sunset,
+      x: sunX(phase, day),
     },
     moon: m ? {
       altitude: m.altitude,
@@ -308,16 +409,19 @@ export function buildState(params, t, cards = []) {
 
     asleep: p.asleep === 'nap' || p.asleep === 'night' ? p.asleep : false,
     ageDays: p.age,
+    tonightLit: p.lit ?? litTonight(p.asleep, minutes),
 
     t: Number.isFinite(t) ? t : (p.t ?? 0),
     reduceMotion: !p.motion,
     cards,
+    layout: layout ?? estimateLayout(device, p.asleep),
 
     tilt: p.tilt ? { x: p.tilt.x, y: p.tilt.y } : { x: 0, y: 0 },
     event: p.event ? { kind: p.event, age: p.eventAge } : null,
   };
   if (p.lead != null) state.lead = p.lead;
   if (p.veil != null) state.veil = p.veil;
+  if (p.snowfall != null) state.snowfall = p.snowfall;
   if (p.toast) state.toast = { message: 'Logged 4.5 oz' };
   return state;
 }
@@ -359,7 +463,8 @@ const localTime = (date, tz) => {
  * `__labReady` stays false then. Also leaves `window.__lab` behind, for tools:
  *   __lab.params        the live params
  *   __lab.state         the state last handed to the sky
- *   __lab.cards         what the chrome last returned
+ *   __lab.cards         what the chrome last returned ([] with chrome=0)
+ *   __lab.layout        state.layout: the chrome's measured layout, chrome=0 or 1
  *   __lab.set(patch)    change params as the panel would → a promise that
  *                       resolves when that frame is fully drawn
  *
@@ -371,6 +476,7 @@ export async function run() {
   const params = parseParams(new URLSearchParams(win.location.search));
   win.__labReady = false;
   win.__labError = null;
+  forceSnowfall(params.snowfall);          // before any sky is created; kept up to date in drawFrame
 
   // ── the display: a sky host underneath, the chrome's root above it ──
   let display = doc.getElementById('display');
@@ -410,10 +516,11 @@ export async function run() {
   let skyIds = [DEFAULTS.sky];
 
   let chromeModule;              // undefined: not asked for yet; null: not there
-  let chrome = null;             // { update, destroy }
+  let chrome = null;             // { update, layout, destroy }
   let chromeKey = null;
   let chromeNote = '';
-  let cards = [];
+  let cards = [];                // what the chrome covers — all of it, shown or not
+  let layout = null;             // the chrome's measured layout; null: none (an estimate stands in)
 
   let lastState = null;
   let dirty = true;
@@ -541,11 +648,11 @@ export async function run() {
     chromeKey = null;
     chromeRoot.textContent = '';
     cards = [];
+    layout = null;
   }
 
   function syncChrome(state) {
-    const wanted = params.chrome && chromeModule != null;
-    if (!wanted) {
+    if (chromeModule == null) {
       if (chrome) dropChrome();
       cards = [];
       return;
@@ -554,12 +661,16 @@ export async function run() {
       try {
         chrome = chromeModule.createChrome(chromeRoot);
         chromeKey = null;
+        layout = chrome.layout ?? null;
       } catch (error) {
         chromeModule = null;
         dropChrome(error);
         return;
       }
     }
+    // chrome=0: the chrome is still laid out, so state.layout is the same
+    // measured thing with the UI on or off — and never painted.
+    chromeRoot.style.visibility = params.chrome ? '' : 'hidden';
     // Whenever the minute, device, scheme or asleep changes — and anything
     // else the chrome reads — but not every frame.
     const key = [params.device, params.scheme, params.date, params.time.slice(0, 5), params.asleep,
@@ -609,7 +720,9 @@ export async function run() {
       if (typeof module.create !== 'function') throw new Error(`skies/${id}.js does not export create(host, env).`);
       host = doc.createElement('div');
       host.id = 'sky-host';
-      host.style.cssText = 'position:absolute;inset:0;overflow:hidden;';
+      // Its own stacking context: nothing inside it — a canvas with a z-index —
+      // can come out above the chrome.
+      host.style.cssText = 'position:absolute;inset:0;overflow:hidden;isolation:isolate;';
       display.insertBefore(host, chromeRoot);
       const instance = await module.create(host, { assets: 'assets/', solar, palette });
       if (generation !== skyGeneration) {
@@ -644,8 +757,11 @@ export async function run() {
     if (state.event && !frozen()) state.event.age = params.eventAge + Math.max(0, state.t - eventStart);
 
     syncChrome(state);
-    state.cards = cards;
+    state.cards = params.chrome ? cards : [];
+    if (layout) state.layout = layout;
     lastState = state;
+    // season() answers with the URL's snowfall, for skies that call it with a day and a latitude.
+    forceSnowfall(params.snowfall);
 
     if (sky && renderPending) dirty = true;     // an async render is still out: this frame waits its turn
     if (sky && !skyBroken && !renderPending) {
@@ -760,7 +876,7 @@ export async function run() {
     skyBroken = false;
     if (errorKind === 'render' || errorKind === 'state') showError(null);
     applyLayout();
-    if (params.chrome && chromeModule === undefined) await loadChromeModule();
+    if (chromeModule === undefined) await loadChromeModule();
     if (params.sky !== before.sky || (!sky && 'sky' in patch)) await loadSky(params.sky);
     dirty = true;
     syncUrl();
@@ -782,6 +898,9 @@ export async function run() {
       toast: p.toast ? '1' : '0',
       t: p.t == null ? '' : p.t,
       lead: p.lead == null ? '' : p.lead,
+      veil: p.veil == null ? '' : p.veil,
+      snowfall: p.snowfall == null ? '' : p.snowfall,
+      lit: p.lit == null ? '' : (p.lit ? '1' : '0'),
       tilt: p.tilt ? `${p.tilt.x},${p.tilt.y}` : '',
       event: p.event ?? '',
     };
@@ -833,6 +952,8 @@ export async function run() {
           <label><input type="checkbox" data-key="reduce"> Reduce Motion</label>
           <label><input type="checkbox" data-key="toast"> toast</label></div>
         <div class="row"><span></span><label><input type="checkbox" data-key="pointerTilt"> tilt follows the pointer</label></div>
+        <div class="row"><span>Star</span>${seg('lit', [['', 'by the day'], ['1', 'lit'], ['0', 'unlit']])}</div>
+        <div class="row"><span></span><label title="snowfall=1: season() says snow is in the air"><input type="checkbox" data-key="snowfall"> snow falling</label></div>
       </details>
       <pre data-out="readout"></pre>`;
     for (const node of panel.querySelectorAll('[data-out]')) outputs[node.dataset.out] = node;
@@ -863,6 +984,7 @@ export async function run() {
       if (key === 'time') change({ time: minutesToTime(Number(control.value)) });
       else if (key === 'lead') change({ lead: control.value });
       else if (key === 'chrome' || key === 'bezel' || key === 'toast') change({ [key]: control.checked ? '1' : '0' });
+      else if (key === 'snowfall') change({ snowfall: control.checked ? '1' : '' });
       else if (key === 'reduce') change({ motion: control.checked ? '0' : '1' });
       else if (key === 'pointerTilt') { pointerTilt = control.checked; if (!pointerTilt) { liveTilt = null; dirty = true; } }
     });
@@ -908,6 +1030,7 @@ export async function run() {
     const values = {
       device: params.device, scheme: params.scheme, asleep: params.asleep || '0',
       sweep: String(sweep), zoom: String(params.zoom), dpr: String(params.dpr),
+      lit: params.lit == null ? '' : (params.lit ? '1' : '0'),
     };
     for (const group of panel.querySelectorAll('[data-seg]')) {
       for (const button of group.children) {
@@ -935,6 +1058,7 @@ export async function run() {
     set('lead', params.lead ?? 1);
     set('reduce', !params.motion);
     set('toast', params.toast);
+    set('snowfall', params.snowfall != null && params.snowfall > 0);
     set('pointerTilt', pointerTilt);
     panel.querySelector('[data-act="play"]').textContent = frozen() ? 'Play' : 'Pause';
     panel.querySelector('[data-act="bare"]').href = `?${toSearch({ ...params, ui: false, bezel: false, zoom: 1 })}`;
@@ -969,6 +1093,7 @@ export async function run() {
         ? `moon  alt ${deg(moon.altitude)}  az ${(moon.azimuth * DEG).toFixed(0).padStart(3)}°\n      ${Math.round(moon.fraction * 100)}% lit, ${moon.phase < 0.5 ? 'waxing' : 'waning'}`
         : 'moon  down',
       `day ${state.dayOfYear}  age ${state.ageDays} d  cards ${state.cards.length}`,
+      `sun x ${state.sun.x.toFixed(2)}  star ${state.tonightLit ? 'lit' : 'unlit'}${state.snowfall != null ? `  snowfall ${state.snowfall}` : ''}`,
     ];
     if (state.event) lines.push(`event ${state.event.kind}  age ${state.event.age.toFixed(1)} s`);
     if (liveTilt) lines.push(`tilt  ${state.tilt.x.toFixed(2)}, ${state.tilt.y.toFixed(2)}`);
@@ -977,14 +1102,15 @@ export async function run() {
 
   // ── go ──
   applyLayout();
-  await Promise.all([loadSkyList(), params.chrome ? loadChromeModule() : null]);
+  await Promise.all([loadSkyList(), loadChromeModule()]);
   await loadSky(params.sky);
   if (params.ui) buildPanel();
 
   const lab = {
     get params() { return params; },
     get state() { return lastState; },
-    get cards() { return cards; },
+    get cards() { return params.chrome ? cards : []; },
+    get layout() { return lastState?.layout ?? layout; },
     get sky() { return skyMeta; },
     /** Change params as the panel would; resolves when that frame is fully drawn. */
     async set(patch) {

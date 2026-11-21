@@ -10,7 +10,8 @@
 //   TwoOfUs/Features/Timeline/DayTimelineView.swift
 //   TwoOfUs/Features/Home/SpreadDetailViews.swift, Shared/{PageTitle,SpreadGrid,PhonePage}.swift
 //
-//   createChrome(root, options?) → { update(state) → cards, destroy() }
+//   createChrome(root, options?) → { update(state) → cards, layout, destroy() }
+//   sampleNight() → { bedtime, wake }   the sample day's night, for state.tonightLit
 //
 // `root` is an empty <div> filling the display over the sky. Its background
 // stays transparent. Styles: lab/chrome.css (index.html links it).
@@ -135,6 +136,26 @@ const startsAtNight = (m) => {
 const isNap = (start, end) => !startsAtNight(start) && end - start < 120;
 const gerund = (start, now) => (isNap(start, now) ? 'napping' : 'sleeping');
 const sleepNoun = (start, end) => (isNap(start, end) ? 'Nap' : 'Sleep');
+// The running sleep's word. `asleep=night` says this is the night's sleep, so it
+// is "sleeping" whenever it began (SleepActiveCard's eyebrow for a night sleep is
+// "MILLER IS SLEEPING"); otherwise SleepLanguage's clock rule decides, as above.
+// This is the lab's licence, not the app's rule: the app goes by the clock alone,
+// so a sleep begun at 19:36 reads "napping" there until it has run two hours.
+const runningWord = (sleep, now) => (sleep.night ? 'sleeping' : gerund(sleep.start, now));
+
+/**
+ * The sample day's night, in minutes from local midnight: `bedtime` is when he
+ * goes down for the night (the first sleep of the evening that SleepLanguage
+ * calls a sleep), `wake` when the last sleep of the small hours ends. Null if
+ * the template has no such night. lab/core.js's `state.tonightLit` keeps a
+ * copy of these two numbers (tools/test-math.mjs checks they agree).
+ */
+export function sampleNight() {
+  const evening = TEMPLATE.sleeps.filter(([start]) => start >= 720 && startsAtNight(start)).map(([start]) => start);
+  const morning = TEMPLATE.sleeps.filter(([start]) => start < 720 && startsAtNight(start)).map(([, end]) => end);
+  if (!evening.length || !morning.length) return null;
+  return { bedtime: Math.min(...evening), wake: Math.max(...morning) };
+}
 
 // ───────────────────────────────────────────────────────────────── icons ──
 
@@ -281,6 +302,7 @@ function buildDay(now, asleep) {
     sleeps = sleeps.filter((s) => s === running || s.end <= start - 20);
     running.start = start;
   }
+  if (asleep === 'night' && running) running.night = true;
 
   return { now, sleeps, feeds, diapers, notes, running };
 }
@@ -503,7 +525,7 @@ function hero(ctx) {
     sleepValue = `<span class="value c-sleep">${inner}</span>`;
   }
   const sleepCaption = sum.running
-    ? `<span class="caption live">${ICON.moonZzz}${gerund(sum.running.start, now)}</span>`
+    ? `<span class="caption live">${ICON.moonZzz}${runningWord(sum.running, now)}</span>`
     : '<span class="caption">sleep</span>';
 
   return `<div class="surface hero" data-card="hero">
@@ -596,8 +618,8 @@ function tiles(ctx) {
 function sleepCard(ctx) {
   const { sum, now } = ctx;
   const s = sum.running;
-  const word = gerund(s.start, now).toUpperCase();
-  const usual = startsAtNight(s.start) ? 270 : 70;
+  const word = runningWord(s, now).toUpperCase();
+  const usual = s.night || startsAtNight(s.start) ? 270 : 70;
   const predicted = s.start + usual;
   const eyebrow = `<div class="label c-sleep">${BABY.name.toUpperCase()} IS ${word}</div>`;
   const sinceRow = `<div class="sincerow f-cap"><span class="nowrap">since ${clock(s.start)}</span>${ICON.pencil}</div>`;
@@ -680,7 +702,7 @@ function timeline(ctx) {
     if (s.end == null) {
       entries.push({
         t: s.start, kind: 'sleep', glyph: '💤', live: true, node: '--accent-sleep', bar: barLength(now - s.start),
-        title: `${gerund(s.start, now)[0].toUpperCase()}${gerund(s.start, now).slice(1)} · ${duration(Math.floor(now - s.start))}`,
+        title: `${runningWord(s, now)[0].toUpperCase()}${runningWord(s, now).slice(1)} · ${duration(Math.floor(now - s.start))}`,
       });
     } else if (s.start >= from) {
       entries.push({
@@ -1034,15 +1056,18 @@ function leadingPage(ctx) {
     body = dayDetails(ctx);
   }
   const foot = geo.height - geo.bottomInset;
-  const opacity = ctx.lead < 1 ? `opacity:${ctx.lead};` : '';
+  // At lead = 0 the page is still laid out — state.layout measures its title —
+  // but hidden outright, and measure() leaves its surfaces out of the cards.
+  const opacity = ctx.lead <= 0 ? 'opacity:0;visibility:hidden;' : ctx.lead < 1 ? `opacity:${ctx.lead};` : '';
+  const ghost = ctx.lead <= 0 ? ' data-ghost' : '';
   // SpreadGrid.avatarFrame: 52 pt, 22 pt in from the display's edge, 4 pt under the head line.
   const marginAvatar = ctx.options.marginAvatar
-    ? `<div data-card="header" style="${opacity}position:absolute;left:22px;top:${px(GRID.headY + 4)};display:flex">${avatar(BABY, 52)}</div>`
+    ? `<div data-card="header"${ghost} style="${opacity}position:absolute;left:22px;top:${px(GRID.headY + 4)};display:flex">${avatar(BABY, 52)}</div>`
     : '';
-  return `${marginAvatar}<div class="lead-title" data-card="header" style="${opacity}left:${px(GRID.leadingX)};top:${px(GRID.headY)};width:${px(GRID.pageWidth)}">
+  return `${marginAvatar}<div class="lead-title" data-card="header"${ghost} style="${opacity}left:${px(GRID.leadingX)};top:${px(GRID.headY)};width:${px(GRID.pageWidth)}">
       <div class="words"><div class="f-hero c-text ellipsis">${esc(title[0])}</div><div class="f-sub c-text2">${esc(title[1])}</div></div>${title[2]}
     </div>
-    <div class="lead-col" style="${opacity}left:${px(GRID.leadingX)};top:${px(GRID.top)};width:${px(GRID.pageWidth)};height:${px(foot - GRID.top)}">${body}</div>`;
+    <div class="lead-col"${ghost} style="${opacity}left:${px(GRID.leadingX)};top:${px(GRID.top)};width:${px(GRID.pageWidth)};height:${px(foot - GRID.top)}">${body}</div>`;
 }
 
 /**
@@ -1161,6 +1186,69 @@ function fit(root, ctx) {
   }
 }
 
+// ────────────────────────────────────────────────────────── where the text is ──
+
+let inkContext = null;
+
+/**
+ * The box of a one-line text's glyphs — its ink, not its line or its row — in
+ * client px: { left, top, right, bottom }, or null if the element has no text.
+ *
+ * Where the text starts and where its baseline lies come from the laid-out
+ * DOM (a Range over the text; an empty inline-block, which sits on the
+ * baseline, put in for the measurement and taken out again). How far the ink
+ * reaches from there comes from the same font through a canvas's measureText.
+ * Text on more than one line, or a browser without those metrics, gets the
+ * boxes of its lines instead.
+ */
+function inkBox(el, scale = 1) {
+  if (!el || typeof document === 'undefined') return null;
+  const text = el.textContent;
+  if (!text || !text.trim()) return null;
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const run = range.getBoundingClientRect();
+  const lines = range.getClientRects().length;
+  if (run.width <= 0 || run.height <= 0) return null;
+  const own = el.getBoundingClientRect();
+  const clip = (r) => ({
+    left: Math.max(r.left, own.left), top: r.top, right: Math.min(r.right, own.right), bottom: r.bottom,
+  });
+  if (lines !== 1) return clip(run);
+
+  if (!inkContext) inkContext = document.createElement('canvas').getContext('2d');
+  const style = getComputedStyle(el);
+  let metrics = null;
+  if (inkContext) {
+    inkContext.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    if ('letterSpacing' in inkContext) inkContext.letterSpacing = style.letterSpacing === 'normal' ? '0px' : style.letterSpacing;
+    if ('fontKerning' in inkContext) inkContext.fontKerning = style.fontKerning;
+    if ('textRendering' in inkContext) {
+      // The canvas wants its own spelling of the computed (lower-case) keyword.
+      inkContext.textRendering = { geometricprecision: 'geometricPrecision', optimizelegibility: 'optimizeLegibility',
+        optimizespeed: 'optimizeSpeed' }[style.textRendering.toLowerCase()] ?? 'auto';
+    }
+    inkContext.textBaseline = 'alphabetic';
+    inkContext.textAlign = 'left';
+    inkContext.direction = 'ltr';
+    metrics = inkContext.measureText(text);
+  }
+  if (!metrics || !Number.isFinite(metrics.actualBoundingBoxAscent)) return clip(run);
+
+  const probe = document.createElement('span');
+  probe.style.cssText = 'display:inline-block;width:0;height:0;margin:0;padding:0;border:0;vertical-align:baseline;';
+  el.appendChild(probe);
+  const baseline = probe.getBoundingClientRect().bottom;
+  el.removeChild(probe);
+  // The run is in client px (the viewer may be zoomed: `scale`); the canvas's metrics are in CSS px.
+  return clip({
+    left: run.left - metrics.actualBoundingBoxLeft * scale,
+    right: run.left + metrics.actualBoundingBoxRight * scale,
+    top: baseline - metrics.actualBoundingBoxAscent * scale,
+    bottom: baseline + metrics.actualBoundingBoxDescent * scale,
+  });
+}
+
 // ──────────────────────────────────────────────────────────────── the API ──
 
 /** Links lab/chrome.css if the page has not (index.html does). */
@@ -1185,11 +1273,15 @@ function ensureStyles(onLoad) {
  *   marginAvatar: true hangs the 52 pt avatar in the spread's outer margin
  *   (SpreadGrid.avatarFrame). Home's spread does not draw it today — the
  *   other tabs' spreads do — so it is off unless asked for.
- * @returns {{ update(state: object): Array<{x:number,y:number,width:number,height:number,kind:string}>, destroy(): void }}
+ * @returns {{ update(state: object): Array<{x:number,y:number,width:number,height:number,kind:string,opacity:number}>, layout: object, destroy(): void }}
  *   update(state) lays Home out for the state and returns the surfaces that
- *   cover the sky, in display points. Beyond the README's fields it reads two
- *   optional ones: `state.lead` (0–1, the leading page's opacity; 0 leaves it
- *   out) and `state.toast` ({ message, accent? } — the undo toast).
+ *   cover the sky, in display points, each with the `opacity` it is drawn at
+ *   (1; 1 − veil under the phone page's veil; lead on the leading page).
+ *   Beyond the README's fields it reads three optional ones: `state.lead`
+ *   (0–1, the leading page's opacity; at 0 its surfaces are not in the cards),
+ *   `state.veil` (0–1) and `state.toast` ({ message, accent? } — the undo toast).
+ *   `layout` is the README's `state.layout`, measured by the same update: one
+ *   object for the chrome's life, refilled in place like the cards.
  */
 export function createChrome(root, options = {}) {
   root.classList.add('tou-chrome');
@@ -1200,20 +1292,84 @@ export function createChrome(root, options = {}) {
   // (state.cards) sees a re-measure too.
   const cards = [];
 
+  // The same for the layout (state.layout): one object, its fields replaced.
+  const layout = {
+    measured: false, name: null, age: null, avatar: null, gear: null,
+    firstCardTop: 0, stripClear: null, title: null, subtitle: null,
+  };
+
   const measure = (state) => {
     const frame = root.getBoundingClientRect();
     const scale = frame.width > 0 && state.width > 0 ? frame.width / state.width : 1;
     const round = (v) => Math.round(v * 100) / 100;
+    // How much of an element is let through by everything above it (a page's
+    // veil, the leading page's fade): the product of the opacities up to the root.
+    const opacityOf = (el) => {
+      let opacity = 1;
+      for (let node = el; node && node !== root; node = node.parentElement) {
+        const own = Number.parseFloat(getComputedStyle(node).opacity);
+        if (Number.isFinite(own)) opacity *= own;
+      }
+      return round(opacity);
+    };
     cards.length = 0;
     for (const el of root.querySelectorAll('[data-card]')) {
+      if (el.closest('[data-ghost]')) continue;        // laid out for state.layout only (lead = 0)
       const r = el.getBoundingClientRect();
       const x0 = Math.max(0, (r.left - frame.left) / scale);
       const y0 = Math.max(0, (r.top - frame.top) / scale);
       const x1 = Math.min(state.width, (r.right - frame.left) / scale);
       const y1 = Math.min(state.height, (r.bottom - frame.top) / scale);
       if (x1 - x0 < 0.5 || y1 - y0 < 0.5) continue;
-      cards.push({ x: round(x0), y: round(y0), width: round(x1 - x0), height: round(y1 - y0), kind: el.dataset.card });
+      cards.push({
+        x: round(x0), y: round(y0), width: round(x1 - x0), height: round(y1 - y0),
+        kind: el.dataset.card, opacity: opacityOf(el),
+      });
     }
+
+    // ── state.layout: where the header's own things are ──
+    const box = (el) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return {
+        x: round((r.left - frame.left) / scale), y: round((r.top - frame.top) / scale),
+        width: round(r.width / scale), height: round(r.height / scale),
+      };
+    };
+    const ink = (el) => {
+      const r = inkBox(el, scale);
+      return r && {
+        x: round((r.left - frame.left) / scale), y: round((r.top - frame.top) / scale),
+        width: round((r.right - r.left) / scale), height: round((r.bottom - r.top) / scale),
+      };
+    };
+    const page = root.querySelector('.page');
+    const stack = page && page.querySelector('.stack');
+    const strip = root.querySelector('.sys .tabbar.vertical');
+    let stripClear = null;
+    if (strip && stack) {
+      // The Duo's column between the last thing at its head (the Dynamic Island,
+      // then wifi and battery under it) and the tab capsule, from the cards'
+      // trailing edge to the display's.
+      const sys = strip.parentElement;
+      const head = Math.max(...[...sys.querySelectorAll('.clock, .island, .status-icons')]
+        .map((el) => el.getBoundingClientRect().bottom));
+      const x = (stack.getBoundingClientRect().right - frame.left) / scale;
+      stripClear = {
+        x: round(x), width: round(state.width - x),
+        yMin: round((head - frame.top) / scale),
+        yMax: round((strip.getBoundingClientRect().top - frame.top) / scale),
+      };
+    }
+    layout.measured = true;
+    layout.name = page && ink(page.querySelector('.header .who .f-hero'));
+    layout.age = page && ink(page.querySelector('.header .who .f-sub'));
+    layout.avatar = page && box(page.querySelector('.header .avatar'));
+    layout.gear = page && box(page.querySelector('.header .gear'));
+    layout.firstCardTop = stack ? round((stack.getBoundingClientRect().top - frame.top) / scale) : 0;
+    layout.stripClear = stripClear;
+    layout.title = ink(root.querySelector('.lead-title .words .f-hero'));
+    layout.subtitle = ink(root.querySelector('.lead-title .words .f-sub'));
     return cards;
   };
 
@@ -1285,7 +1441,7 @@ export function createChrome(root, options = {}) {
     };
 
     let html = '';
-    if (device === 'spread' && lead > 0) html += leadingPage(ctx);
+    if (device === 'spread') html += leadingPage(ctx);
     html += phonePage(ctx);
     html += device === 'iphone' ? slabChrome(ctx) : duoStrip(ctx);
     if (toastData) html += toast(ctx, toastData);
@@ -1311,5 +1467,5 @@ export function createChrome(root, options = {}) {
     ctx = null;
   }
 
-  return { update, destroy };
+  return { update, layout, destroy };
 }

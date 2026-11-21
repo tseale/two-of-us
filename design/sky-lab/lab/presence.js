@@ -13,6 +13,7 @@
 //
 // Everything here is pure. `state` is the lab's state (README); events arrive as
 // state.event = { kind: 'bedtime' | 'wake' | 'open' | 'close', age: seconds since }.
+// (Whether tonight's star is lit is not presence's business: `state.tonightLit`.)
 
 import { smoothstep } from './oklab.js';
 

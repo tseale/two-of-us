@@ -37,8 +37,9 @@ const USAGE = `Usage: node tools/shoot.mjs --sky <id> [options]
   --sheet-scale <0-1>     thumbnail size on the sheet    (default: 0.5)
 
 Also passed through: --motion 0|1, --event <kind> --event-age <s>, --lead <0-1>,
---tilt <x,y>, --toast 1, --bezel 1 (shoots the device, bezel included), and any
-other viewer parameter as --param key=value (repeatable).
+--veil <0-1>, --tilt <x,y>, --snowfall <0-1> (snow in the air, forced), --lit 0|1
+(tonight's star, forced), --toast 1, --bezel 1 (shoots the device, bezel included),
+and any other viewer parameter as --param key=value (repeatable).
 Tuning: --jobs <n> pages at once (default 4), --timeout <s> per shot (default 45),
 --sheet-cols <n> thumbnails per row (default: as many as fit in --sheet-width <px>,
 default 2000 — eight covers or four spreads to a row), --sheet-dpr <n> (default 1).
@@ -80,7 +81,7 @@ function parseArgs(argv) {
 
 const KNOWN = new Set(['sky', 'devices', 'schemes', 'times', 'asleep', 'chrome', 'date', 'lat', 'lon', 'tz', 'age',
   't', 'dpr', 'out', 'sheet', 'sheet-scale', 'sheet-cols', 'sheet-width', 'sheet-dpr', 'motion', 'event', 'event-age',
-  'lead', 'tilt', 'toast', 'bezel', 'jobs', 'timeout', 'param', 'help']);
+  'lead', 'veil', 'tilt', 'snowfall', 'lit', 'toast', 'bezel', 'jobs', 'timeout', 'param', 'help']);
 
 const list = (value, fallback) => (value == null ? fallback : String(value).split(',').map((s) => s.trim()).filter(Boolean));
 
@@ -115,7 +116,7 @@ function readOptions(argv) {
 
   // What every shot's URL carries besides device, scheme and time.
   const query = { sky: options.sky, asleep, chrome, t: numberOption(options, 't', 12, -1e9, 1e9), dpr: numberOption(options, 'dpr', 2, 1, 3) };
-  for (const key of ['date', 'lat', 'lon', 'tz', 'age', 'motion', 'event', 'lead', 'tilt', 'toast', 'bezel']) {
+  for (const key of ['date', 'lat', 'lon', 'tz', 'age', 'motion', 'event', 'lead', 'veil', 'tilt', 'snowfall', 'lit', 'toast', 'bezel']) {
     if (options[key] != null) query[key] = String(options[key]);
   }
   if (options['event-age'] != null) query.eventAge = String(options['event-age']);
@@ -132,11 +133,12 @@ function readOptions(argv) {
       fail(`--date "${options.date}" is not a date (YYYY-MM-DD)`);
     }
   }
-  for (const key of ['lat', 'lon', 'tz', 'age']) {
+  for (const key of ['lat', 'lon', 'tz', 'age', 'snowfall', 'veil']) {
     if (options[key] != null && read[key] !== Number(options[key])) {
       fail(`--${key} "${options[key]}" is not a value the viewer accepts (it would use ${read[key]})`);
     }
   }
+  if (options.lit != null && !['0', '1'].includes(String(options.lit))) fail(`--lit is 0 or 1 (got "${options.lit}")`);
 
   return {
     sky: options.sky,
@@ -296,7 +298,10 @@ function sheetHtml(options, device, scheme, jobs) {
   const read = parseParams(options.query);
   const title = [options.sky, device, scheme, read.date,
     options.asleep !== '0' ? `asleep: ${options.asleep}` : '', options.chrome === '0' ? 'sky alone' : '',
-    read.event ? `event: ${read.event} +${read.eventAge}s` : '', `t=${options.query.t}`].filter(Boolean).join('  ·  ');
+    read.event ? `event: ${read.event} +${read.eventAge}s` : '',
+    read.snowfall != null ? `snowfall ${read.snowfall}` : '', read.lit != null ? `star ${read.lit ? 'lit' : 'unlit'}` : '',
+    read.tilt ? `tilt ${read.tilt.x},${read.tilt.y}` : '',
+    `t=${options.query.t}`].filter(Boolean).join('  ·  ');
   const cells = jobs.map((job) => `
     <figure>${job.done
       ? `<img src="/__out/${encodeURIComponent(path.basename(job.file))}?v=${Date.now()}" width="${width}" height="${height}" alt="">`
