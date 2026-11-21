@@ -226,6 +226,80 @@ sky module does in the lab, but the picture has to survive it.
 - **Cards fading back** means fading list rows one by one (the timeline's card is a row
   background), on both pages of the spread, without touching the sky or the undo toast.
 
+## Round three — the night stays up, and better drawn (21 Nov 2026)
+
+Taylor looked at round two (`skies/hill-painted`, its gallery and its films) and decided:
+
+1. **The painted hill is the picture.** The one thing he does not like is the bedtime moment
+   looking up and then looking back down. In his words: "It should just look up to the sky,
+   show the star animation, and then the cards. Looking back down is too much."
+2. **Better drawn** — not bolder, not simpler. The same picture and the same restraint, with
+   finer craft: clouds, leaves, light on the land, the stars.
+3. **What starts the moment: an evening sleep started by hand.** A sleep started with Home's
+   Sleep button between 6 pm and 4 am plays the moment on that phone. A sleep that arrives any
+   other way (the other phone, Siri, a widget, SNOO) plays nothing: Home shows the night as it
+   already is, tonight's star lit.
+4. The Swift will be built and run on Taylor's Mac, once the design is signed off.
+
+Where this section differs from round two above, this section wins.
+
+### The night stays up
+
+- **`look`** for `bedtime` is 0 until 0.3 s, eased to 1 by about 2.4 s, and then it **stays
+  at 1 for as long as the night sleep runs.** There is no way back down inside the moment.
+- **The moment:** the cards fall back (0–1.6 s) while the view rises; tonight's star ignites
+  (~1.5 s); the band of light leaves it and his stars answer; "✦ Night 143" stands at the
+  foot; then **the cards return over the sky that is already there** (from about 4.8 s, back
+  by about 6.8 s). Once the view is up, nothing in the picture moves again except what always
+  moves (twinkle, the mist's breathing).
+- **The night is the looked-up sky.** While a night sleep runs — whoever started it, however
+  Home was opened — Home looks up, still: `state.asleep === 'night'` is that pose with no
+  event at all. This is now the frame the parents see most at night (every night feed), with
+  the cards on, so it must be composed as a picture *with the cards on*, on all three
+  displays: what stands in the strip column above the capsule and in the header band, what
+  shows through the gaps and the glass. **Tonight's star must be findable all night with the
+  cards on** — in the strip's clear window on the Duo (`state.layout.stripClear`, which
+  shrinks while a sleep runs), in the header band on the slab. It may have two homes on
+  screen (beside the tree at rest; in that window looking up) and travel between them with
+  the camera, so that it is still wherever the view comes to rest.
+- **Waking** (any source): no card choreography. Behind the cards the view settles back to
+  the land, slowly (about 3 s), as tonight's star cools. This will be shown to Taylor as a
+  film with the alternative named (no move at all; the day is simply at rest next time).
+- **A re-settle the same night** (the sleep was ended for a feed and started again by hand):
+  the view rises quietly behind the cards (about 2.5 s). No veil, no band, no caption, no new
+  star. The full moment plays once a night.
+- **Naps:** the rest pose, as before. **Reduce Motion:** the looked-up still cross-fades in at
+  bedtime and out at waking.
+- Everything round two required of the looked-up pose still holds with the cards away: all of
+  his stars in view and none behind the header text, the island or the capsule; the cover is
+  the spread's phone page at every instant. And both `tools/measure.mjs` runs must still
+  print PASS — the `--asleep night` run now measures the looked-up pose with the cards on.
+- The lab's own timelines follow: `tools/review.mjs` (`BEDTIME`) and `tools/film.mjs`
+  (`UI.bedtime`) bring the cards back from about 4.8 s to 6.8 s.
+
+### Better drawn
+
+The picture is right; the drawing is not all at the level of the bare tree against the sun.
+In the order the director would fix them:
+
+- **Crowns in leaf.** The bare tree is fine pen work; the leafed trees are flat clumps in
+  three tones, a different hand. Leaves want to be many small marks gathered along the
+  twigs, turned to the light, with sky showing through — spring, summer and autumn each
+  recognisable at strip size and good at 3×. Snow caps are still a little blocky.
+- **Clouds.** Formed now, but small and soft-bodied and close to one recipe. A few designed
+  forms of different families and sizes, properly lit from where the sun is.
+- **Light on the land.** Midday in the light appearance is close to one value; the mist pool
+  behind the fore hill is a level-topped patch; a dull brown band stands behind the tree at
+  17:30 in dark; faint axis-aligned edges (about one level) show in the dark-night land.
+- **The river.** A pinched waist where the bar cuts in; reeds too small to read at phone
+  size; the moon's path a ladder of dashes.
+- **The stars** in the light appearance at night still read as falling snow en masse.
+- **July bedtime.** His stars are faint in the lighter evening sky and there are too many
+  clouds in the looked-up frame.
+
+None of this may cost the signature frame (`day/cover-dark-1610`), the gates, the star
+count or the render budget.
+
 ## What the canvas really is
 
 Look at `shots/baseline/` before drawing anything. The sky is **ground behind cards**, and
