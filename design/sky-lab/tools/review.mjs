@@ -5,6 +5,7 @@
 //   node tools/review.mjs --sky <id>                 everything (about 2 minutes)
 //   node tools/review.mjs --sky <id> --only day,open just those sets
 //   node tools/review.mjs --list                     the sets and what is in them
+//   … --jobs 2 --timeout 120                         passed on to shoot.mjs (a busy machine, a heavy shader)
 //
 // Output: shots/<sky>/review/<set>/[<frame>/]<device>-<scheme>-<HHMM>[-<asleep>].png
 
@@ -109,12 +110,13 @@ function main() {
   const only = value('--only')?.split(',').map((s) => s.trim());
   const chosen = only ? all.filter((s) => only.includes(s.name)) : all;
   if (!chosen.length) { process.stderr.write(`review: no such set (${all.map((s) => s.name).join(', ')})\n`); process.exit(1); }
+  const pass = ['--jobs', '--timeout'].flatMap((flag) => (value(flag) ? [flag, value(flag)] : []));
   const started = Date.now();
   let failed = 0;
   for (const set of chosen) {
     for (const run of set.runs) {
       const out = path.join(LAB, 'shots', sky, 'review', set.name, run.dir);
-      const result = spawnSync(process.execPath, [path.join(LAB, 'tools/shoot.mjs'), '--sky', sky, '--out', out, ...run.args],
+      const result = spawnSync(process.execPath, [path.join(LAB, 'tools/shoot.mjs'), '--sky', sky, '--out', out, ...run.args, ...pass],
         { cwd: LAB, encoding: 'utf8' });
       const last = (result.stdout || '').trim().split('\n').pop() || '';
       if (result.status !== 0) { failed += 1; process.stderr.write(`review: ${set.name}/${run.dir} FAILED\n${result.stderr || result.stdout}\n`); }
