@@ -24,6 +24,7 @@ time of day, in both appearances. Mockups only — the app's sky is the Swift co
 | `skies/index.js` | The ids the panel's picker lists (`sky=<id>` loads any file in `skies/`). |
 | `assets/` | The cloud and grain PNGs copied from `TwoOfUs/Assets.xcassets/Sky`; `fonts/` is Nunito, the chrome's stand-in for SF Rounded. |
 | `tools/shoot.mjs` | Playwright: one PNG per (device × scheme × time), and a contact sheet. |
+| `tools/review.mjs` | The review set: every sky shot the same way (day, bare, asleep, seasons, bedtime, the Duo opening, stillness) into `shots/<sky>/review/`. `--list` shows it. |
 | `tools/test-math.mjs` | The Swift unit tests for the sun, moon and palette, ported, and the port checked against the Swift source. |
 | `tools/chrome-preview.html` | The chrome alone over a flat gradient, for working on `lab/chrome.js`. |
 | `shots/` | Output. Not committed. |
@@ -95,6 +96,7 @@ export function create(host, env) {       // env = { assets: 'assets/', solar, p
   tilt:  { x, y },                      // −1…1 each, for parallax; 0, 0 unless tilt= (or the panel's pointer tilt)
   event: null | { kind, age },          // 'bedtime' | 'wake' | 'open' | 'close', and seconds since (lab/presence.js)
   lead,                                 // only with lead=: the spread's leading page's opacity, 0–1
+  veil,                                 // only with veil=: how far the phone page's cards have fallen back, 0–1
 }
 ```
 
@@ -137,6 +139,7 @@ renders once more before it calls the frame drawn.
 | `bezel` | `1` draws the device around the display | `0` |
 | `event`, `eventAge` | `bedtime`, `wake`, `open`, `close`; seconds since it began | (none), `0` |
 | `lead` | 0–1, the spread's leading page's opacity (`0`: the panorama before its cards arrive) | (1) |
+| `veil` | 0–1, how far the phone page's cards have fallen back (`1`: only the header and the system strip remain — the bedtime moment) | (0) |
 | `tilt` | `x,y`, −1…1 each | `0,0` |
 | `toast` | `1` shows the undo toast | `0` |
 | `zoom` | 0.25–4, the display's size on screen; with `ui=1` or `bezel=1` only | `1` |
@@ -160,3 +163,6 @@ gives the same bytes. Files are `<device>-<scheme>-<HHMM>[-<asleep>].png` and
 otherwise (a relative `--out` is relative to where you run it). Other variants —
 `--chrome 0`, `--date`, `--event bedtime --event-age 3`, `--event open --lead 0` — reuse
 those names, so give each its own `--out`. `--help` lists every option.
+
+    node tools/review.mjs --sky baseline                  # the whole review set, about 2 minutes
+    node tools/review.mjs --sky baseline --only bedtime,open

@@ -84,6 +84,73 @@ Hard limits:
 - Unchanged: flat page under Reduce Transparency / Increase Contrast; still under Reduce
   Motion; hidden from VoiceOver; never takes a touch.
 
+## Director's notes — composing for the windows
+
+Measured from the lab (`state.cards`, points). Read these with a baseline shot open.
+
+**cover, 466 × 678.** The header *is* the top band: avatar x 20–80, name and age x 94–210,
+gear x 318–362, all y 22–83; the first card starts at y 88.6 and cards run x 20–362 to the
+foot, 12 pt apart. The only clear sky up there is x 210–318 and the 22 pt above the header.
+The **strip** is the picture's real window: x 362–466 (the 20 pt gap and the 84 pt column),
+with the clock at the top, the Dynamic Island at y 50–124 (to 158 with a sleep running),
+wifi/battery to y 150 (185), then **nothing from y ≈ 158 (192) to 396**, the glass tab capsule
+y 396–644, and a foot. Plus the 20 pt leading margin.
+
+**spread, 951 × 669.** The leading margin, x 0–97.5, is clear from top to bottom — the best
+window on the device. Page titles on the sky at y 22–83; leading cards y 103–635, x 97.5–447.5;
+a 34 pt foot band. The fold gutter x 447.5–505 is clear top to bottom (crease at 475.5). The
+phone page is the cover moved 485 pt right; strip x 847–951, capsule y 387–635.
+
+**iphone, 402 × 874.** Status bar to y 62 (island x 138–264), header y 70–131, cards x 16–386
+from y 136.6 to the foot, the glass tab capsule floating at y 791–853. No tall window at all:
+here the sky is the header's ground, two 16 pt margins and what the glass lets through.
+
+What follows from that:
+
+- **Tall slits show vertical structure.** A twilight's whole layering — zenith, the colour
+  bands, the horizon, ridge behind ridge — reads in an 84 pt column; a wide cloudscape does
+  not. Compose in *bands*, and let the three slits of the spread (margin, gutter, strip) show
+  the same horizon at the same height, so the eye joins them into one landscape behind the
+  cards, like a view through a window with mullions.
+- **Put the horizon where it can be seen.** Today the hills lie in the bottom quarter, behind
+  the tab capsule, and the sun "sets" 300 pt above them into empty sky. On the Duo a horizon
+  somewhere around 0.40–0.50 of the height puts the last hour of the sun, and the moonrise,
+  in the strip's clear window (y 158–396) — exactly when the sky blooms. The land below it
+  runs behind the cards and the capsule: keep it soft there.
+- **Sun and moon keep the baseline's clock and x:** they rise at the anchor window's left edge
+  and set at its right (`state.scene.body`, `state.moon`). You may remap their height to your
+  horizon. So on the cover the sun sets inside the strip (x ≈ 447); on the spread it rises
+  out of the fold gutter (x ≈ 504) and sets in the strip (x ≈ 932).
+- **The leading page is the world running on to the left**, away from the sunset: the cooler
+  side of the sky, the wider land. Its clear margin column deserves the land's one feature
+  (if your land has one — a lone tree is where the seasons can live).
+- **His stars are all inside the anchor window**, so every phone shows the same sky and the
+  same count; the leading page may carry the ordinary, fainter sky. Weight them toward where
+  they can be seen (the top band, the strip, the margins). **Tonight's star must be findable
+  all night with the cards on** — e.g. it is lit low in the strip's clear window, like an
+  evening star, and takes its permanent place among the others the next day.
+- **Contrast, in numbers.** Light: behind the grey line (`#6C6C70`) the sky's relative
+  luminance must stay ≥ 0.55 (about `#C4C4C4` or lighter) — so a light bloom is luminous
+  pastel, never deep. Dark: behind the grey line (`#98989F`) ≤ 0.072 (about `#4C4C4C` or
+  darker), behind the white name ≤ 0.10 — so a dark bloom is ember, wine, plum, indigo.
+  "Nothing lighter than a card" is about areas, not star points.
+- **The lab's glass is a guess** (blur + tint). Do not lean on what shows through a tile.
+
+**Bedtime, as directed** (the same for every direction, so they can be compared): when a
+night sleep starts, Home's cards fall back for a few seconds and the sky has the whole
+display — header and system strip stay. `state.veil` (0–1) is how far back the cards are:
+0 → 1 over the first second, held to about 5.5 s, back by 7.5 s. In that time the sky
+deepens, tonight's star is lit (`ignition()` in `lab/nights.js` peaks at 1.5 s), and the
+others answer. A touch would end it at once; under Reduce Motion it is a cross-fade. In
+November 19:40 is full dark; in July the sun is still up — it has to be right in both.
+A nap gets no moment, only a softer sky.
+
+**Opening the Duo, as directed:** the cover's sky is already on the phone page; the leading
+page arrives as bare panorama (`lead=0`), holds for about a second while the sky swells
+(`EVENTS.open`), and then its cards land (`lead` → 1 by 1.8 s).
+
+`node tools/review.mjs --sky <id>` shoots all of this the same way for every direction.
+
 ## The craft bar
 
 "Breathtaking" will not come from saturation. It comes from:
@@ -113,9 +180,9 @@ in front of it; imitating a specific artist or film.
    `asleep`; `ageDays` (his stars); the date (season); `presence(state)`; `state.event`
    (`bedtime`, `open` — at least sensible stills at a few ages); `t` (slow motion) and
    `reduceMotion`; `state.tilt` (−1…1 each axis) if you use parallax.
-2. Shots, taken with `tools/shoot.mjs` and **looked at**, iterated until they are right:
-   the standard matrix with `--sheet`; the bare panorama (`--chrome 0`); asleep at night;
-   the four seasons at the same hour; the bedtime and Duo-opening stills.
+2. Shots, taken with `tools/shoot.mjs` and **looked at**, iterated until they are right;
+   and at the end the whole review set, `node tools/review.mjs --sky <id>`: the standard
+   matrix, the bare panorama, asleep, the four seasons, bedtime, the Duo opening, stillness.
 3. `skies/<id>.md` — short: the idea in a few lines; the composition decisions (where the
    horizon is and why, what lives in the top band, what the strip column shows); how each
    layer ports to SwiftUI and what it would cost; what is still unresolved. Candid.

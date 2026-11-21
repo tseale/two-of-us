@@ -83,6 +83,7 @@ export const DEFAULTS = Object.freeze({
   event: null,         // null | 'bedtime' | 'wake' | 'open' | 'close' → state.event.kind
   eventAge: 0,         // seconds since the event → state.event.age
   lead: null,          // null | 0–1 → state.lead (the spread's leading page's opacity)
+  veil: null,          // null | 0–1 → state.veil (how far the phone page's cards have fallen back)
   tilt: null,          // null | { x, y }, −1…1 each → state.tilt
   toast: false,        // true → state.toast (the undo toast)
   zoom: 1,             // the display's magnification, with ui=1 or bezel=1 only
@@ -155,6 +156,7 @@ export function parseParams(searchParams) {
   const event = /^[a-z][a-z0-9_-]*$/i.test(get('event') ?? '') && !['0', 'none'].includes(get('event'))
     ? get('event') : D.event;
   const lead = number(get('lead'), null, 0, 1);
+  const veil = number(get('veil'), null, 0, 1);
   const tiltParts = String(get('tilt') ?? '').split(',').map((part) => Number(part));
   const tilt = tiltParts.length === 2 && tiltParts.every(Number.isFinite) && String(get('tilt')).trim() !== ''
     ? { x: clamp(tiltParts[0], -1, 1), y: clamp(tiltParts[1], -1, 1) }
@@ -180,6 +182,7 @@ export function parseParams(searchParams) {
     event,
     eventAge: number(get('eventAge'), D.eventAge, 0),
     lead,
+    veil,
     tilt,
     toast: flag(get('toast'), D.toast),
     zoom: number(get('zoom'), D.zoom, 0.25, 4),
@@ -209,6 +212,7 @@ export function toSearch(params) {
   put('event', p.event, p.event == null);
   put('eventAge', p.eventAge, p.event == null || p.eventAge === D.eventAge);
   put('lead', p.lead, p.lead == null);
+  put('veil', p.veil, p.veil == null);
   put('tilt', p.tilt ? `${p.tilt.x},${p.tilt.y}` : '', p.tilt == null);
   put('toast', 1, !p.toast);
   put('ui', 1, !p.ui);
@@ -313,6 +317,7 @@ export function buildState(params, t, cards = []) {
     event: p.event ? { kind: p.event, age: p.eventAge } : null,
   };
   if (p.lead != null) state.lead = p.lead;
+  if (p.veil != null) state.veil = p.veil;
   if (p.toast) state.toast = { message: 'Logged 4.5 oz' };
   return state;
 }
@@ -558,7 +563,7 @@ export async function run() {
     // Whenever the minute, device, scheme or asleep changes — and anything
     // else the chrome reads — but not every frame.
     const key = [params.device, params.scheme, params.date, params.time.slice(0, 5), params.asleep,
-      params.age, params.tz, params.lead, params.toast].join('|');
+      params.age, params.tz, params.lead, params.veil, params.toast].join('|');
     if (key === chromeKey) return;
     chromeKey = key;
     try {

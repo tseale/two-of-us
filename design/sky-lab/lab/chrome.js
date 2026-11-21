@@ -724,8 +724,10 @@ function phonePage(ctx) {
   if (ctx.options.tonightCard !== false && ctx.tonight.shown) parts.push(tonightCard(ctx));
   return `<div class="page" style="left:${px(geo.pageX)};width:${px(geo.pageWidth)};padding:${px(geo.top)} ${px(geo.side)} 0">
     ${header(ctx)}
-    <div class="stack">${parts.join('')}</div>
-    ${timeline(ctx)}
+    <div class="veiled"${ctx.veil > 0 ? ` style="opacity:${1 - ctx.veil}"` : ''}>
+      <div class="stack">${parts.join('')}</div>
+      ${timeline(ctx)}
+    </div>
   </div>`;
 }
 
@@ -1252,12 +1254,13 @@ export function createChrome(root, options = {}) {
     const ageDays = state.ageDays == null ? 142 : Math.round(state.ageDays);
     const today = localDate(date, tz);
     const lead = state.lead == null ? 1 : clamp(Number(state.lead), 0, 1);
+    const veil = state.veil == null ? 0 : clamp(Number(state.veil), 0, 1);
     const toastData = state.toast ? (typeof state.toast === 'object' ? state.toast : { message: String(state.toast) }) : null;
     const stripWidth = state.strip ? state.strip.width : preset.strip;
     const pageX = state.phone ? state.phone.x : (device === 'spread' ? width - stripWidth - CLOSED_CONTENT_WIDTH : 0);
     const phoneWidth = state.phone ? state.phone.width : (device === 'spread' ? CLOSED_CONTENT_WIDTH + stripWidth : width);
 
-    const nextKey = [device, state.scheme, width, height, today.getTime(), now, asleep, ageDays, lead,
+    const nextKey = [device, state.scheme, width, height, today.getTime(), now, asleep, ageDays, lead, veil,
       pageX, phoneWidth, stripWidth, toastData ? JSON.stringify(toastData) : ''].join('|');
     if (nextKey === key) return cards;
     key = nextKey;
@@ -1268,7 +1271,7 @@ export function createChrome(root, options = {}) {
     };
     const day = buildDay(now, asleep);
     ctx = {
-      state, options, device, geo, now, tz, date, ageDays, lead, day,
+      state, options, device, geo, now, tz, date, ageDays, lead, veil, day,
       sum: summarize(day),
       tonight: tonight(day),
       // The short sleep card wherever the display is under PaneLayout.roomyHeight.
