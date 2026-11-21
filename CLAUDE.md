@@ -5,6 +5,9 @@ Distributed via TestFlight to 2 users (both parents).
 
 ## Status: Daycare-ready (2026-10-11) — core logging, CloudKit sync, widgets, Live Activities, Siri intents, SNOO import, launch curtain, and the Brightwheel daycare pipeline (9 typed event models, mock + importer, badges) are all on `main`. Remaining before Miller's first daycare day (2026-10-12): deploy the 9 new record types + externalID/sourceRaw fields to CloudKit **Production** (see docs/cloudkit-schema.ckdb and docs/CLOUDKIT_SETUP.md), and a two-phone TestFlight sanity pass.
 
+## Performance plan (research only, 2026-11-04)
+A whole-app speed/responsiveness research pass is documented in `docs/PERFORMANCE_PLAN.md`: 144 code-verified findings, six structural causes, nine workstreams and a phased schedule. **Nothing from it is implemented yet** — Phase 0 (signposts, MetricKit, engine benchmarks) comes first because every magnitude in it is an estimate from code, not a measurement.
+
 ## Tech Stack
 - **SwiftUI** — declarative UI, iOS 17+
 - **SwiftData** — local persistence, the on-device source of truth
