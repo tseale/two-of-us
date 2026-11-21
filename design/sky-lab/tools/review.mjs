@@ -2,7 +2,7 @@
 // The review set: every sky photographed the same way, so directions can be
 // laid side by side. A thin wrapper over tools/shoot.mjs.
 //
-//   node tools/review.mjs --sky <id>                 everything: 502 shots. About 3 minutes for a 2-D canvas
+//   node tools/review.mjs --sky <id>                 everything: 532 shots. About 3 minutes for a 2-D canvas
 //                                                    sky; a shader sky in software GL is ~3 s a shot, some
 //                                                    25 minutes at --jobs 2 (README)
 //   node tools/review.mjs --sky <id> --only day,open just those sets
@@ -39,11 +39,19 @@ const SEASONS = [
 
 // Bedtime: the cards fall back for a few seconds while his star is lit, then
 // return. `veil` is how far back they are (1 = gone; the header and the system
-// strip stay). On the spread the leading page goes with them.
-const BEDTIME = [
-  { age: 0, veil: 0 }, { age: 0.7, veil: 0.5 }, { age: 1.6, veil: 1 }, { age: 3, veil: 1 },
-  { age: 5, veil: 1 }, { age: 6.5, veil: 0.5 }, { age: 9, veil: 0 }, { age: 40, veil: 0 },
-];
+// strip stay). On the spread the leading page goes with them. The same curve as
+// tools/film.mjs's (`UI.bedtime`): back over 0–1.6 s, away until 4.8 s, returned
+// by 6.8 s — over the sky that is already there (BRIEF.md, round three: the view
+// does not come down again). The instants: the tap; the cards half away; the
+// cards gone and the view rising; the held frame with the band crossing (3 s) and
+// after it (4.4 s, the poster); the cards half back (5.8 s); back (9 s); settled.
+const smooth = (a, b, x) => { const u = Math.min(1, Math.max(0, (x - a) / (b - a))); return u * u * (3 - 2 * u); };
+const veilAt = (age) => Math.round(smooth(0, 1.6, age) * (1 - smooth(4.8, 6.8, age)) * 1000) / 1000;
+const BEDTIME = [0, 0.7, 1.6, 3, 4.4, 5.8, 9, 40].map((age) => ({ age, veil: veilAt(age) }));
+
+// A re-settle the same night: the night's sleep was ended for a feed and is
+// started again by hand (asleep=night, event=resettle). No card choreography.
+const RESETTLE = [0, 1.2, 2.5, 6];
 
 // Opening the Duo: the panorama holds on the leading page before its cards land.
 const OPEN = [
@@ -52,8 +60,9 @@ const OPEN = [
 ];
 
 // Waking: the sample day's morning wake (lab/chrome.js; state.tonightLit turns
-// off there), the instant it happens and three after.
-const WAKE = [0, 1.5, 4, 9];
+// off there), the instant it happens and four after (a sky that looks up while
+// he sleeps settles back to the land over the first three seconds).
+const WAKE = [0, 1.5, 2.5, 4, 9];
 
 // The minutes the sun (mid-morning) and the moon (early evening) cross the
 // header's text on the default day.
@@ -125,8 +134,12 @@ function sets() {
     })),
   });
   out.push({
-    name: 'wake', about: 'He wakes at 06:40 (event=wake): four instants, 0 to 9 s.',
+    name: 'wake', about: 'He wakes at 06:40 (event=wake): five instants, 0 to 9 s.',
     runs: WAKE.map((age) => ({ dir: frame(age), args: ['--times', '06:40', '--event', 'wake', '--event-age', String(age)] })),
+  });
+  out.push({
+    name: 'resettle', about: 'A re-settle the same night at 03:00 (asleep=night, event=resettle): four instants, 0 to 6 s. No veil.',
+    runs: RESETTLE.map((age) => ({ dir: frame(age), args: ['--times', '03:00', '--asleep', 'night', '--event', 'resettle', '--event-age', String(age)] })),
   });
   return out;
 }

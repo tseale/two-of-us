@@ -85,7 +85,7 @@ export const DEFAULTS = Object.freeze({
   dpr: 2,
   ui: false,
   bezel: false,
-  event: null,         // null | 'bedtime' | 'wake' | 'open' | 'close' → state.event.kind
+  event: null,         // null | 'bedtime' | 'resettle' | 'wake' | 'open' | 'close' → state.event.kind
   eventAge: 0,         // seconds since the event → state.event.age
   lead: null,          // null | 0–1 → state.lead (the spread's leading page's opacity)
   veil: null,          // null | 0–1 → state.veil (how far the phone page's cards have fallen back)
@@ -949,7 +949,7 @@ export async function run() {
         <label class="row"><span>Lon</span><input type="number" data-key="lon" min="-180" max="180" step="0.01"></label>
         <label class="row"><span>UTC</span><input type="number" data-key="tz" min="-12" max="14" step="0.5"> h</label>
         <div class="row"><span>Event</span><select data-key="event">
-          <option value="">none</option><option>bedtime</option><option>wake</option><option>open</option><option>close</option>
+          <option value="">none</option><option>bedtime</option><option>resettle</option><option>wake</option><option>open</option><option>close</option>
         </select><input type="number" data-key="eventAge" min="0" step="0.1" title="Seconds since the event"> s</div>
         <label class="row"><span>Lead</span><input type="range" data-key="lead" min="0" max="1" step="0.05" title="The spread's leading page's opacity"></label>
         <div class="row"><span></span>

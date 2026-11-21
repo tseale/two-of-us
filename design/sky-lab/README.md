@@ -25,7 +25,7 @@ time of day, in both appearances. Mockups only — the app's sky is the Swift co
 | `assets/` | The cloud and grain PNGs copied from `TwoOfUs/Assets.xcassets/Sky`; `fonts/` is Nunito, the chrome's stand-in for SF Rounded. |
 | `tools/shoot.mjs` | Playwright: one PNG per (device × scheme × time), and a contact sheet. |
 | `tools/review.mjs` | The review set: every sky shot the same way (day, bare, asleep, seasons, bedtime, the Duo opening, stillness, the header's text, tilt, snowfall, waking) into `shots/<sky>/review/`. `--list` shows it. |
-| `tools/film.mjs` | A moment (bedtime, the Duo opening, waking) as a video: the viewer stepped one frame at a time and joined by ffmpeg, so the timing is exact at any render cost. Into `gallery/film/<sky>/`. |
+| `tools/film.mjs` | A moment (bedtime, the Duo opening, waking, a re-settle) as a video: the viewer stepped one frame at a time and joined by ffmpeg, so the timing is exact at any render cost. Into `gallery/film/<sky>/`. |
 | `tools/measure.mjs` | One shared measurement of `BRIEF.md`'s hard limits for any sky; `--help` lists options. |
 | `tools/test-math.mjs` | The Swift unit tests for the sun, moon and palette, ported, and the port checked against the Swift source; then what the viewer adds to the state (`sun.x`, `tonightLit`, `snowfall`). |
 | `tools/chrome-preview.html` | The chrome alone over a flat gradient, for working on `lab/chrome.js`. |
@@ -105,7 +105,7 @@ export function create(host, env) {       // env = { assets: 'assets/', solar, p
             measured },                 // true; false only where no chrome could be laid out
 
   tilt:  { x, y },                      // −1…1 each, for parallax; 0, 0 unless tilt= (or the panel's pointer tilt)
-  event: null | { kind, age },          // 'bedtime' | 'wake' | 'open' | 'close', and seconds since (lab/presence.js)
+  event: null | { kind, age },          // 'bedtime' | 'resettle' | 'wake' | 'open' | 'close', and seconds since (lab/presence.js)
   lead,                                 // only with lead=: the spread's leading page's opacity, 0–1
   veil,                                 // only with veil=: how far the phone page's cards have fallen back, 0–1
   snowfall,                             // only with snowfall=: snow in the air, 0–1 — what season() then says
@@ -177,7 +177,7 @@ renders once more before it calls the frame drawn.
 | `dpr` | 1–3 | `2` |
 | `ui` | `1` shows the control panel | `0` |
 | `bezel` | `1` draws the device around the display | `0` |
-| `event`, `eventAge` | `bedtime`, `wake`, `open`, `close`; seconds since it began | (none), `0` |
+| `event`, `eventAge` | `bedtime`, `resettle` (the night's sleep, ended for a feed, is started again the same night: give it `asleep=night`; no bloom, the room only dims again), `wake`, `open`, `close`; seconds since it began | (none), `0` |
 | `lead` | 0–1, the spread's leading page's opacity (`0`: the panorama before its cards arrive) | (1) |
 | `veil` | 0–1, how far the phone page's cards have fallen back (`1`: only the header and the system strip remain — the bedtime moment) | (0) |
 | `tilt` | `x,y`, −1…1 each | `0,0` |
@@ -218,14 +218,15 @@ The review set, one folder each under `shots/<sky>/review/`:
 | `day`, `bare` | The standard matrix with the UI, and without. Sheets. |
 | `asleep` | A night sleep at 19:40, 21:00, 03:00; `nap/` at 09:30, 13:10. |
 | `seasons` | Four dates of his first year, 14 min before sunset and 40 after: all three devices; `<season>-bare/` the spread alone. |
-| `bedtime`, `open` | The two showpieces, frame by frame (`BRIEF.md`). |
+| `bedtime`, `open` | The two showpieces, frame by frame (`BRIEF.md`). Bedtime's cards fall back over 0–1.6 s and return over 4.8–6.8 s, the same curve as `tools/film.mjs`: `t0`, `t0_7`, `t1_6`, `t3`, `t4_4`, `t5_8`, `t9`, `t40`. |
 | `still` | `motion=0`, and `t=95` against the day set's `t=12`. |
 | `text` | The minutes the sun (09:30–10:30) and the moon (17:00–19:40) pass behind the header's text: all three devices, with the UI and in `bare/`. Sheets. |
 | `tilt` | `left-up/` (`tilt=-1,-0.5`) and `right-down/` (`1,0.5`): cover and spread, 16:10 and 21:00. |
 | `snow` | The winter date with `snowfall=1`: cover and spread, its two times. |
-| `wake` | `event=wake` at 06:40, the sample day's wake: `t0`, `t1_5`, `t4`, `t9`. (`tonightLit` is false from 06:40; `event.age` carries the change.) |
+| `wake` | `event=wake` at 06:40, the sample day's wake: `t0`, `t1_5`, `t2_5`, `t4`, `t9`. (`tonightLit` is false from 06:40; `event.age` carries the change.) |
+| `resettle` | `event=resettle` at 03:00 with `asleep=night`: `t0`, `t1_2`, `t2_5`, `t6`. No veil. |
 
-502 shots and 36 sheets in 57 runs of `shoot.mjs`. A 2-D canvas sky takes about three
+532 shots and 36 sheets in 62 runs of `shoot.mjs`. A 2-D canvas sky takes about three
 minutes (the baseline: 188 s). A shader sky does not: headless Chromium draws WebGL in
 software, about 3 s a shot at `--jobs 2` for the heaviest (wet-wash: 151 s for `day`
 alone), so some 25 minutes for everything. Give those `--jobs 2 --timeout 120`, and

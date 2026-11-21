@@ -10,9 +10,11 @@
 //   · bedtime — he falls asleep for the night: a breath of bloom as his star is
 //     lit, then the sky settles DEEPER than it was (the room dims).
 //   · opening the Duo — a short swell as the cover's sky widens into the spread.
+//   · a re-settle — the night's sleep was ended (a feed) and is started again the
+//     same night: no bloom at all; the room only dims again, over a few seconds.
 //
 // Everything here is pure. `state` is the lab's state (README); events arrive as
-// state.event = { kind: 'bedtime' | 'wake' | 'open' | 'close', age: seconds since }.
+// state.event = { kind: 'bedtime' | 'resettle' | 'wake' | 'open' | 'close', age: seconds since }.
 // (Whether tonight's star is lit is not presence's business: `state.tonightLit`.)
 
 import { smoothstep } from './oklab.js';
@@ -69,7 +71,9 @@ export function presence(state) {
   }
   const target = state.asleep === 'night' ? 1 : state.asleep === 'nap' ? 0.45 : 0;
   // The room dims over the first seconds of a sleep; with no event in the URL it has already dimmed.
-  const settling = state.event && state.event.kind === 'bedtime' ? smoothstep(1.2, 9, state.event.age) : 1;
+  // (A re-settle the same night has no moment of its own — it is not in EVENTS — but the room dims again.)
+  const settling = state.event && state.event.kind === 'bedtime' ? smoothstep(1.2, 9, state.event.age)
+    : state.event && state.event.kind === 'resettle' ? smoothstep(0, 4, state.event.age) : 1;
   const depth = target * settling;
   // Asleep takes a third off the solar bloom: a sunset behind a sleeping baby is still a sunset, just quieter.
   const open = Math.max(solar * (1 - 0.35 * depth), moon);

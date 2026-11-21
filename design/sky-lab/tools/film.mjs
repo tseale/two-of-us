@@ -12,11 +12,13 @@
 //
 // The UI's part in each moment is the lab's, the same as tools/review.mjs's
 // stills, made continuous:
-//   bedtime   the cards fall back over 1.6 s, stay away until 5 s and are back
-//             by 8.4 s (`veil`); on the spread the leading page goes with them.
+//   bedtime   the cards fall back over 1.6 s, stay away until 4.8 s and are back
+//             by 6.8 s (`veil`); on the spread the leading page goes with them.
 //   open      the leading page stays bare for 0.9 s and its cards have landed
 //             by 1.9 s (`lead`).
 //   wake      the UI does nothing.
+//   resettle  the UI does nothing (the night's sleep, ended for a feed, is
+//             started again the same night: asleep=night from the first frame).
 // The sky's part is whatever the sky does with `state.event.age`.
 
 import http from 'node:http';
@@ -30,13 +32,13 @@ import { DEVICES } from '../lab/core.js';
 
 const LAB_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-const USAGE = `Usage: node tools/film.mjs --sky <id> --event bedtime|open|wake --out <path without extension> [options]
+const USAGE = `Usage: node tools/film.mjs --sky <id> --event bedtime|open|wake|resettle --out <path without extension> [options]
 
   --device cover|spread|iphone   (default: cover)      --scheme light|dark   (default: dark)
-  --time HH:MM                   local time             (default: 19:40 bedtime, 16:12 open, 06:40 wake)
-  --asleep 0|nap|night           (default: night for bedtime, else 0)
+  --time HH:MM                   local time             (default: 19:40 bedtime, 16:12 open, 06:40 wake, 03:00 resettle)
+  --asleep 0|nap|night           (default: night for bedtime and resettle, else 0)
   --date YYYY-MM-DD  --tz <hours>  --age <days>  --lat <deg>  --lon <deg>   passed to the viewer
-  --seconds <n>                  how long the moment runs (default: 10 bedtime, 4.5 open, 9 wake)
+  --seconds <n>                  how long the moment runs (default: 8 bedtime, 4.5 open, 6.5 wake, 5 resettle)
   --before <s>  --after <s>      the first and last frame, held (default: 0.7 and 1.2)
   --fps <n>                      (default: 30)          --dpr <n>             (default: 2)
   --param key=value              any other viewer parameter (repeatable)
@@ -79,17 +81,20 @@ const smooth = (a, b, x) => {
 
 /** What the lab's UI does at `age` seconds into each moment. */
 const UI = {
+  // (the cards come back over the sky that is already there: the view does not come down — BRIEF.md, round three)
   bedtime: (age, device) => {
-    const veil = smooth(0, 1.6, age) * (1 - smooth(5, 8.4, age));
+    const veil = smooth(0, 1.6, age) * (1 - smooth(4.8, 6.8, age));
     return device === 'spread' ? { veil, lead: 1 - veil } : { veil };
   },
   open: (age) => ({ lead: smooth(0.9, 1.9, age) }),
   wake: () => ({}),
+  resettle: () => ({}),
 };
 const DEFAULTS = {
-  bedtime: { time: '19:40', asleep: 'night', seconds: 10 },
+  bedtime: { time: '19:40', asleep: 'night', seconds: 8 },
   open: { time: '16:12', asleep: '0', seconds: 4.5 },
-  wake: { time: '06:40', asleep: '0', seconds: 9 },
+  wake: { time: '06:40', asleep: '0', seconds: 6.5 },
+  resettle: { time: '03:00', asleep: 'night', seconds: 5 },
 };
 
 function serve(root) {
@@ -129,7 +134,7 @@ function run(command, args) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (!options.sky || !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(options.sky)) fail('--sky <id> is required');
-  if (!Object.hasOwn(UI, options.event ?? '')) fail('--event is bedtime, open or wake');
+  if (!Object.hasOwn(UI, options.event ?? '')) fail('--event is bedtime, open, wake or resettle');
   if (!options.out) fail('--out <path without extension> is required');
   const device = options.device ?? 'cover';
   if (!Object.hasOwn(DEVICES, device)) fail(`unknown device "${device}" (cover, spread, iphone)`);
