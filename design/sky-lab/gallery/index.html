@@ -121,6 +121,7 @@
   .reel { position: relative; border-radius: 16px; overflow: hidden; background: var(--stage); box-shadow: var(--shadow); cursor: zoom-in; }
   .reel[data-device="cover"] { aspect-ratio: 466 / 678; max-width: 380px; }
   .reel[data-device="spread"] { aspect-ratio: 951 / 669; }
+  .reel[data-device="iphone"] { aspect-ratio: 402 / 874; max-width: 330px; }
   .reel img { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity .55s ease; }
   .reel img.on { opacity: 1; }
   @media (prefers-reduced-motion: reduce) { .reel img { transition: none; } }
@@ -145,8 +146,8 @@
 </style>
 
 <header class="intro wrap">
-  <p class="eyebrow">Two of Us · Home’s sky · round one</p>
-  <h1 id="title">Five skies for Miller’s Home</h1>
+  <p class="eyebrow" id="eyebrow"></p>
+  <h1 id="title"></h1>
   <p class="lede" id="lede"></p>
   <div class="mine" id="mine"></div>
 </header>
@@ -325,13 +326,18 @@ function buildChapter(sky) {
     el('section', { class: 'strip' }, el('h3', { text: 'Through the day' }), el('p', { class: 'sub', text: 'The same Saturday in late November, sunrise to 3 a.m. Tap an hour to hold it across the page.' }), film));
   const entry = { stageImg, cap, lay, film };
   if (!sky.reference) {
-    const bedtime = player(sky.id, 'Bedtime', 'He goes down for the night at 7:40. The cards fall back, his star for tonight is lit, the others answer, the cards return.', [
-      { label: 'November', device: 'cover', natural: 466, poster: 'bed-nov-cover-dark-t3', frames: BED.map(([f, l]) => [`bed-nov-cover-dark-${f}`, l]) },
-      { label: 'July, sun still up', device: 'cover', natural: 466, poster: 'bed-jul-cover-dark-t3', frames: BED.map(([f, l]) => [`bed-jul-cover-dark-${f}`, l]) },
+    const bed = (label, device, natural, stem, frames = BED) => ({ label, device, natural, poster: `${stem}-t3`, frames: frames.map(([f, l]) => [`${stem}-${f}`, l]) });
+    const bedtime = player(sky.id, 'Bedtime', PAGE.bedtimeSub || 'He goes down for the night at 7:40. The cards fall back, his star for tonight is lit, the others answer, the cards return.', [
+      bed('November', 'cover', 466, 'bed-nov-cover-dark'),
+      bed('July, sun still up', 'cover', 466, 'bed-jul-cover-dark'),
+      bed('November, light', 'cover', 466, 'bed-nov-cover-light'),
+      bed('July, light', 'cover', 466, 'bed-jul-cover-light'),
+      bed('Duo open', 'spread', 951, 'bed-nov-spread-dark'),
+      bed('iPhone', 'iphone', 402, 'bed-nov-iphone-dark'),
     ]);
     const golden = (scheme) => ({ label: `Golden hour, ${scheme}`, device: 'spread', natural: 951, poster: `open-golden-${scheme}-t0_45`, frames: OPEN.map(([f, l]) => [`open-golden-${scheme}-${f}`, l]) });
     const night = { label: 'Night', device: 'spread', natural: 951, poster: 'open-night-dark-t0_45', frames: OPEN.map(([f, l]) => [`open-night-dark-${f}`, l]) };
-    const opening = player(sky.id, 'Opening the Duo', 'The closed phone’s sky is already on the right-hand page. The left page arrives as bare panorama, holds a beat, and then its cards land.',
+    const opening = player(sky.id, 'Opening the Duo', PAGE.openSub || 'The closed phone’s sky is already on the right-hand page. The left page arrives as bare panorama, holds a beat, and then its cards land.',
       state.scheme === 'dark' ? [golden('dark'), night, golden('light')] : [golden('light'), golden('dark'), night]);
     if (bedtime || opening) section.append(el('div', { class: 'pair' }, bedtime, opening));
     entry.seasons = el('div', { class: 'film', 'data-device': 'spread' });
@@ -351,7 +357,7 @@ function paint() {
 
   const device = deviceOf(state.device);
   const where = `${device.label}, ${state.scheme} appearance, ${sayTime(state.time)}`;
-  document.getElementById('compare-sub').textContent = `All six at once: ${where}. Tap one to jump to it.`;
+  document.getElementById('compare-sub').textContent = `All ${SKIES.length} at once: ${where}. Tap one to jump to it.`;
   const row = document.getElementById('row');
   row.dataset.device = state.device;
   row.replaceChildren(...SKIES.filter((sky) => has(sky.id, dayKey())).map((sky) =>
@@ -385,6 +391,8 @@ function paint() {
 }
 
 /* ───────────────────────────── words ───────────────────────────── */
+document.getElementById('eyebrow').textContent = PAGE.eyebrow || 'Two of Us · Home’s sky · round one';
+document.getElementById('title').textContent = PAGE.title || 'Five skies for Miller’s Home';
 document.getElementById('lede').innerHTML = PAGE.lede;
 document.getElementById('mine').append(el('h2', { text: PAGE.mine.title }), ...PAGE.mine.paragraphs.map((t) => el('p', { text: t })));
 document.getElementById('closing').append(el('h2', { text: PAGE.closing.title }), el('ul', {}, PAGE.closing.points.map((t) => el('li', { text: t }))));
