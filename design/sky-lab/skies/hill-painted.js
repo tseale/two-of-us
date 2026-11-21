@@ -617,16 +617,25 @@ export function create(host) {
     return { ground, snow: [0.94, 0.012, 255], frost: [0.80, 0.014, 240] };
   }
 
-  function leafLocal(hue) {
+  /** The leaf's own colour for the season, as daylight albedo [L, C, h°]. A crown is not one paint:
+   *  `variant` 0 is its body, 1 the lighter, yellower leaf (gold, in autumn), 2 the deeper one (russet),
+   *  3 the far side of the crown — cooler and darker. */
+  function leafLocal(hue, variant = 0) {
     const stops = [[0, [0.70, 0.12, 128]], [0.5, [0.50, 0.10, 141]], [0.8, [0.70, 0.13, 78]], [1, [0.56, 0.12, 46]]];
+    let base = stops[stops.length - 1][1];
     for (let i = 0; i < stops.length - 1; i += 1) {
       if (hue <= stops[i + 1][0]) {
         const t = (hue - stops[i][0]) / (stops[i + 1][0] - stops[i][0]);
         const a = stops[i][1], b = stops[i + 1][1];
-        return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+        base = [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+        break;
       }
     }
-    return stops[stops.length - 1][1];
+    if (!variant) return base;
+    const green = smoothstep(92, 116, base[2]);          // 1 a green leaf … 0 a turned one
+    if (variant === 1) return [base[0] + 0.04, base[1] * 1.06, base[2] + lerp(9, -10, green)];
+    if (variant === 2) return [base[0] - 0.04, base[1] * 0.97, base[2] + lerp(-12, 9, green)];
+    return [base[0] - 0.15, base[1] * 0.72, base[2] + lerp(-24, 17, green)];
   }
 
   function resolve(state, look) {
@@ -725,10 +734,17 @@ export function create(host) {
       ground, snowLit, snowShade, frostLit, mistAmt,
       ink, inkLit: dark ? mix3([ink[0] + 0.16, ink[1], ink[2]], byMoon ? air.silver : air.rim, 0.5)
         : mix3([ink[0] + 0.15, ink[1] * 1.25, ink[2] * 1.25], byMoon ? air.silver : air.rim, 0.24),
-      leafShade: paint(leaf, dark ? -0.02 : -0.07), leafMid: paint(leaf), leafLit: mix3(paint(leaf, dark ? 0.06 : 0.06), air.rim, 0.25 * air.rimAmt),
-      // a low sun behind the crown shines through its edge: the leaf's own colour, lit
-      leafGlow: lch(dark ? 0.50 : 0.86, dark ? 0.12 : 0.09, lerp(leaf[2], 70, 0.45)), backlit: smoothstep(-6, -1, altDeg) * (1 - smoothstep(8, 18, altDeg)),
-      blossom: paint([0.93, 0.06, 355], dark ? 0.10 : 0.05), blossomShade: paint([0.84, 0.09, 350], dark ? 0.04 : 0),
+      // (the crown in leaf: the far side cool and dark; the near masses in three paints; their shadowed core; the leaves that catch the lamp)
+      leafShade: paint(leafLocal(sea.leafHue, 3), dark ? 0.02 : -0.02),
+      leafBody: [paint(leaf, dark ? 0.03 : 0), paint(leafLocal(sea.leafHue, 1), dark ? 0.03 : 0), paint(leafLocal(sea.leafHue, 2), dark ? 0.03 : 0)],
+      leafCore: mix3(paint(leafLocal(sea.leafHue, 2), dark ? 0.03 : 0), paint(leafLocal(sea.leafHue, 3), dark ? 0.02 : -0.02), 0.62),
+      leafLit: mix3(paint(leafLocal(sea.leafHue, 1), dark ? 0.08 : 0.10), air.rim, 0.25 * air.rimAmt),
+      // the leaves that face the open sky take a little of its colour
+      leafSky: mix3(paint(leafLocal(sea.leafHue, 1), dark ? 0.085 : 0.07), [air.land[0] + (dark ? 0.12 : 0.02), air.ambient[1], air.ambient[2]], dark ? 0.32 : 0.16),
+      // a low sun behind the crown shines through its thin places: the leaf's own colour, lit from within (a turned leaf burns amber, never pale)
+      leafGlow: lch(dark ? 0.50 : lerp(0.73, 0.82, smoothstep(92, 116, leaf[2])), dark ? 0.12 : lerp(0.155, 0.125, smoothstep(92, 116, leaf[2])), lerp(leaf[2], 70, 0.45)), backlit: smoothstep(-6, -1, altDeg) * (1 - smoothstep(8, 18, altDeg)),
+      blossom: paint([0.93, dark ? 0.10 : 0.06, 357], dark ? 0.15 : 0.05), blossomShade: paint([0.84, dark ? 0.11 : 0.09, 350], dark ? 0.07 : 0),
+      blossomLit: mix3(paint([0.95, dark ? 0.07 : 0.075, 28], dark ? 0.20 : 0.045), air.rim, 0.3 * air.rimAmt),
       // (snow on the limbs is a line, not an area: in the low key it keeps a clear pale all evening and a quiet one at night)
       snow: dark ? mix3(lch(lerp(0.30, 0.70, snowDay), 0.022, 258), [lerp(0.30, 0.70, snowDay), air.ambient[1], air.ambient[2]], 0.3) : paint([0.96, 0.012, 250], 0.06),
       frost: paint([0.88, 0.02, 235]),
@@ -1965,33 +1981,149 @@ export function create(host) {
       }
       return c;
     };
-    // (the twigs lie under the leaf: in a full crown only the limbs show through, in the gaps of sky)
-    if (m.snow && pal.sea.snow > 0.04) {
-      // the fine twigs carry it too: the whole crown is edged pale from above (the twigs' own mask, lifted half a point)
-      ctx.globalAlpha = (pal.dark ? 0.5 : 0.62) * pal.sea.snow;
-      ctx.drawImage(tinted(burnt(m.twigs, 0), pal.dark ? css(pal.air.show(pal.snow)) : C(pal.snow)), 0, 0, m.w, m.h, 0, -Math.round(0.6 * s), m.w, m.h);
-      ctx.globalAlpha = 1;
-    }
-    // (while the crown is still mostly in leaf — autumn's amber too — the twigs stay under it: bristles round a leaf mass are a different drawing)
-    lay(burnt(m.twigs, 0), C(pal.ink), (pal.dark ? 0.92 : 0.9) * (1 - 0.94 * smoothstep(0.55, 0.9, pal.sea.foliage)));
-    lay(m.leafBack, C(pal.leafShade));
+    /** Leaves and flowers are composed apart — `build(add)` lays its masks with add(mask, colour, alpha) —
+     *  and then opened where a disc of light stands behind them, so the sun is seen THROUGH the crown:
+     *  thinned a little all over the disc (`keep` of them left), and, given `gaps` (masks of single
+     *  leaves), those leaves taken out whole — the disc comes through leaf-shaped holes, not through
+     *  a ghost of the crown. Then set down on the tree. */
+    const foliage = (keep, build, gaps, feather = 4.5) => {
+      const g = scratch('tl', m.w, m.h);
+      build((mask, colour, alpha = 1) => {
+        if (!mask || !(alpha > 0.012)) return;
+        g.globalAlpha = Math.min(1, alpha);
+        g.drawImage(tinted(mask, colour), 0, 0, m.w, m.h, 0, 0, m.w, m.h);
+        g.globalAlpha = 1;
+      }, g);
+      for (const b of burns) {
+        const bx = m.cx + (b.x - t.x) * s, by = m.cy + (b.y - t.baseY) * s;
+        const r0 = b.r * s, r1 = (b.r + feather) * s;
+        const disc = (c, amount) => {
+          const gr = c.createRadialGradient(bx, by, 0, bx, by, r1);
+          gr.addColorStop(0, `rgba(0,0,0,${amount})`);
+          gr.addColorStop((r0 * 0.8) / r1, `rgba(0,0,0,${amount})`);
+          gr.addColorStop(1, 'rgba(0,0,0,0)');
+          c.fillStyle = gr;
+          c.fillRect(bx - r1, by - r1, 2 * r1, 2 * r1);
+        };
+        if (gaps) {
+          const a = scratch('a', m.w, m.h);
+          for (const gap of gaps) a.drawImage(gap, 0, 0);
+          a.globalCompositeOperation = 'destination-in';
+          disc(a, b.power);
+          g.globalCompositeOperation = 'destination-out';
+          g.drawImage(a.canvas, 0, 0, m.w, m.h, 0, 0, m.w, m.h);
+        }
+        g.globalCompositeOperation = 'destination-out';
+        disc(g, (1 - keep) * b.power);
+        g.globalCompositeOperation = 'source-over';
+      }
+      ctx.drawImage(g.canvas, 0, 0, m.w, m.h, 0, 0, m.w, m.h);
+    };
+    const leaf = m.leaf;
+    const snowC = pal.dark ? css(pal.air.show(pal.snow)) : C(pal.snow);
+    // (the twigs lie under the leaf. In leaf the tree hands over only the twigs that are in sight — in a full crown
+    // the ones that lead to leaves, across the holes and along the bare arm; more as it thins. Bare — the default
+    // day — they are the whole crown.)
+    lay(burnt(leaf ? leaf.twigs : m.twigs, 0), C(pal.ink), pal.dark ? 0.92 : 0.9);
+    // the far side of the crown, behind the limbs: cooler, darker, softer — and the crown's whole silhouette
+    if (leaf) foliage(0.88, (add) => add(leaf.back, C(pal.leafShade)), [leaf.gaps]);
     lay(burnt(m.wood, 0.5), C(pal.ink));
     if (power > 0.05) lay(facingMask(m.wood, 1.1 * s), C(pal.inkLit), power * (pal.dark ? 0.55 : 0.5));
-    if (m.leafMid) {
-      lay(m.leafMid, C(pal.leafMid));
-      lay(m.leafFront, C(mix3(pal.leafMid, pal.leafLit, 0.5)));
-      if (power > 0.05) {
-        lay(facingMask(m.leafBack, 3.0 * s), C(pal.leafGlow), power * pal.backlit * 0.55 * (1 - 0.7 * pal.sea.blossom));
-        lay(facingMask(m.leafMid, 2.6 * s), C(pal.leafLit), power * 0.8);
-        lay(facingMask(m.leafFront, 2.0 * s), C(pal.leafLit), power);
-      }
+    // snow on the level twigs: a hair of it (in the low key snow is a line of light, not an area — it does not take the night's cap)
+    lay(m.snowFine, snowC, (pal.dark ? 0.62 : 0.8) * pal.sea.snow);
+    // (the lamp's direction as the crown takes it: a sun going down beside the tree lights it from the side, not from underneath)
+    const lampN = Math.hypot(dx, Math.min(dy, 0.3)) || 1;
+    const lampX = dx / lampN, lampY = Math.min(dy, 0.3) / lampN;
+    /** `mask` in `colour`, let through `wash` (a gradient made on the context it is handed): → scratch A, use at once. */
+    const washed = (mask, colour, wash) => {
+      const a = scratch('a', m.w, m.h);
+      a.drawImage(tinted(mask, colour), 0, 0, m.w, m.h, 0, 0, m.w, m.h);
+      a.globalCompositeOperation = 'destination-in';
+      a.fillStyle = wash(a);
+      a.fillRect(0, 0, m.w, m.h);
+      return a.canvas;
+    };
+    /** Light that comes THROUGH the crown where a low sun stands behind it: most beside the disc, dying away across the crown. */
+    const through = power * pal.backlit * (pal.byMoon ? 0 : 1);
+    const aura = (amount) => (a) => {
+      const sx = m.cx + (pal.lamp.x - t.x) * s, sy = m.cy + (pal.lamp.y - t.baseY) * s;
+      const r0 = G.cfg.sunR * s, r1 = r0 + t.h * 0.62 * s;
+      const gr = a.createRadialGradient(sx, sy, r0 * 0.5, sx, sy, r1);
+      gr.addColorStop(0, `rgba(0,0,0,${Math.min(1, amount)})`);
+      gr.addColorStop(0.28, `rgba(0,0,0,${Math.min(1, 0.6 * amount)})`);
+      gr.addColorStop(0.62, `rgba(0,0,0,${Math.min(1, 0.2 * amount)})`);
+      gr.addColorStop(1, 'rgba(0,0,0,0)');
+      return gr;
+    };
+    /** …and light that falls ACROSS the crown: nothing on its far side, `amount` on the side toward the lamp. */
+    const across = (amount) => (a) => {
+      const mx = m.cx, my = m.cy - t.h * 0.60 * s, R = t.h * 0.50 * s;
+      const gr = a.createLinearGradient(mx - lampX * R, my - lampY * R, mx + lampX * R, my + lampY * R);
+      gr.addColorStop(0, 'rgba(0,0,0,0)');
+      gr.addColorStop(0.3, 'rgba(0,0,0,0)');
+      gr.addColorStop(1, `rgba(0,0,0,${Math.min(1, amount)})`);
+      return gr;
+    };
+    if (leaf) {
+      // how open the crown is (spring's first leaves, autumn's last): an open crown is never a dark mass against the sun
+      const open = clamp01(0.9 * pal.sea.leafFall + 1.2 * (1 - pal.sea.foliage));
+      foliage(0.9, (add, g) => {
+        // the near masses, in the leaf's own paints
+        // (against a low sun a full crown is in its own shade: only its edge and its thin places are lit)
+        const contre = (pal.dark ? 0.45 : 0.30) * pal.backlit * power * (1 - 0.8 * open);
+        leaf.body.forEach((mask, k) => add(mask, C(mix3(pal.leafBody[k], pal.leafCore, contre))));
+        // every leaf is turned some way: those turned from the lamp are the mass's shadowed core, those
+        // turned to it catch it — and by day the ones that face the sky take a little of its light
+        const skyLight = pal.dark ? 0.55 * (0.3 + 0.7 * pal.air.day) * (1 - 0.75 * pal.nightness) : 0.6 * (0.4 + 0.6 * pal.air.day);
+        const rimOnly = lerp(0.02, 0.42, pal.backlit);          // a low sun behind the crown lights only its edge
+        for (let i = 0; i < 8; i += 1) {
+          const ax = Math.cos((i * TAU) / 8), ay = Math.sin((i * TAU) / 8);
+          const f = ax * lampX + ay * lampY;
+          const lit = clamp01(power * (1 - 0.45 * pal.backlit) * smoothstep(rimOnly, 0.95, f));
+          const sky = skyLight * smoothstep(0.25, 1, -ay) * (1 - lit);
+          // (the underside of every bough is in its own shade, whatever the lamp)
+          const shade = clamp01(Math.max((0.30 + 0.60 * power) * smoothstep(0.05, 0.95, -f), 0.5 * smoothstep(0.15, 0.95, ay))) * (1 - lit) * (1 - 0.4 * open);
+          add(leaf.turned[i], C(pal.leafCore), shade);
+          add(leaf.turned[i], C(pal.leafSky), sky);
+          add(leaf.turned[i], C(pal.leafLit), lit);
+        }
+        if (through > 0.03) {
+          g.drawImage(washed(leaf.thin, C(pal.leafGlow), aura(through * (1 + 0.6 * open))), 0, 0, m.w, m.h, 0, 0, m.w, m.h);
+          // …and a full crown's own edge catches it where it faces the disc and stands near it: a rim of
+          // lit leaves beside the sun, gone a little way along the crown (never an outline all round)
+          const rim = scratch('rim', m.w, m.h);
+          rim.drawImage(leaf.back, 0, 0);
+          rim.globalCompositeOperation = 'destination-out';
+          rim.drawImage(leaf.back, -lampX * 1.1 * s, -lampY * 1.1 * s);
+          const edge = mk(m.w, m.h);
+          edge.getContext('2d').drawImage(rim.canvas, 0, 0, m.w, m.h, 0, 0, m.w, m.h);
+          g.drawImage(washed(edge, C(mix3(pal.leafGlow, pal.air.rim, 0.35)), aura(1.5 * through * (1 - open) * (1 - open))), 0, 0, m.w, m.h, 0, 0, m.w, m.h);
+        }
+      }, [leaf.gaps]);
     }
     lay(m.lastLeaves, C(pal.lastLeaf));
-    lay(m.blossomB, C(pal.blossomShade));
-    lay(m.blossomA, C(pal.blossom));
+    if (m.blossomA) {
+      foliage(0.12, (add, g) => {
+        add(m.blossomB, C(pal.blossomShade));
+        add(m.blossomA, C(pal.blossom));
+        // the flowers on the lamp's side of the crown are lit
+        if (power > 0.05) g.drawImage(washed(m.blossomA, C(pal.blossomLit), across(0.85 * power)), 0, 0, m.w, m.h, 0, 0, m.w, m.h);
+      }, null, 1.2);
+    }
     lay(m.frost, C(pal.frost), pal.dark ? 0.28 : 0.34);
-    // snow: a cap on the limbs (in the low key it is a line of light, not an area — it does not take the night's cap)
-    lay(m.snow, pal.dark ? css(pal.air.show(pal.snow)) : C(pal.snow));
+    // snow: a cap along the limbs, and the foot of the cap — the half point of it next the wood — in its own blue shade
+    lay(m.snow, snowC);
+    if (m.snow) {
+      const a = scratch('a', m.w, m.h);
+      a.drawImage(m.snow, 0, 0);
+      a.globalCompositeOperation = 'destination-out';
+      a.drawImage(m.snow, 0, -Math.max(1, Math.round(0.5 * s)));
+      const foot = [pal.snow[0] - (pal.dark ? 0.11 : 0.085), pal.snow[1] - 0.004, pal.snow[2] - 0.024];
+      const footC = pal.dark ? css(pal.air.show(foot)) : C(foot);
+      const c = mk(m.w, m.h);
+      c.getContext('2d').drawImage(a.canvas, 0, 0, m.w, m.h, 0, 0, m.w, m.h);
+      lay(c, footC, 0.7);
+    }
   }
 
   // ── his stars ────────────────────────────────────────────────────────
