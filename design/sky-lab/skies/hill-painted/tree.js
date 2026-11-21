@@ -21,6 +21,7 @@ import { rng } from '../../lab/noise.js';
 import { hash } from '../../lab/nights.js';
 
 const TAU = Math.PI * 2;
+const smoothstep01 = (t) => { const x = Math.min(1, Math.max(0, t)); return x * x * (3 - 2 * x); };
 
 /** The crown: lobes [cx, cy, rx, ry, weight]. Each belongs to a limb. */
 const LOBES = [
@@ -327,85 +328,214 @@ export function treeMasks(tree, mk, H, s, sea) {
   out.wood = wood.canvas;
   out.twigs = twigs.canvas;
 
-  // Leaves: dabs gathered along the twigs — so the crown keeps the limbs'
-  // own shape, with sky between the lobes — in three depths.
+  // ── the crown in leaf ──
+  // Not dabs: MASSES. Each limb's lobe carries a handful of gathered clumps of leaf — rounded,
+  // with a leaf-scalloped edge — that overlap into one crown with a clear outer shape (the lobes'
+  // own, so the silhouette is the bare tree's), in three depths: the shaded masses behind the
+  // wood, the body of each clump in front of it, and the tops that catch the light. Between the
+  // masses there are a few windows of sky, set where the limbs pass, so the limbs show through.
+  const n1 = (x, salt) => { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return hash(i, salt) * (1 - u) + hash(i + 1, salt) * u; };
+  /** Smooth noise round a closed outline: `period` cells to the turn, so the edge meets itself. */
+  const ring = (x, period, salt) => {
+    const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f);
+    const at = (k) => hash(((k % period) + period) % period, salt);
+    return at(i) * (1 - u) + at(i + 1) * u;
+  };
+  /** A gathered mass of leaf, cut by hand: never an ellipse (two or three slow bulges), and its edge
+   *  is LEAVES — unequal points, a few standing well out, most barely — not a row of equal scallops. */
+  const mass = (ctx, cx, cy, rx, ry, seed) => {
+    if (rx < 0.004 || ry < 0.004) return;
+    const girth = Math.PI * (rx + ry);
+    const tips = Math.max(7, Math.round(girth / 0.034));
+    const steps = tips * 8;
+    const small = 0.030 / Math.max(0.03, Math.min(rx, ry));
+    ctx.beginPath();
+    for (let k = 0; k <= steps; k += 1) {
+      const t = (k % steps) / steps, a = t * TAU;
+      // the leaves are not evenly spaced round the edge
+      const tw = t * tips + 0.7 * (ring(t * Math.ceil(tips / 2), Math.ceil(tips / 2), seed + 3) - 0.5);
+      const cell = Math.floor(tw), f = tw - cell;
+      const amp = 0.2 + 1.5 * Math.pow(hash(((cell % tips) + tips) % tips, seed + 5), 1.6);
+      const tip = 1 - Math.pow(Math.abs(2 * f - 1), 1.45);
+      const slow = 0.20 * (ring(t * 3, 3, seed + 1) - 0.5) + 0.12 * (ring(t * 7, 7, seed + 2) - 0.5);
+      const r = 1 + slow + small * 0.34 * amp * (tip - 0.42);
+      const x = X(cx + Math.cos(a) * rx * r), y = Y(cy + Math.sin(a) * ry * r);
+      if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+  /** The masses one lobe carries: [cx, cy, rx, ry, id] — few and large, unequal: two or three round
+   *  its rim and one at its heart. The long arm's lobe (the low one on the sunset side) carries only a
+   *  small spray at the arm's end: under it the crown is OPEN — a bay of sky where the sun goes
+   *  down, so that in leaf, too, the sun is seen through the limbs. */
+  const clumpsOf = (lobe, j) => {
+    const [cx, cy, rx, ry, weight] = lobe;
+    if (j === 4) return [[cx + rx * 0.52, cy - ry * 0.62, rx * 0.5, ry * 0.5, j * 16], [cx + rx * 0.08, cy - ry * 0.98, rx * 0.4, ry * 0.36, j * 16 + 1]];
+    const big = rx > 0.16;
+    const n = big ? 3 : 2;
+    const out = [];
+    for (let k = 0; k < n; k += 1) {
+      const id = j * 16 + k;
+      const a = (k / n) * TAU + (hash(id, 91) - 0.5) * 0.9 + j * 1.3 - Math.PI / 2;
+      const d = 0.40 + 0.14 * hash(id, 92);
+      const sz = (big ? 0.66 : 0.76) * (0.74 + 0.5 * hash(id, 93));
+      out.push([cx + Math.cos(a) * rx * d, cy + Math.sin(a) * ry * d, rx * sz, ry * sz * 1.04, id]);
+    }
+    if (weight >= 0.9) out.push([cx + (hash(j, 94) - 0.5) * rx * 0.2, cy - ry * 0.05, rx * 0.62, ry * 0.6, j * 16 + 15]);
+    return out;
+  };
+  /** Sky in the crown, where the limbs pass. Never a porthole: three BAYS that run in from the
+   *  crown's underside along the leader and the two great limbs (each a few overlapping cuts), and
+   *  two small ragged gaps higher up between the lobes. [x, y, rx, ry, group] — groups 3+ open only
+   *  as the crown thins. */
+  const WINDOWS = [
+    [0.020, -0.385, 0.062, 0.050, 0], [0.026, -0.455, 0.040, 0.040, 0], [0.006, -0.515, 0.022, 0.026, 0],
+    [-0.175, -0.395, 0.058, 0.046, 1], [-0.228, -0.455, 0.036, 0.036, 1], [-0.262, -0.508, 0.020, 0.024, 1],
+    [0.150, -0.415, 0.054, 0.044, 2], [0.205, -0.478, 0.034, 0.034, 2], [0.246, -0.530, 0.018, 0.022, 2],
+    [-0.132, -0.704, 0.040, 0.017, 3], [-0.098, -0.682, 0.024, 0.022, 3], [-0.160, -0.722, 0.018, 0.012, 3],
+    [0.146, -0.724, 0.036, 0.015, 4], [0.178, -0.704, 0.021, 0.020, 4],
+    [-0.035, -0.640, 0.036, 0.016, 5], [-0.008, -0.622, 0.020, 0.018, 5], [0.300, -0.505, 0.034, 0.016, 6], [0.322, -0.488, 0.018, 0.016, 6], [-0.335, -0.535, 0.032, 0.015, 7], [-0.31, -0.52, 0.017, 0.016, 7],
+  ];
+  /** Cut the sky out of a leaf mask. `bays` scales the three bays, `gaps` the two gaps (0 = closed),
+   *  `more` the ones that only open as the crown thins. */
+  const punch = (ctx, bays, gaps, more) => {
+    ctx.globalCompositeOperation = 'destination-out';
+    WINDOWS.forEach(([wx, wy, rx, ry, group], i) => {
+      const k = group <= 2 ? bays : group <= 4 ? gaps : more;
+      if (k > 0.08) mass(ctx, wx, wy, rx * k, ry * k, 700 + i);
+    });
+    ctx.globalCompositeOperation = 'source-over';
+  };
+
+  // Leaves.
   const foliage = sea.foliage;
   if (foliage > 0.04) {
     const back = mask(), mid = mask(), front = mask();
-    const thin = 1 - 0.6 * sea.leafFall;                   // autumn: thinning
-    // how deep inside its lobe a twig is (0 at the rim … 1 at the heart): leaves crowd the rims,
-    // so each limb's lobe keeps its own outline and there is sky between them
-    const depthIn = (x, y) => {
-      let best = 0;
-      for (const [cx, cy, rx, ry] of tree.lobes.slice(0, 5)) {
-        const u = (x - cx) / rx, v = (y - cy) / ry;
-        best = Math.max(best, 1 - Math.sqrt(u * u + v * v));
-      }
-      return best;
-    };
-    const twigNodes = nodes.filter((n) => n.order <= 12 && n.w < 0.022);
-    twigNodes.forEach((n, i) => {
-      const inLobe = depthIn(n.x, n.y);
-      if (inLobe < -0.12) return;                          // the heart's own twigs carry few leaves
-      const keep = foliage * thin * (n.order <= 4 ? 1 : 0.9 - 0.04 * n.order) * (inLobe < 0 ? 0.45 : 1);
-      for (let k = 0; k < 5; k += 1) {
-        const id = i * 5 + k;
-        if (hash(id, 61) > keep) continue;
-        const roll = hash(id, 65);
-        const layer = roll < 0.40 ? 0 : roll < 0.76 ? 1 : 2;
-        const a = hash(id, 62) * TAU, d = hash(id, 63) * (layer === 0 ? 0.036 : 0.028);
-        const r = ([0.0135, 0.0105, 0.0075][layer] + [0.013, 0.010, 0.008][layer] * hash(id, 64)) * H * (0.7 + 0.3 * foliage);
-        // leaves hang: the masses sit a little under their twigs
-        const x = X(n.x + Math.cos(a) * d), y = Y(n.y + Math.sin(a) * d * 0.8 + (layer === 0 ? 0.010 : 0.002));
-        const ctx = [back, mid, front][layer];
-        ctx.beginPath();
-        ctx.ellipse(x, y, r * 1.18, r * 0.8, (hash(id, 66) - 0.5) * 1.6, 0, TAU);
-        ctx.fill();
+    const fall = sea.leafFall;                              // autumn: thinning
+    const grown = foliage * foliage * (3 - 2 * foliage);    // spring: the clumps are small, then fill
+    const size = (0.50 + 0.50 * grown) * (1 - 0.09 * fall) * (1 - 0.3 * (sea.blossom ?? 0));
+    tree.lobes.forEach((lobe, j) => {
+      const [cx, cy, rx, ry] = lobe;
+      // the whole lobe, once the crown is full (autumn opens it up again)
+      const whole = smoothstep01((grown - 0.72) / 0.25) * (1 - 0.30 * fall);
+      if (whole > 0.02 && j < 4) mass(back, cx, cy + 0.012, rx * 0.95 * (0.7 + 0.3 * whole), ry * 0.95 * (0.7 + 0.3 * whole), 300 + j);
+      for (const [x, y, crx, cry, id] of clumpsOf(lobe, j)) {
+        if (hash(id, 95) < 0.14 * fall) continue;            // a clump lost to the wind
+        mass(back, x, y + 0.012, crx * size * 1.05, cry * size * 1.05, 310 + id);
+        if (hash(id, 96) > 0.14 + 0.2 * fall) mass(mid, x - 0.008, y - 0.016, crx * size * 0.80, cry * size * 0.76, 400 + id);
+        if (hash(id, 97) > 0.36 + 0.25 * fall) mass(front, x - 0.006 + (hash(id, 98) - 0.5) * crx * 0.4, y - cry * size * 0.34, crx * size * 0.46, cry * size * 0.40, 500 + id);
       }
     });
+    // (the bays are cut wider in the nearer layers, so the crown's shaded inside shows round them; the
+    // small gaps are cut the same in all three — a ring of shade round a small hole would be an eye)
+    const open = 1 - grown;
+    const gaps = 1 + 0.5 * open + 0.35 * fall, more = 1.05 * fall + 1.1 * open - 0.05;
+    punch(back, 0.86 + 0.5 * open + 0.36 * fall, gaps, more);
+    punch(mid, 1.12 + 0.5 * open + 0.4 * fall, gaps * 1.06, more * 1.06);
+    punch(front, 1.3 + 0.5 * open + 0.4 * fall, gaps * 1.12, more * 1.12);
     out.leafBack = back.canvas; out.leafMid = mid.canvas; out.leafFront = front.canvas;
   }
 
-  // Blossom: small dabs at the twig ends, two tones; the wood still shows.
+  // Blossom: the same gathered clumps, smaller and airier — a cloud of it on each bough, in two
+  // tones, with the wood and the sky showing between; a frill of single flowers at the twig ends.
   if (sea.blossom > 0.04) {
     const a = mask(), b = mask();
-    const twigNodes = nodes.filter((n) => n.order <= 7 && n.w < 0.016);
-    twigNodes.forEach((n, i) => {
-      const dabs = n.order <= 1 ? 3 : 1;
-      for (let k = 0; k < dabs; k += 1) {
-        const id = i * 5 + k;
-        if (hash(id, 72) > sea.blossom * (n.order <= 1 ? 0.8 : 0.34)) continue;
-        const ctx = hash(id, 73) < 0.6 ? a : b;
-        const r = (0.0075 + 0.0095 * hash(id, 74)) * H;
-        ctx.beginPath();
-        ctx.arc(X(n.x + (hash(id, 76) - 0.5) * 0.05), Y(n.y + (hash(id, 77) - 0.5) * 0.045), r, 0, TAU);
-        ctx.fill();
+    const full = sea.blossom;
+    tree.lobes.forEach((lobe, j) => {
+      for (const [x, y, crx, cry, id] of clumpsOf(lobe, j)) {
+        if (hash(id, 71) > 0.30 + 0.62 * full) continue;
+        const k = 0.42 + 0.17 * full;
+        mass(b, x + 0.005, y + 0.014, crx * k * 1.06, cry * k * 1.0, 600 + id);
+        mass(a, x - 0.005, y - 0.008, crx * k * 0.82, cry * k * 0.76, 640 + id);
+        // two or three smaller sprays beside it, so its edge is not one curve
+        for (let q = 0; q < 3; q += 1) {
+          const ang = hash(id * 4 + q, 72) * TAU, dd = 0.95 + 0.4 * hash(id * 4 + q, 73);
+          const sx = x + Math.cos(ang) * crx * k * dd, sy = y + Math.sin(ang) * cry * k * dd;
+          if (hash(id * 4 + q, 74) > full) continue;
+          mass(q === 0 ? b : a, sx, sy, crx * k * 0.34, cry * k * 0.34, 660 + id * 4 + q);
+        }
       }
+    });
+    punch(b, 1.05, 0, 0); punch(a, 1.3, 0, 0);
+    const tipNodes = nodes.filter((n) => n.order <= 1 && n.w < 0.016);
+    tipNodes.forEach((n, i) => {
+      if (hash(i, 75) > 0.14 * full) return;
+      const ctx = hash(i, 76) < 0.6 ? a : b;
+      ctx.beginPath();
+      ctx.arc(X(n.x + (hash(i, 77) - 0.5) * 0.03), Y(n.y + (hash(i, 78) - 0.5) * 0.03), (0.006 + 0.005 * hash(i, 79)) * H, 0, TAU);
+      ctx.fill();
     });
     out.blossomA = a.canvas; out.blossomB = b.canvas;
   }
 
-  // Snow lying along the upper side of the limbs; frost, a thinner line of the same.
-  const lying = (amount, thickness, minW) => {
+  // Snow lies as a CAP along the upper side of the limbs that are level enough to hold it: a clear
+  // pale ridge a point and a half to two points deep on the great limbs (it has to be read from the
+  // strip, at phone size), thinner on the lesser ones, broken where it has slid off, round at its
+  // ends, and a small drift in every fork. Frost is a hair of the same, on the wood's top edge.
+  const lying = (amount, weight, minW, cap) => {
     const ctx = mask();
     for (let i = 1; i < nodes.length; i += 1) {
       const n = nodes[i];
       if (n.w < minW) continue;
       const q = nodes[n.parent];
-      const len = Math.hypot(n.x - q.x, n.y - q.y) || 1;
-      const flat = Math.abs(n.x - q.x) / len;            // 0 for a limb going straight up
-      if (flat < 0.30) continue;
-      const lift = n.w * H * 0.5 + thickness * s * 0.22;
-      ctx.lineWidth = Math.max(0.5 * s, thickness * s * (0.4 + 0.6 * flat) * amount);
+      const dx = n.x - q.x, dy = n.y - q.y;
+      const len = Math.hypot(dx, dy) || 1;
+      let flat = Math.abs(dx) / len;                     // 0 for a limb going straight up
+      if (cap) {
+        // …judged over a longer stretch of the limb, so a cap runs on unbroken where the limb only wavers
+        let a = n.parent, hops = 1;
+        while (hops < 5 && nodes[a].parent >= 0) { a = nodes[a].parent; hops += 1; }
+        const ex = n.x - nodes[a].x, ey = n.y - nodes[a].y;
+        flat = Math.min(1, 0.25 * flat + 0.75 * (Math.abs(ex) / (Math.hypot(ex, ey) || 1)));
+      }
+      if (flat < 0.42) continue;
+      // snow slides off in runs: whole stretches of a limb are bare
+      let run = i, steps = 0;
+      while (steps < 3 && nodes[run].parent > 0 && nodes[nodes[run].parent].kids === 1) { run = nodes[run].parent; steps += 1; }
+      if (hash(Math.floor(run / 3), 85) > 0.5 + 0.45 * amount) continue;
+      // the limb's upper normal
+      let nx = -dy / len, ny = dx / len;
+      if (ny > 0) { nx = -nx; ny = -ny; }
+      const px = n.w * H;
+      let lw, sit;
+      if (cap) {
+        // as deep as the limb can carry: 1.5–2 pt on the great limbs, about a point on the boughs
+        const depth = Math.max(0.62 * s, Math.min(2.0 * s, px * 0.5 + 0.35 * s));
+        lw = depth * weight * (0.45 + 0.55 * smoothstep01((flat - 0.42) / 0.4));
+        sit = 0.30;                                       // it sits ON the limb: most of it above the wood
+      } else {
+        lw = Math.max(0.42 * s, Math.min(0.85 * s, px * 0.34)) * weight * (0.55 + 0.45 * flat);
+        sit = 0.15;
+      }
+      const lift = px * 0.5 + lw * sit;
+      ctx.lineWidth = lw;
       ctx.beginPath();
-      ctx.moveTo(X(q.x), Y(q.y) - lift);
-      ctx.lineTo(X(n.x), Y(n.y) - lift);
+      ctx.moveTo(X(q.x) + nx * (q.w * H * 0.5 + lw * sit), Y(q.y) + ny * (q.w * H * 0.5 + lw * sit));
+      ctx.lineTo(X(n.x) + nx * lift, Y(n.y) + ny * lift);
       ctx.stroke();
     }
     return ctx.canvas;
   };
-  if (sea.snow > 0.04) out.snow = lying(sea.snow, 1.25, 0.0075);
-  if (sea.frost > 0.04) out.frost = lying(sea.frost, 0.55, 0.0095);
+  if (sea.snow > 0.04) {
+    out.snow = lying(sea.snow, 1, 0.0085, true);
+    // every fork holds a little: a small drift lying in the crotch (the great fork holds the most)
+    const ctx = out.snow.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.ellipse(X(-0.004), Y(-0.236), 0.020 * H, 0.0085 * H, 0, 0, TAU);
+    ctx.fill();
+    for (let i = 1; i < nodes.length; i += 1) {
+      const n = nodes[i];
+      if (n.kids < 2 || n.w < 0.019 || n.y > -0.24) continue;
+      if (hash(i, 87) > 0.25 + 0.55 * sea.snow) continue;
+      const r = Math.max(0.8 * s, Math.min(1.7 * s, n.w * H * 0.5));
+      ctx.beginPath();
+      ctx.ellipse(X(n.x), Y(n.y) - n.w * H * 0.42 - r * 0.2, r, r * 0.52, 0, 0, TAU);
+      ctx.fill();
+    }
+  }
+  if (sea.frost > 0.04) out.frost = lying(sea.frost, 0.7, 0.0105);
 
   // The last leaves of autumn, clinging at the twig ends.
   const clinging = Math.max(sea.leafFall * (1 - sea.foliage), 0);

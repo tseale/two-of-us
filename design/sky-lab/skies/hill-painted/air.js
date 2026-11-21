@@ -31,18 +31,24 @@ export const E_STOPS = [0, 0.04, 0.10, 0.18, 0.29, 0.44, 0.68, 1, 1.5, 2.3];
 
 const KEYS = [
   { alt: 30,
-    light: [0.872, 0.968, 1, 0.80], dark: [0.168, 0.300, 1, 0.66],
+    // (The low key's hushed day is not a night: a dusky slate-blue with its hue kept — pale along the
+    // horizon, deeper overhead, still under the limits behind the header's words — so the tree is a
+    // true silhouette on it and the planes of land can be told apart at one in the afternoon.)
+    light: [0.872, 0.968, 1, 0.80], dark: [0.325, 0.495, 1.1, 1.3],
     S: [[1, .016, 235], [.97, .028, 238], [.90, .048, 242], [.78, .072, 246], [.60, .098, 250], [.40, .114, 254], [.18, .124, 257], [0, .13, 260]],
     A: [[.93, .024, 240], [.90, .034, 242], [.84, .054, 245], [.72, .078, 248], [.55, .10, 252], [.36, .114, 255], [.16, .124, 258], [0, .13, 260]],
+    Sd: [[1, .045, 236], [.97, .052, 239], [.90, .066, 243], [.78, .082, 247], [.60, .10, 251], [.40, .114, 254], [.18, .124, 257], [0, .13, 260]],
+    Ad: [[.92, .05, 242], [.89, .058, 244], [.83, .07, 247], [.71, .086, 250], [.55, .10, 252], [.36, .114, 255], [.16, .124, 258], [0, .13, 260]],
     sun: [1.5, .03, 95], glow: [1.12, .03, 92, 0.42],
     lo: { lit: [1.2, .012, 90], shade: [.42, .035, 255], amt: 1 },
     hi: { lit: [1.16, .008, 90], shade: [.74, .03, 250], amt: 1 },
     mist: [1.05, .012, 240],
-    land: { light: [0.80, .03, 250], dark: [0.105, .02, 255] }, gain: [0.26, 0.30], rim: [1.1, .03, 90, 0.10] },
+    land: { light: [0.80, .03, 250], dark: [0.165, .034, 258] }, gain: [0.26, 0.30], rim: [1.1, .03, 90, 0.10] },
   { alt: 8,
-    light: [0.862, 0.968, 1, 0.75], dark: [0.150, 0.44, 1.5, 1.15],
+    light: [0.862, 0.968, 1, 0.75], dark: [0.25, 0.46, 1.25, 1.15],
     S: [[1, .075, 78], [.98, .065, 84], [.92, .04, 92], [.80, .022, 150], [.62, .06, 245], [.42, .095, 254], [.24, .112, 258], [.10, .12, 262]],
-    A: [[.70, .03, 290], [.72, .035, 310], [.70, .04, 285], [.62, .06, 258], [.50, .085, 255], [.36, .102, 257], [.21, .112, 259], [.09, .12, 262]],
+    // (away from a low sun the far side is already cool rose over blue: the first of the Belt)
+    A: [[.70, .05, 322], [.73, .058, 338], [.71, .055, 318], [.62, .062, 276], [.50, .085, 255], [.36, .102, 257], [.21, .112, 259], [.09, .12, 262]],
     Sd: [[1, .12, 66], [.99, .115, 72], [.94, .09, 80], [.84, .055, 60], [.66, .06, 350], [.44, .085, 285], [.24, .108, 262], [.10, .12, 262]],
     sun: [1.45, .06, 92], glow: [1.1, .09, 80, 0.55],
     lo: { lit: [1.14, .06, 82], shade: [.36, .04, 272], amt: 1 },
@@ -96,8 +102,10 @@ const KEYS = [
     land: { light: [0.818, .03, 278], dark: [0.068, .02, 272] }, gain: [0.14, 0.26], rim: [.5, .05, 30, 0] },
   { alt: -18,
     light: [0.84, 0.892, 1, 1.4], dark: [0.148, 0.234, 1.1, 1.0],
-    S: [[1, .055, 262], [.92, .06, 264], [.78, .066, 266], [.60, .072, 268], [.40, .078, 270], [.22, .082, 272], [.08, .085, 273], [0, .085, 274]],
-    A: [[1, .055, 262], [.92, .06, 264], [.78, .066, 266], [.60, .072, 268], [.40, .078, 270], [.22, .082, 272], [.08, .085, 273], [0, .085, 274]],
+    // (The night's horizon light is a BAND, not a line: it stands as high as the tree's crown before
+    // it lets go — so at night the tree is a silhouette against it, a shade lighter than the land.)
+    S: [[1, .055, 262], [.97, .058, 263], [.93, .062, 265], [.87, .068, 267], [.76, .075, 269], [.50, .081, 271], [.16, .085, 273], [0, .085, 274]],
+    A: [[1, .055, 262], [.97, .058, 263], [.93, .062, 265], [.87, .068, 267], [.76, .075, 269], [.50, .081, 271], [.16, .085, 273], [0, .085, 274]],
     sun: [1, .03, 262], glow: [1, .03, 262, 0],
     lo: { lit: [1, .03, 262], shade: [-.1, .05, 268], amt: 0 },
     hi: { lit: [1, .03, 262], shade: [.45, .05, 268], amt: 0 },
@@ -127,7 +135,7 @@ function print(key, dark, vch) {
 /** The sun's disc is not printed with the sky: it is the light. [altitude°, [L, C, h°] dark, light]. */
 const SUN_DISC = [
   [30, [0.90, 0.035, 95], [0.992, 0.02, 95]],
-  [8, [0.905, 0.085, 84], [0.955, 0.12, 88]],
+  [8, [0.895, 0.125, 78], [0.955, 0.12, 88]],
   [2.5, [0.90, 0.105, 76], [0.885, 0.165, 70]],
   [-0.8, [0.85, 0.13, 62], [0.86, 0.17, 56]],
   [-3, [0.62, 0.17, 40], [0.84, 0.15, 44]],
@@ -264,7 +272,7 @@ export function airFor({ altDeg, dark, morning, presence, depth, moonlight = 0 }
   // little quieter. The light appearance's upper sky is held where grey text
   // can still be read on it (L ≥ 0.846): in the looked-up pose the header sits there.
   const column = (name) => {
-    const pick = (k) => (dark && name === 'S' && k.Sd ? k.Sd : k[name]);
+    const pick = (k) => (dark && k[`${name}d`] ? k[`${name}d`] : k[name]);
     const stops = k0[name].map((_, s) => both((k) => pick(k)[s]));
     const top = stops[stops.length - 1];
     const zen = dark ? 0.016 + 0.012 * night : 0.0;
@@ -306,7 +314,8 @@ export function airFor({ altDeg, dark, morning, presence, depth, moonlight = 0 }
   // they sink toward the horizon, and a page away the far column takes over —
   // the Belt of Venus over the earth's shadow.
   const ARCH_W = 0.60, ARCH_FAR = 0.44, ANTI_FROM = 0.10, ANTI_TO = 1.35;
-  const shadowLab = print(k0, dark, [0.20, 0.05, 252]).map((v, c) => lerp(v, print(k1, dark, [0.20, 0.05, 252])[c], t));
+  // (the earth's shadow is slate-blue, a little toward violet: at 252° it printed as a teal stripe — the app's own accent)
+  const shadowLab = print(k0, dark, [0.20, 0.05, 268]).map((v, c) => lerp(v, print(k1, dark, [0.20, 0.05, 268])[c], t));
   const shadowAmt = 0.85 * smoothstep(-1.5, 2.5, -altDeg) * (1 - smoothstep(6, 9.5, -altDeg));
   const shadowH = lerp(0.06, 0.2, smoothstep(0, 5, -altDeg));
   const sA = new Float32Array(3), sB = new Float32Array(3);
