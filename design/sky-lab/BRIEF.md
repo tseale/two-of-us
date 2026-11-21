@@ -196,6 +196,36 @@ hard-coding them), `cards[].opacity`, `state.tonightLit`, `state.sun.x` after su
 `snowfall=1`, a sky host that can no longer paint over the UI, and review sets `text`,
 `tilt`, `snow`, `wake`.
 
+### What the app gives the port (read from the Swift, 21 Nov 2026)
+
+Checked twice against the code (files named in each point). None of this changes what a
+sky module does in the lab, but the picture has to survive it.
+
+- **Place and time.** The sky already takes the household's daycare pin for the sun and
+  moon (`HomeView` passes `daycareSettings?.daycareCoordinate`); with no pin it assumes 40°N
+  on the time zone's meridian (`SolarClock.approximateLocation`). The lab's Chicago is a
+  stand-in. His birth date is stored,
+  so the night count is real; a due date in the future means no nights yet.
+- **iOS 26 is the floor** (`project.yml`), so a Metal shader through `colorEffect` /
+  `layerEffect` is available. None exists in the app today, and no `Canvas` either: the sky
+  is SwiftUI shapes, gradients, blurs and five images, recomputed once a minute, with the
+  stars alone on a 24 fps timeline.
+- **Home is one `List`; the sky is its background** (`HomeView.swift`). The header is the list's first row and
+  scrolls away; the sky stays put. So the composition is right at scroll-top and must
+  simply stay calm when cards ride up over the horizon.
+- **The tab bar is system glass** and minimises on scroll (`RootView.swift`). Home does not own its frame.
+- **On the open Duo there are two sky views** (the phone page's and the leading page's),
+  each with its own clock. A camera move needs one shared driver for both.
+- **Nothing observes the Duo opening today,** and the layout swap has no animation. The
+  opening moment has to be built; the leading page's first appearance is the natural cue.
+- **"Night sleep" has no single meaning in the app.** The wording rule (`SleepLanguage.swift`) calls any sleep begun
+  before 20:00 a nap for its first two hours; the night schedule is a separate, adjustable
+  window (`SharedSettings`, default 20:00–08:00). A 19:40 bedtime is outside both. The port must define what
+  starts the bedtime moment, and only a tap on this phone's Home can be told from a synced
+  or Siri-started sleep.
+- **Cards fading back** means fading list rows one by one (the timeline's card is a row
+  background), on both pages of the spread, without touching the sky or the undo toast.
+
 ## What the canvas really is
 
 Look at `shots/baseline/` before drawing anything. The sky is **ground behind cards**, and
