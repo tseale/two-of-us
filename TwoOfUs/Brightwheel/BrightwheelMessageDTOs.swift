@@ -92,12 +92,143 @@ struct BrightwheelMessage: Decodable, Sendable {
     let broadcast: Bool?
     let sender: Sender?
     let deletedAt: String?
+    /// Photos (and the odd video or PDF) a teacher attached — the "Thanksgiving
+    /// Week Dress-Up Days" flyer under "Next weeks festive days!". The bundle's
+    /// schema names the field but not its element shape, so each element is
+    /// read leniently (see `Attachment`); a message-level `media` block (the
+    /// activity feed's shape) is honored too.
+    let attachments: [Attachment]
 
     enum CodingKeys: String, CodingKey {
         case objectID = "object_id"
-        case body, type, broadcast, sender
+        case body, type, broadcast, sender, attachments, media
         case createdAt = "created_at"
         case deletedAt = "deleted_at"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        objectID = try? c.decode(String.self, forKey: .objectID)
+        body = try? c.decode(String.self, forKey: .body)
+        createdAt = try? c.decode(String.self, forKey: .createdAt)
+        type = try? c.decode(String.self, forKey: .type)
+        broadcast = try? c.decode(Bool.self, forKey: .broadcast)
+        sender = try? c.decode(Sender.self, forKey: .sender)
+        deletedAt = try? c.decode(String.self, forKey: .deletedAt)
+        var found: [Attachment] = []
+        if let list = try? c.decode([LooseJSON].self, forKey: .attachments) {
+            found = list.compactMap(Attachment.init(json:))
+        } else if let single = try? c.decode(LooseJSON.self, forKey: .attachments),
+                  let one = Attachment(json: single) {
+            found = [one]   // a lone object instead of a list
+        }
+        if found.isEmpty, let media = try? c.decode(LooseJSON.self, forKey: .media),
+           let one = Attachment(json: media) {
+            found = [one]
+        }
+        attachments = found
+    }
+
+    /// One attachment, distilled to the link worth storing and what it is.
+    /// Brightwheel's element shape isn't in the bundle's zod schemas, so this
+    /// takes any object (or bare URL string) and picks the best full-size
+    /// http(s) link it holds — `image_url`/`url`/`file_url`/… over thumbnails,
+    /// nested objects included — and reads the kind from a content-type-ish
+    /// field, else the URL's extension.
+    struct Attachment: Sendable, Equatable {
+        enum Kind: Sendable, Equatable { case image, video, document }
+
+        let objectID: String?
+        let url: String
+        let kind: Kind
+
+        init(objectID: String?, url: String, kind: Kind) {
+            self.objectID = objectID
+            self.url = url
+            self.kind = kind
+        }
+
+        init?(json: LooseJSON) {
+            if case .string(let s) = json {
+                guard Self.isLink(s) else { return nil }
+                self.init(objectID: nil, url: s, kind: Self.kind(fromURL: s) ?? .image)
+                return
+            }
+            guard case .object(let root) = json else { return nil }
+            var links: [(key: String, url: String)] = []
+            var typeHints: [String] = []
+            func walk(_ value: LooseJSON, key: String) {
+                switch value {
+                case .string(let s):
+                    if Self.isLink(s) {
+                        links.append((key, s))
+                    } else if Self.typeKeys.contains(key) {
+                        typeHints.append(s.lowercased())
+                    }
+                case .object(let dict):
+                    for (k, v) in dict { walk(v, key: k.lowercased()) }
+                case .array(let items):
+                    for item in items { walk(item, key: key) }
+                default:
+                    break
+                }
+            }
+            for (k, v) in root { walk(v, key: k.lowercased()) }
+            // Ties break on the key name: dictionary order isn't stable.
+            guard let best = links.min(by: { (Self.rank($0.key), $0.key) < (Self.rank($1.key), $1.key) })
+            else { return nil }
+
+            let hinted: Kind? = typeHints.lazy.compactMap { hint -> Kind? in
+                if hint.contains("image") || hint.contains("photo") || hint.contains("picture") { return .image }
+                if hint.contains("video") || hint.contains("movie") { return .video }
+                if hint.contains("pdf") || hint.contains("document") || hint.contains("application") { return .document }
+                return nil
+            }.first
+            let keyed: Kind? = best.key.contains("video") || best.key.contains("stream") ? .video
+                : best.key.contains("image") || best.key.contains("photo") ? .image : nil
+            let objectID: String? = {
+                for key in ["object_id", "id", "uuid"] {
+                    if case .string(let s)? = root[key], !s.isEmpty { return s }
+                    if case .number(let n)? = root[key] { return String(Int(n)) }
+                }
+                return nil
+            }()
+            self.init(objectID: objectID, url: best.url,
+                      kind: hinted ?? Self.kind(fromURL: best.url) ?? keyed ?? .image)
+        }
+
+        private static let typeKeys: Set<String> = [
+            "content_type", "mime_type", "mimetype", "file_type", "media_type", "type", "kind",
+            "attachment_type", "category",
+        ]
+
+        /// Lower is better: full-size image links, then generic file links,
+        /// then anything else, thumbnails last.
+        private static func rank(_ key: String) -> Int {
+            if key.contains("thumb") || key.contains("preview") || key.contains("small") { return 9 }
+            switch key {
+            case "image_url", "original_url", "full_url", "large_url", "photo_url": return 0
+            case "url", "file_url", "download_url", "downloadable_url", "signed_url", "src",
+                 "streamable_url", "video_url", "media_url": return 1
+            case "medium_url": return 2
+            default: return key.contains("url") ? 3 : 5
+            }
+        }
+
+        private static func isLink(_ s: String) -> Bool {
+            let lower = s.lowercased()
+            return lower.hasPrefix("https://") || lower.hasPrefix("http://")
+        }
+
+        static func kind(fromURL string: String) -> Kind? {
+            guard let ext = URL(string: string)?.pathExtension.lowercased(), !ext.isEmpty else { return nil }
+            switch ext {
+            case "jpg", "jpeg", "png", "heic", "heif", "gif", "webp", "bmp", "tif", "tiff": return .image
+            case "mp4", "mov", "m4v", "m3u8", "webm": return .video
+            case "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv": return .document
+            default: return nil
+            }
+        }
     }
 
     struct Sender: Decodable, Sendable {
@@ -119,7 +250,32 @@ struct BrightwheelMessage: Decodable, Sendable {
 
     var when: Date? { BrightwheelActivity.parseDate(createdAt) }
 
+    /// The attachments the timeline can show: photos and videos.
+    var visualAttachments: [Attachment] { attachments.filter { $0.kind != .document } }
+
     /// Written by a parent (us, or the co-parent) — never imported: the
     /// timeline wants what the daycare said.
     var isFromGuardian: Bool { sender?.userType?.lowercased() == "guardian" }
+}
+
+/// Any JSON value — just enough structure to dig links out of an attachment
+/// whose shape isn't documented.
+indirect enum LooseJSON: Decodable, Sendable, Equatable {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case object([String: LooseJSON])
+    case array([LooseJSON])
+    case null
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if c.decodeNil() { self = .null }
+        else if let v = try? c.decode(Bool.self) { self = .bool(v) }
+        else if let v = try? c.decode(Double.self) { self = .number(v) }
+        else if let v = try? c.decode(String.self) { self = .string(v) }
+        else if let v = try? c.decode([LooseJSON].self) { self = .array(v) }
+        else if let v = try? c.decode([String: LooseJSON].self) { self = .object(v) }
+        else { self = .null }
+    }
 }

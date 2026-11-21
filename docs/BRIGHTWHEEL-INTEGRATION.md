@@ -356,3 +356,20 @@ Broadcasts imported before this change were stored as `msg-<id>`; they get re-ke
 place on the next sync (`EventStore.retagStaffNote`). No schema change. The
 sender's profile photo isn't stored (it would need a new field), so the sheet
 shows an initial instead.
+
+**Message photos (2026-11-20)**: a message's `attachments` (e.g. a flyer
+photo under "Next weeks festive days!") import as `MediaEvent`s at the
+message's time, captioned with its text, keyed
+`msg-<message object_id>-photo-<attachment id or index>` — no schema change.
+The attachment element shape isn't in the bundle's zod schemas, so
+`BrightwheelMessage.Attachment` reads any object (or bare URL string) and
+picks the best full-size http(s) link (`image_url`/`url`/`file_url`/… over
+thumbnails, nested objects included), with the kind from a content-type
+field or the URL extension; documents (PDFs) are skipped. Photos import even
+when the message's note was imported earlier (so the 3-day lookback
+backfills them) and for photo-only messages. They show on the timeline like
+any daycare photo, and `DaycareMessageSheet` renders them under their
+message's bubble (found by id prefix via `StaffNoteEvent.attachedPhotos`);
+tapping opens `MediaViewerSheet`. The message ping carries the first photo.
+If real messages still arrive photo-less, Settings → Brightwheel → **Check
+message routes (raw)** shows the actual `attachments` JSON to adjust against.

@@ -360,7 +360,9 @@ final class BrightwheelManager {
         let sampleDay = activities.first?.when ?? now
         let messages = BrightwheelMockDay.messages(for: sampleDay)
             .filter { fullDay || ($0.when ?? .distantFuture) <= now }
-        summary.messages = importer.importMessages(messages).messages
+        let messageSummary = importer.importMessages(messages)
+        summary.messages = messageSummary.messages
+        summary.media += messageSummary.media
         // The sample day exercises the live-nap path too: loaded mid-nap, the
         // unpaired start pulses on Home exactly as a real one would.
         liveNapStartedAt = summary.openNapStartedAt
