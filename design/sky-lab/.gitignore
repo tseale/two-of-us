@@ -4,3 +4,4 @@ gallery/img/
 gallery/dist/
 gallery/manifest.json
 gallery/dist-*/
+gallery/manifest-*.json

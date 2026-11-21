@@ -70,10 +70,11 @@ def main():
     content_path, dist = paths(round_no)
     content = json.load(open(content_path)) if os.path.exists(content_path) else None
     extras = {sky['id'] for sky in content['skies'] if sky.get('extras')} if content else set()
+    plain = {sky['id'] for sky in content['skies'] if sky.get('reference')} if content else {'baseline'}
     text = open(os.path.join(LAB, 'skies/index.js')).read()
     listed = re.findall(r"'([a-z0-9-]+)'", text.split('export const skies')[1])
     skies = args or ([sky['id'] for sky in content['skies']] if content else listed)
-    manifest_path = os.path.join(LAB, 'gallery/manifest.json')
+    manifest_path = os.path.join(LAB, 'gallery/manifest.json' if round_no == 1 else f'gallery/manifest-{round_no}.json')
     manifest = json.load(open(manifest_path)) if os.path.exists(manifest_path) else {}
     total = 0
     for sky in skies:
@@ -85,7 +86,7 @@ def main():
         os.makedirs(out_dir, exist_ok=True)
         have, missing, size = [], [], 0
         for key, rel in wanted(sky in extras):
-            if sky == 'baseline' and not key.startswith(('day-', 'bare-')):
+            if sky in plain and not key.startswith(('day-', 'bare-')):   # a reference: its days only
                 continue
             src = os.path.join(root, rel)
             if not os.path.exists(src):
@@ -100,7 +101,7 @@ def main():
         total += size
         print(f'{sky}: {len(have)} images, {size / 1e6:.1f} MB' + (f', MISSING {len(missing)}: {missing[:6]}…' if missing else ''))
     json.dump(manifest, open(manifest_path, 'w'), indent=0)
-    print(f'total {total / 1e6:.1f} MB → gallery/img/, gallery/manifest.json')
+    print(f'total {total / 1e6:.1f} MB → gallery/img/, {os.path.relpath(manifest_path, LAB)}')
     assemble(manifest, content, dist)
 
 
