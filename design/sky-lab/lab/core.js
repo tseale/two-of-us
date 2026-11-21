@@ -756,6 +756,10 @@ export async function run() {
     // An event plays on from `eventAge` while the animation runs; frozen, it is exactly `eventAge`.
     if (state.event && !frozen()) state.event.age = params.eventAge + Math.max(0, state.t - eventStart);
 
+    // A held clock: this frame stands alone (a still, or one frame of a film), so a sky draws it
+    // exactly and does not lean on the frame before.
+    state.frozen = frozen();
+
     syncChrome(state);
     state.cards = params.chrome ? cards : [];
     if (layout) state.layout = layout;

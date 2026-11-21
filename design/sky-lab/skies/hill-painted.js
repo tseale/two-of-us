@@ -2640,15 +2640,19 @@ export function create(host) {
         ctx.globalAlpha = 1;
       });
       ctx.drawImage(plane.canvas, Math.round((G.xL + G.ox + off.x) * s), Math.round((plane.y0 + off.y) * s));
-      // Opening the Duo — the one slow thing that happens in the bare second: light reaches the river.
-      // It leaves the fold at 0.1 s and has crossed the valley by 0.8 s; the water and the mist lying
-      // along the river's own course take it as it passes (the far reaches first, the near bend last),
-      // hold it while the cards land, and let it go over the next seconds. In the dark appearance it is
+      // Opening the Duo — the one thing that happens in the bare second: light runs down the river
+      // toward you. A crest leaves the furthest bend at 0.1 s and is at the foot of the page by 0.9 s,
+      // slow among the far bends and quick through the near reach, as anything coming up a valley is.
+      // The water and the mist lying along the river's own course take it as it passes, keep half of
+      // it while the cards land, and let it go over the next seconds. In the dark appearance it is
       // light added; on the pale page, a warm pass over pale mist. (At night it is held to a breath.)
       const RL = plane.id === 'far' && open != null ? G.riverLight : null;
       if (RL) {
-        const front = -10 - (open - 0.1) * 800;          // world x the light has reached
-        const hold = smoothstep(0.1, 0.3, open) * (1 - smoothstep(1.3, 4.2, open));
+        const run = clamp01((open - 0.1) / 0.8);
+        const reach = G.H - c.H0 + 40;                    // points from the horizon to past the foot of the page
+        const crestAt = 3 + (reach - 3) * Math.pow(run, 2.2);   // where the crest is, points below the horizon
+        const crestW = 6 + 0.2 * crestAt;                 // it is broader the nearer it is
+        const hold = smoothstep(0.1, 0.25, open) * (1 - smoothstep(1.4, 4.4, open));
         const amount = hold * (pal.dark ? 1 - 0.86 * pal.deepNight : 1 - 0.5 * pal.nightness);
         if (amount > 0.01) {
           const cw = RL.canvas.width, ch = RL.canvas.height;
@@ -2659,16 +2663,20 @@ export function create(host) {
           const tint = pal.dark
             ? pal.air.show([Math.max(0.5, warm[0]), warm[1], warm[2]], { presence: Math.max(pal.air.presence, 0.6) })
             : pal.air.show(lch(0.985, 0.03 + 0.03 * smoothstep(-9, 3, pal.altDeg) * (1 - smoothstep(8, 25, pal.altDeg)), 72), { presence: 1 });
-          const g = b.createLinearGradient(0, 0, cw, 0);
-          const stops = 14;
+          // down the page, far to near; the stops crowd toward the horizon, where the crest is thin
+          const g = b.createLinearGradient(0, 0, 0, ch);
+          const stops = 64;
           for (let k = 0; k <= stops; k += 1) {
-            const x = G.xL + (RL.x + (cw * k) / stops) / s;
-            g.addColorStop(k / stops, css(tint, smoothstep(front - 30, front + 130, x)));
+            const at = (k / stops) ** 2;
+            const d = RL.y0 + (RL.y + ch * at) / s - c.H0;      // this row, points below the horizon
+            const crest = Math.exp(-(((d - crestAt) / crestW) ** 2));
+            const passed = 0.5 * (1 - smoothstep(crestAt - crestW, crestAt + 0.5 * crestW, d));
+            g.addColorStop(at, css(tint, clamp01(passed + crest * (1 - passed))));
           }
           b.fillStyle = g;
           b.fillRect(0, 0, cw, ch);
           ctx.globalCompositeOperation = pal.dark ? 'lighter' : 'source-over';
-          ctx.globalAlpha = clamp01(amount * (pal.dark ? 0.42 : 0.8));
+          ctx.globalAlpha = clamp01(amount * (pal.dark ? 0.6 : 0.85));
           ctx.drawImage(b.canvas, 0, 0, cw, ch, Math.round((G.xL + G.ox + off.x) * s) + RL.x, Math.round((RL.y0 + off.y) * s) + RL.y, cw, ch);
           ctx.globalCompositeOperation = 'source-over';
           ctx.globalAlpha = 1;
@@ -2897,7 +2905,7 @@ export function create(host) {
     // with .brightness / .saturation on the layers — and the planes are painted afresh once it settles.
     // A still (a frozen frame, the first frame) is always painted exactly.
     const nowMs = performance.now();
-    const playing = time != null && Boolean(state.event) && lastRenderMs > 0 && nowMs - lastRenderMs < 600;
+    const playing = !state.frozen && time != null && Boolean(state.event) && lastRenderMs > 0 && nowMs - lastRenderMs < 600;
     if (lastTone && Math.abs(tone.p - lastTone.p) + Math.abs(tone.d - lastTone.d) > 0.0005) lastMovedMs = nowMs;
     const moving = nowMs - lastMovedMs < 350 ? 1 : 0;
     let adjust = null;

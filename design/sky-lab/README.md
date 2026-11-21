@@ -25,6 +25,7 @@ time of day, in both appearances. Mockups only — the app's sky is the Swift co
 | `assets/` | The cloud and grain PNGs copied from `TwoOfUs/Assets.xcassets/Sky`; `fonts/` is Nunito, the chrome's stand-in for SF Rounded. |
 | `tools/shoot.mjs` | Playwright: one PNG per (device × scheme × time), and a contact sheet. |
 | `tools/review.mjs` | The review set: every sky shot the same way (day, bare, asleep, seasons, bedtime, the Duo opening, stillness, the header's text, tilt, snowfall, waking) into `shots/<sky>/review/`. `--list` shows it. |
+| `tools/film.mjs` | A moment (bedtime, the Duo opening, waking) as a video: the viewer stepped one frame at a time and joined by ffmpeg, so the timing is exact at any render cost. Into `gallery/film/<sky>/`. |
 | `tools/measure.mjs` | One shared measurement of `BRIEF.md`'s hard limits for any sky; `--help` lists options. |
 | `tools/test-math.mjs` | The Swift unit tests for the sun, moon and palette, ported, and the port checked against the Swift source; then what the viewer adds to the state (`sun.x`, `tonightLit`, `snowfall`). |
 | `tools/chrome-preview.html` | The chrome alone over a flat gradient, for working on `lab/chrome.js`. |
@@ -94,6 +95,7 @@ export function create(host, env) {       // env = { assets: 'assets/', solar, p
   tonightLit,                           // boolean: tonight's star has been lit (below)
 
   t,                                    // seconds, monotonic; frozen when the URL has t=
+  frozen,                               // true while the clock is held (t=): the frame stands alone, so draw it exactly
   reduceMotion,                         // true with motion=0
   cards: [ { x, y, width, height, kind, opacity } ],   // where the chrome is, so a sky can compose around it ([] with chrome=0)
   layout: { name, age, avatar, gear,    // rects { x, y, width, height }: the header's text and buttons (below)

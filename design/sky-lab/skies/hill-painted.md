@@ -160,11 +160,14 @@ ran through "…s old". Horizons, the turn and the tree's places are as they wer
   over blue, and his stars, shown by the band, keep a faint presence behind it while the
   camera is up.
 - **Opening the Duo** — the valley is already there; the one thing that happens in the bare
-  second is **light reaching the river**: it leaves the fold at 0.1 s and has crossed the
-  valley by ≈ 0.85 s; the water itself and the mist lying along the river's own course take
-  it as it passes (far reaches first, the near bend last), hold it while the cards land, and
-  let it go by ≈ 4 s. Light added in the dark appearance; a warm pass over pale mist on the
-  light page; held to a breath at night. (The old brightening of three level mist bands is gone.)
+  second is **light running down the river toward you**: a crest leaves the furthest bend at
+  0.1 s and is at the foot of the page by 0.9 s, slow among the far bends and quick through the
+  near reach. The water itself and the mist lying along the river's own course take it as it
+  passes, keep half of it while the cards land (0.9–1.9 s in the film), and let it go by
+  ≈ 4.4 s. Light added in the dark appearance; a warm pass over pale mist on the light page;
+  held to a breath at night. (Watching the first film showed the earlier version — a front
+  crossing the page sideways from the fold — was too faint and mostly hidden by the landing
+  cards; it was replaced after that.)
 - **Light appearance at night** — lilac-slate sky graded to the horizon; each star a clean
   white point on a soft, edgeless patch of slightly deeper sky, the faint ones small with
   hardly any patch (en masse they read as falling snow); the moon with a pale halo; slate
@@ -256,7 +259,8 @@ pass's report; this is what I would still not sign.)
    (nothing lighter than a card; "at the limit" from 0.0111) leaves about two levels of room.
 2. **The band at bedtime is still an arc.** Shorter trail, no foot on the horizon, gone by
    5 s — a wavefront from a point is a circle, and the held 3 s still shows a faint arch.
-   Motion was never watched.
+   The move has since been filmed (tools/film.mjs, stepped frame by frame): no frame jumps
+   beyond the slow tone steps, but it has not been seen at a phone's own frame rate.
 3. **The leading page at night with the cards on** is stars over a black land; the river in
    the margin column is the faint held line. Looking up, it is the ordinary sky and a low
    band of land — calm, not a picture of its own.

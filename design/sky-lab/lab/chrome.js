@@ -746,7 +746,7 @@ function phonePage(ctx) {
   if (ctx.options.tonightCard !== false && ctx.tonight.shown) parts.push(tonightCard(ctx));
   return `<div class="page" style="left:${px(geo.pageX)};width:${px(geo.pageWidth)};padding:${px(geo.top)} ${px(geo.side)} 0">
     ${header(ctx)}
-    <div class="veiled"${ctx.veil > 0 ? ` style="opacity:${1 - ctx.veil}"` : ''}>
+    <div class="veiled"${ctx.veil > 0 ? ` style="--veil:${1 - ctx.veil}"` : ''}>
       <div class="stack">${parts.join('')}</div>
       ${timeline(ctx)}
     </div>

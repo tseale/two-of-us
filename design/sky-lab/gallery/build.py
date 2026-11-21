@@ -8,7 +8,8 @@
 Reads shots/<sky>/review/…, writes gallery/img/<sky>/<key>.webp and
 gallery/manifest.json ({sky: [key, …]}), then assembles gallery/dist/index.html
 from gallery/index.html (the page) and gallery/content.json (the words).
-gallery/img/, gallery/dist/ and the manifest are not committed.
+gallery/img/, gallery/film/, gallery/dist/ and the manifest are not committed.
+Films made by tools/film.mjs into gallery/film/<sky>/ are picked up as they are.
 """
 import json, os, re, sys
 from PIL import Image
@@ -115,7 +116,13 @@ def assemble(manifest, content, dist):
     if content['page'].get('tabTitle'):
         page = re.sub(r'<title>[^<]*</title>', f"<title>{content['page']['tabTitle']}</title>", page, count=1)
     shown = {sky['id']: manifest.get(sky['id'], []) for sky in content['skies']}
-    for name, value in (('PAGE', content['page']), ('SKIES', content['skies']), ('MANIFEST', shown)):
+    # Films (tools/film.mjs → gallery/film/<sky>/<name>.mp4 and .webm): a sky has the ones on disk in both formats.
+    films = {}
+    for sky in shown:
+        folder = os.path.join(LAB, 'gallery/film', sky)
+        names = sorted(f[:-4] for f in os.listdir(folder) if f.endswith('.mp4')) if os.path.isdir(folder) else []
+        films[sky] = [n for n in names if os.path.exists(os.path.join(folder, n + '.webm'))]
+    for name, value in (('PAGE', content['page']), ('SKIES', content['skies']), ('MANIFEST', shown), ('FILMS', films)):
         head, rest = page.split(f'/*{name}*/', 1)
         _, tail = rest.split('/*END*/', 1)
         page = head + json.dumps(value, ensure_ascii=False) + tail
@@ -131,8 +138,20 @@ def assemble(manifest, content, dist):
             group.append({'path': rel}); count += 1; size += weight
     if group:
         groups.append(group)
+    # the films go last, in groups of their own, so the images' groups do not move when a film is added
+    group, size = [], 0
+    for sky, names in films.items():
+        for rel in (f'film/{sky}/{n}.{ext}' for n in names for ext in ('mp4', 'webm')):
+            weight = os.path.getsize(os.path.join(LAB, 'gallery', rel))
+            if size + weight > 56e6:
+                groups.append(group); group, size = [], 0
+            group.append({'path': rel}); size += weight
+    if group:
+        groups.append(group)
     json.dump(groups, open(os.path.join(dist, 'files.json'), 'w'))
     files = sum(len(v) for v in shown.values())
+    if any(films.values()):
+        print('films: ' + ', '.join(f'{sky} {len(n)}' for sky, n in films.items() if n))
     print(f'{os.path.relpath(dist, LAB)}/index.html assembled: {len(content["skies"])} skies, {files} images in {len(groups)} publish group(s), {len(page) / 1024:.0f} KB')
 
 

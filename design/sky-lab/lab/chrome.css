@@ -1136,3 +1136,8 @@
   font-weight: 600;
   white-space: nowrap;
 }
+
+/* The veil (bedtime: the cards fall back). Each card fades on its own. Fading the
+   wrapper would put the glass tiles in a group, where their blur no longer sees
+   the sky, and they would jump as the fade starts and ends. */
+.veiled [data-card] { opacity: var(--veil, 1); }
