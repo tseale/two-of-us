@@ -3,6 +3,7 @@
 
     python3 gallery/build.py                 # round one: the skies in gallery/content.json
     python3 gallery/build.py --round 2       # gallery/content-2.json → gallery/dist-2/
+    python3 gallery/build.py --round 3       # gallery/content-3.json → gallery/dist-3/
     python3 gallery/build.py true-light      # just these
 
 Reads shots/<sky>/review/…, writes gallery/img/<sky>/<key>.webp and
@@ -18,14 +19,22 @@ LAB = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TIMES = ['0650', '0930', '1230', '1610', '1640', '1730', '2100', '0300']
 BED = ['t0', 't1_6', 't3', 't5', 't9', 't40']
 OPEN = ['t0', 't0_45', 't1_1', 't1_8', 't3']
+NIGHT = ['1940', '2100', '0300']
 SEASONS = {'autumn': '1756', 'winter': '1628', 'spring': '1929', 'summer': '2015'}   # 14 min before sunset
 
 
-def wanted(extras=False):
-    """(key, path under shots/<sky>/review) for every image the page shows.
+def wanted(extras=False, sky=None):
+    """(key, path under the sky's review shots) for every image the page shows.
     91 a sky: one published version holds 511 files, and six skies must fit.
     `extras` (a sky marked "extras": true in the round's content) adds bedtime in
-    the light appearance, on the open Duo and on the slab: 24 more."""
+    the light appearance, on the open Duo and on the slab: 24 more.
+    A sky's entry in the content can also carry
+      "bed":   [[frame, label], …]  its own bedtime instants, in place of BED;
+      "night": true                 the cards-on frames while a night sleep runs
+                                    (asleep/, 7:40, 9:00 and 3:00): 18 more;
+      "stills": {key: path}         any other shots, by name (a film's poster, say)."""
+    sky = sky or {}
+    bed = [f for f, _ in sky['bed']] if sky.get('bed') else BED
     out = []
     for scheme in ('light', 'dark'):
         for t in TIMES:
@@ -42,7 +51,7 @@ def wanted(extras=False):
             out.append((f'season-{name}-cover-{scheme}', f'seasons/{name}/cover-{scheme}-{pre}.png'))
     for f in OPEN:
         out.append((f'open-night-dark-{f}', f'open/night/{f}/spread-dark-2100-night.png'))
-    for f in BED:
+    for f in bed:
         out.append((f'bed-nov-cover-dark-{f}', f'bedtime/november/{f}/cover-dark-1940-night.png'))
         out.append((f'bed-jul-cover-dark-{f}', f'bedtime/july/{f}/cover-dark-1940-night.png'))
         if extras:
@@ -50,6 +59,12 @@ def wanted(extras=False):
             out.append((f'bed-jul-cover-light-{f}', f'bedtime/july/{f}/cover-light-1940-night.png'))
             out.append((f'bed-nov-spread-dark-{f}', f'bedtime/november/{f}/spread-dark-1940-night.png'))
             out.append((f'bed-nov-iphone-dark-{f}', f'bedtime/november/{f}/iphone-dark-1940-night.png'))
+    if sky.get('night'):
+        for scheme in ('light', 'dark'):
+            for device in ('cover', 'spread', 'iphone'):
+                for t in NIGHT:
+                    out.append((f'asleep-{device}-{scheme}-{t}', f'asleep/{device}-{scheme}-{t}-night.png'))
+    out += list((sky.get('stills') or {}).items())
     return out
 
 
@@ -70,6 +85,7 @@ def main():
         del args[i:i + 2]
     content_path, dist = paths(round_no)
     content = json.load(open(content_path)) if os.path.exists(content_path) else None
+    config = {sky['id']: sky for sky in content['skies']} if content else {}
     extras = {sky['id'] for sky in content['skies'] if sky.get('extras')} if content else set()
     plain = {sky['id'] for sky in content['skies'] if sky.get('reference')} if content else {'baseline'}
     text = open(os.path.join(LAB, 'skies/index.js')).read()
@@ -79,14 +95,16 @@ def main():
     manifest = json.load(open(manifest_path)) if os.path.exists(manifest_path) else {}
     total = 0
     for sky in skies:
-        root = os.path.join(LAB, 'shots', sky, 'review')
+        # "shots": "<sky>/<folder>" in the content shows another set of shots under this name
+        # (an earlier round's, kept beside the current review for comparison)
+        root = os.path.join(LAB, 'shots', config.get(sky, {}).get('shots') or os.path.join(sky, 'review'))
         if not os.path.isdir(root):
             print(f'{sky}: no review shots, skipped')
             continue
         out_dir = os.path.join(LAB, 'gallery/img', sky)
         os.makedirs(out_dir, exist_ok=True)
         have, missing, size = [], [], 0
-        for key, rel in wanted(sky in extras):
+        for key, rel in wanted(sky in extras, config.get(sky)):
             if sky in plain and not key.startswith(('day-', 'bare-')):   # a reference: its days only
                 continue
             src = os.path.join(root, rel)
@@ -103,10 +121,40 @@ def main():
         print(f'{sky}: {len(have)} images, {size / 1e6:.1f} MB' + (f', MISSING {len(missing)}: {missing[:6]}…' if missing else ''))
     json.dump(manifest, open(manifest_path, 'w'), indent=0)
     print(f'total {total / 1e6:.1f} MB → gallery/img/, {os.path.relpath(manifest_path, LAB)}')
-    assemble(manifest, content, dist)
+    assemble(manifest, content, dist, pairs(content))
 
 
-def assemble(manifest, content, dist):
+def pairs(content):
+    """The before-and-after pictures of the page's "better" section, cut from two sets of
+    shots: {"before": "<sky>/<folder>", "after": "<sky>/<folder>", "groups": [{"pairs":
+    [{"key", "shot": path under the folder, "crop": [x, y, w, h] in points (optional)}]}]}
+    → gallery/img/cmp/<key>-before.webp and -after.webp. Returns their paths."""
+    better = (content or {}).get('page', {}).get('better')
+    if not better:
+        return []
+    out_dir = os.path.join(LAB, 'gallery/img/cmp')
+    os.makedirs(out_dir, exist_ok=True)
+    made, missing = [], []
+    for group in better['groups']:
+        for pair in group['pairs']:
+            for side in ('before', 'after'):
+                src = os.path.join(LAB, 'shots', pair.get(side + 'Root') or better[side], pair.get(side + 'Shot') or pair['shot'])
+                if not os.path.exists(src):
+                    missing.append(f"{pair['key']}-{side}")
+                    continue
+                image = Image.open(src).convert('RGB')
+                if pair.get('crop'):
+                    scale = image.width / pair.get('points', {'cover': 466, 'spread': 951, 'iphone': 402}[group.get('device', 'cover')])
+                    x, y, w, h = (round(v * scale) for v in pair['crop'])
+                    image = image.crop((x, y, x + w, y + h))
+                rel = f"img/cmp/{pair['key']}-{side}.webp"
+                image.save(os.path.join(LAB, 'gallery', rel), 'WEBP', quality=92, method=4)
+                made.append(rel)
+    print(f'before and after: {len(made)} pictures' + (f', MISSING {missing}' if missing else ''))
+    return made
+
+
+def assemble(manifest, content, dist, more=()):
     """gallery/index.html + the round's content + the manifest → <dist>/index.html,
     and <dist>/files.json: the page's images, in publish-sized groups."""
     if content is None:
@@ -136,6 +184,11 @@ def assemble(manifest, content, dist):
             if count + 1 > 240 or size + weight > 56e6:
                 groups.append(group); group, count, size = [], 0, 0
             group.append({'path': rel}); count += 1; size += weight
+    for rel in more:
+        weight = os.path.getsize(os.path.join(LAB, 'gallery', rel))
+        if count + 1 > 240 or size + weight > 56e6:
+            groups.append(group); group, count, size = [], 0, 0
+        group.append({'path': rel}); count += 1; size += weight
     if group:
         groups.append(group)
     # the films go last, in groups of their own, so the images' groups do not move when a film is added
@@ -149,7 +202,7 @@ def assemble(manifest, content, dist):
     if group:
         groups.append(group)
     json.dump(groups, open(os.path.join(dist, 'files.json'), 'w'))
-    files = sum(len(v) for v in shown.values())
+    files = sum(len(v) for v in shown.values()) + len(more)
     if any(films.values()):
         print('films: ' + ', '.join(f'{sky} {len(n)}' for sky, n in films.items() if n))
     print(f'{os.path.relpath(dist, LAB)}/index.html assembled: {len(content["skies"])} skies, {files} images in {len(groups)} publish group(s), {len(page) / 1024:.0f} KB')

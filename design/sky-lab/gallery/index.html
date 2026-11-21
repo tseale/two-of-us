@@ -138,7 +138,30 @@
   .cinema[data-device="spread"] video { aspect-ratio: 951 / 669; max-width: 951px; }
   .cinema[data-device="iphone"] video { aspect-ratio: 402 / 874; max-width: 330px; }
   .cinema .variants { margin: 12px 0 12px; width: fit-content; }
+  .screen { display: grid; gap: 18px 34px; align-items: center; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 820px) {
+    .cinema[data-device="cover"] .screen.told { grid-template-columns: minmax(0, 380px) minmax(0, 1fr); }
+    .cinema[data-device="iphone"] .screen.told { grid-template-columns: minmax(0, 330px) minmax(0, 1fr); }
+  }
+  .beats { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; max-width: 46ch; }
+  .beats li { display: grid; grid-template-columns: 5.6em minmax(0, 1fr); gap: 12px; font-size: 15px; }
+  .beats li span { color: var(--ink-2); font-variant-numeric: tabular-nums; font-size: 13.5px; padding-top: 1px; }
   .missing { display: none; }
+
+  /* ── The feature (a round's main film, ahead of everything) and before-and-after pairs ── */
+  .feature { padding-block: 6px 30px; }
+  .feature .strip { margin-top: 0; }
+  .feature .strip > h3 { font-size: 22px; }
+  .better { padding-block: 34px 6px; border-top: 1px solid var(--line); margin-top: 30px; }
+  .better > h2 { font-size: 22px; margin-bottom: 4px; }
+  .change { margin-top: 26px; display: grid; gap: 4px; }
+  .change h3 { font-size: 17px; }
+  .duos { display: grid; gap: 18px 22px; margin-top: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--duo, 420px)), 1fr)); }
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0; min-width: 0; }
+  .duo button { border: 0; padding: 0; background: none; cursor: zoom-in; display: grid; gap: 5px; text-align: left; min-width: 0; }
+  .duo img { display: block; width: 100%; height: auto; border-radius: 10px; background: var(--stage); outline: 1px solid var(--line); }
+  .duo span { font-size: 12px; color: var(--ink-2); }
+  .duo span b { font-weight: 600; color: var(--ink); }
 
   /* ── Closing ── */
   .closing { padding-block: 44px 70px; border-top: 1px solid var(--line); margin-top: 44px; display: grid; gap: 14px; }
@@ -157,6 +180,8 @@
   <div class="mine" id="mine"></div>
 </header>
 
+<section class="feature wrap" id="feature" hidden></section>
+
 <div class="bar">
   <div class="wrap" role="group" aria-label="Viewing conditions">
     <div class="group"><span>Look</span><div class="seg" id="seg-scheme"></div></div>
@@ -170,6 +195,8 @@
   <p class="sub" id="compare-sub"></p>
   <div class="row" id="row"></div>
 </section>
+
+<section class="better wrap" id="better" hidden></section>
 
 <main id="chapters"></main>
 
@@ -212,6 +239,7 @@ const DEVICES = [
 ];
 const BED = [['t0', '0 s'], ['t1_6', '1.6'], ['t3', '3'], ['t5', '5'], ['t9', '9'], ['t40', '40 s']];
 const OPEN = [['t0', '0 s'], ['t0_45', '0.45'], ['t1_1', '1.1'], ['t1_8', '1.8'], ['t3', '3 s']];
+const NIGHT = [['1940', '7:40, just down'], ['2100', '9:00'], ['0300', '3:00 a.m.']];
 const SEASONS = [['autumn', 'Mid-October'], ['winter', 'Mid-January'], ['spring', 'Late April'], ['summer', 'Early July']];
 
 const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -324,15 +352,22 @@ const FILM_LIST = [
   ['open-golden-spread-light', 'Opening, light', 'spread', 'open-golden-light-t0_45'],
   ['open-night-spread-dark', 'Opening at night', 'spread', 'open-night-dark-t0_45'],
 ];
-function cinema(sky) {
-  const films = FILM_LIST.filter(([file]) => (FILMS[sky] || []).includes(file));
+function cinema(sky, title = 'Watch it move', sub = PAGE.filmSub, beats = null) {
+  const films = (PAGE.films || FILM_LIST).filter(([file]) => (FILMS[sky] || []).includes(file));
   if (!films.length) return null;
   const video = el('video', { controls: '', playsinline: '', loop: '', preload: 'none' });
   video.muted = true;
   const host = el('div', { class: 'cinema' });
   const pickers = el('div', { class: 'variants' });
+  // beats: { 'bed': [[when, what], …], 'wake': … } — what happens in a film, by the first word of its file name
+  const told = el('ol', { class: 'beats' });
+  const screen = el('div', { class: 'screen' }, video, told);
   const load = ([file, label, device, poster], play) => {
     host.dataset.device = device;
+    const lines = (beats || {})[file.split('-')[0]] || [];
+    told.replaceChildren(...lines.map(([when, what]) => el('li', {}, el('span', { text: when }), el('div', { text: what }))));
+    told.hidden = !lines.length;
+    screen.classList.toggle('told', lines.length > 0);
     video.poster = has(sky, poster) ? src(sky, poster) : '';
     video.setAttribute('aria-label', `${label}, as a film`);
     video.replaceChildren(
@@ -344,9 +379,9 @@ function cinema(sky) {
   };
   pickers.append(...films.map((film) => el('button', { type: 'button', onclick: () => load(film, true) }, film[1])));
   load(films[0], false);
-  host.append(pickers, video);
-  return el('section', { class: 'strip' }, el('h3', { text: 'Watch it move' }),
-    el('p', { class: 'sub', text: PAGE.filmSub || 'The two moments, playing. Each film is the mockup stepped one frame at a time and joined, so the timing is as designed. It does not show how fast a phone will draw it.' }), host);
+  host.append(pickers, screen);
+  return el('section', { class: 'strip' }, el('h3', { text: title }),
+    el('p', { class: 'sub', text: sub || 'The two moments, playing. Each film is the mockup stepped one frame at a time and joined, so the timing is as designed. It does not show how fast a phone will draw it.' }), host);
 }
 
 /* ───────────────────────────── paint ───────────────────────────── */
@@ -365,11 +400,14 @@ function buildChapter(sky) {
   const lay = el('div', { class: 'lay' }, stage, notes);
   const film = el('div', { class: 'film' });
   const head = el('div', { class: 'head' }, el('h2', { text: sky.name }), sky.badge ? el('span', { class: 'badge', text: sky.badge }) : null);
-  const section = el('section', { class: 'chapter wrap', id: sky.id }, head, el('p', { class: 'line', text: sky.line }), lay, cinema(sky.id),
+  const featured = PAGE.feature && PAGE.feature.sky === sky.id;
+  const night = sky.night ? el('div', { class: 'film' }) : null;
+  const section = el('section', { class: 'chapter wrap', id: sky.id }, head, el('p', { class: 'line', text: sky.line }), lay, featured ? null : cinema(sky.id),
+    night ? el('section', { class: 'strip' }, el('h3', { text: PAGE.nightTitle || 'While he sleeps' }), el('p', { class: 'sub', text: PAGE.nightSub || 'Home through a night sleep, with the cards on.' }), night) : null,
     el('section', { class: 'strip' }, el('h3', { text: 'Through the day' }), el('p', { class: 'sub', text: 'The same Saturday in late November, sunrise to 3 a.m. Tap an hour to hold it across the page.' }), film));
-  const entry = { stageImg, cap, lay, film };
+  const entry = { stageImg, cap, lay, film, night };
   if (!sky.reference) {
-    const bed = (label, device, natural, stem, frames = BED) => ({ label, device, natural, poster: `${stem}-t3`, frames: frames.map(([f, l]) => [`${stem}-${f}`, l]) });
+    const bed = (label, device, natural, stem, frames = sky.bed || BED) => ({ label, device, natural, poster: `${stem}-t3`, frames: frames.map(([f, l]) => [`${stem}-${f}`, l]) });
     const bedtime = player(sky.id, 'Bedtime', PAGE.bedtimeSub || 'He goes down for the night at 7:40. The cards fall back, his star for tonight is lit, the others answer, the cards return.', [
       bed('November', 'cover', 466, 'bed-nov-cover-dark'),
       bed('July, sun still up', 'cover', 466, 'bed-jul-cover-dark'),
@@ -418,6 +456,14 @@ function paint() {
     const hours = TIMES.filter((t) => state.device !== 'iphone' || IPHONE_TIMES.includes(t.key));
     entry.film.replaceChildren(...hours.map((t) => el('button', { type: 'button', 'aria-pressed': String(t.key === state.time), onclick: () => set({ time: t.key }) },
       shot(sky.id, `day-${state.device}-${state.scheme}-${t.key}`, `${sky.name} at ${sayTime(t.key)}`), el('span', { text: sayTime(t.key) }))));
+    if (entry.night) {
+      entry.night.dataset.device = state.device;
+      entry.night.classList.toggle('narrow', state.device !== 'spread');
+      entry.night.replaceChildren(...NIGHT.filter(([t]) => has(sky.id, `asleep-${state.device}-${state.scheme}-${t}`)).map(([t, label]) => {
+        const key = `asleep-${state.device}-${state.scheme}-${t}`;
+        return el('button', { type: 'button', onclick: () => zoom(src(sky.id, key), `${sky.name} · asleep for the night · ${label}`, device.natural) }, shot(sky.id, key, `${sky.name}, asleep for the night, ${label}`), el('span', { text: label }));
+      }));
+    }
     if (entry.seasons) {
       for (const [film, kind, natural, what] of [[entry.seasons, 'bare', 951, 'no cards'], [entry.seasonsCover, 'cover', 466, 'Duo closed']]) {
         film.replaceChildren(...SEASONS.filter(([name]) => has(sky.id, `season-${name}-${kind}-${state.scheme}`)).map(([name, label]) => {
@@ -439,6 +485,26 @@ document.getElementById('title').textContent = PAGE.title || 'Five skies for Mil
 document.getElementById('lede').innerHTML = PAGE.lede;
 document.getElementById('mine').append(el('h2', { text: PAGE.mine.title }), ...PAGE.mine.paragraphs.map((t) => el('p', { text: t })));
 document.getElementById('closing').append(el('h2', { text: PAGE.closing.title }), el('ul', {}, PAGE.closing.points.map((t) => el('li', { text: t }))));
+if (PAGE.feature) {
+  const films = cinema(PAGE.feature.sky, PAGE.feature.title, PAGE.feature.sub, PAGE.feature.beats);
+  if (films) { const host = document.getElementById('feature'); host.append(films); host.hidden = false; }
+}
+if (PAGE.better) {
+  // { title, sub, labels: [before, after], groups: [{ title, note, width, pairs: [{ key, label, natural }] }] } — pictures in img/cmp/
+  const host = document.getElementById('better');
+  const [was, now] = PAGE.better.labels || ['Before', 'Now'];
+  host.append(el('h2', { text: PAGE.better.title }), el('p', { class: 'sub', text: PAGE.better.sub || '' }),
+    ...PAGE.better.groups.map((group) => el('div', { class: 'change' }, el('h3', { text: group.title }), el('p', { class: 'sub', text: group.note || '' }),
+      el('div', { class: 'duos', style: group.width ? `--duo:${group.width}px` : null }, group.pairs.map((pair) => {
+        const side = (which, name) => {
+          const url = `img/cmp/${pair.key}-${which}.webp`;
+          return el('button', { type: 'button', onclick: () => zoom(url, `${group.title} · ${pair.label} · ${name}`, pair.natural || 932) },
+            el('img', { src: url, alt: `${group.title}, ${pair.label}: ${name}`, loading: 'lazy', decoding: 'async' }), el('span', {}, el('b', { text: name }), ` · ${pair.label}`));
+        };
+        return el('figure', { class: 'duo' }, side('before', was), side('after', now));
+      })))));
+  host.hidden = false;
+}
 SKIES.forEach(buildChapter);
 paint();
 </script>

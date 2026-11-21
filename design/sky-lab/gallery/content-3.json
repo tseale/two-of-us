@@ -1,0 +1,136 @@
+{
+  "page": {
+    "tabTitle": "Home Sky Round Three",
+    "eyebrow": "Two of Us · Home’s sky · round three",
+    "title": "Miller’s hill",
+    "lede": "Two changes, both from your notes on round two. Bedtime now looks up and stays up: the cards come back over his stars and nothing looks back down. And the same picture is better drawn, starting with the tree in leaf. <strong>Start with the film.</strong>",
+    "feature": {
+      "sky": "hill-painted",
+      "title": "Bedtime, staying up",
+      "sub": "He goes down for the night at 7:40. Each film is the mockup stepped one frame at a time and joined, so the timing is as designed. It does not show how fast a phone will draw it.",
+      "beats": {
+        "bed": [
+          ["0 – 1.6 s", "The cards step back."],
+          ["0.3 – 2.4 s", "The view rises from the hill to the sky. Tonight’s star lifts off the tree’s shoulder with it."],
+          ["2.1 – 4.5 s", "A band of light leaves tonight’s star and crosses the sky. His stars answer as it passes, and the night’s number stands at the foot."],
+          ["4.8 – 6.8 s", "The cards return over the sky that is already there. Nothing looks back down."],
+          ["After", "Home stays looking up until he wakes."]
+        ],
+        "wake": [
+          ["0 – 3 s", "He wakes at 6:40. Behind the cards, the view settles back to the hill. No card moves."],
+          ["0 – 5 s", "The room brightens to morning and tonight’s star goes back to the tree’s shoulder."],
+          ["Or", "No move at all: Home is simply back on the hill the next time it opens. Say if you would rather have that."]
+        ],
+        "resettle": [
+          ["Before", "He was up for a feed at 3 a.m., so Home went back to the hill."],
+          ["0 – 2.5 s", "He is put down again. The view rises quietly behind the cards."],
+          ["Not shown", "No band, no caption, no new star. The full moment plays once a night."]
+        ],
+        "open": [
+          ["0 s", "The closed phone’s sky is already on the right-hand page. The left page arrives bare."],
+          ["0.1 – 0.9 s", "By day, light runs down the river toward you. At night, the page’s stars come out from the fold."],
+          ["0.9 – 1.9 s", "The left page’s cards land."]
+        ]
+      }
+    },
+    "films": [
+      ["bed-nov-cover-dark", "Bedtime", "cover", "bed-nov-cover-dark-t3"],
+      ["bed-jul-cover-dark", "Bedtime in July", "cover", "bed-jul-cover-dark-t3"],
+      ["bed-nov-cover-light", "Bedtime, light", "cover", "bed-nov-cover-light-t3"],
+      ["bed-nov-spread-dark", "Bedtime, Duo open", "spread", "bed-nov-spread-dark-t3"],
+      ["bed-nov-iphone-dark", "Bedtime, iPhone", "iphone", "bed-nov-iphone-dark-t3"],
+      ["wake-nov-cover-dark", "Waking", "cover", "wake-cover-dark-t0"],
+      ["resettle-nov-cover-dark", "Back down at 3 a.m.", "cover", "resettle-cover-dark-t0"],
+      ["open-golden-spread-dark", "Opening the Duo", "spread", "open-golden-dark-t0_45"],
+      ["open-golden-spread-light", "Opening, light", "spread", "open-golden-light-t0_45"],
+      ["open-night-spread-dark", "Opening at night", "spread", "open-night-dark-t0_45"]
+    ],
+    "nightTitle": "While he sleeps",
+    "nightSub": "Home during a night sleep, with the cards on. It looks up from bedtime until he wakes. Tonight’s star is the larger four-pointed one. Switch the look and the display in the bar above.",
+    "bedtimeSub": "The same moment as stills, to hold any instant. The cards step back, the view rises, the band crosses, and the cards return over the sky.",
+    "openSub": "The closed phone’s sky is already on the right-hand page. The left page arrives bare, light runs down the river toward you, and then its cards land.",
+    "mine": {
+      "title": "What changed",
+      "paragraphs": [
+        "Bedtime does what you asked. The cards step back, the view rises to the sky, tonight’s star lights, the band of light crosses and his stars answer, and then the cards come back over that sky. Home stays looking up for as long as he sleeps, so every night feed opens on his stars.",
+        "The cost of staying up is the one thing I would most like your eye on. With the cards on, the night is tonight’s star among his stars: in the clear strip beside the cards on the Duo, and beside his name on an ordinary iPhone. The tree and the hill are behind the cards until morning. “While he sleeps”, under Painted, shows it at 7:40, 9:00 and 3 a.m.",
+        "Waking is new and needs a yes or no. Behind the cards the view settles back to the hill over about three seconds, with no card animation. Play “Waking”. The alternative is no move at all."
+      ]
+    },
+    "better": {
+      "title": "Better drawn",
+      "sub": "The same picture, drawn with more care. Round two is on the left of each pair and this round on the right. Tap either to enlarge it.",
+      "labels": ["Round two", "Now"],
+      "before": "hill-painted/review-r2b",
+      "after": "hill-painted/review",
+      "groups": [
+        {
+          "title": "The tree in leaf",
+          "note": "The crowns were flat clumps in three tones. Each leaf is now one small mark on a twig the tree already has, gathered into boughs, with sky showing through and the limbs in sight. Shown fourteen minutes before sunset, as it stands beside the cards on the closed Duo.",
+          "device": "cover",
+          "width": 330,
+          "pairs": [
+            {"key": "crown-spring-light", "label": "Late April", "shot": "seasons/spring/cover-light-1929.png", "crop": [312, 156, 154, 184], "natural": 462},
+            {"key": "crown-summer-light", "label": "Early July", "shot": "seasons/summer/cover-light-2015.png", "crop": [312, 156, 154, 184], "natural": 462},
+            {"key": "crown-autumn-light", "label": "Mid-October", "shot": "seasons/autumn/cover-light-1756.png", "crop": [312, 156, 154, 184], "natural": 462},
+            {"key": "crown-winter-light", "label": "Mid-January", "shot": "seasons/winter/cover-light-1628.png", "crop": [312, 156, 154, 184], "natural": 462},
+            {"key": "crown-spring-dark", "label": "Late April, dark", "shot": "seasons/spring/cover-dark-1929.png", "crop": [312, 156, 154, 184], "natural": 462},
+            {"key": "crown-summer-dark", "label": "Early July, dark", "shot": "seasons/summer/cover-dark-2015.png", "crop": [312, 156, 154, 184], "natural": 462},
+            {"key": "crown-autumn-dark", "label": "Mid-October, dark", "shot": "seasons/autumn/cover-dark-1756.png", "crop": [312, 156, 154, 184], "natural": 462},
+            {"key": "crown-winter-dark", "label": "Mid-January, dark", "shot": "seasons/winter/cover-dark-1628.png", "crop": [312, 156, 154, 184], "natural": 462}
+          ]
+        }
+      ]
+    },
+    "closing": {
+      "title": "About these mockups",
+      "points": [
+        "These are stills and films from a browser mockup, not the app. Nothing in the app has changed. The films are stepped frame by frame, so they show the timing but not real performance.",
+        "The Home screen is redrawn from the app with sample data, the glass tiles only approximate Liquid Glass, and the fonts are stand-ins.",
+        "The mockups use Chicago and a 2 July birthday as stand-ins. The app will use your daycare pin and his real date of birth.",
+        "Round two, as you last saw it, and today’s sky are below Painted for comparison. They follow the same look, display and hour."
+      ]
+    },
+    "filmSub": "Bedtime and the opening, playing. Each film is the mockup stepped one frame at a time and joined, so the timing is as designed. It does not show how fast a phone will draw it."
+  },
+  "skies": [
+    {
+      "id": "hill-painted",
+      "name": "Painted",
+      "badge": "Round three",
+      "extras": true,
+      "night": true,
+      "bed": [["t0", "0 s"], ["t0_7", "0.7"], ["t1_6", "1.6"], ["t3", "3"], ["t4_4", "4.4"], ["t5_8", "5.8"], ["t9", "9"], ["t40", "40 s"]],
+      "stills": {
+        "wake-cover-dark-t0": "wake/t0/cover-dark-0640.png",
+        "resettle-cover-dark-t0": "resettle/t0/cover-dark-0300-night.png"
+      },
+      "line": "The painted hill, with a night that stays up.",
+      "idea": "One illustrated land: a river valley on the left-hand page, a few big overlapping hills, a knoll, and one grown tree against the setting sun. At bedtime the view rises to a sky that holds one star for every night of his life, and stays there until he wakes.",
+      "works": [
+        "Bedtime looks up once and stays. The cards return over the sky, and the caption is gone before they arrive.",
+        "All 143 of his stars are in view looking up, on all three displays, by the measuring tool.",
+        "Tonight’s star has a place of its own with the cards on, and travels there with the view.",
+        "The tree in leaf now belongs to the same hand as the bare tree."
+      ],
+      "notyet": [
+        "With the cards on, the night is stars and no land. The tree and usually the moon are behind the cards.",
+        "The motion has only been seen as films stepped frame by frame, never at a phone’s own frame rate."
+      ],
+      "build": "No shader: one tall sky image, five layers of land and a pre-drawn tree on a SwiftUI Canvas. Looking up only slides those layers, and the looked-up view is a state the app holds while a night sleep runs."
+    },
+    {
+      "id": "hill-painted-r2",
+      "name": "Round two",
+      "reference": true,
+      "shots": "hill-painted/review-r2b",
+      "line": "Painted as you last saw it, for comparison."
+    },
+    {
+      "id": "baseline",
+      "name": "Today’s sky",
+      "reference": true,
+      "line": "What ships now."
+    }
+  ]
+}
