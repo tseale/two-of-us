@@ -105,6 +105,7 @@
   .strip > .sub { margin-top: 2px; }
   .film { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(118px, 1fr); gap: 10px; margin-top: 12px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; }
   .film[data-device="spread"] { grid-auto-columns: minmax(230px, 1fr); }
+  .film.narrow { grid-auto-columns: minmax(118px, 176px); justify-content: start; }
   .film button { border: 0; background: none; padding: 0; cursor: pointer; display: grid; gap: 5px; text-align: left; min-width: 0; }
   .film .shot { border-radius: 10px; box-shadow: none; outline: 1px solid var(--line); }
   .film[data-device="cover"] .shot { aspect-ratio: 466 / 678; }
@@ -202,8 +203,8 @@ const DEVICES = [
   { key: 'spread', label: 'Duo open', natural: 951 },
   { key: 'iphone', label: 'iPhone', natural: 402 },
 ];
-const BED = [['t0', '0 s'], ['t0_7', '0.7'], ['t1_6', '1.6'], ['t3', '3'], ['t5', '5'], ['t6_5', '6.5'], ['t9', '9'], ['t40', '40 s']];
-const OPEN = [['t0', '0 s'], ['t0_45', '0.45'], ['t1_1', '1.1'], ['t1_8', '1.8'], ['t3', '3'], ['t8', '8 s']];
+const BED = [['t0', '0 s'], ['t1_6', '1.6'], ['t3', '3'], ['t5', '5'], ['t9', '9'], ['t40', '40 s']];
+const OPEN = [['t0', '0 s'], ['t0_45', '0.45'], ['t1_1', '1.1'], ['t1_8', '1.8'], ['t3', '3 s']];
 const SEASONS = [['autumn', 'Mid-October'], ['winter', 'Mid-January'], ['spring', 'Late April'], ['summer', 'Early July']];
 
 const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -328,16 +329,16 @@ function buildChapter(sky) {
       { label: 'November', device: 'cover', natural: 466, poster: 'bed-nov-cover-dark-t3', frames: BED.map(([f, l]) => [`bed-nov-cover-dark-${f}`, l]) },
       { label: 'July, sun still up', device: 'cover', natural: 466, poster: 'bed-jul-cover-dark-t3', frames: BED.map(([f, l]) => [`bed-jul-cover-dark-${f}`, l]) },
     ]);
-    const opening = player(sky.id, 'Opening the Duo', 'The closed phone’s sky is already on the right-hand page. The left page arrives as bare panorama, holds a beat, and then its cards land.', [
-      { label: 'Golden hour, light', device: 'spread', natural: 951, poster: 'open-golden-light-t0_45', frames: OPEN.map(([f, l]) => [`open-golden-light-${f}`, l]) },
-      { label: 'Golden hour, dark', device: 'spread', natural: 951, poster: 'open-golden-dark-t0_45', frames: OPEN.map(([f, l]) => [`open-golden-dark-${f}`, l]) },
-      { label: 'Night', device: 'spread', natural: 951, poster: 'open-night-dark-t0_45', frames: OPEN.map(([f, l]) => [`open-night-dark-${f}`, l]) },
-    ]);
+    const golden = (scheme) => ({ label: `Golden hour, ${scheme}`, device: 'spread', natural: 951, poster: `open-golden-${scheme}-t0_45`, frames: OPEN.map(([f, l]) => [`open-golden-${scheme}-${f}`, l]) });
+    const night = { label: 'Night', device: 'spread', natural: 951, poster: 'open-night-dark-t0_45', frames: OPEN.map(([f, l]) => [`open-night-dark-${f}`, l]) };
+    const opening = player(sky.id, 'Opening the Duo', 'The closed phone’s sky is already on the right-hand page. The left page arrives as bare panorama, holds a beat, and then its cards land.',
+      state.scheme === 'dark' ? [golden('dark'), night, golden('light')] : [golden('light'), golden('dark'), night]);
     if (bedtime || opening) section.append(el('div', { class: 'pair' }, bedtime, opening));
     entry.seasons = el('div', { class: 'film', 'data-device': 'spread' });
-    section.append(el('section', { class: 'strip' }, el('h3', { text: 'His first year' }), el('p', { class: 'sub', text: 'Fourteen minutes before sunset in each season, Duo open.' }), entry.seasons));
+    entry.seasonsCover = el('div', { class: 'film narrow', 'data-device': 'cover' });
+    section.append(el('section', { class: 'strip' }, el('h3', { text: 'His first year' }), el('p', { class: 'sub', text: 'Fourteen minutes before sunset in each season: first the whole picture with the cards taken away, then the closed Duo as you would see it.' }), entry.seasons, entry.seasonsCover));
     entry.panos = el('div', { class: 'film', 'data-device': 'spread' });
-    section.append(el('section', { class: 'strip' }, el('h3', { text: 'The whole picture' }), el('p', { class: 'sub', text: 'With the cards taken away — what the two set pieces reveal.' }), entry.panos));
+    section.append(el('section', { class: 'strip' }, el('h3', { text: 'The whole picture' }), el('p', { class: 'sub', text: 'Today, with the cards taken away: what bedtime and opening the Duo reveal.' }), entry.panos));
   }
   chapters.append(section);
   built.set(sky.id, entry);
@@ -369,10 +370,12 @@ function paint() {
     entry.film.replaceChildren(...hours.map((t) => el('button', { type: 'button', 'aria-pressed': String(t.key === state.time), onclick: () => set({ time: t.key }) },
       shot(sky.id, `day-${state.device}-${state.scheme}-${t.key}`, `${sky.name} at ${sayTime(t.key)}`), el('span', { text: sayTime(t.key) }))));
     if (entry.seasons) {
-      entry.seasons.replaceChildren(...SEASONS.filter(([name]) => has(sky.id, `season-${name}-spread-${state.scheme}-pre`)).map(([name, label]) => {
-        const key = `season-${name}-spread-${state.scheme}-pre`;
-        return el('button', { type: 'button', onclick: () => zoom(src(sky.id, key), `${sky.name} · ${label}`, 951) }, shot(sky.id, key, `${sky.name} in ${label}`), el('span', { text: label }));
-      }));
+      for (const [film, kind, natural, what] of [[entry.seasons, 'bare', 951, 'no cards'], [entry.seasonsCover, 'cover', 466, 'Duo closed']]) {
+        film.replaceChildren(...SEASONS.filter(([name]) => has(sky.id, `season-${name}-${kind}-${state.scheme}`)).map(([name, label]) => {
+          const key = `season-${name}-${kind}-${state.scheme}`;
+          return el('button', { type: 'button', onclick: () => zoom(src(sky.id, key), `${sky.name} · ${label} · ${what}`, natural) }, shot(sky.id, key, `${sky.name} in ${label}, ${what}`), el('span', { text: label }));
+        }));
+      }
       entry.panos.replaceChildren(...['0650', '1610', '1640', '2100'].filter((t) => has(sky.id, `bare-spread-${state.scheme}-${t}`)).map((t) => {
         const key = `bare-spread-${state.scheme}-${t}`;
         return el('button', { type: 'button', onclick: () => zoom(src(sky.id, key), `${sky.name} · no cards · ${sayTime(t)}`, 951) }, shot(sky.id, key, `${sky.name} with no cards at ${sayTime(t)}`), el('span', { text: sayTime(t) }));

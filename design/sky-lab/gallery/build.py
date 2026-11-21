@@ -14,13 +14,14 @@ from PIL import Image
 
 LAB = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TIMES = ['0650', '0930', '1230', '1610', '1640', '1730', '2100', '0300']
-BED = ['t0', 't0_7', 't1_6', 't3', 't5', 't6_5', 't9', 't40']
-OPEN = ['t0', 't0_45', 't1_1', 't1_8', 't3', 't8']
-SEASONS = {'autumn': ('1756', '1850'), 'winter': ('1628', '1722'), 'spring': ('1929', '2023'), 'summer': ('2015', '2109')}
+BED = ['t0', 't1_6', 't3', 't5', 't9', 't40']
+OPEN = ['t0', 't0_45', 't1_1', 't1_8', 't3']
+SEASONS = {'autumn': '1756', 'winter': '1628', 'spring': '1929', 'summer': '2015'}   # 14 min before sunset
 
 
 def wanted():
-    """(key, path under shots/<sky>/review) for every image the page can show."""
+    """(key, path under shots/<sky>/review) for every image the page shows.
+    91 a sky: one published version holds 511 files, and six skies must fit."""
     out = []
     for scheme in ('light', 'dark'):
         for t in TIMES:
@@ -32,21 +33,14 @@ def wanted():
             out.append((f'bare-spread-{scheme}-{t}', f'bare/spread-{scheme}-{t}.png'))
         for f in OPEN:
             out.append((f'open-golden-{scheme}-{f}', f'open/golden/{f}/spread-{scheme}-1612.png'))
-        for name, (pre, post) in SEASONS.items():
-            out.append((f'season-{name}-spread-{scheme}-pre', f'seasons/{name}/spread-{scheme}-{pre}.png'))
+        for name, pre in SEASONS.items():
+            out.append((f'season-{name}-bare-{scheme}', f'seasons/{name}-bare/spread-{scheme}-{pre}.png'))
+            out.append((f'season-{name}-cover-{scheme}', f'seasons/{name}/cover-{scheme}-{pre}.png'))
     for f in OPEN:
         out.append((f'open-night-dark-{f}', f'open/night/{f}/spread-dark-2100-night.png'))
     for f in BED:
         out.append((f'bed-nov-cover-dark-{f}', f'bedtime/november/{f}/cover-dark-1940-night.png'))
         out.append((f'bed-jul-cover-dark-{f}', f'bedtime/july/{f}/cover-dark-1940-night.png'))
-    for f in ('t0', 't1_6', 't3', 't5', 't9'):
-        out.append((f'bed-nov-spread-dark-{f}', f'bedtime/november/{f}/spread-dark-1940-night.png'))
-    out.append(('bed-nov-cover-light-t3', 'bedtime/november/t3/cover-light-1940-night.png'))
-    out.append(('bed-jul-cover-light-t3', 'bedtime/july/t3/cover-light-1940-night.png'))
-    for name, (pre, post) in SEASONS.items():
-        out.append((f'season-{name}-spread-dark-post', f'seasons/{name}/spread-dark-{post}.png'))
-        out.append((f'season-{name}-cover-dark-pre', f'seasons/{name}/cover-dark-{pre}.png'))
-        out.append((f'season-{name}-cover-light-pre', f'seasons/{name}/cover-light-{pre}.png'))
     return out
 
 
@@ -66,8 +60,7 @@ def main():
         os.makedirs(out_dir, exist_ok=True)
         have, missing, size = [], [], 0
         for key, rel in wanted():
-            if sky == 'baseline' and not key.startswith(('day-', 'bare-')) and key not in (
-                    'bed-nov-cover-dark-t3', 'open-golden-light-t0', 'open-golden-dark-t0'):
+            if sky == 'baseline' and not key.startswith(('day-', 'bare-')):
                 continue
             src = os.path.join(root, rel)
             if not os.path.exists(src):
