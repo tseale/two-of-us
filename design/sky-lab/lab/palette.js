@@ -23,6 +23,11 @@
 // Everything in `SkyPalette` is also a named export of this module (and
 // `rgb`, `mix`, `css` are also on `SkyPalette`), so `palette.scene(...)` and
 // `palette.SkyPalette.scene(...)` are the same function. Nothing uses `this`.
+//
+// The tables (keyframes, page colours, ridges, cloud art) are frozen: they are
+// the reference, shared by every sky on the page. What the functions return
+// (`look`, `scene`, `moon`, `clouds`, `wisps`, `stars`, `glints`, a ridge's
+// `points`) is a fresh value each call, the caller's to keep or change.
 
 import * as solar from './solar.js';
 
@@ -222,7 +227,9 @@ export function look(progress, inFrames) {
       return mixLook(a.look, b.look, span > 0 ? (p - a.at) / span : 0);
     }
   }
-  return inFrames[inFrames.length - 1].look;
+  // Past the last keyframe: that keyframe (a copy — the tables are frozen).
+  const last = inFrames[inFrames.length - 1].look;
+  return mixLook(last, last, 0);
 }
 
 /** Where the sun (or moon) sits, as fractions of the screen: low on the left
@@ -281,7 +288,7 @@ export function scene({ date, latitude, longitude, tzOffsetHours, dark = false }
   const shared = {
     isDark,
     moon: moonNow,
-    page: isDark ? darkPage : page,
+    page: { ...(isDark ? darkPage : page) },
     cloudStrength: isDark ? darkCloudStrength : cloudStrength,
     moonGlow,
     starStrength: isDark ? darkStarStrength : 1,
@@ -459,12 +466,12 @@ const phoneWisps = deepFreeze([
  *  behind the header on a phone; in the margins and between the pages on the
  *  open Duo. → [{ art, x, y, width, flipped }] */
 export function clouds(wide) {
-  return wide ? wideClouds : phoneClouds;
+  return (wide ? wideClouds : phoneClouds).map((cloud) => ({ ...cloud }));
 }
 
 /** → [{ x, y, width, alpha }] */
 export function wisps(wide) {
-  return wide ? wideWisps : phoneWisps;
+  return (wide ? wideWisps : phoneWisps).map((wisp) => ({ ...wisp }));
 }
 
 // ────────────────────────────────────────────────────────────────── Stars ──
@@ -499,7 +506,7 @@ export function stars(width) {
   };
   const count = Math.max(8, Math.round(24 * width / 466));
   const result = [];
-  for (let n = 0; n < count; n += 1) {
+  for (let n = 0; n < count; n++) {
     const depth = Math.pow(next(), 1.4);
     const size = 0.9 + next() * 1.6;
     const x = next();

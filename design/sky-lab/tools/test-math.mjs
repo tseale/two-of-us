@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Sky lab — checks for lab/solar.js and lab/palette.js.
+// Sky lab — checks for lab/solar.js, lab/palette.js and the numbers in skies/baseline.js.
 //
 //     node design/sky-lab/tools/test-math.mjs
 //
@@ -13,13 +13,21 @@
 //    the Moon's extra fields, the plain-field Scene, `css`.
 // 3. The port against the Swift source itself: the keyframe tables, ridges,
 //    cloud / wisp / glint placements and constants are read out of
-//    SkyBackground.swift and compared, so a typo here — or a later change
-//    there — fails loudly. (Skipped when the Swift file isn't beside the lab.)
+//    SkyBackground.swift and compared, and the numbers in each formula are
+//    compared with the numbers in the Swift's — so a typo here, or a later
+//    change there, fails loudly. (Skipped when the Swift isn't beside the lab.)
+// 4. The DRAWING — skies/baseline.js against `SkyScene`, `StarField` and the
+//    three shapes, layer by layer: every stop, alpha, size and blur in each
+//    Swift function is in its twin, the gradients' stops in the same order,
+//    and the sun's worked-out halo is the Gaussian blur it stands for. (What
+//    the canvas then makes of those calls is checked by eye and by pixel, in
+//    a browser — not here.)
 
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as solar from '../lab/solar.js';
 import * as palette from '../lab/palette.js';
+import { sunHalo } from '../skies/baseline.js';
 
 const { SkyPalette, rgb, mix, css } = palette;
 const DEG = Math.PI / 180;
@@ -887,13 +895,18 @@ test('nothing reads the machine\'s time zone', () => {
 });
 
 // ═══════════════════════════════════════════ Against the Swift source ══
-section('The port against SkyBackground.swift itself');
+section('The port against the Swift source itself');
 
-const swiftPath = fileURLToPath(new URL('../../../TwoOfUs/DesignSystem/SkyBackground.swift', import.meta.url));
-if (!existsSync(swiftPath)) {
-  console.log(`skip  (no Swift source at ${swiftPath})`);
+const here = (relative) => fileURLToPath(new URL(relative, import.meta.url));
+const swiftPaths = {
+  sky: here('../../../TwoOfUs/DesignSystem/SkyBackground.swift'),
+  solar: here('../../../TwoOfUs/Store/SolarClock.swift'),
+  moon: here('../../../TwoOfUs/Store/MoonClock.swift'),
+};
+if (!Object.values(swiftPaths).every((path) => existsSync(path))) {
+  console.log(`skip  (no Swift source at ${swiftPaths.sky})`);
 } else {
-  const whole = readFileSync(swiftPath, 'utf8');
+  const whole = readFileSync(swiftPaths.sky, 'utf8');
   const start = whole.indexOf('enum SkyPalette');
   const swift = start >= 0 ? whole.slice(start) : '';
   const hex = (text) => rgb(parseInt(text, 16));
@@ -1001,7 +1014,306 @@ if (!existsSync(swiftPath)) {
     same(SkyPalette.glints(true).map(place), spots.slice(0, 7), 'glints(wide)');
     same(SkyPalette.glints(false).map(place), spots.slice(7), 'glints(phone)');
   });
+
+  // The formulas. A port keeps every number, so the numeric literals of a
+  // Swift formula and of its JS twin must be the same numbers.
+  const jsSolar = readFileSync(here('../lab/solar.js'), 'utf8');
+  const jsPalette = readFileSync(here('../lab/palette.js'), 'utf8');
+  const swiftSolar = readFileSync(swiftPaths.solar, 'utf8');
+  const swiftMoon = readFileSync(swiftPaths.moon, 'utf8');
+
+  /** `text` from the marker `from` up to the next `to` (or the end). */
+  const region = (text, from, to) => {
+    const begin = text.indexOf(from);
+    if (begin < 0) throw new Error(`marker not found: ${from}`);
+    const end = to === undefined ? text.length : text.indexOf(to, begin + from.length);
+    if (end < 0) throw new Error(`marker not found: ${to}`);
+    return text.slice(begin, end);
+  };
+
+  /** The numeric literals in source text, in order: comments and strings
+   *  dropped, digit separators removed, hex read as a number. Not tuple
+   *  members (`.0`), closure arguments (`$0`) or digits in names. */
+  const literals = (text) => {
+    const code = text.split('\n').map((line) => line.replace(/\/\/.*$/, '')).join('\n')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/'[^'\n]*'|"[^"\n]*"|`[^`]*`/g, '""');
+    return [...code.matchAll(/(?<![\w.$])(0x[0-9A-Fa-f]+|\d[\d_]*(?:\.\d[\d_]*)?)(?!\w)/g)]
+      .map((match) => Number(match[1].replace(/_/g, '')));
+  };
+
+  const distinct = (list) => [...new Set(list)].sort((a, b) => a - b);
+
+  /** Every number in the Swift is in the port and nothing else is, but for
+   *  the named exceptions. */
+  const sameNumbers = (swiftText, jsText, { swiftOnly = [], jsOnly = [] } = {}) => {
+    const inSwift = distinct(literals(swiftText));
+    const inJS = distinct(literals(jsText));
+    ok(inSwift.length > 20 && inJS.length > 20, 'found the numbers');
+    same(inSwift.filter((n) => !inJS.includes(n)), swiftOnly, 'numbers in the Swift that the port lacks');
+    same(inJS.filter((n) => !inSwift.includes(n)), jsOnly, 'numbers in the port that the Swift lacks');
+    return `${inSwift.length} distinct numbers`;
+  };
+
+  test('SolarClock: the NOAA formula has the Swift\'s numbers, in order', () => {
+    const inSwift = literals(region(swiftSolar, 'let gamma', 'return Day'));
+    const inJS = literals(region(jsSolar, 'const gamma', 'return {'));
+    ok(inSwift.length > 30, 'found the formula');
+    same(inJS, inSwift);
+    // 3600 is the Swift's seconds → hours (the lab is handed hours); 1000 the lab's milliseconds.
+    sameNumbers(region(swiftSolar, 'enum SolarClock'), region(jsSolar, 'export function solarDay', 'const OBLIQUITY'),
+                { swiftOnly: [3600], jsOnly: [1000] });
+    return `${inSwift.length} numbers`;
+  });
+
+  test('MoonClock: the series and the search have the Swift\'s numbers', () => (
+    // 180 is the Swift's `rad` (the lab's RAD is at the top of the file); 1000 the lab's milliseconds.
+    sameNumbers(region(swiftMoon, 'enum MoonClock'), region(jsSolar, 'const OBLIQUITY'),
+                { swiftOnly: [180], jsOnly: [1000] })
+  ));
+
+  test('SkyPalette: every number in the Swift enum is in the port, and no other', () => (
+    // 3600 is the fallback day's seconds (the lab's HOUR_MS); 10000 rounds css()'s alpha.
+    sameNumbers(swift, region(jsPalette, 'export function rgb', 'export const SkyPalette'),
+                { swiftOnly: [3600], jsOnly: [10000] })
+  ));
+
+  test('SkyPalette: the star generator has the Swift\'s numbers, in order', () => {
+    const inSwift = literals(region(swift, 'static func stars(width', 'static func twinkle'));
+    const inJS = literals(region(jsPalette, 'export function stars(width', 'export function twinkle'));
+    ok(inSwift.length > 20, 'found the generator');
+    same(inJS, inSwift);
+    return `${inSwift.length} numbers`;
+  });
+
+  // ═════════════════════════════════════ The drawing against SkyScene ══
+  section('The drawing (skies/baseline.js) against SkyScene, StarField and the shapes');
+
+  const jsSky = readFileSync(here('../skies/baseline.js'), 'utf8');
+  const views = start >= 0 ? whole.slice(0, start) : whole;   // everything above `enum SkyPalette`
+
+  // Each Swift function and the part of baseline.js that draws it. The markers
+  // are the port's own comments and names: move one and its test says so.
+  const twins = {
+    'sky(in:)': [region(views, 'private func sky(in size', '/// A soft elliptical pool'),
+                 region(jsSky, 'function paintBack(', '// The sun: a soft disc')],
+    pool: [region(views, 'private func pool(', '/// A soft disc'),
+           region(jsSky, '// A warm pool of light', '// The moon\'s glow (night only)')],
+    sun: [region(views, 'private var sun: some View', '/// The moon as it really looks'),
+          region(jsSky, 'const SUN_RADIUS', 'let sunHaloProfile')],
+    moonDisc: [region(views, 'private func moonDisc', '// MARK: Clouds'),
+               region(jsSky, '// The moon wherever it really is', '// Four ridges')],
+    'clouds(in:)': [region(views, 'private func clouds(in size', '/// One cloud texture'),
+                    region(jsSky, 'function paintClouds', '// ── StarField ──')],
+    // (`hills(in:)` places the mist that `mist` draws: the port has both in one loop.)
+    'hills(in:)': [region(views, 'private func hills(in size', '/// A soft band of valley mist'),
+                   region(jsSky, '// Four ridges', '// ── the grain ──')],
+    mist: [region(views, 'private func mist(', '/// The night\'s stars'),
+           region(jsSky, '// Four ridges', '// ── the grain ──')],
+    'StarField.field(at:)': [region(views, 'private func field(at time', '/// The lit part of the moon'),
+                             region(jsSky, 'function paintStars', '// ── the moon, then SkyScene.hills')],
+    MoonPhaseShape: [region(views, 'struct MoonPhaseShape', '/// A four-point star'),
+                     region(jsSky, 'function moonPhasePath', '/** `RidgeShape`')],
+    GlintShape: [region(views, 'private struct GlintShape', '/// One ridge of hills'),
+                 region(jsSky, 'const GLINT', 'const TAU')],
+    RidgeShape: [region(views, 'private struct RidgeShape', '/// The sky\'s colours'),
+                 region(jsSky, 'function ridgePath', '// ─────')],
+  };
+
+  /** Every number in the Swift function is in its twin (but for `swiftOnly`),
+   *  and the twin adds only `jsOnly`. */
+  const twinNumbers = (name, { swiftOnly = [], jsOnly = [] } = {}) => {
+    const [swiftText, jsText] = twins[name];
+    const inSwift = distinct(literals(swiftText));
+    const inJS = distinct(literals(jsText));
+    ok(inSwift.length >= 2, `${name}: found the Swift's numbers`);
+    same(inSwift.filter((n) => !inJS.includes(n)), swiftOnly, `${name}: numbers in the Swift that the drawing lacks`);
+    same(inJS.filter((n) => !inSwift.includes(n)), jsOnly, `${name}: numbers in the drawing that the Swift lacks`);
+    return inSwift.length;
+  };
+
+  test('every layer has the Swift\'s numbers: sky, pool, sun, moon, clouds, hills, mist, stars', () => {
+    let count = 0;
+    count += twinNumbers('sky(in:)');
+    // 2: the pool's frame is its diameter (the canvas takes the radius).
+    count += twinNumbers('pool', { swiftOnly: [2], jsOnly: [0.36, 0.45, 0.7] });
+    // 46: the disc's frame, 2 × 23.
+    count += twinNumbers('sun', { swiftOnly: [46] });
+    // 32: the moon's frame (the canvas takes the radius, 16); 2: shadowBlur = 2 × radius.
+    count += twinNumbers('moonDisc', { swiftOnly: [32], jsOnly: [2, 16] });
+    // 0, 2: clamping the opacity, and halving a size to centre it.
+    count += twinNumbers('clouds(in:)', { jsOnly: [0, 2] });
+    // The mist's own numbers (0.55, 40, 54, and their halves 20 and 27) share the loop.
+    count += twinNumbers('hills(in:)', { jsOnly: [0.55, 20, 27, 40, 54] });
+    // 2: `.position(x: width / 2)`; 20 and 27: half of the 40 and of the 54; 0.5 and 9 are the hills'.
+    count += twinNumbers('mist', { swiftOnly: [2], jsOnly: [0.5, 9, 20, 27] });
+    // 0.9, the stars' shadow, is inside a colour string in the port (checked below);
+    // 0, 0.5, 9, 180: the canvas's own bookkeeping (resets, pixel centres, the scratch's margin, degrees).
+    count += twinNumbers('StarField.field(at:)', { swiftOnly: [0.9], jsOnly: [0, 0.5, 9, 180] });
+    ok(twins['StarField.field(at:)'][1].includes("ctx.shadowColor = 'rgba(255, 255, 255, 0.9)'"), 'the stars\' shadow is white at 0.9');
+    count += twinNumbers('MoonPhaseShape');
+    count += twinNumbers('GlintShape');
+    count += twinNumbers('RidgeShape');
+    return `${count} distinct numbers in 11 functions`;
+  });
+
+  test('the gradients\' stops are the Swift\'s, in order', () => {
+    const locations = (text) => [...text.matchAll(/location: ([\d.]+)/g)].map((m) => Number(m[1]));
+    const stops = (text, gradient) => [...text.matchAll(new RegExp(`\\b${gradient}\\.addColorStop\\(([\\d.]+),`, 'g'))].map((m) => Number(m[1]));
+    const [swiftSky, jsSkyPart] = twins['sky(in:)'];
+    // The sky gradient, the moon's glow, the sun's bloom — as they come in `sky(in:)`.
+    same([...stops(jsSkyPart, 'sky'), ...stops(jsSkyPart, 'glow'), ...stops(jsSkyPart, 'bloom')], locations(swiftSky), 'sky, glow, bloom');
+    same(locations(swiftSky), [0, 0.15, 0.33, 0.46, 0.56, 0.66, 0.74, 1, 0, 0.35, 1, 0, 0.12, 0.3, 0.6], 'sky(in:) as read here');
+    // …and the opacities, mixes and radii beside them: the same fractions, as
+    // often. (One 0.5 less: the Swift's `unit` closure falls back to 0.5 for a
+    // sky of no width, which the canvas never needs.)
+    const fractions = (text) => literals(text).filter((n) => n > 0 && n < 1).sort((a, b) => a - b);
+    const swiftFractions = fractions(swiftSky);
+    swiftFractions.splice(swiftFractions.indexOf(0.5), 1);
+    same(fractions(jsSkyPart), swiftFractions, 'every fraction in sky(in:), counted');
+    // The sun's disc.
+    const disc = JSON.parse(unwrap(jsSky.match(/const SUN_DISC = (\[.*\]);/), 'SUN_DISC')[1].replace(/'/g, '"'));
+    same(disc.map(([at]) => at), locations(twins.sun[0]), 'the sun disc\'s stops');
+    same(disc.map(([, part, alpha]) => [part, alpha]), [['core', 1], ['core', 1], ['sun', 0.95], ['sun', 0]], 'the sun disc\'s colours');
+    ok(/look\.core\.color, location: 0\)[\s\S]*look\.core\.color, location: 0\.42\)[\s\S]*look\.sun\.color\.opacity\(0\.95\), location: 0\.72\)[\s\S]*look\.sun\.color\.opacity\(0\), location: 1\)/.test(twins.sun[0]), 'the Swift\'s disc, as read here');
+    // The mist: clear, the mist at 55 %, clear — the port draws that profile already blurred.
+    same(locations(twins.mist[0]), [0, 0.55, 1], 'the mist\'s stops');
+    ok(twins.mist[1].includes('blurredMistStops(54, 0.55, 6)'), 'the mist band: 54 pt tall, peak at 55 %, blurred 6');
+    // The hills: crest to foot, between two unit points.
+    ok(/createLinearGradient\(0, ridge\.crestTop\(height\), 0, footY\)/.test(twins['hills(in:)'][1]), 'a ridge is filled from crestTop to footY');
+  });
+
+  test('the shapes are the Swift\'s: the glint\'s corners, the feather, the cream', () => {
+    const corners = [...unwrap(twins.GlintShape[0].match(/let corners[^=]*= \[([\s\S]*?)\]\n/), 'GlintShape.corners')[1]
+      .matchAll(/\(([\d.]+), ([\d.]+)\)/g)].map((m) => [Number(m[1]), Number(m[2])]);
+    equal(corners.length, 8, 'eight corners');
+    same(JSON.parse(unwrap(jsSky.match(/const GLINT = (\[.*\]);/), 'GLINT')[1]), corners, 'GLINT');
+
+    const phonePage = here('../../../TwoOfUs/Features/Shared/PhonePage.swift');
+    const colours = here('../../../TwoOfUs/DesignSystem/Colors.swift');
+    if (existsSync(phonePage)) {
+      const feather = Number(unwrap(readFileSync(phonePage, 'utf8').match(/static let featherWidth: CGFloat = ([\d.]+)/), 'PhonePage.featherWidth')[1]);
+      equal(Number(unwrap(jsSky.match(/const FEATHER = ([\d.]+);/), 'FEATHER')[1]), feather, 'FEATHER');
+    }
+    if (existsSync(colours)) {
+      const cream = unwrap(readFileSync(colours, 'utf8').match(/nightlightCream\s*=\s*Color\(hex: "([0-9A-Fa-f]{6})"\)/), 'AppColor.nightlightCream')[1];
+      const inPort = unwrap(jsSky.match(/const CREAM = \{ r: 0x([0-9A-F]{2}) \/ 255, g: 0x([0-9A-F]{2}) \/ 255, b: 0x([0-9A-F]{2}) \/ 255 \};/), 'CREAM');
+      equal(`${inPort[1]}${inPort[2]}${inPort[3]}`.toUpperCase(), cream.toUpperCase(), 'CREAM');
+    }
+    equal(Number(unwrap(jsSky.match(/const GRAIN_OPACITY = ([\d.]+);/), 'GRAIN_OPACITY')[1]),
+          Number(unwrap(views.match(/Image\("SkyGrain"\)[\s\S]*?\.opacity\(([\d.]+)\)/), 'the grain\'s opacity')[1]), 'the grain\'s opacity');
+    ok(/Image\("SkyGrain"\)\s*\.resizable\(resizingMode: \.tile\)\s*\.blendMode\(\.softLight\)/.test(views), 'the grain is tiled, soft light');
+  });
 }
+
+// ═══════════════════════════════════════════════ The lab's default day ══
+section('The lab\'s default day: 21 November 2026, Chicago (41.88, −87.63, UTC−6)');
+
+test('the sun and the moon are where an almanac puts them', () => {
+  const lat = 41.88;
+  const lon = -87.63;
+  const at = (hour, minute = 0) => local(CST, 2026, 11, 21, hour, minute);
+  // Sunrise 6:46 and sunset 4:26 by the almanac.
+  const day = unwrap(solar.solarDay(at(12), lat, lon, CST), 'the sun rises and sets');
+  assertClock(day.sunrise, CST, 6, 47, 'sunrise', 2);
+  assertClock(day.sunset, CST, 16, 26, 'sunset', 2);
+  // Due south at its highest (11:36, as Chicago is west of its zone's meridian), 28° up.
+  let noon = { altitude: -1 };
+  for (let minute = 10 * 60; minute <= 14 * 60; minute += 1) {
+    const position = solar.sunPosition(at(0, minute), lat, lon);
+    if (position.altitude > noon.altitude) noon = { ...position, minute };
+  }
+  near(noon.azimuth / DEG, 180, 0.5, 'the sun\'s azimuth at its highest');
+  near(noon.altitude / DEG, 90 - lat - 20, 0.5, 'its altitude then (declination −20°)');
+  near(noon.minute, 11 * 60 + 36, 3, 'solar noon, minutes past midnight');
+  ok(solar.sunPosition(at(9, 30), lat, lon).azimuth < Math.PI, 'south-east in the morning');
+  ok(solar.sunPosition(at(15), lat, lon).azimuth > Math.PI, 'south-west in the afternoon');
+  // A waxing gibbous: first quarter was the 17th, full is the 24th.
+  for (const [hour, minute] of [[16, 10], [17, 30], [21, 0]]) {
+    const light = solar.moonIllumination(at(hour, minute));
+    ok(light.phase > 0.25 && light.phase < 0.5, `waxing gibbous at ${hour}:${minute} (phase ${light.phase.toFixed(3)})`);
+    ok(light.fraction > 0.85 && light.fraction < 0.95, `about nine tenths lit at ${hour}:${minute} (${light.fraction.toFixed(3)})`);
+    ok(solar.moonPassProgress(at(hour, minute), lat, lon) !== null, `the moon is up at ${hour}:${minute}`);
+  }
+  let full = null;
+  for (let t = Date.UTC(2026, 10, 22); t < Date.UTC(2026, 10, 27) && full === null; t += 600_000) {
+    if (solar.moonIllumination(new Date(t)).phase >= 0.5) full = new Date(t);
+  }
+  equal(unwrap(full, 'a full moon that week').toISOString().slice(0, 10), '2026-11-24', 'the full moon (24 November, 14:53 UTC)');
+  // Up in the evening: it rose mid-afternoon in the east and is high in the south by nine.
+  const pass = unwrap(solar.moonPass(at(21), lat, lon), 'the moon is up at nine');
+  assertClock(unwrap(pass.rise), CST, 14, 15, 'moonrise', 10);
+  near(solar.moonPosition(at(16, 10), lat, lon).azimuth / DEG, 90, 10, 'in the east at 16:10');
+  near(solar.moonPosition(at(21), lat, lon).azimuth / DEG, 180, 15, 'near south at 21:00');
+  ok(solar.moonPosition(at(21), lat, lon).altitude / DEG > 55, 'and high');
+  // …and the scene puts them the same way round: the window looks south.
+  const afternoon = palette.scene({ date: at(16, 10), latitude: lat, longitude: lon, tzOffsetHours: CST });
+  ok(!afternoon.isNight && afternoon.body.x > 0.9, 'the sun low on the right before sunset');
+  ok(unwrap(afternoon.moon, 'the moon at 16:10').x < 0.25 && afternoon.moon.inDaylight, 'the moon low on the left, in daylight');
+  const evening = palette.scene({ date: at(21), latitude: lat, longitude: lon, tzOffsetHours: CST });
+  ok(evening.isNight && evening.starOpacity === 1 && evening.cloudOpacity === 0, 'night at nine: stars, no clouds');
+  near(unwrap(evening.moon, 'the moon at 21:00').x, 0.47, 0.05, 'the moon mid-sky');
+});
+
+// The sun's halo is pure maths, so it is checked wherever the lab is.
+section('The sun\'s halo (skies/baseline.js)');
+
+test('sunHalo is the disc\'s alpha under a Gaussian of sigma 17', () => {
+  const halo = sunHalo();
+  const R = 23;
+  const sigma = 17;
+  equal(halo.reach, R + 4 * sigma, 'it reaches 4 sigma past the rim');
+  equal(halo.stops[0].at, 0, 'the first stop');
+  equal(halo.stops[halo.stops.length - 1].at, 1, 'the last stop');
+  equal(halo.stops[halo.stops.length - 1].alpha, 0, 'it ends at nothing');
+  for (let index = 1; index < halo.stops.length; index += 1) {
+    ok(halo.stops[index].at > halo.stops[index - 1].at, `stop ${index} is further out`);
+    ok(halo.stops[index].alpha < halo.stops[index - 1].alpha, `stop ${index} is fainter`);
+  }
+  // The disc's alpha (SkyScene.sun): 1 to 42 % of the radius, 0.95 at 72 %, 0 at the rim.
+  const discAlpha = (r) => {
+    const t = r / R;
+    if (t <= 0.42) return 1;
+    if (t <= 0.72) return 1 - 0.05 * (t - 0.42) / 0.30;
+    if (t <= 1) return 0.95 * (1 - (t - 0.72) / 0.28);
+    return 0;
+  };
+  // The blur itself, by brute force on a 0.1 pt grid.
+  const blurred = (d) => {
+    const step = 0.1;
+    let sum = 0;
+    for (let x = -R + step / 2; x < R; x += step) {
+      for (let y = -R + step / 2; y < R; y += step) {
+        const alpha = discAlpha(Math.hypot(x, y));
+        if (alpha > 0) sum += alpha * Math.exp(-((x - d) ** 2 + y * y) / (2 * sigma * sigma));
+      }
+    }
+    return sum * step * step / (2 * Math.PI * sigma * sigma);
+  };
+  const at = (d) => {
+    const position = d / halo.reach * (halo.stops.length - 1);
+    const index = Math.min(Math.floor(position), halo.stops.length - 2);
+    return halo.stops[index].alpha + (halo.stops[index + 1].alpha - halo.stops[index].alpha) * (position - index);
+  };
+  let worst = 0;
+  for (const d of [0, 4.5, 9.7, 16, 23, 30, 36, 44.4, 55, 70]) {
+    const expected = blurred(d);
+    worst = Math.max(worst, Math.abs(at(d) - expected));
+    near(at(d), expected, 0.0005, `the halo ${d} pt from the centre`);
+  }
+  near(at(0), 0.479, 0.001, 'at the centre');
+  near(at(R), 0.251, 0.001, 'at the rim');
+  ok(at(R + 13) > 0.09, 'still a tenth 13 pt past the rim');
+  // Its total is the disc's own (a blur moves alpha, it makes none).
+  let total = 0;
+  let discTotal = 0;
+  for (let r = 0.005; r < halo.reach; r += 0.01) {
+    total += at(r) * 2 * Math.PI * r * 0.01;
+    discTotal += discAlpha(r) * 2 * Math.PI * r * 0.01;
+  }
+  near(total / discTotal, 1, 0.002, 'the halo holds all of the disc\'s alpha');
+  return `within ${worst.toExponential(1)} of the blur`;
+});
 
 // ──────────────────────────────────────────────────────────────── Summary ──
 

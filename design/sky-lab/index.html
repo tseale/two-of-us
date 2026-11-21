@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en" class="lab-bare">
+<head>
+<meta charset="utf-8">
+<title>Sky lab</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="lab/chrome.css">
+<style>
+  /* The viewer (README, "The viewer's URL"). lab/core.js mounts everything:
+       #display        the device's display, exactly width × height CSS px;
+                       a sky host underneath, the chrome's root above it
+       #device         the bezel around it        (bezel=1)
+       #panel          the controls beside it     (ui=1)
+     With neither, #display sits at the page's top-left with nothing around it,
+     so a screenshot clipped to it is the display. */
+  html, body { margin: 0; padding: 0; }
+  body { background: #101012; }
+  body[data-scheme="light"] { background: #c9c9cf; }
+  #display { position: relative; overflow: hidden; background: #000; }
+  body[data-scheme="light"] #display { background: #f2f2f7; }
+
+  /* ── bare: nothing but the display ── */
+  html.lab-bare { overflow: hidden; }
+  #device { position: relative; }
+
+  /* ── the bezel: a plain rounded outline, and the Duo's crease ── */
+  body.lab-bezel #device {
+    box-sizing: content-box;
+    width: max-content;
+    background: #050506;
+    box-shadow: 0 0 0 1px #2d2d32, 0 16px 48px rgba(0, 0, 0, 0.28);
+  }
+  body.lab-bezel #stage, body.lab-ui #stage { margin: 24px; flex: none; }
+  /* The fold: a hair of shade across the band, and one faint line down the crease
+     — a dark hairline beside a light one, so it reads on either appearance. */
+  #crease {
+    background:
+      linear-gradient(90deg, transparent calc(50% - 1px), rgba(0, 0, 0, 0.16) calc(50% - 1px), rgba(0, 0, 0, 0.16) 50%,
+        rgba(255, 255, 255, 0.10) 50%, rgba(255, 255, 255, 0.10) calc(50% + 1px), transparent calc(50% + 1px)),
+      linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.035) 42%, rgba(255, 255, 255, 0.025) 58%, transparent);
+  }
+
+  /* ── an error, in the display: readable, never a blank page ── */
+  #lab-error {
+    position: absolute; z-index: 10; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    box-sizing: border-box; width: min(calc(100% - 32px), 430px); max-height: calc(100% - 32px); overflow: auto;
+    padding: 14px 16px; border-radius: 12px;
+    background: #1d1416; color: #f3e9ea; border: 1px solid #7a3c44;
+    font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+  #lab-error[hidden] { display: none; }
+  #lab-error strong { display: block; font-size: 14px; color: #ff9aa5; }
+  #lab-error p { margin: 6px 0 0; overflow-wrap: anywhere; }
+  #lab-error pre { margin: 8px 0 0; font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; color: #c9b4b7; }
+
+  /* ── the panel: beside the display, never over it ── */
+  body.lab-ui #lab { display: flex; align-items: flex-start; width: max-content; min-width: 100%; }
+  #panel[hidden] { display: none; }
+  #panel {
+    flex: none; box-sizing: border-box; width: 268px; margin: 24px 24px 24px 0; padding: 12px 14px 14px;
+    position: sticky; top: 24px;
+    background: #1c1c1f; color: #d9d9de; border: 1px solid #303035; border-radius: 12px;
+    font: 12px/1.35 ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    color-scheme: dark;
+  }
+  #panel header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+  #panel header strong { font-size: 13px; color: #fff; }
+  #panel a { color: #9d9da6; text-decoration: none; }
+  #panel a:hover { color: #fff; text-decoration: underline; }
+  #panel .row { display: flex; align-items: center; gap: 8px; min-height: 26px; margin-top: 6px; }
+  #panel .row > span:first-child { flex: none; width: 46px; color: #8e8e96; }
+  #panel label { display: inline-flex; align-items: center; gap: 4px; }
+  #panel .note { margin: 4px 0 0 54px; color: #8e8e96; font-size: 11px; }
+  #panel .note:empty { display: none; }
+  #panel select, #panel input[type="date"], #panel input[type="number"], #panel button {
+    font: inherit; color: inherit; background: #2a2a2e; border: 1px solid #3b3b41; border-radius: 6px; padding: 3px 6px;
+  }
+  #panel select, #panel input[type="date"] { flex: 1; min-width: 0; }
+  #panel input[type="number"] { width: 64px; }
+  #panel input[type="range"] { width: 100%; margin: 4px 0 0; accent-color: #b9b9c2; }
+  #panel .row input[type="range"] { flex: 1; margin: 0; }
+  #panel input[type="checkbox"] { margin: 0; accent-color: #b9b9c2; }
+  #panel button { cursor: pointer; }
+  #panel button:hover { background: #34343a; }
+  #panel .seg { display: inline-flex; flex: 1; }
+  #panel .seg button { flex: 1; border-radius: 0; margin-left: -1px; padding: 3px 4px; white-space: nowrap; }
+  #panel .seg button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
+  #panel .seg button:last-child { border-radius: 0 6px 6px 0; }
+  #panel .seg button.on { background: #d9d9de; color: #111; border-color: #d9d9de; }
+  #panel output { font-variant-numeric: tabular-nums; color: #fff; }
+  #panel em { font-style: normal; color: #8e8e96; font-variant-numeric: tabular-nums; margin-left: auto; }
+  #panel .jumps { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  #panel .jumps button { padding: 1px 5px; font-size: 11px; font-variant-numeric: tabular-nums; }
+  #panel .jumps button.sun { color: #e8c88f; }
+  #panel details { margin-top: 10px; border-top: 1px solid #303035; padding-top: 8px; }
+  #panel summary { cursor: pointer; color: #8e8e96; }
+  #panel pre {
+    margin: 10px 0 0; padding-top: 8px; border-top: 1px solid #303035;
+    font: 11px/1.5 ui-monospace, Menlo, Consolas, monospace; color: #a9a9b2; white-space: pre-wrap;
+  }
+</style>
+</head>
+<body class="lab-bare">
+<div id="lab">
+  <main id="stage"><div id="device"><div id="display"></div></div></main>
+  <aside id="panel" hidden></aside>
+</div>
+<script>
+  // Modules do not load from file://, and a failed import must not leave a blank page.
+  window.__labReady = false;
+  window.__labFail = function (title, detail) {
+    var display = document.getElementById('display');
+    display.style.cssText = 'position:relative;width:466px;height:678px;background:#000;';
+    display.innerHTML = '<div id="lab-error" role="alert"><strong></strong><p></p></div>';
+    display.querySelector('strong').textContent = title;
+    display.querySelector('p').textContent = detail;
+    window.__labError = title + ': ' + detail;
+  };
+  if (location.protocol === 'file:') {
+    window.__labFail('The sky lab needs to be served over http',
+      'ES modules do not load from file://. Run:  cd design/sky-lab && python3 -m http.server 8377  — then open http://localhost:8377/');
+  }
+</script>
+<script type="module">
+  if (location.protocol !== 'file:') {
+    try {
+      const { run } = await import('./lab/core.js');
+      await run();
+    } catch (error) {
+      console.error(error);
+      window.__labFail('The viewer could not start', String(error && error.message ? error.message : error));
+    }
+  }
+</script>
+</body>
+</html>
