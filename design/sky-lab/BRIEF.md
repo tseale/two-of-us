@@ -306,7 +306,8 @@ Two independent reviewers measured the first build of this round. Bedtime does w
 asked on all three displays. What they found wrong is at its edges, and the fixes change
 three things above. **Where this subsection differs from "The night stays up", this
 subsection wins.** The first item is the director's reading of Taylor's "looking back down
-is too much"; it has not been put to him yet, and it will be shown to him as such.
+is too much"; it has not been put to him yet, and it will be shown to him as such. (He has
+since agreed to it: "Signed off", below.)
 
 1. **Home looks up from the start of tonight's night sleep until first light**, not "while a
    night sleep runs". One fact, *the night has begun*, is true from the moment tonight's
@@ -345,6 +346,30 @@ is too much"; it has not been put to him yet, and it will be shown to him as suc
    in every season and under tilt; a cloud does not cross a card's edge.
 5. **Nothing in the strip may read as a status icon.** A small cloud directly under the
    Wi-Fi and battery glyphs reads as a weather symbol.
+
+### Signed off — what Taylor decided on round three (22 Nov 2026)
+
+Shown the build with the last pass in (three more independent reviews, two fixers, a final
+check) and asked four things. **Where this subsection differs from the one above, this one
+wins.**
+
+1. **The night lasts until first light: yes.** Item 1 above stands as written, and is no
+   longer only the director's reading.
+2. **Summer evenings: look up anyway.** From mid-April to late August a 7:40 bedtime comes
+   before sunset. The bedtime moment still plays when he goes down, with the sun in the tree
+   and his stars coming out over the sunset; the view is not held back until sunset. The
+   6 pm rule stands. The cost he accepted: Home's own sunset is over once he is down.
+3. **The cards cut the sun and the moon.** Asked whether a sun or moon that a card's edge
+   would cut should be hidden entirely ("whole or not at all"), he chose the other way: the
+   sun and the moon keep their places all day and all night and show in the gaps and the
+   margins, partly hidden by cards, as in round two. So the first clause of item 4 above is
+   withdrawn for the discs, at rest and looking up: a disc is drawn where it stands, and the
+   cards cover what they cover. What remains of item 4 is the tree (not drawn looking up
+   with the cards on) and the clouds (never across a card's edge). One exception is kept, for
+   legibility and under item 5: a disc is not drawn directly behind the Wi-Fi and battery
+   glyphs.
+4. **Next: build it in the app.** The SwiftUI version, in stages that can be tried on
+   TestFlight.
 
 ## What the canvas really is
 
