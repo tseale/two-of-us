@@ -76,7 +76,15 @@ enum SkyLandPainter {
 
     // MARK: Painting
 
+    /// One plane, painted inside an autorelease pool of its own: whatever
+    /// Core Graphics autoreleases along the way goes when this plane is done,
+    /// not when the last of the four is. Nil if the plane cannot be painted,
+    /// or if the task painting it is cancelled before its last crest.
     static func paint(_ plane: Plane, minute: SkyBenchMinute, scale: Double) -> Plate? {
+        autoreleasepool { plate(plane, minute: minute, scale: scale) }
+    }
+
+    private static func plate(_ plane: Plane, minute: SkyBenchMinute, scale: Double) -> Plate? {
         let world = minute.world
         let palette = minute.palette
         let air = minute.air
@@ -130,6 +138,8 @@ enum SkyLandPainter {
         }
 
         for crest in crests {
+            // A paint nobody is waiting for any more stops here.
+            guard !Task.isCancelled else { return nil }
             let shape = crest.shape
             let haze = shape.haze
             guard let a = Layer(width: width, height: height) else { return nil }

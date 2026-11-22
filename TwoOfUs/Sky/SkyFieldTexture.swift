@@ -26,6 +26,8 @@ struct SkyFieldTexture {
     /// World x of the plane's leading edge, and rest-pose y of its top.
     let origin: CGPoint
 
+    /// The texture for one minute. Nil if its buffer or its image cannot be
+    /// had, or if the task making it is cancelled before its last row.
     static func make(for minute: SkyBenchMinute) -> SkyFieldTexture? {
         let world = minute.world
         let air = minute.air
@@ -50,11 +52,22 @@ struct SkyFieldTexture {
         let column = (air.dark ? 0.62 : 0.3) * glowAmount * SkyMath.smoothstep(2.5, 6, altitude)
             * (1 - SkyMath.smoothstep(11, 17, altitude))
 
-        var samples = [UInt16](repeating: 0, count: columns * tall * 4)
+        // The samples are written straight into the one buffer the image will
+        // own. (Build 234 filled an array and copied it into a `Data`, and
+        // trapped there when memory for the copy could not be had.) A buffer
+        // that cannot be had ends the texture here, with no picture.
+        let count = columns * tall * 4
+        let bytes = count * MemoryLayout<UInt16>.stride
+        guard let memory = calloc(count, MemoryLayout<UInt16>.stride) else { return nil }
+        // From here `data` owns the buffer, and frees it on every way out.
+        let data = Data(bytesNoCopy: memory, count: bytes, deallocator: .free)
+        let samples = memory.bindMemory(to: UInt16.self, capacity: count)
         func store(_ value: Double, at index: Int) {
             samples[index] = UInt16((SkyMath.clamped(value) * 65_535).rounded())
         }
         for row in 0..<rows {
+            // A texture nobody is waiting for any more stops here.
+            guard !Task.isCancelled else { return nil }
             let y = top + Double(row) * step
             let elevation = (horizon - y) / table
             let shape = 0.5 + 0.5 * SkyMath.smoothstep(-0.1, 0.5, elevation)
@@ -85,7 +98,6 @@ struct SkyFieldTexture {
             }
         }
 
-        let data = samples.withUnsafeBufferPointer { Data(buffer: $0) }
         guard let provider = CGDataProvider(data: data as CFData),
               let space = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
         let info = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue

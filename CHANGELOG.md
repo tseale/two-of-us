@@ -6,6 +6,12 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Fixed — a crash in the test sky
+- With "Painted sky" on, the test sky's Land screen (Settings → Data → Sky
+  bench) no longer starts a new picture for every value its Hour slider
+  passes, which ran the app out of memory and crashed it. The picture now
+  waits for the slider to stop, and only one is painted at a time.
+
 ### Added — a preview switch for Home's new sky
 - Settings → Data has a "Painted sky" switch under "In the works". It is off,
   changes only the phone it is turned on for, and shows an unfinished test
