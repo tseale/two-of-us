@@ -1675,6 +1675,80 @@ test('state.layout has a stand-in wherever no chrome was measured', () => {
   ok(core.buildState(core.parseParams(''), 0, [], measured).layout === measured, 'buildState passes a measured layout through');
 });
 
+// The drawing's small rules in the round-three sky (pure: no canvas is touched on import).
+section('Hill, painted: the drawing\'s small rules (skies/hill-painted.js, skies/hill-painted/tree.js)');
+
+const hillPainted = await import('../skies/hill-painted.js');
+const hillTree = await import('../skies/hill-painted/tree.js');
+
+test('heldTo holds a colour within a contrast of its sky, and brings it back toward the sky', () => {
+  const ratio = (lab, sky) => (lab[0] ** 3 + 0.05) / (sky[0] ** 3 + 0.05);
+  const sky = [0.30, -0.01, -0.05];
+  const loud = [0.80, 0.05, 0.10];
+  const held = hillPainted.heldTo(loud, sky, 1.3, 1.2);
+  near(ratio(held, sky), 1.3, 1e-9, 'a lighter colour stops at the upper ratio');
+  ok(Math.abs(held[1] - sky[1]) < Math.abs(loud[1] - sky[1]) && Math.abs(held[2] - sky[2]) < Math.abs(loud[2] - sky[2]), 'and has gone the sky\'s way in colour');
+  const kept = hillPainted.heldTo(loud, sky, 1.3, 1.2, 1);
+  near(ratio(kept, sky), 1.3, 1e-9, 'own = 1: the same value');
+  near(kept[1], loud[1], 1e-12, 'own = 1: its own chroma and hue (a)'); near(kept[2], loud[2], 1e-12, 'own = 1: its own chroma and hue (b)');
+  const deep = hillPainted.heldTo([0.05, 0, 0], sky, 1.3, 1.2);
+  near(ratio(sky, deep), 1.2, 1e-9, 'a darker colour stops at the lower ratio');
+  const quiet = [0.33, 0, -0.04];
+  ok(hillPainted.heldTo(quiet, sky, 1.3, 1.2) === quiet, 'a colour inside both limits is returned untouched');
+  ok(hillPainted.heldTo(sky, sky, 1.3) === sky, 'the sky itself is untouched');
+});
+
+test('acrossEdge: 0 wholly inside a card or clear of it, 1 where its edge cuts the box', () => {
+  const card = { x: 20, y: 450, width: 342, height: 140 };
+  equal(hillPainted.acrossEdge([60, 500, 200, 512], card), 0, 'wholly inside');
+  equal(hillPainted.acrossEdge([380, 500, 460, 512], card), 0, 'wholly clear, to the right');
+  equal(hillPainted.acrossEdge([60, 400, 200, 412], card), 0, 'wholly clear, above');
+  equal(hillPainted.acrossEdge([0, 500, 200, 512], card), 1, 'across its left edge');
+  equal(hillPainted.acrossEdge([300, 500, 420, 512], card), 1, 'across its right edge');
+  equal(hillPainted.acrossEdge([60, 440, 200, 460], card), 1, 'across its top edge');
+  const half = hillPainted.acrossEdge([23, 500, 200, 512], card);
+  ok(half > 0 && half < 1, 'eased within the last 6 pt of being inside');
+  ok(hillPainted.acrossEdge([23, 500, 200, 512], card, 2) === 0, 'the softness is the caller\'s');
+});
+
+test('sleepJoin eases over 0.6 s of the events that start or end a sleep', () => {
+  for (const kind of ['bedtime', 'arrive', 'wake']) {
+    equal(hillPainted.sleepJoin({ kind, age: 0 }), 0, `${kind}: at its first instant the sky is as it was`);
+    near(hillPainted.sleepJoin({ kind, age: 0.3 }), 0.5, 1e-12, `${kind}: half way at 0.3 s`);
+    equal(hillPainted.sleepJoin({ kind, age: 0.6 }), 1, `${kind}: there by 0.6 s`);
+    equal(hillPainted.sleepJoin({ kind, age: 40 }), 1, `${kind}: and stays`);
+  }
+  let last = -1;
+  for (let age = 0; age <= 0.6001; age += 0.02) { const v = hillPainted.sleepJoin({ kind: 'wake', age }); ok(v >= last, 'never backwards'); last = v; }
+  equal(hillPainted.sleepJoin(null), 1, 'no event');
+  equal(hillPainted.sleepJoin({ kind: 'open', age: 0 }), 1, 'opening the Duo changes no sleep');
+  equal(hillPainted.sleepJoin({ kind: 'settle', age: 0 }), 1, 'first light changes no sleep');
+});
+
+test('ISLAND_GROWS is the lab\'s own layout table', () => {
+  for (const device of ['cover', 'spread']) {
+    equal(core.estimateLayout(device, 'night').stripClear.yMin - core.estimateLayout(device, false).stripClear.yMin, hillPainted.ISLAND_GROWS, device);
+  }
+});
+
+test('crownEdge: the crown in leaf is a few rounded masses, drawn in from the tree\'s reach', () => {
+  ok(hillTree.crownEdge(0.055, -0.77) < 0.2, 'the top\'s heart is inside');
+  ok(hillTree.crownEdge(-0.285, -0.628) < 0.2 && hillTree.crownEdge(0.31, -0.665) < 0.2, 'so are the shoulders\'');
+  ok(hillTree.crownEdge(0.38, -0.468) < 0.2, 'and the spray at the long arm\'s end');
+  ok(hillTree.crownEdge(0.30, -0.30) > 1.2, 'the sunset bay is open: no mass there');
+  ok(hillTree.crownEdge(0, -0.2) > 1.2, 'nothing under the fork');
+  let right = -9, left = 9, top = 0;
+  for (let x = -0.6; x <= 0.6; x += 0.004) {
+    for (let y = -1.05; y <= -0.2; y += 0.004) {
+      if (hillTree.crownEdge(x, y) < 1) { right = Math.max(right, x); left = Math.min(left, x); top = Math.min(top, y); }
+    }
+  }
+  ok(right <= 0.45 && right > 0.40, `no leaf further right than 0.45 of the tree's height (got ${right.toFixed(3)})`);
+  ok(left >= -0.45 && left < -0.40, `nor further left (got ${left.toFixed(3)})`);
+  ok(top >= -0.98 && top < -0.92, `its top is the leader's (got ${top.toFixed(3)})`);
+  return `x ${left.toFixed(3)} … ${right.toFixed(3)}, top ${top.toFixed(3)}`;
+});
+
 // The sun's halo is pure maths, so it is checked wherever the lab is.
 section('The sun\'s halo (skies/baseline.js)');
 

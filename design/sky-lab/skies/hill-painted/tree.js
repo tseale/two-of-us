@@ -284,6 +284,41 @@ export function crownTop(x) {
 // ── in leaf: where the foliage is massed ──
 // Blocked in by hand over the limbs, as a painter would before drawing a single leaf.
 
+/** The crown's OUTLINE in leaf: a few convex masses of unequal size, [cx, cy, r] — the top, the two
+ *  shoulders, the heart, the tuft on the low left bough, the spray at the long arm's end (16, 12, 10,
+ *  9, 7 and 6 pt on the Duo's 88 pt tree) — and the smaller ones that join them. A leaf grows only on a
+ *  twig inside one of them: the silhouette is a run of unequal rounded masses, the sky between two of
+ *  them comes to a point (a V, never a square bay), and no mass has a level top or a plumb side. The
+ *  great bay at the lower right, where the sun goes down, is simply where no mass is — open in every
+ *  season, so the sun always sets through limbs. Nothing stands further right than 0.44 (the leaf at
+ *  the long arm's end is drawn in along the arm), nor further left than −0.44. */
+const CROWN = [
+  [0.055, -0.770, 0.182],                               // the top, over the leader
+  [-0.285, -0.628, 0.138],                              // the left shoulder, on the great left limb
+  [0.310, -0.665, 0.120],                               // the right shoulder
+  [-0.045, -0.560, 0.104],                              // the heart, hanging over the fork
+  [-0.355, -0.432, 0.078],                              // the tuft on the low left bough
+  [0.380, -0.468, 0.058],                               // the spray at the long arm's end
+  [0.165, -0.535, 0.088], [-0.190, -0.490, 0.070],      // under the two shoulders
+  [-0.135, -0.760, 0.075],                              // between the top and the left shoulder, set back: a notch there, not a gap
+  [0.378, -0.565, 0.052],                               // the bough that hangs from the right shoulder to the arm's end: the spray there is part of the crown
+  [-0.275, -0.485, 0.050],                              // …and the one that joins the low tuft to the left shoulder
+];
+
+/** lab/noise.js's lattice, read on a turned grid. A threshold through value noise follows its
+ *  lattice — level tops and plumb sides; turned 31° a mass's edge has neither. */
+const TURN_C = Math.cos(0.54), TURN_S = Math.sin(0.54);
+const turned = (x, y, f, seed) => noise2((x * TURN_C + y * TURN_S) * f + 3.1, (y * TURN_C - x * TURN_S) * f + 7.9, seed);
+
+/** How far unit (x, y) is from the heart of the nearest mass of the crown's outline: under 1 inside it.
+ *  (Every mass is a little out of round.) */
+export function crownEdge(x, y) {
+  const swell = 1 + 0.16 * (turned(x, y, 6.5, 53) - 0.5);
+  let edge = 9;
+  for (const [cx, cy, r] of CROWN) edge = Math.min(edge, Math.hypot(x - cx, y - cy) / (r * swell));
+  return edge;
+}
+
 /** The NEAR forms of the crown: boughs of foliage, unequal, NEAREST FIRST — the low ones hang in front
  *  of the ones above and behind them, so each one's lit side lies against its neighbour's shade.
  *  [cx, cy, rx, ry, paint (0, 1 or 2), mass]. `mass`: which of the crown's few large masses it is part
@@ -291,8 +326,8 @@ export function crownTop(x) {
  *  forms of one mass are painted alike and turn to the light together. A leaf belongs to the nearest
  *  form it is inside; the leaves inside none are the far side of the crown. */
 const FORMS = [
-  [0.455, -0.470, 0.058, 0.046, 1, 4],      // the spray at the long arm's end
-  [-0.370, -0.425, 0.098, 0.068, 2, 4],     // the tuft on the low left bough
+  [0.385, -0.470, 0.055, 0.046, 1, 4],      // the spray at the long arm's end
+  [-0.355, -0.428, 0.090, 0.066, 2, 4],     // the tuft on the low left bough
   [0.030, -0.485, 0.100, 0.070, 1, 3],      // the heart, hanging lowest over the fork
   [-0.170, -0.545, 0.105, 0.085, 0, 3],     // …its left
   [0.200, -0.520, 0.095, 0.072, 2, 3],      // …its right, over the bay
@@ -310,15 +345,14 @@ const MASSES = [
 ];
 
 /** SKY in the crown: [cx, cy, rx, ry, kind]. kind 0: the bays that run in from the underside along the
- *  limbs — the great one at the lower right, where the sun goes down, is open in every season, so the
- *  sun always sets through limbs; 1: holes that are always there; 2: holes that open as the crown thins. */
+ *  limbs; 1: holes that are always there; 2: holes that open as the crown thins. */
 const SKY = [
-  [0.335, -0.330, 0.170, 0.128, 0], [0.195, -0.405, 0.075, 0.060, 0],        // the sunset bay, under the right shoulder
+  [0.225, -0.395, 0.075, 0.060, 0],                                           // the sunset bay's head, under the right shoulder (the bay itself is the outline's: CROWN)
   [0.012, -0.365, 0.070, 0.070, 0],                                           // under the heart, round the fork
   [-0.215, -0.415, 0.060, 0.050, 0],                                          // between the great limb and its low bough
   [-0.225, -0.585, 0.040, 0.034, 1], [0.235, -0.598, 0.036, 0.040, 1],       // where the two great limbs pass
   [0.040, -0.612, 0.030, 0.036, 1], [-0.065, -0.745, 0.034, 0.022, 1],       // …and the leader
-  [0.150, -0.455, 0.030, 0.026, 1], [-0.300, -0.510, 0.030, 0.022, 1], [0.365, -0.560, 0.026, 0.020, 1],
+  [0.150, -0.455, 0.030, 0.026, 1], [-0.300, -0.510, 0.030, 0.022, 1],
   [0.105, -0.780, 0.022, 0.016, 1], [-0.115, -0.470, 0.024, 0.020, 1],
   [-0.045, -0.885, 0.030, 0.018, 2], [0.115, -0.850, 0.028, 0.020, 2], [-0.300, -0.730, 0.030, 0.022, 2],
   [0.300, -0.760, 0.032, 0.022, 2], [-0.150, -0.660, 0.030, 0.024, 2], [0.140, -0.640, 0.026, 0.022, 2],
@@ -335,7 +369,7 @@ const SKY = [
  *              of the foliage (a slow noise) — what the painter lights it by } */
 function leafAt(x, y, open, pick = 0.5) {
   let clear = 1, bay = 1;
-  const rag = 1 + 0.36 * (noise2(x * 21 + 5.1, y * 21 + 8.3, 7) - 0.5);
+  const rag = 1 + 0.36 * (turned(x, y, 21, 7) - 0.5);
   for (const [cx, cy, rx, ry, kind] of SKY) {
     const k = kind === 2 ? 1.25 * open : kind === 1 ? 1 + 0.5 * open : 1 + 0.12 * open;
     if (k < 0.1) continue;
@@ -351,7 +385,7 @@ function leafAt(x, y, open, pick = 0.5) {
     const [cx, cy, rx, ry, , mass] = FORMS[k];
     const ux = (x - cx) / rx, uy = (y - cy) / ry;
     if (Math.abs(ux) > 1.5 || Math.abs(uy) > 1.5) continue;
-    const d = Math.hypot(ux, uy) / (1 + 0.40 * (noise2(x * 9 + k * 7.3, y * 9 - k * 3.1, 31) - 0.5) + 0.22 * (noise2(x * 24 - k * 2.9, y * 24 + k * 5.7, 33) - 0.5));
+    const d = Math.hypot(ux, uy) / (1 + 0.40 * (turned(x + k * 0.81, y - k * 0.34, 9, 31) - 0.5) + 0.22 * (turned(x - k * 0.12, y + k * 0.24, 24, 33) - 0.5));
     if (d >= reach) continue;
     form = k; deep = 1 - d;
     const M = MASSES[mass];
@@ -359,13 +393,13 @@ function leafAt(x, y, open, pick = 0.5) {
     ty = 0.72 * uy + (M[3] ? 0.34 * (y - M[1]) / M[3] : 0);
     break;
   }
-  // the crown's edge frays: out there the leaf is in sprays, on some twig ends and not their neighbours
-  let rim = 9;
-  for (const [cx, cy, rx, ry] of LOBES) rim = Math.min(rim, Math.hypot((x - cx) / rx, (y - cy) / ry));
-  const fray = smoothstep01((rim - 0.66) / 0.36);
-  if (fray > 0) clear *= smoothstep01((noise2(x * 19 + 2.2, y * 19 + 7.7, 53) - (-0.06 + 0.50 * fray + 0.10 * open)) / 0.12);
+  // the crown's outline: inside one of its masses, or there is no leaf. Its edge frays into single
+  // leaves, each by its own lot — a leaf's length either way, a little further in as the crown thins
+  const out = 1 - smoothstep01((crownEdge(x, y) - (0.93 + 0.15 * (pick - 0.5) - 0.07 * open)) / 0.05);
+  clear *= out;
+  bay = Math.min(bay, out);
   // small gaps where the foliage is loose (fewer in the heart of a form, more as the crown thins)
-  const gap = noise2(x * 13.5 + 11.9, y * 13.5 + 4.2, 3);
+  const gap = turned(x, y, 13.5, 11);                  // (a seed whose low places fall between the masses, not on one)
   clear *= smoothstep01((gap - (0.27 + 0.13 * open - 0.16 * Math.max(0, deep))) / 0.10);
   const e = 0.006, f = 17;
   const bx = (noise2((x + e) * f, y * f, 41) - noise2((x - e) * f, y * f, 41)) / (2 * e * f);
@@ -597,7 +631,9 @@ export function treeMasks(tree, mk, H, s, sea) {
       const n = nodes[i];
       if (n.w >= 0.0105 || n.order > 7 || n.y > -0.27) continue;
       // which sprays are laden: a slow field over the crown, and the twig ends more than their feet
-      const laden = noise2(n.x * 11 + 3.7, n.y * 11 + 1.3, 61) * 0.75 + noise2(n.x * 27, n.y * 27, 62) * 0.25;
+      // (…on the turned grid, so no mass of blossom has a plumb side; and a few sprays always cross the trunk's own line under the top)
+      const laden = turned(n.x, n.y, 11, 61) * 0.75 + turned(n.x, n.y, 27, 62) * 0.25
+        + 0.22 * Math.exp(-(((n.x - 0.005) / 0.075) ** 2) - (((n.y + 0.845) / 0.085) ** 2));
       const p = full * smoothstep01((laden + 0.06 * (3 - Math.min(3, n.order)) - 0.50) / 0.20) * (0.2 + 0.8 * leafAt(n.x, n.y, 0.4).bay) * 0.47;
       for (let j = 0; j < 3; j += 1) {
         const id = i * 4 + j;

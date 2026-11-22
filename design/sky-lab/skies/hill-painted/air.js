@@ -86,6 +86,10 @@ const KEYS = [
     light: [0.84, 0.935, 1, 0.6], dark: [0.092, 0.42, 1.55, 0.95],
     S: [[.60, .16, 38], [.80, .14, 58], [.85, .08, 90], [.68, .04, 150], [.48, .06, 250], [.32, .08, 265], [.16, .085, 268], [.03, .085, 268]],
     A: [[.15, .045, 255], [.17, .05, 258], [.20, .055, 262], [.20, .06, 265], [.17, .07, 266], [.12, .075, 268], [.06, .08, 268], [0, .085, 268]],
+    // (The high key's dusk: between its peach and its blue the table's green-gold breath, hushed, prints as
+    // a grey-green band over the horizon. On the pale page the way from one to the other is through a
+    // pale rose and lilac — here and in the next key.)
+    Sl: [[.60, .16, 38], [.80, .14, 58], [.85, .07, 72], [.70, .042, 0], [.50, .056, 296], [.32, .08, 265], [.16, .085, 268], [.03, .085, 268]],
     sun: [.8, .17, 36], glow: [.82, .16, 42, 0.34],
     lo: { lit: [.5, .1, 20], shade: [.10, .04, 268], amt: 0 },
     hi: { lit: [.62, .09, 350], shade: [.22, .045, 276], amt: 0.3 },
@@ -99,6 +103,7 @@ const KEYS = [
     // print as a brown band behind the tree. There the dying glow is one thin ember line that goes
     // up through wine and plum into the indigo — and it is written strong enough to stay a colour.)
     Sd: [[.66, .20, 34], [.70, .17, 41], [.52, .09, 20], [.42, .06, 332], [.36, .065, 275], [.22, .075, 266], [.10, .08, 268], [0, .08, 270]],
+    Sl: [[.75, .12, 42], [.85, .09, 65], [.72, .05, 24], [.52, .05, 318], [.36, .064, 272], [.22, .075, 266], [.10, .08, 268], [0, .08, 270]],
     sun: [.7, .12, 40], glow: [.8, .1, 45, 0.16],
     lo: { lit: [.4, .05, 20], shade: [.05, .04, 268], amt: 0 },
     hi: { lit: [.4, .05, 300], shade: [.16, .045, 270], amt: 0 },
@@ -136,13 +141,16 @@ function print(key, dark, vch) {
   return lch(L, C * r[3] * quiet, h);
 }
 
-/** The sun's disc is not printed with the sky: it is the light. [altitude°, [L, C, h°] dark, light]. */
+/** The sun's disc is not printed with the sky: it is the light. [altitude°, [L, C, h°] dark, light].
+ *  (On the pale page a light is LIGHTER than the paper round it and the colour is in what surrounds
+ *  it: a low sun printed in its own apricot was the darkest thing in its sky — a wafer. There the disc
+ *  is a pale cream at every height, a breath warmer as it sets, and the sky's own glow carries the fire.) */
 const SUN_DISC = [
   [30, [0.90, 0.035, 95], [0.992, 0.02, 95]],
-  [8, [0.895, 0.125, 78], [0.955, 0.12, 88]],
-  [2.5, [0.90, 0.105, 76], [0.885, 0.165, 70]],
-  [-0.8, [0.85, 0.13, 62], [0.86, 0.17, 56]],
-  [-3, [0.62, 0.17, 40], [0.84, 0.15, 44]],
+  [8, [0.895, 0.125, 78], [0.985, 0.04, 92]],
+  [2.5, [0.90, 0.105, 76], [0.975, 0.045, 84]],
+  [-0.8, [0.85, 0.13, 62], [0.968, 0.055, 76]],
+  [-3, [0.62, 0.17, 40], [0.955, 0.06, 66]],
 ];
 function sunDisc(altDeg, dark) {
   let i = 0;
@@ -276,7 +284,7 @@ export function airFor({ altDeg, dark, morning, presence, depth, moonlight = 0 }
   // little quieter. The light appearance's upper sky is held where grey text
   // can still be read on it (L ≥ 0.846): in the looked-up pose the header sits there.
   const column = (name) => {
-    const pick = (k) => (dark && k[`${name}d`] ? k[`${name}d`] : k[name]);
+    const pick = (k) => (dark && k[`${name}d`] ? k[`${name}d`] : !dark && k[`${name}l`] ? k[`${name}l`] : k[name]);
     const stops = k0[name].map((_, s) => both((k) => pick(k)[s]));
     const top = stops[stops.length - 1];
     // (While there is still light in the low key's sky — a summer bedtime, the sun a hand above the

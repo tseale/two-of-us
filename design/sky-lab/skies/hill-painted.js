@@ -156,39 +156,37 @@ const DUO = {
     mist: [[-243, 302.4, 22, 1.8, 1], [-217, 306.9, 17, 1.7, 0.85], [-243, 310.4, 15, 1.8, 0.9], [-212, 316.6, 27, 2.6, 1], [-246, 326.2, 19, 2.9, 0.9], [-243, 339.5, 24, 3.6, 0.7], [-300, 358, 32, 4.8, 0.62], [-300, 384, 36, 6, 0.36],
       [-286, 411, 46, 7.5, 0.5], [-372, 444, 50, 9.5, 0.42]],
   },
-  // Clouds: four designed families, each drawn as the tree is — a silhouette set by hand — and each
-  // in a designed place (the middle of the lane it drifts along), clear of the header's words.
-  // `e`: its base, points over the horizon; `len` × `rise`: its box. `forms`, back to front, in
-  // `unit` points (a cumulus is authored in units of its own rise, the long ones in points):
-  //   [x, y, rx, ry?]                     a billow — centre over the middle of the base, its radius
-  //   ['foot', x0, x1, t]                 a lens of cloud lying on the flat base, t thick, drying to a point at both ends
-  //   ['stroke', x0, y0, x1, y1, bow, w]  a drag of the brush from its thin tail to its head (the high streak)
-  // The tall billows stand behind and the low ones in front of them, so the top is a run of unequal
-  // towers with a notch between each and the inside is modelled by the front ones' own edges.
-  //   cumulus  fair weather: a flat base, stacked rounded towers, the tallest off-centre
-  //   bar      a long low bar seen far off: thin, level, its upper edge broken into unequal humps
-  //   puff     a small detached cumulus — two heads and a shoulder
-  //   streak   the upper sky's: thin drags of ice that rise toward the sunset
+  // Clouds: quiet banks, each drawn the way this picture draws a hill — ONE top contour set by hand,
+  // crisp, run through the crests' own wobble; a flat fill that is lightest along that edge and has
+  // gone to the body's tone by 45 % of the rise; and no base at all: the lowest third lets go into
+  // the air, as a plane of land does into the mist at its foot. Nothing is modelled in relief (nothing
+  // else in the picture is). `e`: its foot, points over the horizon; `len` × `rise`: its box.
+  // `top`: the contour's masses, [centre, half-width (both along −1 … 1), height 0 … 1 of `rise`] —
+  // a few of unequal size (one large, one of about half that, a small outlier, their shoulders, and
+  // the long lens they stand on), never a run of like scallops; where two meet the join is rounded.
+  // `wob`: the hand. Each has a designed place (the middle of the lane it drifts along), and none
+  // stands whole and compact in a slot of the UI: a closed small cloud under the status glyphs is a
+  // weather symbol.
+  //   strip   a thin bank that comes in over the tree from the trailing edge and is always cut by it
+  //           (a third of it is off the display at every moment of its drift) — weather passing
+  //   gap     a small low bank in the header's clear gap, off the line of the name and the gear
+  //   bank    the large one: over the clear stretch of the leading page's frieze, between the page's
+  //           title and the fold (its right end stays off the cover's picture)
+  //   bar     a long low bar over the valley, wholly behind the leading page's cards when they are
+  //           on: it belongs to the bare panorama, the second the Duo opens
   // `rest`: it belongs to the everyday view (it leaves as the camera looks up); `up`: to the
-  // looked-up one. Everyday: the puff over the tree (strip), the streak in the header's clear gap,
-  // the large cumulus over the clear stretch of the leading page's frieze, the bar over the valley.
-  // Looking up there are three, all low: the cumulus and the valley's bar on the leading page, and
-  // one broken bar left of the tree — nothing among his stars.
+  // looked-up one — one broken bar, low, left of the tree: nothing among his stars.
   clouds: [
-    { id: 'puff', family: 'puff', x: 418, e: 104, len: 58, rise: 26, span: 34, period: 2400, phase: 0.42, rest: true,
-      forms: [['foot', -0.98, 0.98, 0.3], [-0.10, 0.57, 0.43], [0.50, 0.40, 0.31], [-0.60, 0.34, 0.27], [0.88, 0.17, 0.17], [-0.92, 0.13, 0.14],
-        [0.24, 0.21, 0.26], [-0.34, 0.20, 0.25]] },
-    { id: 'streak', family: 'streak', unit: 1, x: 264, e: 233, len: 96, rise: 25, span: 16, period: 2800, phase: 0.5, rest: true, high: true,
-      forms: [['stroke', -48, 6, 44, 10, -1.3, 2.5], ['stroke', -6, 15.5, 47, 18, -0.7, 1.5], ['stroke', -40, 0.8, 4, 1.8, -0.4, 1.1]] },
-    { id: 'cumulus', family: 'cumulus', x: -75, e: 210, len: 136, rise: 56, span: 6, period: 3000, phase: 0.5,
-      forms: [['foot', -0.96, 0.96, 0.3], [0.18, 0.62, 0.38], [-0.30, 0.50, 0.30], [0.52, 0.54, 0.25], [-0.72, 0.34, 0.27], [0.86, 0.27, 0.22], [-1.0, 0.17, 0.17],
-        [0.04, 0.22, 0.37, 0.27], [-0.52, 0.18, 0.31, 0.22], [0.56, 0.17, 0.28, 0.20], [-0.90, 0.11, 0.20, 0.14], [0.92, 0.10, 0.17, 0.13]] },
-    { id: 'bar', family: 'bar', unit: 1, x: -330, e: 82, len: 272, rise: 15, span: 100, period: 2600, phase: 0.48,
-      forms: [['foot', -136, -28, 3.6], ['foot', -46, 136, 4.4],
-        [14, 3, 26, 12], [-14, 3, 21, 8.5], [41, 3.5, 20, 9.5], [-82, 2.5, 20, 7], [62, 2.5, 16, 6.5], [-104, 1.5, 16, 4.5], [-58, 2, 16, 5.5], [93, 2, 15, 5.5], [111, 1.5, 12, 3.8]] },
-    { id: 'low', family: 'bar', unit: 1, x: 212, e: 50, len: 176, rise: 11, span: 36, period: 3000, phase: 0.5, up: true,
-      forms: [['foot', -88, 42, 3.4], ['foot', 54, 88, 2.2],
-        [-30, 2.5, 19, 8.5], [-52, 2, 15, 5], [-7, 2, 16, 6.5], [15, 1.5, 13, 4.5], [68, 1.3, 10, 3.6]] },
+    { id: 'strip', x: 453, e: 96, len: 98, rise: 10, span: 10, period: 2400, phase: 0.42, rest: true, wob: 0.7,
+      top: [[0, 1, 0.46], [-0.30, 0.33, 1.0], [-0.60, 0.22, 0.56], [0.30, 0.30, 0.80], [0.66, 0.2, 0.5]] },
+    { id: 'gap', x: 254, e: 254, len: 62, rise: 8, span: 8, period: 2800, phase: 0.5, rest: true, high: true, wob: 0.6,
+      top: [[0, 1, 0.5], [-0.26, 0.36, 1.0], [0.28, 0.3, 0.72], [-0.68, 0.18, 0.5]] },
+    { id: 'bank', x: -70, e: 222, len: 138, rise: 22, span: 6, period: 3000, phase: 0.5, wob: 1.0,
+      top: [[0.0, 1.0, 0.46], [0.36, 0.38, 1.0], [0.02, 0.25, 0.76], [0.76, 0.2, 0.6], [-0.42, 0.27, 0.7], [-0.7, 0.16, 0.5], [-0.9, 0.08, 0.26]] },
+    { id: 'bar', x: -212, e: 82, len: 250, rise: 13, span: 36, period: 2600, phase: 0.48, wob: 0.9,
+      top: [[0.1, 0.9, 0.4], [0.04, 0.3, 1.0], [0.34, 0.2, 0.74], [-0.24, 0.16, 0.62], [0.62, 0.16, 0.5], [-0.66, 0.2, 0.52], [-0.86, 0.1, 0.3]] },
+    { id: 'low', x: 212, e: 50, len: 176, rise: 11, span: 36, period: 3000, phase: 0.5, up: true, wob: 0.8,
+      top: [[-0.22, 0.76, 0.42], [-0.36, 0.3, 1.0], [-0.02, 0.2, 0.7], [-0.7, 0.18, 0.52], [0.72, 0.24, 0.44], [0.66, 0.12, 0.6]] },
   ],
 };
 
@@ -229,10 +227,9 @@ const SLAB = {
   river: null,
   clouds: [
     // (none in the everyday view: the header's small landscape has no clear place for one — its one gap holds the tree.
-    // Looking up: one broken bar, low, left of the tree.)
-    { id: 'low', family: 'bar', unit: 1, x: 118, e: 62, len: 176, rise: 11, span: 30, period: 3000, phase: 0.5, up: true,
-      forms: [['foot', -88, 42, 3.4], ['foot', 54, 88, 2.2],
-        [-30, 2.5, 19, 8.5], [-52, 2, 15, 5], [-7, 2, 16, 6.5], [15, 1.5, 13, 4.5], [68, 1.3, 10, 3.6]] },
+    // Looking up: one broken bar, low, left of the tree — its whole length behind the sleep card when the cards are on.)
+    { id: 'low', x: 150, e: 62, len: 176, rise: 11, span: 30, period: 3000, phase: 0.5, up: true, wob: 0.8,
+      top: [[-0.22, 0.76, 0.42], [-0.36, 0.3, 1.0], [-0.02, 0.2, 0.7], [-0.7, 0.18, 0.52], [0.72, 0.24, 0.44], [0.66, 0.12, 0.6]] },
   ],
 };
 
@@ -240,6 +237,44 @@ const NIGHT_MIST = 0.198;   // OKLab L of mist in the dark appearance at night (
 const NIGHT_WATER = 0.196;  // …and of the river there: the faintest line of reflected sky (luminance 0.0076), whatever the room's depth
 const PADL = 34;          // points of world beyond the display's leading edge (tilt, the near planes' slide)
 const PADR = 44;
+
+// ── small pure rules (exported for tools/test-math.mjs) ─────────────────────
+
+/** `lab` held within a contrast of `sky`: not lighter than `up` : 1 against it, not darker than
+ *  `down` : 1 (the limits' own ratio, on luminance + 0.05, with luminance taken as L³). A colour past
+ *  the limit is brought back TOWARD THE SKY'S OWN — value, and with it chroma and hue — never only
+ *  darkened (an ember held down in value alone is a dark red). `own` 0 … 1: how much of its own
+ *  colour it keeps as it comes back (0: it goes the sky's way; 1: only its value is held). What keeps
+ *  a cloud quiet at every hour. */
+export function heldTo(lab, sky, up, down = up, own = 0) {
+  const y = Math.max(0, lab[0]) ** 3, ys = Math.max(0, sky[0]) ** 3;
+  const most = up * (ys + 0.05) - 0.05, least = Math.max(0, (ys + 0.05) / down - 0.05);
+  const limit = y > most ? Math.cbrt(Math.max(0, most)) : y < least ? Math.cbrt(least) : null;
+  if (limit == null || lab[0] === sky[0]) return lab;
+  const t = Math.min(1, Math.max(0, (limit - sky[0]) / (lab[0] - sky[0])));
+  const k = t + (1 - t) * Math.min(1, Math.max(0, own));
+  return [limit, sky[1] + (lab[1] - sky[1]) * k, sky[2] + (lab[2] - sky[2]) * k];
+}
+
+/** How far a box [x0, y0, x1, y1] lies ACROSS the edge of a rect { x, y, width, height }: 0 while it is
+ *  wholly inside it, or wholly clear of it, by `soft` points or more; 1 where an edge cuts through it. */
+export function acrossEdge(box, rect, soft = 6) {
+  const clear = Math.max(rect.x - box[2], box[0] - (rect.x + rect.width), rect.y - box[3], box[1] - (rect.y + rect.height));
+  const inside = Math.min(box[0] - rect.x, rect.x + rect.width - box[2], box[1] - rect.y, rect.y + rect.height - box[3]);
+  return 1 - Math.max(smoothstep(0, soft, clear), smoothstep(0, soft, inside));
+}
+
+/** The Duo's status icons sit this much lower while a sleep runs (the island is longer): the lab's
+ *  layout table, stripClear.yMinAsleep 185 less yMin 151 (lab/core.js). */
+export const ISLAND_GROWS = 34;
+
+/** A sleep that has just begun or ended changes the strip's clear window at once; what the sky
+ *  shows there (a cloud) follows over the event's first 0.6 s: 0 as it was before … 1 as it is now.
+ *  The events that start or end a sleep: bedtime, arrive, wake. Any other, or none: 1. */
+export function sleepJoin(event) {
+  if (!event || !['bedtime', 'arrive', 'wake'].includes(event.kind)) return 1;
+  return smoothstep(0, 0.6, Math.max(0, event.age ?? 0));
+}
 
 // ─────────────────────────────────────────────────────────────── module ──
 
@@ -1099,252 +1134,99 @@ export function create(host) {
 
   // ── clouds ───────────────────────────────────────────────────────────
 
-  /** A cloud is a designed form, cut in gouache: a silhouette set by hand (the table's `forms`) —
-   *  billows standing on a flat base, a lens of foot along it, or drags of the brush — firm against
-   *  the sky and modelled softly inside. The billows are rounded things, one in front of another: the
-   *  modelling is their own relief (a height at every pixel — the nearest billow wins — and how
-   *  squarely it faces the lamp), so the towers read as stacked and the terminator between light and
-   *  shade is a run of scallops, not a gradient. Its masks (the body, the lit faces, the shadowed
-   *  ones, the underside, the edge of light, the far side) are cut once per light direction; only
-   *  their paint changes. `light`: toward the lamp — x, y on the page (y down), z out of it. */
+  /** A cloud is drawn the way this picture draws a hill: ONE top contour set by hand (the table's
+   *  `top`), crisp against the sky, and paint laid flat under it — no relief, no outline of circles,
+   *  no ruled base. Its masks:
+   *    body   everything under the contour, let go into the air below (the lowest third fades to
+   *           nothing: there is no drawn base, and its thin ends dissolve with it)
+   *    lit    the same, fullest at the top edge and gone by 45 % of the rise: the light on its top
+   *    under  the low part of it: what the afterglow warms, and a high sun leaves a breath deeper
+   *    rim    one dry line, a point wide, along the parts of the contour that face the lamp, broken
+   *           where the brush skips (under a low sun, or the moon: the knoll's rim is the model)
+   *  Only the rim knows where the lamp is, and only which side of the cloud: `light.side`. */
   function buildCloud(cloud, light) {
     const s = G.s;
-    const lx = light.x, ly = light.y, lz = light.z;
-    const L = cloud.len, R = cloud.rise, U = cloud.unit ?? cloud.rise;
-    const streak = cloud.family === 'streak', bar = cloud.family === 'bar';
-    const pad = 12;
-    const w = Math.ceil((L + 2 * pad) * s), h = Math.ceil((R * 1.1 + 2 * pad) * s);
-    const cx = w / 2, cy = h - (pad + 2) * s;             // the middle of its base
-    const seed = Math.round(L * 3 + cloud.e);
-    const blank = () => { const c = mk(w, h); const x = c.getContext('2d'); x.fillStyle = '#fff'; return x; };
-    const body = blank(), lit = blank(), shade = blank();
-    const X = (x) => cx + x * U * s, Y = (y) => cy - y * U * s;   // authored units → mask pixels (y up from the base)
-    // the base: flat, a hair of belly (a far bar's is a ruled line)
-    const baseY = (u) => (bar ? 0.3 : 0.8) * Math.pow(Math.max(0, 1 - 4 * u * u), 0.4) + 0.3 * (vn(u * 7 + seed, 1.3) - 0.5);
-    const above = new Path2D();                           // everything over the base line (a streak has none)
-    above.moveTo(-10, -10); above.lineTo(w + 10, -10);
-    if (streak) { above.lineTo(w + 10, h + 10); above.lineTo(-10, h + 10); }
-    else for (let k = 40; k >= 0; k -= 1) { const u = k / 40 - 0.5; above.lineTo(cx + u * L * s, cy + baseY(u) * s); }
-    above.closePath();
-    /** One form of the table → its outline (and, for a drag of the brush, the radius its modelling is sized by). */
-    const outline = (def, i) => {
-      const path = new Path2D();
-      if (def[0] === 'foot') {
-        const [, x0, x1, t] = def;
-        const n = 48;
-        for (let k = 0; k <= n; k += 1) {
-          const u = k / n;
-          const taper = Math.pow(Math.max(0, 4 * u * (1 - u)), bar ? 1.15 : 0.42);   // (a far bar dries to a point; a cumulus ends bluntly)
-          const y = t * taper * (0.86 + 0.3 * vn(u * 6 + seed * 0.7 + i, 4.4));
-          if (k === 0) path.moveTo(X(lerp(x0, x1, u)), Y(y)); else path.lineTo(X(lerp(x0, x1, u)), Y(y));
-        }
-        for (let k = n; k >= 0; k -= 1) { const x = lerp(x0, x1, k / n); path.lineTo(X(x), cy + (baseY((x * U) / L) + 0.4) * s); }
-        path.closePath();
-        return { path };
+    const L = cloud.len, R = cloud.rise;
+    const pad = 4;
+    const w = Math.ceil((L + 2 * pad) * s), h = Math.ceil((R + 3 + 2 * pad) * s);
+    const cx = w / 2, cy = h - (pad + 1) * s;             // the middle of its foot
+    const seed = Math.round(L * 3 + cloud.e) % 251;
+    const wob = cloud.wob ?? 1;
+    // the contour: its masses run together (a soft maximum: where two meet the join is rounded, never a
+    // cusp), then the hand's wobble, as a crest has — none of it at the two ends
+    const top = new Float32Array(w).fill(-9);             // the contour's height over the foot at each device column, points
+    for (let px = 0; px < w; px += 1) {
+      const x = (px + 0.5 - cx) / s, u = x / (L / 2);
+      if (Math.abs(u) >= 1) continue;
+      let sum = 0;
+      for (const [c0, hw, ht] of cloud.top) {
+        const t = Math.abs((u - c0) / hw);
+        if (t < 1) sum += Math.pow(ht * Math.pow(1 - Math.pow(t, 2.2), 0.55), 6);
       }
-      if (def[0] === 'stroke') {
-        const [, x0, y0, x1, y1, bow, wd] = def;
-        const len = Math.hypot(x1 - x0, y1 - y0) || 1;
-        const nx = -(y1 - y0) / len, ny = (x1 - x0) / len;       // its upper side
-        const n = 44, upper = [], lower = [];
-        for (let k = 0; k <= n; k += 1) {
-          const t = k / n;
-          // the brush lands lightly, carries, and lifts: a long thin tail, fullest two thirds along, a quick end
-          const half = wd * Math.pow(Math.sin(Math.PI * Math.pow(t, 1.5)), 0.85) * (0.8 + 0.4 * vn(t * 5 + seed + i * 3.1, 2.2));
-          const sag = bow * 4 * t * (1 - t);
-          const px = x0 + (x1 - x0) * t + nx * sag, py = y0 + (y1 - y0) * t + ny * sag;
-          // (the upper edge is the cleaner one; the lower one is combed out by the wind)
-          const comb = 1 + 0.3 * (vn(t * 9 + seed + i * 7.7, 5.1) - 0.5);
-          upper.push([px + nx * half * 0.8, py + ny * half * 0.8]); lower.push([px - nx * half * 1.2 * comb, py - ny * half * 1.2 * comb]);
-        }
-        upper.forEach((p, k) => (k === 0 ? path.moveTo(X(p[0]), Y(p[1])) : path.lineTo(X(p[0]), Y(p[1]))));
-        for (let k = n; k >= 0; k -= 1) path.lineTo(X(lower[k][0]), Y(lower[k][1]));
-        path.closePath();
-        return { path, r: wd * U * 1.5 };
-      }
-      const [bx, by, rx0, ry0 = rx0] = def;
-      const rx = rx0 * U, ry = ry0 * U;
-      const n = 56;
-      for (let k = 0; k <= n; k += 1) {
-        const a = (k / n) * TAU;
-        // cut by hand: never a true circle
-        const wob = 1 + 0.03 * Math.sin(2 * a + seed + i * 2.1) + 0.024 * Math.sin(3 * a + seed * 1.7 + i) + 0.015 * Math.sin(5 * a + i * 3.3);
-        const x = cx + (bx * U + Math.cos(a) * rx * wob) * s, y = cy - (by * U + Math.sin(a) * ry * wob) * s;
-        if (k === 0) path.moveTo(x, y); else path.lineTo(x, y);
-      }
-      path.closePath();
-      return { path, billow: [cx + bx * U * s, cy - by * U * s, rx * s, ry * s] };
-    };
-    const forms = cloud.forms.map(outline);
-    // 1. The silhouette: every form, cut off at the base.
-    body.save(); body.clip(above);
-    for (const f of forms) body.fill(f.path);
-    body.restore();
-    // 2. The relief of the billows: a height at every pixel — the billows are domes standing on one
-    //    plane, and where two meet they run together (a soft maximum: a valley between them, never a
-    //    seam) — and from its slope, how squarely the surface there faces the lamp: −1 turned away … 1 facing.
-    const facing = new Float32Array(w * h).fill(lz);      // (what is not a billow — a foot — lies flat)
+      if (!(sum > 0)) continue;
+      const ends = smoothstep(0, 0.16, 1 - Math.abs(u));
+      const hand = ((fb(x / 70 + seed * 13.7, seed * 3.1 + 0.5, 2) - 0.5) * 2.6 + (vn(x / 11 + seed * 5.3, 7.7) - 0.5) * 0.6) * wob * ends;
+      top[px] = Math.pow(sum, 1 / 6) * R + hand;
+    }
+    // (rounded once more by the brush's own width — a point and a half, two on the large one: no join between two masses is a cusp)
     {
-      const billows = forms.filter((f) => f.billow);
-      const K = 1 / (0.09 * Math.min(R, 40) * s);         // how readily they run together
-      const acc = new Float32Array(w * h);
-      billows.forEach(({ billow: [bx, by, rx, ry] }, i) => {
-        const rz = Math.min(rx, ry), z0 = (i / Math.max(1, billows.length - 1)) * 0.07 * R * s;
-        const x0 = Math.max(0, Math.floor(bx - rx)), x1 = Math.min(w - 1, Math.ceil(bx + rx));
-        const y0 = Math.max(0, Math.floor(by - ry)), y1 = Math.min(h - 1, Math.ceil(by + ry));
-        for (let py = y0; py <= y1; py += 1) {
-          const v = (py + 0.5 - by) / ry;
-          for (let px = x0; px <= x1; px += 1) {
-            const u = (px + 0.5 - bx) / rx;
-            const d2 = u * u + v * v;
-            if (d2 < 1) acc[py * w + px] += Math.exp(K * (z0 + rz * Math.sqrt(1 - d2)));
-          }
+      const raw = top.slice(), r = Math.max(1, Math.round((1.3 + 0.035 * R) * s));
+      for (let px = 0; px < w; px += 1) {
+        if (!(raw[px] > -9)) continue;
+        let sum = 0, wt = 0;
+        for (let k = -2 * r; k <= 2 * r; k += 1) {
+          const q = px + k;
+          if (q < 0 || q >= w) continue;
+          const g = Math.exp(-(k * k) / (2 * r * r));
+          sum += Math.max(0, raw[q]) * g; wt += g;
         }
-      });
-      const height = new Float32Array(w * h);
-      for (let k = 0; k < w * h; k += 1) height[k] = acc[k] > 0 ? Math.log(acc[k]) / K : 0;
-      // (a cloud is not a ball: its relief is shallower than its outline is round)
-      const depth = 0.7;
-      for (let py = 1; py < h - 1; py += 1) {
-        for (let px = 1; px < w - 1; px += 1) {
-          const k = py * w + px;
-          if (!(acc[k] > 0)) continue;
-          const gx = (height[k + 1] - height[k - 1]) * 0.5 * depth, gy = (height[k + w] - height[k - w]) * 0.5 * depth;
-          facing[k] = (-gx * lx - gy * ly + lz) / Math.sqrt(gx * gx + gy * gy + 1);
-        }
+        top[px] = sum / wt;
       }
     }
-    const relief = (from, to) => imageCanvas(w, h, (d) => {
-      for (let k = 0; k < w * h; k += 1) {
-        d[k * 4] = 255; d[k * 4 + 1] = 255; d[k * 4 + 2] = 255;
-        d[k * 4 + 3] = Math.round(255 * smoothstep(from, to, facing[k]));
+    const fade = Math.max(4, 0.28 * R);                   // the lowest of it lets go into the air
+    const litDepth = 0.45 * R, rimW = 1.0;
+    const reach = Math.max(1, Math.round(2.5 * s));
+    const n = w * h;
+    const aBody = new Uint8ClampedArray(n), aLit = new Uint8ClampedArray(n), aUnder = new Uint8ClampedArray(n), aRim = new Uint8ClampedArray(n);
+    for (let px = 0; px < w; px += 1) {
+      const t = top[px];
+      if (!(t > 0)) continue;
+      const x = (px + 0.5 - cx) / s;
+      const foot = 0.7 * (vn(x / 27 + seed * 0.37, 2.2) - 0.5);        // (the foot's own slow wander: never a ruled level)
+      const dry = smoothstep(0, 0.07, 1 - Math.abs(x) / (L / 2));      // the two ends dry out
+      // how squarely the contour here faces the lamp's side (its top faces the sky: a little, always)
+      const slope = (top[Math.min(w - 1, px + reach)] - top[Math.max(0, px - reach)]) / ((2 * reach) / s);   // + it rises to the right
+      const face = clamp01(0.4 - light.side * slope * 1.5);
+      const skip = smoothstep(0.36, 0.5, fb(x / 9 + seed * 1.3, 4.4, 2));   // the brush skipping: runs of line, and gaps
+      for (let py = 0; py < h; py += 1) {
+        const yUp = (cy - (py + 0.5)) / s;
+        const d = t - yUp;                                 // points under the contour
+        if (d < -0.5 / s) continue;
+        const hgt = yUp - foot;
+        if (hgt <= 0) break;
+        const edge = clamp01(d * s + 0.5);                // crisp at the contour: one device pixel
+        const a = edge * smoothstep(0, fade, hgt) * dry;
+        const k = py * w + px;
+        aBody[k] = 255 * a;
+        aLit[k] = 255 * a * (1 - smoothstep(0, litDepth, d));
+        aUnder[k] = 255 * a * (1 - smoothstep(0.12 * R, 0.62 * R, hgt));
+        aRim[k] = 255 * edge * dry * skip * face * (1 - smoothstep(rimW * 0.5, rimW, d)) * smoothstep(0, fade * 0.5, hgt);
       }
+    }
+    const cut = (alpha) => imageCanvas(w, h, (d) => {
+      for (let k = 0; k < n; k += 1) { d[k * 4] = 255; d[k * 4 + 1] = 255; d[k * 4 + 2] = 255; d[k * 4 + 3] = alpha[k]; }
     });
-    lit.drawImage(relief(0.1, 0.85), 0, 0);
-    shade.drawImage(relief(0.12, -0.7), 0, 0);
-    // (a drag of the brush is modelled as it always was: its lit side is itself, less itself slid away from the light)
-    if (streak) {
-      const one = scratch('a', w, h);
-      lit.clearRect(0, 0, w, h); shade.clearRect(0, 0, w, h);
-      for (const { path, r } of forms) {
-        one.setTransform(1, 0, 0, 1, 0, 0);
-        one.globalCompositeOperation = 'source-over';
-        one.clearRect(0, 0, w, h);
-        one.fillStyle = '#fff'; one.fill(path);
-        const side = (target, dx, dy, reach, alpha) => {
-          const t = scratch('lo', w, h);
-          t.drawImage(one.canvas, 0, 0, w, h, 0, 0, w, h);
-          t.globalCompositeOperation = 'destination-out';
-          t.drawImage(one.canvas, 0, 0, w, h, -dx * reach * s, -dy * reach * s, w, h);
-          target.globalAlpha = alpha;
-          target.drawImage(t.canvas, 0, 0, w, h, 0, 0, w, h);
-          target.globalAlpha = 1;
-        };
-        side(lit, lx, ly, r * 0.4, 1);
-        side(shade, -lx, -ly, r * 0.6, 0.6);
-      }
-    }
-    // The whole of it is turned, too: toward the light on one side, away on the other.
-    {
-      const ext = Math.abs(lx) * L * 0.34 + Math.abs(ly) * R * 0.6;
-      const mx = cx, my = cy - R * 0.42 * s;
-      const turn = (ctx, sign, amount) => {
-        const g = ctx.createLinearGradient(mx - sign * lx * ext * s, my - sign * ly * ext * s, mx + sign * lx * ext * s, my + sign * ly * ext * s);
-        g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.45, `rgba(255,255,255,${amount * 0.25})`); g.addColorStop(1, `rgba(255,255,255,${amount})`);
-        ctx.fillStyle = g;
-        ctx.fillRect(0, 0, w, h);
-        ctx.fillStyle = '#fff';
-      };
-      turn(lit, 1, 0.3);
-      turn(shade, -1, 0.34);
-    }
-    // soften: gouache laid wet, not cut paper — and the ends of the long ones dry out
-    const dry = bar ? 0.07 : streak ? 0.05 : 0;
-    const finish = (ctx, blur) => {
-      const c = mk(w, h);
-      const x = c.getContext('2d');
-      x.filter = `blur(${blur * s}px)`;
-      x.drawImage(ctx.canvas, 0, 0);
-      x.filter = 'none';
-      if (dry > 0) {
-        x.globalCompositeOperation = 'destination-out';
-        const ends = x.createLinearGradient(pad * s, 0, w - pad * s, 0);
-        ends.addColorStop(0, 'rgba(0,0,0,1)'); ends.addColorStop(dry, 'rgba(0,0,0,0)');
-        ends.addColorStop(1 - dry, 'rgba(0,0,0,0)'); ends.addColorStop(1, 'rgba(0,0,0,1)');
-        x.fillStyle = ends;
-        x.fillRect(0, 0, w, h);
-        x.globalCompositeOperation = 'source-over';
-      }
-      return c;
-    };
-    // (firm against the sky — the softness is kept for the inside)
-    const soft = finish(body, streak ? 0.5 : 0.24);
-    const within = (c) => { const x = c.getContext('2d'); x.globalCompositeOperation = 'destination-in'; x.drawImage(soft, 0, 0); x.globalCompositeOperation = 'source-over'; return c; };
-    // The whole silhouette, too, has a side: a crisp edge of light where it faces the sun (the form
-    // less itself slid a point and a half away from the light), and a broad shadowed far side (the
-    // form less itself slid toward the light) — the two things that say which way the light comes.
-    const slid = (dx, dy, blur) => {
-      const c = mk(w, h);
-      const x = c.getContext('2d');
-      x.drawImage(soft, 0, 0);
-      x.globalCompositeOperation = 'destination-out';
-      x.drawImage(soft, Math.round(dx * s), Math.round(dy * s));
-      x.globalCompositeOperation = 'source-over';
-      if (!blur) return c;
-      const c2 = mk(w, h);
-      const x2 = c2.getContext('2d');
-      x2.filter = `blur(${blur * s}px)`;
-      x2.drawImage(c, 0, 0);
-      x2.filter = 'none';
-      return within(c2);
-    };
-    const flat = Math.hypot(lx, ly) || 1;                 // (the lamp's direction on the page)
-    const rimW = streak ? 0.9 : bar ? 1.0 : 1.2 + R * 0.012;
-    const edge = slid((-lx / flat) * rimW, (-ly / flat) * rimW, 0);
-    const farSide = slid((lx / flat) * Math.min(R, 30) * 0.4, (ly / flat) * Math.min(R, 30) * 0.3, streak ? 0.5 : 0.9);
-    // the underside: the lowest of it, along the flat base (a streak's: its lower edge)
-    let under;
-    if (streak) under = slid(0, -1.3, 0.5);
-    else {
-      under = mk(w, h);
-      const x = under.getContext('2d');
-      x.drawImage(soft, 0, 0);
-      x.globalCompositeOperation = 'destination-in';
-      const band = Math.max(2.2, Math.min(R * 0.3, 10));
-      const g = x.createLinearGradient(0, cy - band * s, 0, cy + 1.2 * s);
-      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.55, 'rgba(0,0,0,0.45)'); g.addColorStop(1, 'rgba(0,0,0,1)');
-      x.fillStyle = g;
-      x.fillRect(0, 0, w, h);
-    }
-    const mdl = streak ? 0.3 : 0.5 + Math.min(R, 40) * 0.016;   // the modelling's own softness, points
-    return { w, h, cx, cy, body: soft, lit: within(finish(lit, mdl)), shade: within(finish(shade, mdl * 1.3)), under, edge, farSide };
+    return { w, h, cx, cy, body: cut(aBody), lit: cut(aLit), under: cut(aUnder), rim: cut(aRim) };
   }
 
-  /** Where a cloud's light comes from. On the page: from the lamp's own side, and from as high as
-   *  the lamp really stands — a midday sun lights the tops, a setting one the flank (the glow on the
-   *  underside is painted on its own), the moon from where it hangs. Out of the page: a low sun on
-   *  the cloud's own side of the sky stands behind it (only its edge burns); across the sky it shines
-   *  on the face we see; a high sun, or the moon, stands a little in front. `key` names the
-   *  direction its masks were cut for. */
+  /** Where a cloud's light comes from: which side of it the lamp stands on (−1 left … 1 right, in
+   *  halves — all its rim needs), how far across the sky from the sun it lies (`far`) and how low the
+   *  sun is (`low`). `key` names what its masks were cut for. */
   function cloudLight(cloud, pal, x, y) {
-    const dxn = (pal.lamp.x - x) / G.Wa;
-    const side = Math.sign(dxn || 1) * clamp(Math.abs(dxn) / 0.5, 0.35, 1);
-    let lx, ly;
-    if (pal.lamp.kind === 'sun') {
-      const a = clamp(pal.altDeg, -8, 60) * DEG;
-      lx = side * Math.cos(a);
-      ly = clamp(-Math.sin(a) * 1.7, -0.85, 0.25);
-    } else {
-      const dy = pal.lamp.y - (y - cloud.rise * 0.5), d = Math.hypot(pal.lamp.x - x, dy) || 1;
-      lx = side;
-      ly = clamp((dy / d) * 1.6, -0.85, 0.25);
-    }
+    const side = Math.round(clamp((pal.lamp.x - x) / 60, -1, 1) * 2) / 2;
     const far = smoothstep(0.1, 1.35, Math.abs(pal.dxSun(x)));
     const low = pal.lamp.kind === 'sun' ? 1 - smoothstep(5, 14, pal.altDeg) : 0;
-    const lz = Math.round(lerp(0.45, lerp(-0.25, 0.6, far), low) * 8) / 8;
-    const dir = Math.round(Math.atan2(ly, lx) / (6 * DEG)) * 6 * DEG;
-    const flat = Math.sqrt(1 - lz * lz);
-    return { x: Math.cos(dir) * flat, y: Math.sin(dir) * flat, z: lz, far, low, key: `${Math.round(dir / DEG)}|${lz}|${pal.lamp.kind}` };
+    return { side, far, low, key: `${side}` };
   }
 
   function paintCloud(cloud, pal, x, y, light) {
@@ -1355,7 +1237,7 @@ export function create(host) {
       cloud.maskKey = light.key;
       cloud.canvas = mk(cloud.masks.w, cloud.masks.h);
     }
-    const { w, h, body, lit, shade, under, edge, farSide } = cloud.masks;
+    const { w, h, body, lit, under, rim } = cloud.masks;
     const air = pal.air, cl = air.cloud;
     const hi = Boolean(cloud.high);
     const far = light.far;
@@ -1364,15 +1246,15 @@ export function create(host) {
     const shadeLab = hi ? cl.hiShade : cl.loShade;
     const skyHere = air.skyAt(pal.dxSun(x), (G.cfg.H0 - y + cloud.rise * 0.5) / G.cfg.table);
     // The underside catches the afterglow: from the last of the sun until the twilight has gone, the
-    // flat base is the warmest thing on the cloud (ember near the sun, rose away from it).
+    // low part of it is the warmest thing on the cloud (ember near the sun, rose away from it).
     const after = pal.byMoon ? 0 : smoothstep(7, 1.5, pal.altDeg) * smoothstep(-6.5, -2.5, pal.altDeg);
     const underLab = mix3(lch(air.dark ? 0.60 : 0.86, air.dark ? 0.13 : 0.10, pal.altDeg > 0 ? 52 : 28), lch(air.dark ? 0.50 : 0.84, air.dark ? 0.085 : 0.07, 5), far);
-    // Three paints: the face the light is on, the body, the shadowed side.
+    // Three paints: the light on its top, the body, the deeper low part.
     let bodyLab, deepLab;
-    // While the sun is well up, a cloud is a pale thing with a shadowed base — in the low key a pale
-    // cool one in a dusky sky (the table's warm white prints as tan there, and a tan cloud at one in
-    // the afternoon is a smudge), on the pale page a white one whose base is a breath deeper than the
-    // sky (or it has no base at all). Under 2.5° nothing of this is left: the sunset's clouds are the table's.
+    // While the sun is well up, a cloud is a pale thing — in the low key a pale cool one in a dusky
+    // sky, a few steps over it and no more (the table's warm white prints as tan there, and a tan cloud
+    // at one in the afternoon is a smudge); on the pale page a white one whose low part is a breath
+    // deeper than the sky. Under 2.5° nothing of this is left: the sunset's clouds are the table's.
     const day = pal.byMoon ? 0 : smoothstep(4.5, 11, pal.altDeg);
     if (air.dark && !pal.byMoon) {
       // the low key's lit cloud keeps its fire: apricot under a low sun, rose after it
@@ -1383,20 +1265,28 @@ export function create(host) {
     // gone to rose by the long way the light has come (the Belt's pink).
     const front = light.low * far;
     if (!pal.byMoon) litLab = mix3(litLab, air.dark ? lch(litLab[0] - 0.02, 0.072, 14) : lch(litLab[0] - 0.03, Math.hypot(litLab[1], litLab[2]) * 0.75 + 0.015, 14), (air.dark ? 0.88 : 0.7) * front);
-    // (its body does not take the fire — only its lit side does: orange mixed into violet is brown)
-    bodyLab = mix3(mix3(shadeLab, litLab, (0.34 + 0.22 * front) * litAmt), skyHere, hi ? 0.34 : 0.22);
+    // (its body does not take the fire — only its lit top does: orange mixed into violet is brown)
+    bodyLab = mix3(mix3(shadeLab, litLab, (air.dark ? 0.2 + 0.3 * front : 0.34 + 0.22 * front) * litAmt), skyHere, hi ? 0.34 : 0.22);
     deepLab = mix3(shadeLab, skyHere, 0.14);
-    // (the low key's shadowed side under a low sun is plum, and its body mauve — never brown)
+    // (the low key's shadowed part under a low sun is plum, and its body mauve — never brown)
     if (air.dark && !pal.byMoon) {
       deepLab = mix3(deepLab, lch(deepLab[0] + 0.02, 0.05, 305), 0.6 * light.low);
       bodyLab = mix3(bodyLab, lch(bodyLab[0] + 0.01, 0.055, 345), 0.45 * light.low * far);
     }
     if (day > 0) {
-      const dayLit = air.dark ? [skyHere[0] + 0.31, skyHere[1] * 0.45, skyHere[2] * 0.45] : lch(1.0, 0.006, 90);
-      const dayBody = air.dark ? [skyHere[0] + 0.18, skyHere[1] * 0.8, skyHere[2] * 0.8] : [Math.max(0.985, skyHere[0] + 0.05), skyHere[1] * 0.25, skyHere[2] * 0.25];
-      const dayDeep = air.dark ? [skyHere[0] + 0.075, skyHere[1] * 1.05, skyHere[2] * 1.05] : lch(skyHere[0] - 0.06, 0.035, 266);
+      const tame = Math.min(1, 0.012 / (Math.hypot(skyHere[1], skyHere[2]) || 1));
+      const dayLit = air.dark ? [skyHere[0] + 0.095, skyHere[1] * 0.5, skyHere[2] * 0.5] : lch(1.0, 0.006, 90);
+      const dayBody = air.dark ? [skyHere[0] + 0.068, skyHere[1] * 0.8, skyHere[2] * 0.8] : [Math.max(0.985, skyHere[0] + 0.05), skyHere[1] * 0.25, skyHere[2] * 0.25];
+      const dayDeep = air.dark ? [skyHere[0] + 0.015, skyHere[1], skyHere[2]] : [skyHere[0] - 0.02, skyHere[1] * tame, skyHere[2] * tame];
       litLab = mix3(litLab, dayLit, day); bodyLab = mix3(bodyLab, dayBody, day); deepLab = mix3(deepLab, dayDeep, day);
     }
+    // QUIET, at every hour: a cloud belongs to the sky it is in. Each paint is held within a contrast of
+    // the sky behind it — the body about a quarter over it at most, the light on its top a little
+    // more, the afterglow under it and the one thin rim line the most — and never much under it.
+    const Q = air.dark ? { body: [1.3, 1.1, 0.15], lit: [1.46, 1.05, 0.5], under: [1.5, 1.1, 0.6], rim: [1.9, 1, 0.7] }
+      : { body: [1.3, 1.07, 0.5], lit: [1.3, 1.04, 0.7], under: [1.3, 1.1, 0.7], rim: [1.3, 1.02, 0.8] };
+    const quiet = (lab, [up, down, own]) => heldTo(lab, skyHere, up, down, own);
+    bodyLab = quiet(bodyLab, Q.body); litLab = quiet(litLab, Q.lit); deepLab = quiet(deepLab, Q.body);
     // By night it is barely there: every paint goes to the sky's own, a breath apart (the moon's side
     // a breath lighter) — a shape that is felt where it softly hides the stars behind it.
     const nk = pal.starsOut;
@@ -1410,27 +1300,23 @@ export function create(host) {
     ctx.globalAlpha = 1;
     ctx.clearRect(0, 0, w, h);
     ctx.drawImage(tinted(body, C(toNight(bodyLab))), 0, 0, w, h, 0, 0, w, h);
-    // the far side: cooler and a step deeper (a little of the sky's own blue in it)
-    ctx.globalAlpha = (air.dark ? 0.5 : 0.45) * (0.4 + 0.6 * clamp01(litAmt)) * (1 - 0.7 * nk);
-    ctx.drawImage(tinted(farSide, C(toNight([deepLab[0] - (air.dark ? 0.012 : 0.02), deepLab[1], deepLab[2]], -0.006))), 0, 0, w, h, 0, 0, w, h);
-    ctx.globalAlpha = 0.85 * (1 - 0.7 * nk);
-    ctx.drawImage(tinted(shade, C(toNight(deepLab, -0.006))), 0, 0, w, h, 0, 0, w, h);
-    ctx.globalAlpha = clamp01(Math.max(day, 0.2 + 0.8 * litAmt)) * (1 - 0.6 * nk);
-    ctx.drawImage(tinted(lit, C(toNight(litLab, 0.008 + 0.012 * pal.moonlight))), 0, 0, w, h, 0, 0, w, h);
-    // by day the flat base is the deepest of it; in the afterglow, the warmest
-    if (day > 0.03 && nk < 0.97) {
-      ctx.globalAlpha = 0.6 * day * (1 - nk);
+    // its low part: by day a breath deeper than the body; in the afterglow, the warmest of it
+    if (nk < 0.97) {
+      ctx.globalAlpha = (0.6 * day + 0.5 * (1 - day) * (1 - after)) * (1 - nk);
       ctx.drawImage(tinted(under, C(deepLab)), 0, 0, w, h, 0, 0, w, h);
     }
     if (after > 0.03) {
       ctx.globalAlpha = clamp01(0.85 * after * (1 - 0.35 * far));
-      ctx.drawImage(tinted(under, C(underLab)), 0, 0, w, h, 0, 0, w, h);
+      ctx.drawImage(tinted(under, C(quiet(underLab, Q.under))), 0, 0, w, h, 0, 0, w, h);
     }
-    // the edge of light on the sun's side: crisp, the brightest thing on the cloud
-    const edgeAmt = clamp01(Math.max(day, litAmt)) * (pal.byMoon ? 0.6 : 0.5 + 0.5 * smoothstep(-6, 0, pal.altDeg)) * (1 - 0.4 * far) * (1 - nk * (1 - 0.5 * pal.moonlight));
-    if (edgeAmt > 0.03) {
-      ctx.globalAlpha = clamp01(0.9 * edgeAmt);
-      ctx.drawImage(tinted(edge, C(toNight([litLab[0] + (air.dark ? 0.06 : 0.02), litLab[1], litLab[2]], 0.02 * pal.moonlight))), 0, 0, w, h, 0, 0, w, h);
+    // the light on its top
+    ctx.globalAlpha = clamp01(Math.max(day, 0.2 + 0.8 * litAmt)) * (1 - 0.6 * nk);
+    ctx.drawImage(tinted(lit, C(toNight(litLab, 0.008 + 0.012 * pal.moonlight))), 0, 0, w, h, 0, 0, w, h);
+    // the rim: one dry line where the contour faces a low sun, or the moon — nothing of it by day
+    const rimAmt = (pal.byMoon ? 0.6 * pal.moonlight : litAmt * smoothstep(12, 5, pal.altDeg) * smoothstep(-7, -1, pal.altDeg)) * (1 - 0.4 * far) * (1 - nk * (1 - 0.5 * pal.moonlight));
+    if (rimAmt > 0.03) {
+      ctx.globalAlpha = clamp01(0.9 * rimAmt);
+      ctx.drawImage(tinted(rim, C(toNight(quiet([litLab[0] + (air.dark ? 0.08 : 0.02), litLab[1], litLab[2]], Q.rim), 0.02 * pal.moonlight))), 0, 0, w, h, 0, 0, w, h);
     }
     ctx.globalAlpha = 1;
   }
@@ -1582,7 +1468,11 @@ export function create(host) {
         // (…and by day, when no low light models the land, the planes themselves must read: each a
         // clear step deeper and warmer than the one behind it, the far ones lighter and bluer)
         const step = air.dark ? 0 : air.day * Math.pow(1 - hz, 3);
-        const g = [pal.ground[0] + side - 0.058 * near - 0.125 * step, pal.ground[1] + 0.007 * near + 0.007 * step, pal.ground[2] + 0.006 * near + 0.016 * step];
+        // (the low key's snow is the palest thing on the land, and the strip has to say "winter" — the knoll
+        // says it. The two nearest planes, and the hill behind the knoll, lie under the cards and the tab
+        // capsule, where a pale ground turns the glass milky: there the snow is a step deeper)
+        const snowDeep = air.dark ? sea.snow * (0.085 * smoothstep(0.2, 0.04, hz) + (plane.id === 'mid' ? 0.045 : 0)) * smoothstep(0.22, 0.4, pal.ground[0]) : 0;
+        const g = [pal.ground[0] + side - 0.058 * near - 0.125 * step - snowDeep, pal.ground[1] + 0.007 * near + 0.007 * step, pal.ground[2] + 0.006 * near + 0.016 * step];
         const m = mix3(g, air.hazeAt(pal.dxSun(x)), air.dark ? hz : sh.hazeLight ?? hz * 0.78);
         if (air.dark || sh.hazeLight != null) return m;
         const farK = air.day * smoothstep(0.35, 0.9, hz);
@@ -1591,8 +1481,14 @@ export function create(host) {
       // Dark, at night: the land is not one black band. Each plane keeps a value of its own — far
       // ones a shade under the horizon's light, near ones deeper — and its blue; all of it under a card's.
       const nightL = 0.106 + 0.098 * Math.pow(hz, 0.8);
+      // (The pale page by day is hushed to a fifth of its colour, and three planes of land a few levels
+      // apart are one grey mass. There they are told apart by TEMPERATURE, which costs the page nothing
+      // in value: the far land cool, the knoll neutral, each nearer plane a little warmer — laid after
+      // the hush, and let go as the sky opens up, when the land has colour of its own.)
+      const temper = air.dark || sh.hazeLight != null ? 0 : air.day * (1 - air.presence) * lerp(-0.0075, 0.0085, smoothstep(0.50, 0.04, hz));
       const fillAt = (x) => {
         const q = pal.shown(own(x));
+        if (temper) { q[1] += 0.3 * temper; q[2] += temper; }
         if (pal.deepNight > 0) {
           const k = pal.deepNight;
           const L = Math.max(q[0], nightL);
@@ -1663,8 +1559,10 @@ export function create(host) {
         lo.fillRect(0, 0, w + 8, h + 8);
         lo.globalCompositeOperation = 'source-over';
       } else if (hz < 0.95) {
-        // air gathers at its foot: toward the valley's own haze, level
-        lo.fillStyle = hGrad(lo, (x) => css(pal.shown(air.hazeAt(pal.dxSun(x)))));
+        // air gathers at its foot: toward the valley's own haze, level (on the pale page by day, all the
+        // way to the low sky's own value: each plane lets go into air, and the next one begins against it)
+        const footAir = (x) => (air.dark ? air.hazeAt(pal.dxSun(x)) : mix3(air.hazeAt(pal.dxSun(x)), air.skyAt(pal.dxSun(x), 0.03), 0.7 * air.day));
+        lo.fillStyle = hGrad(lo, (x) => css(pal.shown(footAir(x))));
         lo.fillRect(0, 0, w + 8, h + 8);
         lo.globalCompositeOperation = 'destination-in';
         const depth = 60 + 130 * (1 - hz);
@@ -1725,7 +1623,7 @@ export function create(host) {
         const lab = sea.snow > 0.03 ? pal.snowLit : pal.frostLit;
         lo.filter = `blur(${(2 + 3 * (1 - hz)) * s * Q}px)`;
         lo.lineWidth = (5 + 16 * (1 - hz)) * s * (sea.snow > 0.03 ? 1.5 : 1);
-        lo.strokeStyle = hGrad(lo, (x) => css(pal.shown(mix3(lab, air.hazeAt(pal.dxSun(x)), hz * 0.8)), white * (sea.snow > 0.03 ? 0.9 : 0.5)), 40);
+        lo.strokeStyle = hGrad(lo, (x) => css(pal.shown(mix3(lab, air.hazeAt(pal.dxSun(x)), hz * 0.8)), white * (sea.snow > 0.03 ? 0.9 * (air.dark ? 1 - 0.45 * smoothstep(0.2, 0.04, hz) : 1) : 0.5)), 40);
         lo.stroke(crestLine);
       }
       lo.filter = 'none';
@@ -1746,15 +1644,17 @@ export function create(host) {
           const b2 = scratch('b', w, y1 - y0);
           b2.translate(0, -y0);
           b2.lineJoin = 'round'; b2.lineCap = 'round';
-          b2.lineWidth = (pal.byMoon ? 1.3 : 1.5 + 1.7 * (1 - hz)) * s;
-          b2.strokeStyle = hGrad(b2, (x) => css(pal.shown([rimLab[0] + 0.04, rimLab[1], rimLab[2]]), clamp01((0.14 + 0.86 * facing(sh, x, lampX)) * rimAmt * sh.rim * (air.dark ? 2.6 : 1.3) * Math.exp(-Math.abs(x - lampX) / (G.Wa * 0.5)))), 10);
+          // (the pale page under a moon: the same dry line as at dawn — broad, broken, quiet — never one clean white hairline, the only crisp mark in the night's land)
+          const moonPale = pal.byMoon && !air.dark;
+          b2.lineWidth = (pal.byMoon ? (air.dark ? 1.3 : 2.3) : 1.5 + 1.7 * (1 - hz)) * s;
+          b2.strokeStyle = hGrad(b2, (x) => css(pal.shown([rimLab[0] + 0.04, rimLab[1], rimLab[2]]), clamp01((0.14 + 0.86 * facing(sh, x, lampX)) * rimAmt * sh.rim * (air.dark ? 2.6 : moonPale ? 0.8 : 1.3) * Math.exp(-Math.abs(x - lampX) / (G.Wa * 0.5)))), 10);
           b2.translate(0, 0.3 * s);
           b2.stroke(crestLine);
           b2.setTransform(1, 0, 0, 1, 0, 0);
           b2.globalCompositeOperation = 'destination-out';
           X.dryPattern.setTransform(new DOMMatrix().translate(sh.index * 37 - G.xL * s, sh.index * 91 - y0));
           b2.fillStyle = X.dryPattern;
-          b2.globalAlpha = 0.62;
+          b2.globalAlpha = moonPale ? 0.9 : 0.62;
           b2.fillRect(0, 0, w, y1 - y0);
           b2.globalAlpha = 1;
           a.drawImage(b2.canvas, 0, 0, w, y1 - y0, 0, y0, w, y1 - y0);
@@ -1982,20 +1882,45 @@ export function create(host) {
     W.fillRect(bx, by, bw, bh);
     W.globalCompositeOperation = 'source-atop';
 
-    // 3. The far bank lies in the water where a reach runs ACROSS the view — a short, soft, darker
-    //    reflection under its far edge, here and there. Never along a reach that runs toward you
-    //    (a dark edge down one side and a light one down the other is a moulded channel, not water).
+    // 3. The far bank lies in the water where a reach runs ACROSS the view — a soft, darker reflection
+    //    close under its far edge, in a few long runs of unequal length with open water between them:
+    //    each run one ribbon that follows the bank and thins to nothing at both ends (a run of like
+    //    dashes down the middle of the water is a road's marking). Never along a reach that runs toward
+    //    you (a dark edge down one side and a light one down the other is a moulded channel, not water).
     {
       const bank = (x) => pal.shown(mix3([pal.ground[0] - (air.dark ? 0.0 : 0.03), pal.ground[1], pal.ground[2]], air.hazeAt(pal.dxSun(x)), 0.4));
-      for (let i = 6; i < r.pts.length - 6; i += 5) {
+      const al = (air.dark ? 0.42 : 0.24) * (1 - 0.6 * dusk) * (1 - 0.7 * lightNight);
+      const last = r.pts.length - 7;
+      const lies = (i) => {
         const p = r.pts[i], q2 = r.pts[i + 5];
         const tx = q2[0] - p[0], ty = q2[1] - p[1];
-        const across = Math.abs(tx) / (Math.hypot(tx, ty) || 1);
-        const hy = r.half[i][1];
-        if (across < 0.86 || hy < 0.7) continue;
-        const broken = smoothstep(0.34, 0.6, fb(i / 23 + 4.4, 1.7, 2));
-        const al = (air.dark ? 0.5 : 0.3) * broken * (1 - 0.6 * dusk) * (1 - 0.7 * lightNight);
-        lens(W, (p[0] + q2[0]) / 2, (p[1] + q2[1]) / 2 - hy * 0.62, Math.abs(tx) * 0.9 + 2, Math.max(0.6, hy * 0.6), bank(p[0]), al);
+        return Math.abs(tx) / (Math.hypot(tx, ty) || 1) >= 0.86 && r.half[i][1] >= 0.9 && fb(i / 58 + 4.4, 1.7, 2) > 0.5;
+      };
+      const ribbon = (i0, i1) => {
+        if (i1 - i0 < 8 || !(al > 0.012)) return;
+        W.fillStyle = css(bank(r.pts[(i0 + i1) >> 1][0]), al / 2);
+        // (two of them, one inside the other: its edge is soft)
+        for (const [far, near] of [[0.98, 0.36], [0.86, 0.52]]) {
+          const top = [], foot = [];
+          for (let i = i0; i <= i1; i += 1) {
+            const p = r.pts[i], bankFar = r.left[i][1] < r.right[i][1] ? r.left[i] : r.right[i];   // (the far bank: the higher of the two on the page)
+            const taper = Math.min(1, Math.min(i - i0, i1 - i) / 9);
+            const mid = (far + near) / 2, half = ((far - near) / 2) * taper;
+            top.push([lerp(p[0], bankFar[0], mid + half), lerp(p[1], bankFar[1], mid + half)]);
+            foot.push([lerp(p[0], bankFar[0], mid - half), lerp(p[1], bankFar[1], mid - half)]);
+          }
+          W.beginPath();
+          top.forEach((q, k) => (k === 0 ? W.moveTo(px(q[0]), py(q[1])) : W.lineTo(px(q[0]), py(q[1]))));
+          for (let k = foot.length - 1; k >= 0; k -= 1) W.lineTo(px(foot[k][0]), py(foot[k][1]));
+          W.closePath();
+          W.fill();
+        }
+      };
+      let from = -1;
+      for (let i = 6; i <= last; i += 1) {
+        const on = i < last && lies(i);
+        if (on && from < 0) from = i;
+        if (!on && from >= 0) { ribbon(from, i - 1); from = -1; }
       }
     }
 
@@ -2061,7 +1986,8 @@ export function create(host) {
       const warm = pal.byMoon ? air.silver : mix3(top, glowLab, 0.3 * clamp01(lampAmt * 1.4));
       const col = pal.shown([Math.max(top[0], waterAt(p[0], p[1])[0]) + (air.dark ? 0.085 : 0.03), warm[1], warm[2]]);
       if (pal.deepNight > 0) col[0] = lerp(col[0], NIGHT_WATER + 0.012, pal.deepNight);
-      const al = (air.dark ? 0.8 : 0.9) * (1 - 0.5 * lightNight);
+      // (a breath of it: the sun that lights it is on the other page, and at full strength it was a lamp's reflection)
+      const al = (air.dark ? 0.4 : 0.6) * (1 - 0.5 * lightNight);
       W.save();
       W.translate(px(p[0] - toward * hw * 0.12), py(p[1] + 26));
       W.scale(hw * 0.86 * s, 82 * s);
@@ -2071,10 +1997,10 @@ export function create(host) {
       W.fillRect(-1, -1, 2, 2);
       W.restore();
     }
-    // Level streaks across the near and the middle reach, bank to bank, a tone apart: the sheen is
-    // broken by the wind in lanes. (Level strokes on a receding plane are what say "water".)
-    for (let k = 0; k < 15; k += 1) {
-      const t = 0.36 + 0.62 * ((k + 0.25 + 0.5 * hash(k, 541)) / 15);
+    // Level streaks across the NEAR reach, bank to bank, a tone apart: the sheen is broken by the wind
+    // in lanes. (Level strokes on a receding plane are what say "water".)
+    for (let k = 0; k < 7; k += 1) {
+      const t = 0.70 + 0.28 * ((k + 0.25 + 0.5 * hash(k, 541)) / 7);
       const i = Math.min(r.pts.length - 1, Math.round(t * (r.pts.length - 1)));
       const p = r.pts[i], hw = r.half[i][0];
       if (hw < 4) continue;
@@ -2088,6 +2014,34 @@ export function create(host) {
       if (pal.deepNight > 0) lab[0] = lerp(lab[0], NIGHT_WATER + (lightOne ? 0.01 : -0.012), pal.deepNight);
       lens(W, x, p[1], hw * (0.5 + 0.4 * hash(k, 545)), Math.max(0.8, (0.006 + 0.010 * hash(k, 546)) * d),
         lab, (lightOne ? 0.5 : 0.3 + 0.16 * hash(k, 547)) * (1 - 0.5 * lightNight));
+    }
+    // The MIDDLE reach, where the river comes round its bends toward you: no streak lies on its centre
+    // line (a run of like dashes down the middle of it is a road's marking). Four strokes of sheen, of
+    // unequal length and unevenly spaced, each lying along the OUTER bank of a bend — where the
+    // current runs — and following that bank's own turn. [how far down the river, its length in points]
+    for (const [t, length] of [[0.385, 5], [0.45, 13], [0.555, 8], [0.655, 18]]) {
+      const i = clamp(Math.round(t * (r.pts.length - 1)), 9, r.pts.length - 10);
+      const p = r.pts[i], a0 = r.pts[i - 8], a1 = r.pts[i + 8];
+      const hx = r.half[i][0], hy = r.half[i][1];
+      if (Math.hypot(hx, hy) < 1.6) continue;
+      // the outer bank: the one further from the chord the bend is strung on
+      const mx = (a0[0] + a1[0]) / 2, my = (a0[1] + a1[1]) / 2;
+      const outer = Math.hypot(r.left[i][0] - mx, r.left[i][1] - my) > Math.hypot(r.right[i][0] - mx, r.right[i][1] - my) ? r.left[i] : r.right[i];
+      const x = lerp(p[0], outer[0], 0.56), y = lerp(p[1], outer[1], 0.56);
+      const here = waterAt(x, y);
+      const lab = shownW([here[0] + (air.dark ? 0.085 : 0.03), here[1] * 0.75, here[2] * 0.75]);
+      if (pal.deepNight > 0) lab[0] = lerp(lab[0], NIGHT_WATER + 0.01, pal.deepNight);
+      const alpha = 0.66 * (1 - 0.5 * lightNight);
+      if (!(alpha > 0.012)) continue;
+      W.save();
+      W.translate(px(x), py(y));
+      W.rotate(Math.atan2(a1[1] - a0[1], a1[0] - a0[0]));
+      W.scale((length / 2) * s, Math.max(0.45, Math.min(1.1, Math.hypot(hx, hy) * 0.16)) * s);
+      const g = W.createRadialGradient(0, 0, 0, 0, 0, 1);
+      g.addColorStop(0, css(lab, alpha)); g.addColorStop(0.5, css(lab, alpha * 0.7)); g.addColorStop(1, css(lab, 0));
+      W.fillStyle = g;
+      W.fillRect(-1, -1, 2, 2);
+      W.restore();
     }
     // A few short level glints, where the sheen is brightest. Sparse; never sparkle.
     {
@@ -2182,18 +2136,25 @@ export function create(host) {
       G.riverLight = { canvas: cv, x: lx, y: by, y0 };
     }
 
-    // 5. Reeds at the water's edge, in three places where they read: clumps large enough to be drawn
-    //    as reeds, not ticks — blades that taper from a foot to a point, fanning out as a clump does,
-    //    the tallest in the middle, a few with a seed head — and their broken reflections in the
-    //    water beneath them. The bank is not a line: it is things standing in front of the water.
+    // 5. Reeds at the water's edge, in two places on the near reach where they read (both in the
+    //    leading margin column, clear of the cards): blades that taper from a foot to a point, 6 to 16
+    //    points tall, the tallest in the middle of the clump — and ALL LEANING ONE WAY, a few degrees
+    //    downstream, as reeds in a current do (blades fanned out to both sides are a row of pins). Two
+    //    or three of a clump carry a seed head: a slender spindle, never a round knob. Under each, its
+    //    reflection, broken. They are of the land's own dark, a step under it — never the tree's ink:
+    //    the tree stays the darkest thing in the picture. On the pale page they go most of the way to
+    //    the water's tone, and at night they go with the river.
     {
-      const inkL = pal.shown(mix3([pal.ground[0] - (air.dark ? 0.05 : 0.14), pal.ground[1] * 1.2, pal.ground[2] * 1.2], pal.ink, 0.45));
+      const landDark = [pal.ground[0] - 0.03, pal.ground[1] * 1.2, pal.ground[2] * 1.2];
+      const mid = r.pts[Math.round(0.8 * (r.pts.length - 1))];
+      const inkL = air.dark ? pal.shown(landDark) : shownW(mix3(mix3([pal.ground[0] - 0.14, pal.ground[1] * 1.2, pal.ground[2] * 1.2], pal.ink, 0.45), waterAt(mid[0], mid[1]), 0.35));
+      const inkA = air.dark ? 0.94 : 0.4 * (1 - 0.8 * lightNight);
       // [how far down the river, which bank (1 right, −1 left), how many blades, size]
-      for (const [t, side, count, size] of [[0.735, 1, 9, 0.95], [0.81, -1, 11, 1.1], [0.872, 1, 11, 1.2]]) {
+      for (const [t, side, count, size] of [[0.735, 1, 8, 0.95], [0.872, 1, 10, 1.15]]) {
         const i = Math.round(t * (r.pts.length - 1));
         const e0 = side > 0 ? r.right[i] : r.left[i];
-        const tall = (e0[1] - c.H0) * 0.07 * size;             // the clump's tallest blade, points (it is larger the nearer it stands)
-        const lean0 = (hash(i, 601) - 0.5) * 0.5;
+        const tall = clamp((e0[1] - c.H0) * 0.055 * size, 8, 15.5);   // the clump's tallest blade, points (it is larger the nearer it stands)
+        const flow = Math.sign(r.pts[Math.min(r.pts.length - 1, i + 10)][0] - r.pts[Math.max(0, i - 10)][0]) || 1;   // downstream, on the picture
         const reach = Math.max(4, Math.round(tall * 0.5));      // how far along the bank it spreads, in samples
         for (let k = 0; k < count; k += 1) {
           const u = (k + 0.5) / count - 0.5;                   // across the clump: −0.5 … 0.5
@@ -2202,25 +2163,25 @@ export function create(host) {
           // (its foot stands in the shallows, a point or two out from the bank)
           const inX = Math.sign(m[0] - e[0]) * (1.2 + 1.6 * hash(k + i, 596));
           const x = e[0] + inX + (hash(k + i, 593) - 0.5) * 1.6, y = e[1] + (hash(k + i, 594) - 0.5) * 2.4;
-          const hgt = tall * (0.42 + 0.58 * (1 - 4 * u * u)) * (0.72 + 0.5 * hash(k + i, 592));
-          const lean = (lean0 + u * 1.1 + (hash(k + i, 595) - 0.5) * 0.3) * hgt * 0.36;
-          const wd = Math.max(0.45, tall * 0.034);             // half its width at the foot
-          a.fillStyle = css(inkL, air.dark ? 0.94 : 0.72);
+          const hgt = Math.max(6, tall * (0.5 + 0.5 * (1 - 4 * u * u)) * (0.78 + 0.3 * hash(k + i, 592)));
+          const lean = flow * hgt * Math.tan((5 + 7 * hash(k + i, 595)) * DEG);     // 5–12° downstream
+          const wd = Math.max(0.42, tall * 0.03);              // half its width at the foot
+          a.fillStyle = css(inkL, inkA);
           a.beginPath();
           a.moveTo(px(x - wd), py(y + 0.6));
-          a.quadraticCurveTo(px(x + lean * 0.22 - wd * 0.7), py(y - hgt * 0.6), px(x + lean), py(y - hgt));
-          a.quadraticCurveTo(px(x + lean * 0.3 + wd * 0.8), py(y - hgt * 0.52), px(x + wd), py(y + 0.6));
+          a.quadraticCurveTo(px(x + lean * 0.3 - wd * 0.7), py(y - hgt * 0.6), px(x + lean), py(y - hgt));
+          a.quadraticCurveTo(px(x + lean * 0.4 + wd * 0.8), py(y - hgt * 0.52), px(x + wd), py(y + 0.6));
           a.closePath();
           a.fill();
-          if (k % 3 === 1) {
-            // a seed head: a dark spindle a little under the tip
-            const f = 0.8, hx = x + lean * f * f, hy = y - hgt * f;
+          if (k % 4 === 1) {
+            // a seed head: a slender dark spindle a little under the tip, lying along its blade
+            const f = 0.8, hx = x + lean * f, hy = y - hgt * f;
             a.beginPath();
-            a.ellipse(px(hx), py(hy), wd * 1.5 * s, hgt * 0.1 * s, Math.atan2(lean * 0.6, hgt), 0, TAU);
+            a.ellipse(px(hx), py(hy), wd * 1.15 * s, Math.max(1.3, hgt * 0.13) * s, Math.atan2(lean, hgt), 0, TAU);
             a.fill();
           }
           // its reflection: shorter, fainter, broken once by the water's movement
-          a.fillStyle = css(inkL, air.dark ? 0.26 : 0.17);
+          a.fillStyle = css(inkL, inkA * 0.26);
           for (const [fy, fl] of [[0.15, 0.12], [0.4, 0.08]]) {
             a.beginPath();
             a.ellipse(px(x - lean * 0.5 * fy), py(y + 1.2 + hgt * fy), wd * 1.1 * s, hgt * fl * s, 0, 0, TAU);
@@ -2310,6 +2271,8 @@ export function create(host) {
         // under the low sun the mist in a hollow is the most luminous thing in the land: it takes the glow
         const nearSun = pal.byMoon ? 0 : Math.exp(-Math.abs(pal.dxSun(x)) / 0.32) * air.lastLight * (1 - smoothstep(5, 12, pal.altDeg));
         if (nearSun > 0.01) raw = mix3(raw, [Math.max(raw[0], air.glow[0]) + 0.03, air.glow[1], air.glow[2]], 0.5 * nearSun);
+        // (the pale page by day: mist is air — it has the low sky's own value, a breath over it, never a grey of its own)
+        if (!air.dark && air.day > 0) { const low = air.skyAt(pal.dxSun(x), 0.03); raw = mix3(raw, [Math.max(raw[0], low[0] + 0.004), raw[1], raw[2]], 0.8 * air.day); }
         const q = pal.shown(raw);
         // dark, at night: a breath of mist — held at one quiet value (under a card's), whatever the room's depth
         if (pal.deepNight > 0) q[0] = lerp(q[0], NIGHT_MIST, pal.deepNight);
@@ -2467,7 +2430,9 @@ export function create(host) {
     // day — they are the whole crown.)
     lay(burnt(leaf ? leaf.twigs : m.twigs, 0), C(pal.ink), pal.dark ? 0.92 : 0.9);
     // the far side of the crown, behind the limbs: cooler, darker, softer — and the crown's whole silhouette
-    if (leaf) foliage(0.88, (add) => add(leaf.back, C(pal.leafShade)), [leaf.gaps]);
+    // (in blossom the first leaves are few and small: the handful that would stand in front of a disc of light are specks on it — most of them go)
+    const inFlower = clamp01(pal.sea.blossom ?? 0);
+    if (leaf) foliage(lerp(0.88, 0.2, inFlower), (add) => add(leaf.back, C(pal.leafShade)), [leaf.gaps]);
     lay(burnt(m.wood, 0.5), C(pal.ink));
     if (power > 0.05) lay(facingMask(m.wood, 1.1 * s), C(pal.inkLit), power * (pal.dark ? 0.55 : 0.5));
     // snow on the level twigs: a hair of it (in the low key snow is a line of light, not an area — it does not take the night's cap)
@@ -2508,7 +2473,7 @@ export function create(host) {
     if (leaf) {
       // how open the crown is (spring's first leaves, autumn's last): an open crown is never a dark mass against the sun
       const open = clamp01(0.9 * pal.sea.leafFall + 1.2 * (1 - pal.sea.foliage));
-      foliage(0.9, (add, g) => {
+      foliage(lerp(0.9, 0.2, inFlower), (add, g) => {
         // the near masses, in the leaf's own paints
         // (against a low sun a full crown is in its own shade: only its edge and its thin places are lit)
         const contre = (pal.dark ? 0.45 : 0.30) * pal.backlit * power * (1 - 0.8 * open);
@@ -2527,6 +2492,17 @@ export function create(host) {
           add(leaf.turned[i], C(pal.leafCore), shade);
           add(leaf.turned[i], C(pal.leafSky), sky);
           add(leaf.turned[i], C(pal.leafLit), lit);
+        }
+        // After sunset, in the low key, a turning crown keeps a few leaves alight on the side the sun
+        // went down — gold, at its full chroma, until the twilight has gone: autumn does not rest on a
+        // silhouette. (Only the leaves turned that way, and only on that side of the crown.)
+        const ember = pal.dark && !pal.byMoon ? smoothstep(-11.5, -6.5, pal.altDeg) * (1 - smoothstep(-2.5, 0.5, pal.altDeg)) * smoothstep(0.55, 0.8, pal.sea.leafHue) : 0;
+        if (ember > 0.03) {
+          const gold = css(pal.shown(lch(0.52, 0.13, 74), { presence: 1 }));
+          for (let i = 0; i < 8; i += 1) {
+            if (Math.cos((i * TAU) / 8) * lampX + Math.sin((i * TAU) / 8) * lampY < 0.5) continue;
+            g.drawImage(washed(leaf.turned[i], gold, across(0.85 * ember)), 0, 0, m.w, m.h, 0, 0, m.w, m.h);
+          }
         }
         if (through > 0.03) {
           g.drawImage(washed(leaf.thin, C(pal.leafGlow), aura(through * (1 + 0.6 * open))), 0, 0, m.w, m.h, 0, 0, m.w, m.h);
@@ -2551,7 +2527,25 @@ export function create(host) {
         if (power > 0.05) g.drawImage(washed(m.blossomA, C(pal.blossomLit), across(0.85 * power)), 0, 0, m.w, m.h, 0, 0, m.w, m.h);
       }, null, 1.2);
     }
-    lay(m.frost, C(pal.frost), pal.dark ? 0.28 : 0.34);
+    // Frost is a hair along the wood's upper edge — but each stretch of it begins at its limb's fork,
+    // inside the wood of the limb it leaves: on the pale page, a pale chevron under every crotch. There
+    // the frost that lies well inside the wood (a point from any edge) is taken off, once for these
+    // masks. (The low key's, where it is faint, is laid as it always was.)
+    if (m.frost && !pal.dark && !m.frostEdge) {
+      const inner = mk(m.w, m.h), x = inner.getContext('2d');
+      x.filter = `blur(${(0.7 * s).toFixed(2)}px)`;
+      x.drawImage(m.wood, 0, 0);
+      x.filter = 'none';
+      const img = x.getImageData(0, 0, m.w, m.h);
+      for (let k = 3; k < img.data.length; k += 4) img.data[k] = img.data[k] > 236 ? 255 : 0;
+      x.putImageData(img, 0, 0);
+      const c = mk(m.w, m.h), y = c.getContext('2d');
+      y.drawImage(m.frost, 0, 0);
+      y.globalCompositeOperation = 'destination-out';
+      y.drawImage(inner, 0, 0);
+      m.frostEdge = c;
+    }
+    lay(pal.dark ? m.frost : m.frostEdge, C(pal.frost), pal.dark ? 0.28 : 0.34);
     // snow: a cap along the limbs, and the foot of the cap — the half point of it next the wood — in its own blue shade
     lay(m.snow, snowC);
     if (m.snow) {
@@ -2640,19 +2634,31 @@ export function create(host) {
     out.glowWarm = soft(lch(0.93, 0.08, 80), 2.2);
     out.glowCool = soft(lch(0.9, 0.04, 255), 2.2);
     out.dusk = soft(lch(0.62, 0.07, 280), 1.6);
-    // The light page's star is a clean point, not a flake: the deeper sky it stands on is no longer a
-    // soft patch five times its size but a close margin — a little dusk right at the light's own
-    // edge that has gone within two of its radii, with no edge of its own (never a ring round a dot).
-    // It is drawn at the star's scale, so round a faint star it is thinner than a pixel (no patch at
-    // all: only the point is left, a little better defined) and round the bright few it is what
-    // makes the core read as a core. (Under a month night's four-point mark, and tonight's star, it
-    // is the same thing larger: a little dusk at the heart.)
+    // The light page's star is a clean white point on a little deeper sky. That dusk is soft and wide —
+    // three of the point's radii and more — and never as strong as the point is white, so the white is
+    // what reads (a patch as strong as its core is a bruise with a speck in it); it has no edge of its
+    // own (never a ring round a dot). Round a faint star it is not drawn at all (drawStars): only the
+    // point is left. Under a month night's four-point mark, and tonight's star, it is the same thing
+    // larger: dusk gathered at the heart, reaching out under the rays.
     out.deep = (() => {
       const c = mk(size, size);
       const ctx = c.getContext('2d');
       const lab = lch(0.54, 0.09, 283);
       const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-      for (const [t, a] of [[0, 0.52], [0.17, 0.52], [0.23, 0.42], [0.29, 0.28], [0.35, 0.16], [0.42, 0.07], [0.5, 0.02], [0.62, 0]]) g.addColorStop(t, css(lab, a));
+      for (const [t, a] of [[0, 0.5], [0.12, 0.5], [0.2, 0.4], [0.3, 0.27], [0.42, 0.16], [0.56, 0.08], [0.72, 0.03], [0.9, 0]]) g.addColorStop(t, css(lab, a));
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, size, size);
+      return c;
+    })();
+    // …and its bright nights are the same round mark as every other night, larger: a crisp white core
+    // (a quarter of the sprite's half) and nothing else. Four points are kept for the first night, the
+    // month-nights and tonight — one mark, one meaning, in both appearances.
+    out.bright = (() => {
+      const c = mk(size, size);
+      const ctx = c.getContext('2d');
+      const lab = lch(1, 0, 0);
+      const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+      g.addColorStop(0, css(lab, 1)); g.addColorStop(0.215, css(lab, 1)); g.addColorStop(0.265, css(lab, 0)); g.addColorStop(1, css(lab, 0));
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, size, size);
       return c;
@@ -2980,7 +2986,7 @@ export function create(host) {
             ctx.globalAlpha = clamp01(a * 0.4);
             ctx.drawImage(sprites.deep, x * s - half * 1.7, y * s - half * 1.7, half * 3.4, half * 3.4);
             ctx.globalAlpha = clamp01(a);
-            ctx.drawImage(sprites['glint-white'], x * s - half, y * s - half, half * 2, half * 2);
+            ctx.drawImage(sprites.bright, x * s - half, y * s - half, half * 2, half * 2);
             continue;
           }
           ctx.globalAlpha = clamp01(a * 0.26 * (0.5 + 0.5 * f.m));
@@ -3049,11 +3055,11 @@ export function create(host) {
             ctx.globalAlpha = clamp01(alpha * 0.5);
             ctx.drawImage(sprites.deep, px - half * 1.7, py - half * 1.7, half * 3.4, half * 3.4);
             ctx.globalAlpha = clamp01(alpha);
-            ctx.drawImage(sprites['glint-white'], px - half, py - half, half * 2, half * 2);
+            ctx.drawImage(sprites.bright, px - half, py - half, half * 2, half * 2);
             continue;
           }
           const rl = (0.56 + 0.62 * m) * s * scale * grow;
-          ctx.globalAlpha = clamp01(alpha * (0.22 + 0.4 * m));
+          ctx.globalAlpha = clamp01(alpha * (0.22 + 0.4 * m) * smoothstep(0.25, 0.6, m));   // (a faint night has no patch: only its point)
           ctx.drawImage(sprites.deep, px - rl * 5.2, py - rl * 5.2, rl * 10.4, rl * 10.4);
           ctx.globalAlpha = clamp01(alpha);
           ctx.drawImage(sprites['dot-white'], px - rl * 2.33, py - rl * 2.33, rl * 4.66, rl * 4.66);
@@ -3632,6 +3638,12 @@ export function create(host) {
     // that softly hides the stars behind it (a veil of the sky itself, then a breath of its form).
     {
       const nightK = pal.starsOut;
+      const SC = state.layout?.stripClear;
+      // The strip's clear window is shorter while a sleep runs (the island is longer, the status icons
+      // sit lower): `heads` — where it begins awake, and asleep. A sleep that has just begun or ended
+      // does not pop a cloud off or on: over the event's first 0.6 s it goes from what the window was.
+      const heads = SC ? [SC.yMin - (state.asleep ? ISLAND_GROWS : 0), SC.yMin + (state.asleep ? 0 : ISLAND_GROWS)] : null;
+      const join = sleepJoin(state.event);
       for (const cloud of G.clouds) {
         const f = (((cloud.phase + (time ?? 0) / cloud.period) % 1) + 1) % 1;
         const x = cloud.x + cloud.span * (0.5 - f);            // drifting from the sunset side
@@ -3644,13 +3656,26 @@ export function create(host) {
         // stands among his stars — and the looked-up view's own arrives with it
         if (cloud.rest) a *= 1 - smoothstep(0.1, 0.55, look);
         if (cloud.up) a *= smoothstep(0.35, 0.85, look);
-        // …nor behind the strip's own furniture: while a sleep runs the island is longer and the status
-        // icons sit lower — a cloud they would sit on is not drawn
-        const SC = state.layout?.stripClear;
-        if (SC && sx + cloud.len / 2 > SC.x + 20) a *= smoothstep(SC.yMin - 8, SC.yMin, sy - cloud.rise * 0.94);
-        // …nor across the sun's disc: a flat base cutting the disc in two is a bitten sun (nor the moon's)
+        // …nor under the strip's own furniture: a cloud keeps 24 pt of plain sky between the status
+        // icons and its top, or it is not drawn (close under them it is one more icon) — so while a
+        // sleep runs, and the icons sit lower, the strip has none
+        if (heads && sx + cloud.len / 2 > SC.x + 20) {
+          const top = sy - cloud.rise;
+          const under = (head) => smoothstep(head + 10, head + 24, top);
+          const now = under(heads[state.asleep ? 1 : 0]);
+          const was = join < 1 ? under(heads[state.event.kind === 'wake' ? 1 : 0]) : now;
+          a *= lerp(was, now, join);
+        }
+        // …nor across a card's edge: a cloud partly behind a card and partly clear of it is bitten.
+        // (It goes with the card — with the cards away, the bare panorama and the bedtime moment, it is there.)
+        const box = [sx - cloud.len * 0.46, sy - cloud.rise - 1, sx + cloud.len * 0.46, sy - 1];
+        for (const card of state.cards ?? []) {
+          if (card.kind === 'header' || card.kind === 'strip' || !(card.opacity > 0.01)) continue;
+          a *= 1 - Math.min(1, card.opacity) * acrossEdge(box, card);
+        }
+        // …nor across the sun's disc: a cloud cutting the disc in two is a bitten sun (nor the moon's)
         for (const [body, R, vis] of [[sunNow, c.sunR, sunVis], [pal.moonNow, c.moonR, pal.moonNow ? pal.moonNow.seen : 0]]) {
-          if (!body || !(vis > 0.05)) continue;
+          if (!body || !(vis > 0.05) || body.x < -R || body.x > G.W + R) continue;   // (a body off the display hides nothing)
           const ddx = Math.max(sx - cloud.len / 2 - body.x, 0, body.x - (sx + cloud.len / 2)), ddy = Math.max(sy - cloud.rise - body.y, 0, body.y - (sy + 2));
           a *= lerp(1, smoothstep(R + 1, R + 16, Math.hypot(ddx, ddy)), clamp01(vis));
         }
@@ -3730,18 +3755,6 @@ export function create(host) {
     drawTonight(ctx, state, pal, time, tonightAt, ring);
     drawSnowfall(ctx, state, pal, time);
     drawCaption(ctx, state, pal, look);
-  }
-
-  /** The state a frame is composed from: the lab's, with the strip's clear window eased across a
-   *  sleep's start and end (see render). The same object when there is nothing to ease. */
-  const ISLAND_GROWS = 34;                               // points the island is longer by while a sleep runs
-  function eased(state) {
-    const e = state.event, SC = state.layout?.stripClear;
-    if (!e || !SC || !(e.age < 0.6)) return state;
-    const starts = e.kind === 'bedtime' || e.kind === 'arrive', ends = e.kind === 'wake';
-    if (!starts && !ends) return state;
-    const still = 1 - smoothstep(0, 0.6, e.age);         // how much of the window as it WAS is left
-    return { ...state, layout: { ...state.layout, stripClear: { ...SC, yMin: SC.yMin + (starts ? -1 : 1) * ISLAND_GROWS * still } } };
   }
 
   let lastState = null;
@@ -3861,23 +3874,16 @@ export function create(host) {
     }
 
     const tCompose = performance.now();
-    // The strip's clear window follows the island, and the island does not jump: when a sleep starts
-    // or ends it grows or shrinks over 0.6 s (README: the window's top is 34 pt lower while a sleep
-    // runs). The lab's chrome swaps it in one frame, so whatever is composed against that window — the
-    // strip's cloud, which gives way to the longer island — went or came in that frame: the one thing
-    // still over the limits at every join where a sleep starts or ends. The window is eased HERE, in
-    // what the frame is composed from; nothing in the composition is changed.
-    const seen = eased(state);
     // Reduce Motion: there is no move — the looked-up still cross-fades in and out.
     if (state.reduceMotion && look > 0.001 && look < 0.999) {
-      compose(main, seen, pal, 0, time);
+      compose(main, state, pal, 0, time);
       if (!lookBuffer || lookBuffer.width !== G.pxW || lookBuffer.height !== G.pxH) lookBuffer = mk(G.pxW, G.pxH);
-      compose(lookBuffer.getContext('2d'), seen, pal, 1, time);
+      compose(lookBuffer.getContext('2d'), state, pal, 1, time);
       main.globalAlpha = look;
       main.drawImage(lookBuffer, 0, 0);
       main.globalAlpha = 1;
     } else {
-      compose(main, seen, pal, state.reduceMotion ? Math.round(look) : look, time);
+      compose(main, state, pal, state.reduceMotion ? Math.round(look) : look, time);
     }
     const tc = performance.now();
     timing.compose = tc - tCompose;
