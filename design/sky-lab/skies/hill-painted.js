@@ -50,7 +50,7 @@ import { smoothstep, lerp } from '../lab/oklab.js';
 import { nights, twinkle, ignition, hash } from '../lab/nights.js';
 import { season as seasonOf } from '../lab/season.js';
 import { hash2 } from '../lab/noise.js';
-import { airFor, css, toRgb, lch, mix3 } from './hill-painted/air.js';
+import { airFor, css, toRgb, lch, mix3, luminance } from './hill-painted/air.js';
 import { growTree, treeMasks, crownTop } from './hill-painted/tree.js';
 
 export const meta = {
@@ -265,6 +265,11 @@ const SNOW_UNDER_GLASS = { most: 0.029, reads: 1.0, floor: 0.4 };
 const WORDS_SHADE_L = 0.345;   // OKLab L of the slab's snow hill behind his age line (the grey line's guard caps at 0.36)
 const NIGHT_MIST = 0.198;   // OKLab L of mist in the dark appearance at night (luminance 0.0078; a card is 0.0117)
 const NIGHT_WATER = 0.196;  // …and of the river there: the faintest line of reflected sky (luminance 0.0076), whatever the room's depth
+// The moon's halo in the dark appearance's deep night (compose): `most` — the luminance the sky under
+// the moon's lower limb may come to with the rings on it (a card is 0.0117; the gate's "at the limit"
+// begins at 0.0111); `adds` — what the two rings add round the limb at their full strength (measured:
+// +0.0024 at 0.93 of it); `least` — the share of themselves they keep whatever the sky.
+const MOON_GLOW = { most: 0.0100, adds: 0.0027, least: 0.4 };
 const STAR_PEAK = 0.85;     // the peak luminance of an ordinary night's star, as it stands (drawStars: the order of rank)
 const PADL = 34;          // points of world beyond the display's leading edge (tilt, the near planes' slide)
 const PADR = 44;
@@ -298,6 +303,12 @@ export function acrossEdge(box, rect, soft = 6) {
 /** The Duo's status icons sit this much lower while a sleep runs (the island is longer): the lab's
  *  layout table, stripClear.yMinAsleep 185 less yMin 151 (lab/core.js). */
 export const ISLAND_GROWS = 34;
+
+/** The Duo's Wi-Fi and battery glyphs: the box the two stand in (17 + 6 + 27 pt wide, 13 tall),
+ *  centred in the strip's column, its foot the head of the strip's clear window (lab/chrome.js,
+ *  duoStrip; cover: x 399–449, y 138–151 awake and 172–185 while a sleep runs). The one place a
+ *  disc is not drawn for the chrome's sake (compose, clearOfGlyphs). */
+export const GLYPHS = { width: 50, height: 13 };
 
 /** A sleep that has just begun or ended changes the strip's clear window at once; what the sky
  *  shows there (a cloud) follows over the event's first 0.6 s: 0 as it was before … 1 as it is now.
@@ -343,7 +354,7 @@ export function create(host) {
 
   // (lab switches read from the URL, to shoot a choice both ways: see hill-painted.md, "Lab notes")
   const urlOpt = (name) => { try { return new URLSearchParams(globalThis.location?.search ?? '').get(name); } catch { return null; } };
-  const urlSun = urlOpt('sun'), urlGlare = urlOpt('glare'), urlSets = urlOpt('sets'), urlGlass = urlOpt('glass'), urlDisc = urlOpt('disc'), urlMoonStar = urlOpt('moonstar'), urlField = urlOpt('field'), urlSunRamp = urlOpt('sunramp');
+  const urlSun = urlOpt('sun'), urlGlare = urlOpt('glare'), urlSets = urlOpt('sets'), urlGlass = urlOpt('glass'), urlMoonStar = urlOpt('moonstar'), urlField = urlOpt('field'), urlSunRamp = urlOpt('sunramp');
 
   // band=answers: the bedtime band without its own light — only the stars' answers (a lab switch, to
   // compare the two; the sky's own is the band held back until it is wider than the strip).
@@ -771,31 +782,65 @@ export function create(host) {
    *  his name or blink on under the header; it arrives in open sky as the view settles. (Looking up,
    *  no body ever rests that close under the header — the Duo's highest moon stands at y ≈ 183, the
    *  slab's at y ≈ 250 — so the standing frames are as they were; and at rest nothing changes.)
-   *  `ramp`: the points of its descent over which it comes out, from where the header lets it go —
-   *  15, and 6 for the slab's SUN: a sun at half strength is a dim tan ball, and over 15 pt the slab's
+   *  `head`: where the header lets it go and the points of its descent over which it comes out (HEAD:
+   *  15) — 6 for the slab's SUN on the setting side (sunHead): a sun at half strength is a dim tan ball, and over 15 pt the slab's
    *  stood above the tree as one for four to five minutes of every afternoon (15:48–15:52 on
    *  21 November) — behind the gear, where it used to set, nobody saw it. Over 6 it is under two
-   *  minutes, and it is THE DUO'S RULE FOR A SUN UNDER THE STATUS ICONS (compose, underIcons), which
-   *  are what it comes out from under here: nothing of it until its top is 10 pt under them, all of
-   *  it at 16 (the icons' foot is y 39; the disc is whole from y 64). The 6 pt are the HEAD of the
+   *  minutes: nothing of it until its top is 10 pt under the status icons, which are what it comes
+   *  out from under here, all of it at 16 (the icons' foot is y 39; the disc is whole from y 64 —
+   *  the slab's status bar is a whole row of glyphs, so the bar hides a disc, not a glyph's box as on
+   *  the Duo: compose, clearOfGlyphs). The 6 pt are the HEAD of the
    *  old 15, not their tail: at the tail (whole at y 73, where it always had been) the sun was out
    *  of sight for four minutes longer than it ever was, and the minute the tools shoot a July
    *  evening (19:55: y 68) was one of them — a bedtime that opened on no sun and blinked one on as
-   *  the view began to rise. (sunramp=old: the lab switch, the 15 pt.) */
-  function bodyAt(state, xFrac, altDeg, R, look, ramp = 15) {
+   *  the view began to rise. On the RISING side the slab's sun keeps the 15 pt, and its disc is not
+   *  drawn above the avatar: sunHead, risingDisc. (sunramp=old: the lab switch, the 15 pt on both
+   *  sides and the rising disc as it was.) */
+  function bodyAt(state, xFrac, altDeg, R, look, head = HEAD) {
     const c = G.cfg;
     const E = bodyE(altDeg);
     const y = c.H0 - E + c.D * look;
-    const foot = c.kind === 'duo' ? (state.layout?.firstCardTop ?? 88.6) + R - 3 : 58;
-    let seen = smoothstep(foot, foot + ramp, y);
+    const foot = c.kind === 'duo' ? (state.layout?.firstCardTop ?? 88.6) + R - 3 : head.foot;
+    let seen = smoothstep(foot, foot + head.ramp, y);
     if (look > 0) {
       const under = c.kind === 'duo' ? foot : (state.layout?.firstCardTop ?? 136.6) - 6 + R;
-      seen = lerp(seen, smoothstep(under, under + 90, y), smoothstep(0, 0.12, look));
+      // (…but a body the rest pose already shows stays in sight as the view leaves it: the 90 pt are for
+      // what comes down from above the header. Without this a sun standing in the slab's header at a
+      // July bedtime — whole at y 68 — went out at 0.93 s of the rise and was back at 1.2 s, and one
+      // beside the Duo's island dipped to half as the view began to move.)
+      const atRest = smoothstep(foot, foot + head.ramp, y - c.D * look);
+      seen = lerp(seen, Math.max(atRest, smoothstep(under, under + 90, y)), smoothstep(0, 0.12, look));
     }
     return { x: xFrac * G.Wa - c.T * look, y, E, seen };
   }
 
-  const sunRamp = () => (G.cfg.kind === 'slab' && urlSunRamp !== 'old' ? 6 : 15);
+  /** Where the header lets a body go (bodyAt): `foot` — the slab's status bar (the Duo's is its first
+   *  card's top, bodyAt) — and `ramp`, the points of descent over which the body comes out. */
+  const HEAD = { foot: 58, ramp: 15 };
+  /** …and the slab's SUN: on the SETTING side the 6 pt head (above) — whole 16 pt under the status
+   *  icons, a dim disc for under two minutes; on the RISING side the header's own 15, as it always
+   *  was. Which side: by where the sun stands across the display (eased over the middle tenth, where
+   *  it is far above the header on any day). */
+  const sunHead = (xFrac) => (G.cfg.kind === 'slab' && urlSunRamp !== 'old'
+    ? { foot: HEAD.foot, ramp: lerp(15, 6, smoothstep(0.45, 0.55, xFrac)) } : HEAD);
+
+  /** THE SLAB'S RISING SUN IS NOT DRAWN ABOVE THE AVATAR. In the morning the sun climbs the leading
+   *  edge, goes behind the avatar some eight minutes after sunrise (the buttons' rule: clearOfButtons) and
+   *  comes clear of its rim only at y 64–61, six points under the status bar. Over the header's 15 pt
+   *  that was a ghost of a disc for a minute (a tenth of its strength on 4 July, less in November and
+   *  January); while the 6 pt head served both sides it was a tan ball above the avatar's shoulder,
+   *  under the clock, for two or three minutes (4 Jul 05:57–05:59, at up to 0.45 of itself; 21 Nov
+   *  07:25–07:26; 15 Jan 07:55–07:56). So on the rising side the DISC has gone by the time it stands
+   *  above the avatar's top (all of it 15 pt lower, where the avatar hides it anyway): once behind
+   *  the avatar it does not come out again. Its halo keeps the header's own 15 pt, as before — behind
+   *  a button there is only its glow. What is seen of a slab's sunrise is the disc on the horizon for
+   *  its first eight minutes or so, then its glow round the avatar.
+   *  → 0 … 1 for the sun's disc at display height `y`. */
+  const risingDisc = (state, xFrac, y) => {
+    const box = G.cfg.kind === 'slab' && urlSunRamp !== 'old' ? state.layout?.avatar : null;
+    if (!box) return 1;
+    return 1 - (1 - smoothstep(0.45, 0.55, xFrac)) * (1 - smoothstep(box.y + 3, box.y + 18, y));
+  };
 
   // ── the palette for this minute ──────────────────────────────────────
 
@@ -851,7 +896,7 @@ export function create(host) {
     // The sun: the lab's own x (continuous through the night), its real altitude.
     const sunXf = bodyX(state.sun.x, altDeg, 'sun'), moonXf = moon ? bodyX(moon.x, moon.altitude / DEG, 'moon') : 0;
     const sunX = sunXf * G.Wa;
-    const sunRest = bodyAt(state, sunXf, altDeg, c.sunR, 0, sunRamp());
+    const sunRest = bodyAt(state, sunXf, altDeg, c.sunR, 0, sunHead(sunXf));
     const moonRest = moon ? bodyAt(state, moonXf, moon.altitude / DEG, c.moonR, 0) : null;
 
     // Which light the land and the clouds answer: the sun until it is well down, then the moon.
@@ -1072,14 +1117,15 @@ export function create(host) {
     return clear;
   }
 
-  /** THE LEAVING HAS A FLOOR IN TIME. A disc is gone, and a four-point star's rays are in, by the time
-   *  an arriving card is at a fifth of its opacity (standsOpen, underGlass). In the bedtime moment that
-   *  is 0.15 s of the cards' 1.2 s return — eight or nine frames, a quick fade. Reduce Motion's cards
-   *  return in half the time, and there a fifth of a card came in three frames: a cut. So under
-   *  Reduce Motion a card on its way back hides no faster than the full moment's cards would, by the
-   *  time since the return began (lab/presence.js, MOMENT). 1 everywhere else: the full moment and
-   *  every standing frame are as they were. (The app's touch that ends the moment brings the cards
-   *  back in 0.3 s: the same floor is wanted there — port note 3.) */
+  /** THE DRAWING-IN HAS A FLOOR IN TIME. A four-point star's rays are in by the time an arriving glass
+   *  card is at a fifth of its opacity (underGlass). In the bedtime moment that is 0.15 s of the cards'
+   *  1.2 s return — eight or nine frames, a quick fade. Reduce Motion's cards return in half the time,
+   *  and there a fifth of a card came in three frames: a cut. So under Reduce Motion a card on its way
+   *  back draws a star in no faster than the full moment's cards would, by the time since the return
+   *  began (lab/presence.js, MOMENT). 1 everywhere else: the full moment and every standing frame are
+   *  as they were. (The app's touch that ends the moment brings the cards back in 0.3 s: the same
+   *  floor is wanted there — port note 3. It was the discs' floor too, while a returning card took a
+   *  disc away: it takes none now — compose.) */
   function leavingPace(state) {
     if (!state.reduceMotion || !state.event || state.event.kind !== 'bedtime' || state.asleep !== 'night') return 1;
     const since = state.event.age - MOMENT.reduced.back[0];
@@ -1089,8 +1135,8 @@ export function create(host) {
 
   /** How far a four-point star at display (x, y) stands UNDER GLASS: 0 in the open or behind an opaque
    *  card … 1 inside a glass one (`tile`, `sleep`, the tab capsule, the toast — lab/chrome.js), by
-   *  that card's opacity — all of it by the time the card is at a FIFTH of its opacity, as a disc
-   *  leaves (standsOpen): one for one, the mark was still a small sparkle straight after "7:34 PM"
+   *  that card's opacity — all of it by the time the card is at a FIFTH of its opacity (and under
+   *  Reduce Motion no faster than leavingPace): one for one, the mark was still a small sparkle straight after "7:34 PM"
    *  until a returning tile was half there (4.7–5.0 s of the bedtime moment). Eased over the 7 pt its
    *  rays reach, for a star the moving camera carries across an edge; in a standing layout a
    *  four-point star keeps 10 pt from every edge (starsFor), so there it is 0 or 1. It asks the cards
@@ -1107,41 +1153,6 @@ export function create(host) {
       g = Math.max(g, (o < 1 ? Math.min(smoothstep(0, 0.2, o), pace) : 1) * smoothstep(-7, 7, inside));
     }
     return g;
-  }
-
-  /** 1 where a disc of radius `r` at display (x, y) stands wholly in the open with the cards on: 3 pt
-   *  clear of every card and of the anchor window's leading edge. 0 where any of it is under a card,
-   *  or across the gap between two (a 12 pt gap cannot hold a 19 pt moon), or cut by that edge — a
-   *  disc is drawn whole or not at all (its halo's light stays). Weighted by each card's opacity, so
-   *  with the cards away (the bedtime moment, the sky alone) it is 1 everywhere and the bare picture
-   *  is untouched. The header's words and buttons and the strip's furniture are not cards: see
-   *  clearOfText, clearOfButtons and bodyAt().seen.
-   *  A CARD THAT IS ARRIVING HIDES A DISC BEFORE THE DISC CAN BE READ THROUGH IT: the disc has gone
-   *  by the time the card is at a fifth of its opacity (`gone`). It used to go out as the card came
-   *  in, one for one — so as the cards returned at bedtime the moon was a pale disc behind the day's
-   *  feed total from 4.65 to 5.2 s (a grey dot between "7 feeds" and "7 wet" on the slab), and a July
-   *  sun a ghost under the sleep card's glass until 5.3 s. Now it leaves as the cards first show
-   *  (at half by 4.67 s, gone at 4.75 s), while their words are still too faint to read. A standing frame is as
-   *  it was: there a card is on or it is not. (`asIf`: the lab switch disc=caption — take every card
-   *  of the page to be at least this far back already; disc=old is the one-for-one rule.) */
-  function standsOpen(state, x, y, r, asIf = 0) {
-    let open = 1, on = 0;
-    const gone = urlDisc === 'old' || urlDisc === 'caption' ? 1 : 0.2;
-    const pace = gone < 1 ? leavingPace(state) : 1;
-    for (const card of state.cards ?? []) {
-      if (card.kind === 'header' || card.kind === 'strip') continue;
-      let o = clamp01(card.opacity ?? 1);
-      if (asIf > 0 && card.kind !== 'tabbar') o = Math.max(o, asIf);
-      if (!(o > 0)) continue;
-      if (gone < 1 && o < 1) o = Math.min(smoothstep(0, gone, o), pace);   // (`pace`: under Reduce Motion, no faster than the full moment — leavingPace)
-      const dx = Math.max(card.x - x, 0, x - (card.x + card.width)), dy = Math.max(card.y - y, 0, y - (card.y + card.height));
-      open = Math.min(open, 1 - o * (1 - smoothstep(r + 0.5, r + 3, Math.hypot(dx, dy))));
-      if (card.kind !== 'tabbar' && card.x + card.width > G.ox) on = Math.max(on, o);     // the phone page's own cards are on
-    }
-    // (the anchor window's leading edge is the cover's own edge — and the spread's phone page is the
-    // cover's picture, so a disc is not shown straddling it there either)
-    if (on > 0) open = Math.min(open, 1 - on * (1 - smoothstep(r + 0.5, r + 3, Math.abs(x - G.ox))));
-    return open;
   }
 
   /** The sun's halo: two painted rings of light, soft-edged. They were filled through a blur filter on
@@ -1236,9 +1247,9 @@ export function create(host) {
 
   /** The sky as it is painted behind the moon (the moon has one place in the world, so this is the
    *  same in both poses): what a day moon is held to. */
-  const skyBehindMoon = (pal) => {
+  const skyBehindMoon = (pal, lower = 0) => {
     const mr = pal.moonRest;
-    return mr ? pal.air.show(pal.air.skyAt((mr.x - pal.sunX) / G.Wa, Math.max(0, mr.E) / G.cfg.table)) : null;
+    return mr ? pal.air.show(pal.air.skyAt((mr.x - pal.sunX) / G.Wa, Math.max(0, mr.E - lower) / G.cfg.table)) : null;
   };
 
   /** The moon, painted: the whole disc barely there, the lit part in cream with one thin wash.
@@ -3149,7 +3160,7 @@ export function create(host) {
     const light = !pal.dark;
     const moonAt = pal.moonNow;
     const mR = c.moonR + 5;
-    // (a four-point star beside a drawn moon is a point within 40 pt of its centre and has its four
+    // (a four-point star beside the moon is a point within 40 pt of its centre and has its four
     // points again 60 pt out — on the Duo; by the moon's size on the slab. moonstar=old: the lab switch.)
     const moonNear = 40, moonFar = 60;
     // A little brighter once he is down; the sky has gone deeper.
@@ -3263,7 +3274,6 @@ export function create(host) {
     // are smaller crisp points, the faint ones smaller and fainter than they were. No place moves; the
     // four-point stars and the dark print are untouched.
     const dense = light && urlField !== 'old' ? smoothstep(180, 330, stars.list.length) : 0;
-    const coreAt = lerp(0.6, 0.76, dense);
     const marks = [];                                      // the four-point stars as drawn: [x, y, kind, how much of the four-point mark] — window.__hillPainted.stars.marks
     stars.marks = marks;
     for (const star of stars.list) {
@@ -3281,11 +3291,13 @@ export function create(host) {
         // evening). Stars near a moon drown in its glare: within `near` of the centre of the moon the
         // mark is the point an ordinary bright night is, and it has all its four points again `far`
         // out. By how strongly the moon stands in this sky (`moonSky`: its disc as the cards-away
-        // picture draws it) — NOT by whether a card is hiding the disc just now: a card that comes over
-        // the moon changes nothing about the star. (It asked the drawn disc, `moonDisc`, and the place
-        // below asked it too: as the cards returned at a 21:00 bedtime the disc went out in a tenth of
-        // a second and the star beside it grew its four points and slid 8.8 pt in the same five
-        // frames, under the arriving Today card.) Tonight's star is not in this loop.
+        // picture draws it — which, now that the cards cut a disc and do not hide it, is simply the
+        // moon as drawn, but for the glyphs' box) — never by what the chrome is doing: a card that
+        // comes over the moon changes nothing about the star. (While a card could take a disc away
+        // the rule first asked the DRAWN disc, and the place below asked it too: as the cards
+        // returned at a 21:00 bedtime the disc went out in a tenth of a second and the star beside it
+        // grew its four points and slid 8.8 pt in the same five frames, under the arriving Today
+        // card.) Tonight's star is not in this loop.
         if (big && urlMoonStar !== 'old') {
           const k = c.moonR / 9.5;
           byMoon = (pal.moonSky ?? 0) * (1 - smoothstep(moonNear * k, moonFar * k, d));
@@ -3314,7 +3326,19 @@ export function create(host) {
       const shown = out > 0.004 ? smoothstep(threshold - 0.05, threshold + 0.2, out) : 0;
       // a real range: most nights are small faint lights, a few are bright (m: 0 the faintest … 1)
       const m = clamp01((star.magnitude - 0.22) / 0.5);
-      let alpha = (light ? lerp(0.74 + 0.26 * m, 0.60 + 0.40 * m, big ? 0 : dense) : 0.50 + 0.50 * Math.pow(m, 0.6)) * tw * shown * settle;
+      // THE BAND IS SPARED THE THINNING WHERE THE STANDING SKY DRAWS NO STARS. On a July evening the sun
+      // is up at bedtime and the sky has no stars of its own: the band's answers, and what it leaves
+      // them while the cards are away, are the pale page's ONLY stars in the moment — and thinned as a
+      // standing field is they were fewer than half (the cover at 3.0 s: about 40 points that read
+      // at 1×, to 18; the slab 20 to 8, and those low over the apricot horizon nearly all gone). So a
+      // star the band is showing takes its first size and light — and is not drowned toward the land —
+      // by how little the sky itself shows of it (`shown`: nil in July, all of it on a November
+      // night, where the thinning is the gain it was made for and nothing changes), eased by how far
+      // the band has it (`wave`, `keptAt`: nil at both ends of the moment, so no standing frame and no
+      // join moves). `thinK`: this star's share of `dense`.
+      let thinK = dense;
+      if (dense > 0 && !big && bed != null && shown < 1) thinK *= 1 - (1 - shown) * smoothstep(0, 0.15, Math.max(wave, keptAt(x, y)));
+      let alpha = (light ? lerp(0.74 + 0.26 * m, 0.60 + 0.40 * m, big ? 0 : thinK) : 0.50 + 0.50 * Math.pow(m, 0.6)) * tw * shown * settle;
       if (bed != null) alpha *= 1 + 0.22 * passed(x, y) * (1 - smoothstep(5.5, 12, bed));   // (it keeps a fifth more light, and lets it go slowly into the settled night's own)
       alpha = Math.max(alpha, wave * (0.6 + 0.4 * star.magnitude), keptAt(x, y) * (0.6 + 0.4 * m)) + 0.4 * wave * shown;
       alpha *= clearOfTonight(x, y);
@@ -3322,7 +3346,7 @@ export function create(host) {
       const horizonY = c.H0 + (c.D * pal.look) + off.tiltY;
       const thin = 0.4 + 0.6 * smoothstep(4, 46, horizonY - y);
       alpha *= big ? Math.max(0.8, thin) : thin;
-      if (dense > 0 && !big) alpha *= lerp(1, smoothstep(8, 118, horizonY - y), dense);     // (the pale page, dense: drowned toward the land)
+      if (thinK > 0 && !big) alpha *= lerp(1, smoothstep(8, 118, horizonY - y), thinK);     // (the pale page, dense: drowned toward the land)
       if (!(alpha > 0.006)) continue;
       const grow = 1 + 0.45 * wave;
       const px = x * s, py = y * s;
@@ -3332,7 +3356,7 @@ export function create(host) {
       // app's AI glyph (cover, 326 × 420, in the Diaper tile). Under a glass card it is drawn as the
       // brightest ordinary night is — a round point — by that card's opacity (underGlass): its place
       // is its own, so with the cards away (the bedtime moment, the sky alone) it is the mark it was.
-      // And beside a drawn moon (`byMoon`, above). `point`: 0 the four-point mark … 1 the point. On
+      // And beside the moon (`byMoon`, above). `point`: 0 the four-point mark … 1 the point. On
       // the way from one to the other its rays draw in — shorter, at their full light until they are
       // nearly gone — as the point comes up: a smaller sparkle, never a grey ghost of the large one.
       const point = big ? Math.max(underGlass(state, x, y), byMoon) : 1;
@@ -3382,6 +3406,7 @@ export function create(host) {
           // crisp points with no patch at all, and the brighter fifth a larger crisp ROUND core on its
           // own bit of dusk (one mark, one meaning: four points are kept for the first night, the
           // month-nights and tonight — the brighter fifth used to be small four-point glints here).
+          const coreAt = lerp(0.6, 0.76, thinK);
           if (m > coreAt) {
             // (its core is 0.24 of this: 0.82 pt … capped at 1.15 pt — it went on to 1.54)
             const half = Math.min(1.15 / 0.24, 3.4 + 3.0 * (m - coreAt) / (1 - coreAt)) * s * scale * grow;
@@ -3391,8 +3416,8 @@ export function create(host) {
             ctx.drawImage(sprites.bright, px - half, py - half, half * 2, half * 2);
             continue;
           }
-          const rl = lerp(0.56 + 0.62 * m, 0.42 + 0.66 * m, dense) * s * scale * grow;
-          ctx.globalAlpha = clamp01(alpha * (0.22 + 0.4 * m) * smoothstep(0.25, 0.6, m) * (1 - 0.6 * dense));   // (a faint night has no patch: only its point)
+          const rl = lerp(0.56 + 0.62 * m, 0.42 + 0.66 * m, thinK) * s * scale * grow;
+          ctx.globalAlpha = clamp01(alpha * (0.22 + 0.4 * m) * smoothstep(0.25, 0.6, m) * (1 - 0.6 * thinK));   // (a faint night has no patch: only its point)
           ctx.drawImage(sprites.deep, px - rl * 5.2, py - rl * 5.2, rl * 10.4, rl * 10.4);
           ctx.globalAlpha = clamp01(alpha);
           ctx.drawImage(sprites['dot-white'], px - rl * 2.33, py - rl * 2.33, rl * 4.66, rl * 4.66);
@@ -3938,7 +3963,7 @@ export function create(host) {
     ctx.filter = 'none';
 
     // where the bodies are in this pose
-    const sunNow = bodyAt(state, pal.sunXf, pal.altDeg, c.sunR, look, sunRamp());
+    const sunNow = bodyAt(state, pal.sunXf, pal.altDeg, c.sunR, look, sunHead(pal.sunXf));
     sunNow.x += G.ox + tilt.x * SKYPLANE.tilt[0]; sunNow.y += skyOff.tiltY;
     let moonNow = null;
     if (state.moon) {
@@ -3950,67 +3975,97 @@ export function create(host) {
     // and looking up the camera's turn stands between the two — window.__skyBodies. The place, x AND y:
     // by x alone any disc-like blob in the moon's column, at any height, would be named the moon.)
     G.bodies = { sun: { x: sunNow.x, y: sunNow.y }, moon: pal.moonNow ? { x: moonNow.x, y: moonNow.y } : null };
-    // IN THE DUO'S STRIP A DISC IS NOT DRAWN UNDER OR BESIDE THE STATUS ICONS — the moon's or the sun's.
-    // Until its top stands 16 pt clear of them it is out of sight, as it is behind the header: a pale
-    // moon under the Wi-Fi glyph is one more status icon (a crescent there is the Focus moon), a sun's
-    // disc in the icons' row is a weather symbol, and the Wi-Fi glyph drawn on a cream disc is neither.
-    // The whole width of the strip's column counts, not only the icons' own: a disc in the 37 pt between
-    // the cards' edge and the Wi-Fi glyph stands in their row. (With the disc go its halo's rings and its
-    // glare; the sky's own glow round the sun stays.) So a body is first seen in the strip's CLEAR
-    // window. That window is shorter while a sleep runs (the island is longer, the icons sit lower):
-    // `heads` — where it begins awake, and asleep. A sleep that has just begun or ended does not pop a
-    // disc (or a cloud, below) off or on: over the event's first 0.6 s it goes from what the window was.
+    G.discs = { sun: 0, moon: 0 };                          // how strongly each disc is drawn in this frame, 0 … 1 (window.__hillPainted.discs: for a probe)
+    // A DISC IS NOT DRAWN DIRECTLY BEHIND THE WI-FI AND BATTERY GLYPHS — the one place the chrome hides
+    // a disc (BRIEF.md, "Signed off": the sun and the moon keep their places all day and all night, and
+    // the cards cover what they cover). White glyphs on a cream disc cannot be read, and a crescent
+    // touching the Wi-Fi glyph is the Focus moon. The place is the glyphs' own box and no more: the
+    // 50 × 13 pt the two stand in, centred in the Duo's column, their foot at the head of the strip's
+    // clear window (lab/chrome.js, duoStrip; the lab's layout says only where that window begins).
+    // A disc any part of which would stand within 1 pt of that box is out of sight, and it is whole
+    // again once it stands 4 pt further off (the moon 6: a faint moon is a moon, a sun at half strength
+    // a tan ball — about three minutes of an afternoon). With it go its halo's rings and its glare;
+    // the sky's own glow round the sun stays.
+    // Beside the box, over it, under it, behind the island (which is black, and simply covers what
+    // is behind it) a disc is drawn. (It was the whole width of the strip's column, from its head to
+    // 16 pt under the icons: no disc under or beside them — withdrawn with "whole or not at all".)
+    // The icons sit lower while a sleep runs (the island is longer): `heads` — where the clear
+    // window begins awake, and asleep. A sleep that has just begun or ended does not pop a disc (or a
+    // cloud, below) off or on: over the event's first 0.6 s the box goes from where it was.
     const SC = state.layout?.stripClear;
     const heads = SC ? [SC.yMin - (state.asleep ? ISLAND_GROWS : 0), SC.yMin + (state.asleep ? 0 : ISLAND_GROWS)] : null;
     const join = sleepJoin(state.event);
     // (The icons are the chrome's: with the sky alone — no strip in `state.cards` — nothing is hidden.)
-    const stripOn = clamp01(Math.max(0, ...(state.cards ?? []).filter((cd) => cd.kind === 'strip').map((cd) => cd.opacity ?? 1)));
-    const underIcons = (body, R, ramp) => {
+    const strip = (state.cards ?? []).find((cd) => cd.kind === 'strip');
+    const stripOn = strip ? clamp01(strip.opacity ?? 1) : 0;
+    const ev = state.event;
+    const raises = Boolean(ev && !ev.begunBefore && state.asleep === 'night' && (ev.kind === 'bedtime' || ev.kind === 'arrive'));
+    const clearOfGlyphs = (body, R, ramp) => {
       if (!heads || !body || !(stripOn > 0)) return 1;
+      const cx = strip.x + strip.width / 2;
+      const dx = Math.max(cx - GLYPHS.width / 2 - body.x, 0, body.x - (cx + GLYPHS.width / 2));
+      if (dx > R + 1 + ramp) return 1;
+      const clear = (head) => smoothstep(R + 1, R + 1 + ramp, Math.hypot(dx, Math.max(head - GLYPHS.height - body.y, 0, body.y - head)));
+      const now = clear(heads[state.asleep ? 1 : 0]);
+      // (An event that RAISES the view — bedtime, or the night's sleep arriving — never shows a disc the
+      // glyphs were hiding: the box goes down 34 pt as the island grows, and a sun that stood behind it
+      // came out for half a second before the move took it out of sight again, below. There the box
+      // hides a disc at both of its places.)
+      if (raises) return 1 - stripOn * (1 - Math.min(clear(heads[0]), lerp(clear(heads[0]), now, join)));
+      const was = join < 1 ? clear(heads[state.event.kind === 'wake' ? 1 : 0]) : now;
+      return 1 - stripOn * (1 - lerp(was, now, join));
+    };
+    // WHILE THE VIEW MOVES a disc in the strip's column passes the island and the icons out of sight,
+    // and comes out once, under them: nothing of it until its top stands 16 pt clear of the icons'
+    // foot, over the whole width of the column (the moon comes out over 12 pt, the sun over 6). This is
+    // the strip's old rule, kept for the move alone (`onTheWay`: nil at both poses, so every standing
+    // frame is the owner's — a disc where it stands — and no join moves). Without it a July
+    // evening's sun, standing beside the island at rest, came down the strip in three pieces: out
+    // behind the icons, in, out again beside tonight's star (which keeps its 30 pt, below), in.
+    const moving = onTheWay(look);
+    const passesIcons = (body, R, ramp) => {
+      if (!(moving > 0) || !heads || !body || !(stripOn > 0)) return 1;
       const inColumn = smoothstep(SC.x - 2, SC.x + 4, body.x + R);
       if (!(inColumn > 0)) return 1;
       const clear = (head) => smoothstep(head + 16 - ramp, head + 16, body.y - R);
       const now = clear(heads[state.asleep ? 1 : 0]);
       const was = join < 1 ? clear(heads[state.event.kind === 'wake' ? 1 : 0]) : now;
-      return 1 - stripOn * inColumn * (1 - lerp(was, now, join));
+      return 1 - moving * stripOn * inColumn * (1 - lerp(was, now, join));
     };
-    // (the moon comes out over 12 pt — a faint moon is a moon; the sun over 6: a sun at half strength is
-    // a tan ball, and it is on its way down at a point every two or three minutes)
-    if (moonNow) moonNow.seen *= underIcons(moonNow, c.moonR, 12);
-    sunNow.seen *= underIcons(sunNow, c.sunR, 6);
+    // (how strongly the moon stands in this sky whatever the chrome is doing — the header's own rule
+    // only, bodyAt: what the stars ask, below)
+    const moonStands = moonNow ? moonNow.seen : 0;
+    if (moonNow) moonNow.seen *= clearOfGlyphs(moonNow, c.moonR, 6) * passesIcons(moonNow, c.moonR, 12);
+    sunNow.seen *= clearOfGlyphs(sunNow, c.sunR, 4) * passesIcons(sunNow, c.sunR, 6);
 
     const knollPlane = G.planes.find((p) => p.id === 'knoll');
     const knollOff = planeOffset(knollPlane, look, tilt);
     const tonightAt = tonightHome(look, tilt);
     const ring = ringOf(state, tilt);
     pal.tonightAt = tonightAt; pal.tonightSpark = sparkOf(state);
-    // WITH THE CARDS ON A DISC IS DRAWN WHOLE OR NOT AT ALL (standsOpen): the moon's and the sun's, where
-    // the whole disc stands in the open. On the Duo in either pose: at rest too a card's edge cut the
-    // rising sun (a cap in the 20 pt margin under the Today card's corner; half a disc at the fold) and
-    // the afternoon sun coming out from behind the Today card half at a time. On the slab only looking
-    // up: there the header is the whole landscape and the first card's top edge is its foot — the land
-    // goes behind that edge 3 pt under the horizon, and the sun sets behind it as it sets behind land.
-    const cardsRule = c.kind === 'duo' ? 1 : smoothstep(0, 0.5, look);
-    // (the lab switch disc=caption: the other way for a disc to leave as the cards return at bedtime —
-    // ahead of them, with the caption, 4.15–4.6 s. Shot beside the rule and not chosen: a moon at half
-    // strength in the open sky is a grey ball for a quarter of a second. See standsOpen.)
-    const capOut = (state.reduceMotion ? MOMENT.reduced : MOMENT).caption.out;
-    const discAsIf = urlDisc === 'caption' && state.event && state.event.kind === 'bedtime' && state.asleep === 'night'
-      ? smoothstep(capOut[0], capOut[1], state.event.age) : 0;
+    // WITH THE CARDS ON A DISC IS DRAWN WHERE IT STANDS, exactly as the cards-away picture draws it —
+    // the moon's and the sun's, in both poses, on every display. The cards simply lie over it: an
+    // opaque card covers what it covers (half a disc at a card's edge, a cap in the margin), through a
+    // glass tile it shows as the glass shows it. The owner's decision (BRIEF.md, "Signed off — what
+    // Taylor decided on round three", 3): he was offered "whole or not at all" — a disc drawn only
+    // where the whole of it stood in the open, which is what this code did for one pass — and chose
+    // this, knowing the cost. So the sky asks the cards nothing about a disc; what it still asks is
+    // the header's own rule (bodyAt, `seen`), the two buttons' rims (clearOfButtons) and the glyphs'
+    // box (above).
 
-    // (how strongly the moon's disc is drawn in this frame, 0 … 1 — `moonDisc`, the moon is drawn with
-    // it, below — and how strongly it stands in this sky whatever the cards are doing, `moonSky`: the
-    // same without the cards' rule. The stars ask the second: a four-point star beside the moon is a
-    // point, drawStars.)
-    let moonWhole = 1, moonDisc = 0, moonSky = 0;
+    // (how strongly the moon's disc is drawn in this frame, 0 … 1 — `moonDisc` — and how strongly it
+    // stands in this sky with the chrome away, `moonSky`: the same but for the glyphs' box. The stars
+    // ask the second: a four-point star beside the moon is a point, drawStars.)
+    let moonDisc = 0, moonSky = 0;
     if (pal.moonNow) {
       const m = state.moon;
       const up = smoothstep(-1.5, 0.5, m.altitude / DEG), night = 1 - smoothstep(-8, 3, pal.altDeg);
-      moonWhole = cardsRule > 0 ? lerp(1, standsOpen(state, moonNow.x, moonNow.y, c.moonR, discAsIf), cardsRule) : 1;
-      moonSky = lerp(0.42 + 0.58 * night, 1, dayMoonOf(pal)) * up * lerp(smoothstep(0.04, 0.2, m.fraction), 1, pal.nightness) * moonNow.seen * clearOfButtons(state, moonNow.x, moonNow.y, c.moonR);
-      moonDisc = moonSky * moonWhole;
+      const drawn = lerp(0.42 + 0.58 * night, 1, dayMoonOf(pal)) * up * lerp(smoothstep(0.04, 0.2, m.fraction), 1, pal.nightness) * clearOfButtons(state, moonNow.x, moonNow.y, c.moonR);
+      moonSky = drawn * moonStands;
+      moonDisc = drawn * moonNow.seen;
     }
     pal.moonSky = clamp01(moonSky);
+    G.discs.moon = clamp01(moonDisc);
 
     drawStars(ctx, state, pal, time, skyOff, ring);
     drawShootingStar(ctx, pal, time, skyOff);
@@ -4024,17 +4079,30 @@ export function create(host) {
         dayMoon > 0 ? `${Math.round(dayMoon * 100)}|${skyBehindMoon(pal).map((v) => Math.round(v * 400)).join(',')}` : ''].join('|');
       if (G.moon.key !== mk2) { paintMoon(state, pal, clear); G.moon.key = mk2; }
       const up = smoothstep(-1.5, 0.5, m.altitude / DEG);
-      const whole = moonWhole, vis = moonDisc;
-      // (Where the disc is not drawn its halo stays, at a quarter: the glow was sized to stand round a
-      // disc. With nothing at its heart it is, in the dark appearance, itself lighter than a card — 0.024
-      // against 0.0117, which a dark night does not allow below the band — and on the light page a soft
-      // white disc of its own, which a card's edge then bites as it bit the moon.)
-      const haloAmt = pal.nightness * (0.3 + 0.7 * m.fraction) * clear * up * moonNow.seen * lerp(0.25, 1, whole);
+      const vis = moonDisc;
+      const haloAmt = pal.nightness * (0.3 + 0.7 * m.fraction) * clear * up * moonNow.seen;
       if (haloAmt > 0.02) {
         // two painted rings of light, barely there: the room stays dark. (Looking up, the moon has the
         // sky to itself and nothing under it but sky: its halo is a little fuller there.)
         const fuller = pal.dark ? 1 + 1.3 * look * smoothstep(70, 190, moonNow.E) : 1;
-        for (const [k, a] of [[5.2, (pal.dark ? 0.05 : 0.5) * fuller], [2.6, (pal.dark ? 0.09 : 0.7) * fuller]]) {
+        // THE MOON'S GLOW KEEPS UNDER A CARD. Dark, at night, nothing below the header but the disc
+        // itself is lighter than a card (0.0117). The rings were sized for a moon high in a sky of
+        // 0.003; low over the land the night's sky is its lightest (0.009 with the room un-dimmed), and
+        // there the rings lifted the sky round the limb to 0.0113 — at the limit, once a card over the
+        // moon no longer hides its disc and the tree no longer stands in front of it (03:00 on the
+        // default day, awake, looking up: the Sleep tile's glass lies over that glow). So in the deep
+        // night the rings give way to the sky they stand in: no more of them than brings the sky just
+        // under the lower limb (8 pt under it: the lightest sky they lie on) to `most`, and never under
+        // `least` of themselves. A function of the sky behind the moon alone — the same with the cards
+        // on and away, in both poses; a moon in a darker sky (higher; or the room dimmed: he is asleep)
+        // keeps all of its glow.
+        let held = 1;
+        if (pal.dark && pal.deepNight > 0) {
+          const room = MOON_GLOW.most - luminance(skyBehindMoon(pal, c.moonR + 8));
+          held = lerp(1, clamp(room / (MOON_GLOW.adds * haloAmt * fuller), MOON_GLOW.least, 1), pal.deepNight);
+        }
+        G.discs.moonGlow = held;
+        for (const [k, a] of [[5.2, (pal.dark ? 0.05 : 0.5) * fuller * held], [2.6, (pal.dark ? 0.09 : 0.7) * fuller * held]]) {
           const r = c.moonR * k * s;
           ctx.globalAlpha = clamp01(a * haloAmt);
           ctx.drawImage(pal.dark ? sprites.glowCool : sprites['dot-white'], moonNow.x * s - r, moonNow.y * s - r, r * 2, r * 2);
@@ -4069,15 +4137,15 @@ export function create(host) {
       }
       let disc = air.sun;
       if (pal.dark && clear < 1) disc = mix3([0.33, disc[1] * 0.7, disc[2] * 0.7], disc, clear);
-      // (never a disc bitten by a button's rim: behind the gear or the avatar there is only its glow —
-      // nor, looking up with the cards on, by a card's edge)
+      // (never a disc bitten by a button's rim: behind the gear or the avatar there is only its glow.
+      // A card's edge is another matter: the cards cut the sun as they cut the moon — above)
       // (…nor, while the view is on its way between the poses, a disc beside tonight's star: on an early
       // summer bedtime the sun comes down the strip as the star climbs it, and passed 9 pt from it. The
       // star keeps its dark sky against the sun's disc as it does against his other stars; the glow stays.)
       const byStar = onTheWay(look) * clamp01(pal.tonightSpark);
       const starRoom = byStar > 0 ? lerp(1, smoothstep(c.sunR + 6, c.sunR + 30, Math.hypot(sunNow.x - tonightAt.x, sunNow.y - tonightAt.y)), byStar) : 1;
-      const discA = clamp01(sunVis * clearOfButtons(state, sunNow.x, sunNow.y, c.sunR) * starRoom
-        * (cardsRule > 0 ? lerp(1, standsOpen(state, sunNow.x, sunNow.y, c.sunR, discAsIf), cardsRule) : 1));
+      const discA = clamp01(sunVis * clearOfButtons(state, sunNow.x, sunNow.y, c.sunR) * starRoom * risingDisc(state, pal.sunXf, sunNow.y));
+      G.discs.sun = discA;
       ctx.globalAlpha = discA;
       ctx.fillStyle = css(disc);
       const round = discPath(sunNow.x * s, sunNow.y * s, R, 0.012, 4.2);
@@ -4436,7 +4504,7 @@ export function create(host) {
     if (typeof window !== 'undefined') {
       const st = G.stars.list;
       window.__skyBodies = G.bodies ?? null;
-      window.__hillPainted = { timing, look, snowShade: pal.shown(pal.snowShade)[0] ** 3, tree: treeShown(state, state.reduceMotion ? Math.round(look) : look), stars: st.length ? {
+      window.__hillPainted = { timing, look, discs: G.discs ?? null, snowShade: pal.shown(pal.snowShade)[0] ** 3, tree: treeShown(state, state.reduceMotion ? Math.round(look) : look), stars: st.length ? {
         total: st.length,
         places: st.map((q) => [Math.round(q.lx * 10) / 10, Math.round(q.ly * 10) / 10, q.kind]),   // looked-up display points (anchor window's x)
         marks: G.stars.marks ?? [],                        // the four-point stars in view as last drawn: [x, y (display points, the anchor window's x), kind, how much of the mark is four-point 0 … 1]

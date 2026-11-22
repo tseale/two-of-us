@@ -17,14 +17,18 @@ tree with the cards on (it is a layer of its own, and not drawn looking up), wha
 and the status icons may hide at rest, the clouds' drawing and the large bank's place, the snow
 under the glass tiles, the fireflies' places, and the lab's rules for `settle`, an early
 night's wake and a wake's tone are as of the last pass, "the night's tree, the leftovers and
-what the verifiers found"; what a four-point star is under glass and beside the moon, how a
-disc leaves as the cards return, the slab's sun under its status bar, the gap cloud's left end,
+what the verifiers found"; what a four-point star is under glass and beside the moon, the slab's
+sun under its status bar, the gap cloud's left end,
 the pale page's field of stars from six months on and the ruler's x and y are as of the polish
 pass after it (the final check's six minors and
 two rules of the director's) — and of that pass's mend: where the slab's sun comes out (the
 head of its old ramp, not the tail), the star beside the moon (its place and form no longer
-ask the cards) and Reduce Motion's disc (a floor in time); the rest is as round two left it, with the round's drawing passes
-(crowns, clouds, land, river) merged in.
+ask the cards); **what the cards do to the sun's and the moon's disc — they cut it, and
+never hide it — is the owner's decision at the sign-off** (BRIEF.md, "Signed off — what Taylor
+decided on round three", 3) and is as of the pass after it, with the glyphs' box, the strip's
+old rule kept for the move alone, the moon's glow low over the land, the slab's rising sun and
+the summer band on the pale page; the rest is as round two left it, with the round's drawing
+passes (crowns, clouds, land, river) merged in.
 
 ## The idea
 
@@ -197,9 +201,10 @@ never moves the camera, at any hour, after any sleep; naps keep the rest pose. (
     Shot in November and the four seasons, the last ninety minutes in ten-minute steps,
     both appearances: it composes in all five, nothing glows on the gear. **As it comes out
     from under the status bar the sun is a dim disc above the tree for under two minutes**
-    (`bodyAt`, `ramp`: the slab's sun eases in over 6 pt, y 58–64 — the Duo's own rule for a
-    sun under the status icons, which are what it comes out from under here: nothing of it
-    until its top is 10 pt under them, all of it at 16; the icons' foot is y 39 and the
+    (`bodyAt`, `sunHead`: the slab's setting sun eases in over 6 pt, y 58–64: nothing of it
+    until its top is 10 pt under the status icons, which are what it comes out from under
+    here, all of it at 16 — the distance the Duo's strip kept while it had a rule for the
+    whole column; the icons' foot is y 39 and the
     signal bars, x 292–310, stand over it — the sun comes out at x 299–301 in November and
     January, 308–310 in July). It was 15 pt (y 58–73), as it always had
     been — behind the gear nobody saw it — and a dim tan ball for four to five minutes of
@@ -217,21 +222,72 @@ never moves the camera, at any hour, after any sleep; naps keep the rest pose. (
     brightens over the first half second, as it always did over the 15 (stepped at 19:52:
     from 0.6 of itself; the old ramp's from 0.14). `sunramp=old` shoots the 15 pt. The moon's
     15 pt are as they were.
-    The rising side, the tree, the horizon and the header's words are as they were.
-    (`sets=old` shoots the baseline's x.)
-  - **In the Duo's strip a disc is not drawn under or beside the status icons** — the moon's or
-    the sun's. A pale moon stood 12 pt under the Wi-Fi glyph (28 Nov, 09:50) and a crescent
-    touched it (2 Dec, 11:40): one more status icon — the Focus moon. The sun's disc stood
-    half behind the island and with the Wi-Fi glyph drawn on it on a July evening
-    (18:40–19:10), and in the icons' own row in November (14:40–15:00): a weather symbol.
-    Until its top stands 16 pt clear of the icons a disc is out of sight, as it is behind the
-    header (`underIcons`), over the whole width of the strip's column; with it go its halo's
-    rings and its glare (the sky's own glow round the sun stays). The moon comes out over
-    12 pt, the sun over 6 (a sun at half strength is a tan ball). Across a sleep's start or end
-    it follows the longer island over 0.6 s, as the strip's cloud does. So a body is first
-    seen in the strip's CLEAR window: in November the sun from about 15:15 (it used to show
-    from 14:16, half a disc at a time), in July from about 19:20. The rule is the chrome's:
-    with the sky alone nothing is hidden.
+    **The 6 pt are the setting side's alone, and the rising sun is not drawn above the
+    avatar** (`sunHead`, `risingDisc`; the side is where the sun stands across the display,
+    eased over its middle tenth, where it is far above the header on any day). In the morning
+    the slab's sun climbs the leading edge, goes behind the avatar some eight minutes after
+    sunrise (a disc is never bitten by a button's rim) and comes clear of that rim only at
+    y 64–61, six points under the status bar. Over the header's 15 pt that was a ghost of a
+    disc for a minute — a tenth of its strength on 4 July at 05:58, less in November and
+    January; while the polish pass's 6 pt served both sides it was a tan ball above the
+    avatar's left shoulder, under the clock, for two or three minutes (4 July 05:57–05:59,
+    up to 0.45 of itself at 05:58; 21 November 07:25–07:26; 15 January 07:55–07:56 — the
+    final check's second minor). Now the rising side keeps the header's 15 pt for the sun's
+    halo, as before the polish, and the DISC has gone by the time it stands above the
+    avatar's top (all of it 15 pt lower, where the avatar hides it anyway): once behind the
+    avatar it does not come out again. The disc's strength is 0.00 at every minute of
+    05:54–06:00 on 4 July, 07:21–07:27 on 21 November and 07:50–07:56 on 15 January; what is
+    seen there is the glow round the avatar, as it was before the polish. Chosen by looking
+    at one-minute steps on the three dates in both appearances, beside the 6 pt and the
+    15 pt (the other way offered, the bare 15 pt, keeps the one-minute ghost in July). So a
+    slab's sunrise is the disc on the horizon for its first eight minutes or so (05:21–05:29
+    on 4 July, to 06:55 on 21 November, to 07:24 on 15 January), then its glow.
+    The tree, the horizon and the header's words are as they were. (`sets=old` shoots the
+    baseline's x; `sunramp=old` the 15 pt on both sides and the rising disc as it was.)
+  - **A disc is not drawn directly behind the Wi-Fi and battery glyphs** — the one place
+    the chrome hides a disc (BRIEF.md, "Signed off", 3: the exception the owner kept, for
+    legibility). White glyphs on a cream disc cannot be read, and a crescent touching the
+    Wi-Fi glyph is one more status icon — the Focus moon. The place is the glyphs' own box and
+    no more: the 50 × 13 pt the two stand in, centred in the Duo's column, its foot the head
+    of the strip's clear window (`GLYPHS`, `clearOfGlyphs`; cover x 399–449, y 138–151 awake
+    and 172–185 while a sleep runs). A disc any part of which would stand within 1 pt of
+    that box is out of sight, and whole again 4 pt further off (the moon 6: a faint moon is a
+    moon; a sun at half strength is a tan ball — about three minutes of an afternoon). With
+    it go its halo's rings and its glare; the sky's own glow round the sun stays. Beside the
+    box, over it, under it and behind the island — which is black, and simply covers what is
+    behind it — a disc is drawn. Across a sleep's start or end the box follows the longer
+    island over 0.6 s, as the strip's cloud does. The rule is the chrome's: with the sky alone
+    nothing is hidden. On the slab the status bar is a whole row of glyphs and the header's
+    own rule keeps a disc out of it.
+    **It was the whole column**: until the sign-off no disc was drawn under or beside the
+    status icons — out of sight, over the strip's whole width, until its top stood 16 pt
+    clear of them (`underIcons`), so a body was first seen in the strip's clear window (in
+    November the sun from about 15:15, in July from about 19:20). That is withdrawn with
+    "whole or not at all" (below): the sun and the moon keep their places. On the cover, 21
+    November, awake: the sun comes out from behind the Today card's trailing edge half at a
+    time from 14:16, is whole beside the card at 14:40 and passes below and left of the Wi-Fi
+    glyph at 15:00 (its centre 16 pt left of the glyphs' box, 9 pt under its foot) at its
+    full strength — it is never behind the glyphs that afternoon. With
+    a nap running (the icons 34 pt lower) it is behind them from about 15:07 to 15:28. On
+    4 July it comes out from under the header at 18:30, stands whole beside the island at
+    18:35–18:42 (2 pt of it behind the island's edge), is out of sight behind the Wi-Fi glyph
+    from about 18:47 to 19:12 and whole again under it by 19:16. A full moon setting on the
+    morning of 25 November stands by the island's foot at 06:30 and is behind the glyph from
+    06:35 to 07:00. (Looked at in five-minute steps on those four days, both appearances.)
+    **While the view MOVES the column's old rule still holds** (`passesIcons`, weighted by
+    `onTheWay`: nil at both poses, so no standing frame and no join knows of it): a disc in
+    the strip's column passes the island and the icons out of sight and comes out once,
+    under them — the moon over 12 pt, the sun over 6. Without it a July evening's sun,
+    standing beside the island at rest, came down the strip in three pieces during the rise:
+    out behind the icons, in, out again beside tonight's star, in (an 18:30 bedtime: 0.42,
+    0.90, 0.43, 0.90, 0.59, 1 of itself inside 1.3 s). And an event that raises the view never
+    shows a disc the glyphs were hiding: the box goes down 34 pt as the island grows, and a
+    sun that stood behind it came out for half a second before the move took it again. Now,
+    stepped at 15 fps on 4 July from six bedtimes ten minutes apart (18:30–19:20, cover,
+    dark): a sun that is out at rest goes once (by 0.67 s) and comes out once, under the
+    icons and left of the star (1.13–1.27 s); one that is behind the glyphs stays out of
+    sight until then. (At 18:30, where the rest pose has it dim under the header, it swells
+    to 0.74 on its way out before it goes: seen in the numbers, not judged at speed.)
   - **By day the moon is a pale day moon**: only its lit part (its phase), in the sky's own
     colour gone a little toward white and held within 1.15 : 1 of the sky behind it, with a
     soft limb, its seas a breath of the sky showing through; it does not glow and burns
@@ -252,48 +308,86 @@ never moves the camera, at any hour, after any sleep; naps keep the rest pose. (
     10 pt under the skyline so the trunk carries no step. A sun half behind a hill no longer
     throws a round bloom on the near side of that hill (06:50 and 16:15–16:25); the knoll's
     rim and the level haze under the sun carry the light. (`glare=old` shoots the old one.)
-  - **A disc is drawn whole or not at all.** With the cards on — on the Duo in either pose, on
-    the slab looking up — the moon's or the sun's disc is drawn only where the whole disc, and
-    3 pt round it, stands in the open (`standsOpen`): not under a card, not across the 12 pt gap between two (a 19 pt moon
-    cannot stand in it), not in the 20 pt margin, not straddling the anchor window's leading
-    edge (the cover's own edge — and the spread's phone page is the cover's picture). Its
-    halo's light stays, at a quarter where the moon's disc is not drawn: the glow was sized to
-    stand round a disc, and with nothing at its heart it is itself lighter than a card in the
-    dark appearance (0.024 against 0.0117: the dark-night gate fails on it) and a soft white
-    disc of its own on the light page, which a card's edge then bites as it bit the moon. So
-    a gap or a pane of glass takes a faint glow, no more. It is weighted by
-    each card's opacity, so with the cards away the bare picture is untouched — **and a card
-    that is arriving hides a disc before the disc can be read through it**: the disc has gone
-    by the time the card is at a fifth of its opacity (`standsOpen`, `gone`). It used to go
-    out as the card came in, one for one, and as the cards returned at bedtime the moon was a
-    pale disc behind the day's feed total (see "Bedtime"). **At rest it
-    was not applied, and a card's edge cut the bodies there too**: the rising sun was a cap
-    in the 20 pt margin under the Today card's corner (and half a disc at the fold of the open
-    Duo), the afternoon sun came out from behind the Today card half at a time (14:16–14:44
-    in November), a crescent was cut by the same edge (13 Nov, 18:00) and a full moon rose as
-    a cap in the margin (25 Nov, 17:10). Now, on the Duo, the sunrise is its glow, its halo's
-    rings behind the card's corner, the lit mist and the knoll's rim — **the rising disc is
-    never drawn with the cards on** (it is still in the bare panorama; while the Duo opens the
-    phone page's cards are on, so the disc at their edge is not shown then either). On the slab the rule stays the looked-up pose's alone: there the
-    header is the whole landscape and the first card's top edge is its foot, 3 pt over the
-    horizon — the sun sets behind that edge as it sets behind land. **What this costs:**
-    looking up, a body never reaches the strip (the turn
-    brings it 90 pt left: x ≤ 357), so with the cards on the Duo shows the moon's disc almost
-    nowhere — only in the gutter of the open Duo, left of the fold, for the minutes it crosses
-    it. The moon is a glow in the gaps; its disc belongs to the bedtime moment.
+  - **The cards cut the sun and the moon.** With the cards on — in both poses, on all three
+    displays, in both appearances — a disc is drawn where it stands, exactly as the
+    cards-away picture draws it, and the cards simply lie over it: an opaque card covers
+    what it covers, and through a glass tile the disc shows as the glass shows it. **This is
+    the owner's decision** (BRIEF.md, "Signed off — what Taylor decided on round three", 3).
+    For one pass the code did the other thing — "a disc is drawn whole or not at all": only
+    where the whole disc and 3 pt round it stood in the open, never under a card, across a
+    gap, in the 20 pt margin or at the anchor window's leading edge (`standsOpen`); its halo
+    held to a quarter where the disc was hidden; a returning card taking a disc away by a
+    fifth of its own opacity; and nothing under or beside the status icons. He was offered
+    that and chose this, in his option's words: "Let the cards cut it — the sun and moon keep
+    their places all day and night and show in the gaps and margins, partly hidden by cards,
+    as in round two", knowing the cost: "they are often half a disc at a card's edge". So
+    the sky asks the cards nothing about a disc. What it still asks is the header's own rule
+    (`bodyAt`, `seen`: nothing in the Duo's header band or behind the slab's status bar, as
+    round two had it), the two buttons' rims (`clearOfButtons`: behind the avatar or the gear
+    there is only its glow) and the glyphs' box (above). `standsOpen`, the halo's quarter and
+    the lab switches `disc=old` and `disc=caption` are gone from the code.
+    **Where a disc is seen with the cards on.** *Cover, at rest*: in the strip, from the
+    Today card's trailing edge to the tree — the sun comes out from behind that edge half at
+    a time (14:16–14:40 on 21 November) and is in sight all afternoon; and a cap in the 20 pt
+    leading margin as it rises (06:50–07:02: a sliver over the land at 06:50, half a disc
+    under the Today card's corner at 06:55, a crescent of it at 07:00), the moon the same.
+    *Cover, looking up*: the turn brings a body 90 pt left (x ≤ 357), so nothing reaches the
+    strip. A high moon is wholly behind the Today card — on 21 November from 19:40 until
+    about 23:30, the full moon of 25 November from about 21:40 until past 03:00; lower it is
+    under the glass tiles (a faint glow where the lab's glass blurs it: the Diaper tile at
+    00:30) or in a gap (half a bright disc between that tile and the sleep card at 01:45),
+    and from 02:00 to 03:20 a dim ball under the sleep card's glass, at its right-hand end.
+    A rising moon climbs the leading margin: half a disc at the display's edge (25 November
+    19:40), a disc cut by the Feed tile's edge (20:15), a cap between the Today card's corner
+    and the tile's (21:00). *Spread*: the phone page is the cover's picture; the sun rises out
+    of the fold gutter as half a disc beside the phone page's Today card (06:55–07:00), and
+    on the leading page a disc is under its opaque cards or in the gutter. *Slab, at rest*:
+    as it always was — the header is the whole landscape and the first card's top edge its
+    foot. *Slab, looking up*: behind the Today card when high, a faint glow under the tiles
+    and the sleep card lower down (the lab's glass blurs it there), a glow in the gap under
+    the Today card at 19:40. **What this costs** is what he accepted: a disc at a card's edge
+    is half a disc; and on the Duo the lab's sleep card and wide Sleep tile do not blur what
+    is behind them (stars have always shown through them as crisp points), so a moon there
+    is a dim, hard-edged ball — in the app's glass it would be a glow. Where a disc stands
+    behind a card's words nothing protects them but the card: the opaque cards hide it, the
+    blurring tiles spread it to a glow of some ten levels, and under the Duo's sleep card
+    its path (x 313–357 on the default night; a rising moon is at the display's leading edge
+    at that height) is to the right of the card's words. The header's
+    words keep their guard and their limits (Gates).
+    **The moon's glow keeps under a card** (`MOON_GLOW`). Dark, at night, nothing below the
+    header but the disc itself may be lighter than a card (0.0117). The halo's two rings were
+    sized for a moon high in a sky of 0.003; low over the land the night's sky is its
+    lightest (0.009 with the room un-dimmed), and there the rings lifted the sky round the
+    limb to 0.0113 — the gate's "at the limit" — once a card over the moon no longer hid its
+    disc and the tree no longer stood in front of it (03:00 on the default day, awake,
+    looking up: the Sleep tile's glass lies over that glow). So in the deep night the rings
+    give way to the sky they stand in: no more of them than brings the sky 8 pt under the
+    lower limb to 0.0100, and never under two fifths of themselves. It is a function of the
+    sky behind the moon alone — the same with the cards on and away, in both poses: at
+    03:00 awake the rings are at 0.56 of themselves and the ground reads 0.0097 with the
+    cards and without; a setting moon's worst is 0.0103 (03:20); a moon in a darker sky —
+    higher, or the room dimmed because he is asleep — keeps all of its glow, so the night's
+    asleep frames and the bedtime poster are untouched.
   - **During the rise the sun's disc keeps clear of tonight's star.** On an early summer bedtime
     (4 July, 18:40: the sun at +17°) the disc came down the strip as the star climbed it and
     passed 9.4 pt from it. While the view is between the poses the disc gives the star 30 pt,
-    as his other stars do (its glow stays); with the icons' rule it now first shows at about
-    1.15 s, under the icons and left of the star, and is whole by 1.3 s. The two held frames
-    are untouched.
+    as his other stars do (its glow stays); with the column's rule for the move (above) it
+    first shows at about 1.15 s, under the icons and left of the star, and is whole by 1.3 s.
+    The two held frames are untouched.
   - **During the rise a body arrives in open sky.** Once the view has left the rest pose a
     body comes out from under the header over 90 pt of sky, not 15 (and on the slab from
     under the whole header, not only the status bar): the moon coming down with the sky no
     longer blinks on under the Duo's header in two frames (it fades in over 0.3 s) or rolls
     through his name on the slab. No looked-up body ever rests within those 90 pt (the Duo's
     highest moon stands at y ≈ 183, the slab's at y ≈ 250), so the standing frames are as
-    they were.
+    they were. **A body the rest pose already shows stays in sight as the view leaves it**:
+    the 90 pt are for what comes down from above the header, and `seen` never falls under
+    what the rest pose showed of that body. Without this a sun standing in the slab's header
+    at a July bedtime — whole at y 68 at 19:55 — went out at 0.93 s of the rise and was back
+    at 1.2 s (the build before this pass does the same: shot from both trees, 0.6–1.33 s),
+    and one beside the Duo's island dipped to half as
+    the view began to move. Stepped at 30 fps, 0–2 s: the slab's 19:55 sun is at 1.00 in
+    every frame now.
   - **The sun's halo** is two soft rings. They were filled through a blur filter on every
     frame; they are now painted into sprites and kept (`drawSunHalo`; see Cost). The pale
     page's are its own (`SUN_RINGS_LIGHT`): apricot, deeper than the sky, softer-edged.
@@ -427,7 +521,7 @@ never moves the camera, at any hour, after any sleep; naps keep the rest pose. (
   drawStars): its place is its own, so with the cards away — the bedtime moment, the sky
   alone — it is the mark it was, and as a card comes over it its rays draw in (shorter, at
   their full light until they are nearly gone) while the point comes up — all of it by the
-  time the card is at a fifth of its opacity, as a disc leaves: at bedtime the mark is
+  time the card is at a fifth of its opacity: at bedtime the mark is
   wholly a point at 4.75 s (still 0.28 four-point at 4.70 s, 0.03 at 4.73 — the check's
   figures, from the sky's own `marks`; one for one with the card, a small sparkle stood
   straight after "7:34 PM" until the tile was half back, 4.7–5.0 s; stepped at 20 fps on the
@@ -457,8 +551,9 @@ never moves the camera, at any hour, after any sleep; naps keep the rest pose. (
   is the point an ordinary bright night is, and it has all its four points again 60 pt out
   (on the Duo; by the moon's size on the slab), its rays drawing in on the way. **The rule
   asks the sky, not the cards**: by how strongly the moon stands in this sky (`moonSky`: its
-  disc as the cards-away picture draws it — its height, its phase, the header's and the
-  status icons' rules), never by whether a card is hiding the disc just now; and the star's
+  disc as the cards-away picture draws it — its height, its phase, the header's rule; since
+  the cards cut a disc and no longer hide one, that is simply the moon as drawn, but for the
+  glyphs' box), never by what the chrome is doing; and the star's
   PLACE is what it always was — a four-point star whose place is within 32 pt of the moon's
   centre stands off at 32 pt, as a point or as a mark. (The polish pass first asked the
   DRAWN disc, and let the point stand at its own place: as the cards returned at a 21:00
@@ -657,31 +752,32 @@ never moves the camera, at any hour, after any sleep; naps keep the rest pose. (
   a level by 3.9 s (4.0–4.05 s on the slab), and the cards' first (1 %) is at 4.62 s — measured
   from 60 fps films on all three displays (in the light appearance and in July too).
 
-  **Nor is the moon's disc read through a returning card.** On the default day the moon stands
-  upper left in the looked-up sky, where the Today card returns; with the cards on its disc is
-  not drawn, and it used to go out as the card came in, one for one: from 4.65 to 5.2 s the
-  feed total "31.5" was read through a pale disc on the Duo, on the slab a grey dot stood
-  between "7 feeds" and "7 wet" until 5.3 s, and on a July evening the sun's disc in the crown
-  was a ghost under the sleep card's glass until 5.3 s. A card that is arriving now hides a
-  disc by the time it is at a fifth of its opacity (`standsOpen`): the disc is at half by
-  4.67 s, under a twentieth by 4.73 s and gone at 4.75 s, while the card's words are still too
-  faint to read; its halo goes to its quarter with it. **Under Reduce Motion the leaving has
-  a floor in time** (`leavingPace`): there the cards return in 0.6 s, a fifth of a card comes
-  in three frames, and the disc went out as a cut (whole at 3.417 s, gone at 3.467 — the
-  check's second minor). A card on its way back now hides the disc — and draws a star's rays
-  in under glass — no faster than the full moment's cards would, by the time since the
-  return began: nine frames, 3.40–3.55 s (the mean of the disc's 20 pt square falls 154 → 35,
-  19 levels a frame at most; for about four of those frames a disc under half its strength
-  stands behind the first trace of "31.5"). The full moment and every standing frame are
-  the same bytes with it. Stepped at 60 fps from 4.0 to 6.0 s, before and after, on the cover in
-  both appearances, the slab, and the July cover (19:55): the frames are the same bytes up to
-  4.60 s and from 5.75 s on, so the joins and the table above are untouched. Two other ways
-  were shot beside it and not chosen: gone by a third of the card's opacity (4.80 s: for three
-  frames a grey disc stands behind the first trace of the digits), and leaving ahead of the
-  cards with the caption, 4.15–4.6 s (`disc=caption`: a moon at half strength in the open sky
-  is a grey ball for a quarter of a second, before anything has come to cover it). The same
-  rule serves every card that fades in over a disc; where the cards are simply on (the quiet
-  rise, the opening) nothing changes — the same bytes, 55 frames of 55.
+  **The returning cards simply arrive over a disc.** On the default day the moon stands
+  upper left in the looked-up sky, where the Today card returns. The disc keeps its place and
+  its strength through the return — the sky asks the cards nothing about it (Composition, "The
+  cards cut the sun and the moon") — and the card comes in over it: no blink, no step. Stepped
+  at 60 fps from 4.4 to 5.9 s on the cover in both appearances, on the slab, and on the July
+  cover (19:55, the sun in the crown, where the sleep card's glass returns): the sky's own
+  strength for the disc is 1.00 in all 91 frames of each; the mean of the disc's 20 pt square
+  falls by 2.9 levels a frame at most on the cover in dark (0.6 in light, 3.3 on the slab,
+  2.0 in July) and never turns back by more than half a level (one level in July, as the
+  tree leaves with the cards).
+  **What that costs, and the owner took it**: while the Today card is between a fifth and
+  four fifths back (about 4.65–5.4 s) the day's feed total "31.5" is read through, then over,
+  a pale disc on the Duo; on a July evening the sun stays on as a pale disc under the sleep
+  card's glass once the tree has gone with the cards. For one pass a returning card took the
+  disc away ahead of its own words — gone by a fifth of the card's opacity, 4.6–4.75 s, with
+  a floor in time under Reduce Motion (`standsOpen`, `leavingPace`) — the polish pass's
+  answer to exactly that "31.5"; it was withdrawn with "whole or not at all", by the same
+  decision. `leavingPace` stays for the one thing that still leaves as a card arrives: a
+  four-point star's rays under glass ("His stars"), which under Reduce Motion — the cards
+  back in 0.6 s — draw in no faster than the full moment's cards would. Where the cards are
+  simply on and a disc moves behind them (the quiet rise) or a page's cards land on one (the
+  opening), it is the same: a full moon coming down in `arrive` slides behind the Today card,
+  out under its corner at 1.5 s and down the leading margin to rest half off the display's
+  edge at 2.4 s; in the opening a leading-page card fades in over the moon, which is read
+  through it until the card is nearly there (1.8 s). Stepped at 30 and 10 fps on
+  25 November.
 
   **The band's first state is not a ring round the star.** Its light used to be visible from
   46 pt out — a closed circle round the star for a third of a second: sonar. It is now held
@@ -812,11 +908,23 @@ never moves the camera, at any hour, after any sleep; naps keep the rest pose. (
   they were (0.42–0.92 of the old unit for 0.56–1.03, at 0.60–0.90 of their light for
   0.74–0.94, their dusk at two fifths). No place moves; the four-point stars, tonight's, the
   leading page's ordinary sky and the dark print are untouched (`field=old` shoots it as it
-  was). **It thins every pale night sky of a dense year, not only the looked-up one**: the
-  rest pose (at 368 nights the conspicuous points in the cover's rest sky fall from 51 to
-  32) and the bedtime moment's band, whose answers are the same smaller points (a July
-  bedtime at 3 s: about half as many stars are seen to answer on the slab, fewer low down on
-  the cover — quieter, still a band; the check's figures and frames, not reshot here). And
+  was). **It thins every STANDING pale night sky of a dense year, not only the looked-up
+  one**: the rest pose too (at 368 nights the conspicuous points in the cover's rest sky fall
+  from 51 to 32). **The bedtime band is spared it where the standing sky draws no stars.** On
+  a July evening the sun is up at bedtime and the sky has no stars of its own, so the band's
+  answers — and what it leaves them while the cards are away — are the pale page's only
+  stars in the moment; thinned as a standing field is, they were fewer than half (the final
+  check's count of the points that read at 1× at 3.0 s: about 40 to 18 on the cover, 20 to 8
+  on the slab, and those low over the apricot horizon nearly all gone). A star the band is
+  showing now takes its first size and light, and is not drowned toward the land, by how
+  little the sky itself shows of it (`shown`: nil in July, all of it on a November night),
+  eased by how far the band has it (`wave`, `keptAt`: nil at both ends of the moment) —
+  `thinK`, drawStars. At 368 nights, light, cover and slab, 2.8–3.6 s in fifths of a second:
+  on 4 July at 19:55 the frames are the ones from before the thinning (`field=old`) to
+  within 6 levels, 4 pixels over 2; on 21 November at 19:40, where the thinning is the gain
+  it was made for, they are the same bytes as before this pass; the dark print is the same
+  bytes on both evenings; and the moment's first frame and the standing frames are untouched
+  (the joins: Gates). And
   on the pale page the sky no longer visibly FILLS between about six months and a year:
   points standing more than 30 levels over their sky, cover, cards away, 21:00 — 305 at 142
   nights, 357 at 200, 349 at 260, 322 at 300, 359 at 368, 454 at 560 (before: 308, 359, 412,
@@ -848,29 +956,35 @@ PASS, "144 of 142" on all three displays in both appearances.
 **What the first run measures has changed.** Its 21:00 and 03:00 frames are `asleep=0` after
 the sample bedtime: the night has begun, so they are now the **looked-up pose with the room
 un-dimmed** (a night feed), not the rest pose at night. 12 of its 48 frames are that. No
-limit was changed. Their closest figure: the dark night ground as an area 0.0101 at 03:00 on
-the spread (0.0100 at rest in round two; a card is 0.0117, "AT-LIMIT" begins at 0.0111). The
+limit was changed. Their closest figure: the dark night ground as an area 0.0097 at 03:00 on
+the spread, beneath the cards (it was 0.0101, sky alone, before the sign-off pass; 0.0100 at
+rest in round two; a card is 0.0117, "AT-LIMIT" begins at 0.0111). The
 rest pose at night is no longer in any gate run (`--times 18:30` or `--param begun=0`
 measures it; an 18:30 run of the same ruler passes).
 
-**And the looked-up frames are now measured twice.** The tool shoots the sky alone ("bare")
+**And the looked-up frames are measured twice.** The tool shoots the sky alone ("bare")
 and the sky as drawn beneath the real cards ("under"), and where the two differ by more than
-2 levels it measures and judges both. They used to be one picture. Looking up they no longer
-are: beneath the cards the tree is not drawn, and the moon's disc is not drawn
-where it would be bitten (its halo held to a quarter). (Since the pass before last the rest pose's
-frames differ in the same way wherever a disc is hidden by a card or by the status icons; and
-since the polish pass a four-point star under a glass card is a point.) So **20 of the first
-run's 48 frames** and all 18 of the second's are judged in both forms (15 and 18 dark-night
-ground measurements where there were 9 and 9). The 20 are the twelve night frames (21:00 and
-03:00: the looked-up pose) and eight of the rest pose's — the Duo's 06:50 and 16:10, cover
-and spread, both appearances: at 06:50 the rising sun's disc (x 21, y 298: a cap in the margin
-under the Today card's corner) and at 16:10 the day moon (x 76, y 99: across that card's top
-edge) are not drawn beneath the cards. It was 12 while the rest pose drew every disc whatever
-stood over it; the eight came with the rule that a disc is whole or not at all at rest (a disc
-hidden by the status icons would count the same way; none of this run's hours has one). Gate 1
-prints the count. Both pass in both. This is why the moon's halo is
-held to a quarter where its disc is hidden: left whole, with no disc for the ruler to set
-aside, the glow alone read 0.024 beneath the Today card at 21:00 and failed this check.
+2 levels it measures and judges both. Looking up they differ: beneath the cards the tree is
+not drawn, and a four-point star under a glass card is a point. So **12 of the first run's 48
+frames** — the twelve night frames, 21:00 and 03:00, the looked-up pose — and all 18 of the
+second's are judged in both forms (15 and 18 dark-night ground measurements where there were
+9 and 9). Gate 1 prints the count; both pass in both. **It was 20 of 48 for one pass**, while
+a disc was drawn whole or not at all: eight frames of the rest pose then differed too — the
+Duo's 06:50 and 16:10, cover and spread, both appearances, where the rising sun's disc (at
+(21.0, 295.3): a cap in the margin under the Today card's corner) and the day moon (x 76,
+y 99: across that card's top edge) were not drawn beneath the cards. Since the sign-off the
+sky draws a disc where it stands whatever lies over it, so at rest the sky under the cards
+is the sky alone again, and the 20 are 12; the one place the chrome still hides a disc — the
+glyphs' box — would count the same way, and none of this run's hours has a disc there.
+**With the disc drawn under the cards the ruler sets it aside there as it does in the bare
+frame, and what it then judges is the moon's own glow**: left as it was, that glow read
+0.0113 beneath the Sleep tile at 03:00, awake, on the cover — "PASS, with checks AT-LIMIT"
+(0.0110 on the spread, the same picture on another footing of the 8 pt grid). It is held
+now where the night's sky is lightest (`MOON_GLOW`, Composition): 0.0097 on both, bare and
+under, and 0.0103 at its worst as the moon sets (03:20; a run of the same ruler at 02:30,
+02:45, 03:00, 03:10, 03:20 and 03:30 on all three displays passes with nothing at a limit).
+(For the one pass a hidden disc's halo was held to a quarter for the same check: with no
+disc for the ruler to set aside the glow alone read 0.024 beneath the Today card at 21:00.)
 
 **The gates across the year, and the one that failed.** The claims review ran the three runs
 on eleven other dates and ages (34 runs, about a thousand frames): 31 passed with nothing at
@@ -901,8 +1015,9 @@ the verifiers found": no figure moved from the pass before it): the light grey l
 17:30, limit 3 : 1 / 0.55; it was 3.26 and 0.605 — the slab's afterglow now stands 62 pt
 further left); the dark grey line by day (0.043, limit 0.072; 3.95 : 1 on the
 cover at 09:30); the dark name on the slab at dawn (9.12 : 1, limit 7). Looking up, asleep:
-the light grey line on the slab 3.28 : 1 (L 0.609); the dark night ground as an area 0.0090
-at 03:00 (cover). The light page's ground looking up: median 0.657–0.663 asleep, 0.686–0.692
+the light grey line on the slab 3.28 : 1 (L 0.609); the dark night ground as an area 0.0097
+at 03:00 (cover, beneath the cards: the moon under the sleep card's glass; 0.0090 sky alone,
+and before the sign-off pass). The light page's ground looking up: median 0.657–0.663 asleep, 0.686–0.692
 awake. The tool's unjudged line "sun and moon against the state's x" reads mean 69 pt,
 largest 89 pt for the night frames: the camera's turn. The cover against the spread's phone
 page: 11 of 16 pairs identical to within 2 levels in the first run (largest mean difference
@@ -971,6 +1086,19 @@ the sky under the chrome (20 of 48 frames, up to 247 levels, 2.0 % of the pixels
 and 1.9 %); "144 of 142" six times; the signature window the same bytes, the same 59 pixels
 in the whole frame. The slab's July bedtime frames at 0 and 0.5 s are the ones that changed
 against the build before the polish pass: the sun there is whole where it was at 0.74.
+**And after the sign-off pass** (the cards cut the sun and the moon; the glyphs' box; the
+moon's glow held low over the land; the slab's rising sun; the summer band on the pale
+page): **312 of 312**, every pair the same bytes. The three gates pass with nothing at a
+limit — the first run's dark night ground 0.0097 (spread, 03:00, beneath the cards), the
+second's 0.0097 (cover, 03:00, beneath the cards: it was 0.0090 while the moon under the
+sleep card was not drawn and its halo stood at a quarter), the third's 0.0090; the sky
+under the chrome differs from the sky alone in 12 of 48 frames (up to 247 levels, 1.3 % of
+the pixels), 18 of 18 and 4 of 12; "144 of 142" six times. Gates 1 and 2 also pass, with
+nothing at a limit, on six other days: a full moon (25 November), a thin one (13 November),
+1 December, 15 January, 28 April (at the hours that failed there once) and 4 July. Against
+the build before, the day set is the same bytes in 40 of its 48 frames — the eight are the
+Duo's 03:00 (the moon under the Sleep tile's glass) and 06:50 (the sun's cap in the margin)
+— and the night's set in 10 of 18. The signature window is the same bytes.
 
 ## Cost (headless Chromium, software raster, dpr 2, canvas forced to rasterise)
 
@@ -1063,15 +1191,17 @@ repainted at all.
    a fifth and fade out over the last two fifths while the point fades in; across a row's
    edge the rule is eased over 7 pt to either side); and within 40 pt of the moon's centre
    it is the same point, with its four points again at 60 pt — by how strongly the moon
-   stands in the sky (`moonSky`: the disc's opacity as it would be with no row over it),
-   NOT by the disc as drawn: a row that comes over the moon changes nothing about the star.
+   stands in the sky (`moonSky`: the disc's opacity as the sky draws it, the glyphs' box
+   apart): a row that comes over the moon changes nothing about the star, nor about the moon.
    A star's place never depends on either rule, nor on any row's opacity: beside the moon
    it is the old stand-off (32 pt from the moon's centre for a four-point star, 14.5 for an
-   ordinary night), a function of where the star and the moon are. **Both leavings want a
-   floor in time**: a fifth of a row's opacity is reached in 0.15 s of the moment's 1.2 s
-   return, but in 0.05 s of Reduce Motion's 0.6 s one and sooner still when a touch brings
-   the rows back in 0.3 s — there the disc and the rays must take the 0.15 s all the same
-   (the lab does it for Reduce Motion, `leavingPace`; it has no touch).
+   ordinary night), a function of where the star and the moon are. **The rays' drawing-in
+   wants a floor in time**: a fifth of a row's opacity is reached in 0.15 s of the moment's
+   1.2 s return, but in 0.05 s of Reduce Motion's 0.6 s one and sooner still when a touch
+   brings the rows back in 0.3 s — there the rays must take the 0.15 s all the same (the lab
+   does it for Reduce Motion, `leavingPace`; it has no touch). In the bedtime band, on the
+   pale page, a star the band is showing is not thinned where the sky itself shows none
+   (`thinK`: one more factor on `dense`, from the star's own `shown` and the band's phase).
 4. **Sun, moon, tonight's star, the band** — `Canvas` paths and a few radial gradients (the
    band is one `RadialGradient` with eleven stops under two masks — a vertical
    `LinearGradient` that ends it above the horizon and an `AngularGradient` about the star's
@@ -1082,18 +1212,27 @@ repainted at all.
    skyline (the far planes' crests, which the land layers already have). **On a slab the
    sun's and the moon's x is not the baseline's in the last 12° of the setting side**
    (`bodyX`: a pure function of the baseline's x and the altitude). **The moon's and the
-   sun's disc need the cards' frames**: looking up, a disc is drawn only where it stands
-   whole in the open (`standsOpen`), so the sky has to know where the list's rows are in its
-   own space (an anchor preference from each row, collected by Home and handed to the sky) —
-   and when the list scrolls, the rule follows the rows. **A row that is fading in hides a disc
-   early**: the disc's opacity is `1 − smoothstep(0, 0.2, the row's opacity)`, not one minus
-   it, so at bedtime the disc has gone before the returning rows' text can be read over it.
-   On a slab the sun comes out from under the status bar over 6 pt, whole when its top is
-   16 pt under the status icons (y 64 in the lab's layout: the Duo's `underIcons` numbers;
-   the moon over 15 pt, y 58–73). On the Duo the rule holds at rest
-   too, and with it the strip's own: no disc under or beside the status icons until its top
-   is 16 pt clear of them (`underIcons`: the strip's safe-area geometry and the island's
-   length). The glass rows' frames are also where the snow's shade lies (note 6).
+   sun's disc do NOT need the cards' frames, and the port must not hide a disc for a row**
+   (the owner's decision, BRIEF.md "Signed off", 3): the sky draws a disc where it stands
+   and the list's rows lie over it — an opaque row covers it, a glass row shows it as glass
+   does, a row that is fading in simply arrives over it. Draw it in the sky's own layer,
+   under the list; there is no `standsOpen`, no early leaving, no floor in time for a disc.
+   What still hides a disc is the chrome's own furniture, three small rules: (a) the header
+   (`bodyAt`, `seen`: nothing in the Duo's header band or behind the slab's status bar; the
+   body comes out over 15 pt of its descent — on a slab the setting sun over 6 pt, whole when
+   its top is 16 pt under the status icons, y 64 in the lab's layout; the moon over 15,
+   y 58–73 — and once the view is moving, over 90 pt, except that a body the rest pose
+   already shows stays in sight); (b) the avatar and the gear (`clearOfButtons`: a disc is
+   never bitten by a button's rim — and on a slab the RISING sun's disc is not drawn above
+   the avatar at all, `risingDisc`); (c) on the Duo the Wi-Fi and battery glyphs' own box
+   plus 1 pt (`clearOfGlyphs`: the glyphs' frames from the strip's safe-area geometry and
+   the island's length, eased over 4 pt for the sun and 6 for the moon, following the
+   island over 0.6 s when a sleep starts or ends). While the camera is between the poses
+   the strip's whole column counts, from its head to 16 pt under the icons (`passesIcons`).
+   In the dark appearance's deep night the moon's halo is scaled down where the sky under
+   the moon is nearly a card's luminance (`MOON_GLOW`: a function of the sky's own colour
+   there, not of any row). The glass rows' frames are still where the snow's shade lies
+   (note 6) and what a four-point star asks (note 3).
 5. **Clouds** — five small shapes (one on the slab), each a `Path` under one hand-set contour
    (the table's masses run together and smoothed: thirty lines) with five alpha images cut from
    it once — body (its uneven underside fading to nothing), the light on its top, that light on
@@ -1231,40 +1370,61 @@ built anywhere yet.
 Most serious first, re-ranked after the pass "the night's tree, the leftovers and what the
 verifiers found"; the polish pass after it changed items 2, 4, 6, 8, 10 and 11 and added 14;
 the mend of that pass (one blocker, the slab's July 19:55, and four of its check's five
-minors) changed 2, 4, 6, 8, 10, 11 and 14 again.
+minors) changed 2, 4, 6, 8, 10, 11 and 14 again; the sign-off pass (the cards cut the sun
+and the moon: the owner's decision) rewrote 1 and changed 2, 4, 6, 8, 10, 11, 14 and 15.
 What an item says was measured, was; where it was only read or only made, it says so.
 
-1. **With the cards on, the night is two stars and their company — not a place, and now not
-   even the tree's ghost.** That is a decision (see "The tree is a layer of its own"), and on
-   the Duo the strip's window is a good small picture; but the land, the tree and the moon —
-   everything that makes this sky *this* sky — are out of sight from bedtime to first light.
+1. **With the cards on, the night is two stars and their company, and a moon the cards
+   cut.** The tree is not drawn there, by decision (see "The tree is a layer of its own"),
+   and on the Duo the strip's window is a good small picture; but the land and the tree —
+   much of what makes this sky *this* sky — are out of sight from bedtime to first light.
    In the dark appearance nothing of the land shows at all. The slab's night is one star
-   beside his name. The closed Duo, looking up, never shows the moon's disc (a gap takes its
-   glow); the open Duo shows it whole in the gutter for about twenty minutes of a rising
-   moon's evening. **The same rule now holds at rest on the Duo, and it costs the day too**:
-   with the cards on the sun's disc is seen only in the strip's clear window — the last
-   seventy minutes or so before it sets — and never at sunrise (the open Duo's "sun rising out
-   of the fold gutter" is a glow behind a card's corner; the disc is in the bare panorama
-   only), and the moon the same. Nothing is bitten and nothing sits by the status icons;
-   what was given up is a sun seen half the afternoon. All of this follows from the director's
-   reading of "looking back down is too much", which has not been put to Taylor — and by
-   the 6 pm rule **the view is up in full daylight on summer evenings**: on 21 June from
-   18:00 if he is down by then, two and a half hours before sunset, and from mid-April to late
-   August a 19:40 bedtime comes before sunset, so on those evenings the tree against the
-   setting sun is not on Home once he is down (the claims review's table; nothing was done
-   about it — the other way is to let the night begin at sunset in summer too).
+   beside his name. **The moon is there again, where a gap or a pane of glass lets it be**
+   (the owner's decision: Composition, "The cards cut the sun and the moon"), and what that
+   shows is what he was told it would: for the first hours of the default night the moon
+   is wholly behind the Today card; later it is a faint glow under a tile, half a disc in
+   a 12 pt gap, a dim ball at the end of the sleep card; a rising full moon is half a disc
+   at the display's edge and then a cap at a card's corner. Seldom a whole moon — looking
+   up, the turn keeps every body out of the strip, the one tall window. **The sun is seen
+   through the afternoon again**: out from behind the Today card's edge half at a time
+   from 14:16 in November, then all the way down the strip; at sunrise a cap in the margin
+   under the Today card's corner for some twelve minutes (on the open Duo, half a disc in
+   the fold gutter). **What it costs besides the halves**: a disc now stands beside the
+   island and the icons where the pass before allowed none (a July sun wedged between the
+   Today card and the island at 18:35–18:42; a pale moon by the island's foot) — only the
+   glyphs' own box is kept clear; as the cards return at bedtime the day's feed total is
+   read through the moon for most of a second (see "Bedtime"); and on the Duo the lab's
+   sleep card does not blur what is behind it, so the moon there is a hard-edged dim ball
+   that real glass would not show (not seen on a phone). Where a disc stands behind a
+   glass card's small grey words nothing but the glass protects them: on the nights looked
+   at none does (the moon's path under the Duo's sleep card runs right of its words; the
+   tiles blur it to ten levels), but that is geometry seen on five nights, not a rule.
+   All of the night's pose follows from the director's reading of "looking back down is
+   too much", which Taylor has since agreed to — and by the 6 pm rule **the view is up in
+   full daylight on summer evenings**, which he also chose ("look up anyway": BRIEF.md,
+   "Signed off", 2): on 21 June from 18:00 if he is down by then, two and a half hours
+   before sunset, and from mid-April to late August a 19:40 bedtime comes before sunset,
+   so on those evenings the tree against the setting sun is not on Home once he is down,
+   and the sun stays on as a pale disc under the sleep card's glass until it sets.
 2. **Everything that moves was judged from stepped frames.** Nothing was played at speed or
    seen on a device. New in the last pass and judged from 1× sequences only: the tree leaving
    early in a rise behind the cards (`arrive`: a fading tree sinking down the strip for half
    a second) and coming back over the last second of a `settle`; the sun's disc first showing
    under the status icons during an early summer bedtime's rise (a dim disc for two or three
-   frames at about 1.15 s). New in the polish pass and judged the same way: a disc leaving in
-   about a tenth of a second as the cards first show at bedtime (4.6–4.75 s; a one-way fade
-   of seven to nine frames at 60 fps, not a cut — the check measured its largest step at 23
-   levels of the disc's mean in a frame, 6 before; whether it reads as covered or as switched
-   off wants a film at speed, and nobody has watched one), the same leaving under Reduce
-   Motion (nine frames from 3.40 s, by a floor in time: stepped on the cover in dark only),
-   and a four-point star's rays drawing in under a returning glass card. On the slab a
+   frames at about 1.15 s). New in the polish pass and judged the same way: a four-point
+   star's rays drawing in under a returning glass card. New in the sign-off pass, and judged
+   from stepped frames and their numbers only: the returning cards arriving over a disc
+   that stays (60 fps, four sequences: the disc's square never steps by more than 3.3
+   levels a frame — but "31.5" read through the moon for most of a second is a thing to see
+   at speed, and under Reduce Motion, where the cards are back in 0.6 s, it was not
+   stepped at all); **a July evening's sun in the strip during the rise** — out at rest
+   beside the island, it goes as the view begins to move and comes out once under the icons
+   (stepped at 15 fps from six bedtimes, 18:30–19:20, on the cover in dark; two of them
+   opened as strips; at 18:30 it swells from 0.42 to 0.74 before it goes); a full moon
+   sliding out from under the Today card's corner and down the margin in `arrive`; the
+   slab's July 19:55 sun, which no longer goes out and comes back at 0.9–1.2 s of the rise
+   (by its numbers at 30 fps, and one strip of ten frames beside the build before). On the
+   slab a
    bedtime tapped in the two or three minutes the sun is on its 6 pt under the status icons
    opens on a dim disc that brightens as the view begins to rise (it always did, over more
    minutes and more softly). The band is a swell, not an arc, by stills on the cover and the
@@ -1300,11 +1460,13 @@ What an item says was measured, was; where it was only read or only made, it say
    gradually). **What the check then measured, and nothing was done about**: between about
    six months and a year the pale page's sky no longer visibly fills (conspicuous points on
    the cover 357 at 200 nights, 349 at 260, 322 at 300, 359 at 368 — a dip at ten months,
-   where the base rose 359 → 517); the rest pose is thinned too (51 → 32 at 368); and the
-   bedtime band's answers are the same smaller points, so on a July evening in the light
-   appearance about half as many stars are seen to answer on the slab. Whether the band
-   should be spared the thinning (the ladder for the standing light only) was left
-   undecided: it needs the band stepped and looked at in both seasons.
+   where the base rose 359 → 517); and the rest pose is thinned too (51 → 32 at 368).
+   **The bedtime band is now spared the thinning where the
+   standing sky draws no stars** (a July evening: "Light appearance at night"; the frames
+   at 2.8–3.6 s are the ones from before the thinning to within 6 levels), and keeps it on
+   a November night, where the check found it a gain. In between — a bedtime at dusk, when
+   the sky shows some of his stars and not others — a star's size is eased by how much of
+   it the sky shows; no such evening was shot.
    An ordinary star's peak
    is not held to 0.85 there (0.92–0.95), and the first night's and the month-nights' ivory
    is close to white at 1×: the order of rank is carried by size and the dusk under each. The
@@ -1331,7 +1493,7 @@ What an item says was measured, was; where it was only read or only made, it say
    looked-up places, the caption's. At rest
    the keep-outs protect only the clock: his stars stand round the status icons on the cover
    and in the slab's status bar in the evening (seen by the claims review; not touched). The
-   small rules — `lookOf`, `sparkOf`, `standsOpen`, `treeShown`, `starsFor` — are closures no
+   small rules — `lookOf`, `sparkOf`, `clearOfGlyphs`, `passesIcons`, `risingDisc`, `treeShown`, `starsFor` — are closures no
    test reaches; `tools/test-math.mjs` tests the lab's night rule and the exported ones. The
    by-age star count reads "N + 2" only near 142 nights (4 of 1, 10 of 7, 372 of 367, 733 of
    730 in dark; 723 of 730 in light on the Duo): unexplained beyond the caption's digits.
@@ -1348,9 +1510,9 @@ What an item says was measured, was; where it was only read or only made, it say
    the bare silhouette with rust patches and two or three gold leaves; spring keeps single
    flowers up to 8 pt outside the crown; and at rest the bare tree's lowest left spray is
    still 2 pt from the Today card's edge (x 364; in leaf 366–369).
-8. **The slab.** For under two minutes on its way out from under the status bar the sun is a
-   dim disc above the tree (1.8 on 21 November; it was 4.5 — the ramp is 6 pt now, see
-   Composition). They are the first 6 pt of its way out, so **the whole sun now stands
+8. **The slab.** For under two minutes on its way out from under the status bar the SETTING
+   sun is a dim disc above the tree (1.8 on 21 November; it was 4.5 — the ramp is 6 pt
+   there, see Composition). They are the first 6 pt of its way out, so **the whole sun now stands
    directly under the signal bars, its top 16 pt below them, four and a half minutes earlier
    than it used to be whole** (15:49 for 15:54 on 21 November): the Duo's own distance for a
    sun under the status icons, looked at in 2× crops, minute by minute, on 21 November,
@@ -1361,7 +1523,14 @@ What an item says was measured, was; where it was only read or only made, it say
    shift was not made. In snow the hill behind his name is dusk-dark, not pale (so that no
    lozenge is cut into it): the slab's winter is the knoll's and the tree's. No cloud at
    rest. Its moment is tighter than the Duo's (one card timeline, a rise 0.3 s longer). The
-   first night's star has no place of its own there.
+   first night's star has no place of its own there. **The rising sun is not seen above the
+   avatar at all** (it was a tan ball by the avatar's shoulder for two or three minutes while
+   the 6 pt served both sides: the final check's second minor): a slab's sunrise is the disc
+   on the horizon for some eight minutes, then its glow round the avatar — looked at minute
+   by minute on 4 July, 21 November and 15 January, beside the two other ways (six sheets:
+   July in both appearances, November in dark and January in light were opened). The rising
+   MOON still comes out above the avatar as it always did, faint, over the header's 15 pt
+   (not looked at).
 9. **Winter dusk, dark**: under the glass tiles the land is now about two cards (0.022–0.031),
    by a shade that follows the tiles; the tab capsule's ground was not shaded (0.033 by day,
    0.045 at 16:28) — it stands in the open strip, where a shade would show as a halo. The
@@ -1370,10 +1539,17 @@ What an item says was measured, was; where it was only read or only made, it say
 10. **The sun and the moon, drawn.** The day moon in the dark print is at its limit
    (1.13 : 1) and at 1× is nearly nothing; through a dawn the paling moon passes through a
    soft grey disc for some twenty minutes. The pale page's sun shows its edge as a thin
-   orange line at 15:30 and was not looked at in summer's higher light. Coming out from
-   under the status icons the sun fades in over 6 pt of its descent: for a minute or two it
-   is a dim disc there (it was 12 pt and a tan ball for four) — and the same now under the
-   slab's status bar, by the same two numbers (item 8). At first light tonight's star
+   orange line at 15:30 and was not looked at in summer's higher light. Passing the Wi-Fi
+   and battery glyphs on the Duo a disc fades over 4 pt of its way (the moon over 6): for
+   about three minutes on either side it is a dim disc beside them (a tan ball, if it is
+   the sun) — and coming out from under the slab's status bar the setting sun fades in over
+   6 pt, a minute or two (item 8). **The moon's glow is thinner low over the land** in the
+   dark print's deep night (`MOON_GLOW`: at 0.56 of itself at 03:00 on the default day with
+   the room un-dimmed, two fifths at its least as the moon sets): it was made for the gate
+   beneath the cards, it holds with the cards away too — the bare poster of a night feed
+   with a low moon in the tree has a level or so less glow round the disc — and it was
+   judged by the ruler, on one night, not by eye at 3×. A moon in a dimmed room, and any
+   moon higher than about 100 pt over the land, is untouched. At first light tonight's star
    has gone 1.9 s into the settle while some twenty other stars stand on.
 11. **The rest pose at night is a rare picture, and thinner than round two's** (cover 60 of
    his stars in view, was 71; in the open with the cards on 39, was 47; slab 28, was 33): it
@@ -1386,7 +1562,16 @@ What an item says was measured, was; where it was only read or only made, it say
    star near the moon, not beside it; for about twenty minutes either side of the moon's
    passing it is a smaller sparkle; and while the moon passes its place the point is carried
    along 32 pt from the moon's centre, as the mark was (from about 20:45 to 22:45: a bright
-   point 22 pt off the limb, riding with the moon). None of this is seen with the cards on.
+   point 22 pt off the limb, riding with the moon). With the cards on all of this is behind
+   the Today card. **During a bedtime's rise the star beside the moon draws in to a point
+   as the moon fades in** (the final check's fourth minor; nothing was done): at a 21:00
+   bedtime the star comes into view at 1.1 s as a whole four-point mark, and its four-point
+   share falls from 0.98 to nothing over 1.50–1.87 s while the moon's disc comes out from
+   under the header beside it, both of them travelling (at 20:15 it ends as the smaller
+   sparkle; the same in `arrive`). No pop — it reads as a star drowned as the moon comes
+   out — and the 19:40 showpiece is untouched (66.8 pt off). If it is disliked at speed:
+   ask the moon's standing strength, without the header's rule, so the star is a point from
+   the moment it enters.
 12. **The drawing, smaller things.** *The pale page's land at midday*: told apart by
    temperature, still within about eight levels in value — a pale page, by the hush's
    design. *The river*: two small clumps of reeds, nearly gone on the pale page and in the
@@ -1403,10 +1588,9 @@ What an item says was measured, was; where it was only read or only made, it say
    in the dithered night land, the night feed's un-dimming, everything seen through the lab's
    stand-in glass.
 14. **One night, two marks.** A month-night's star is a four-point mark in the open and a
-   round point where a glass card lies over it or the moon stands within 40 pt (a moon in
-   the sky, drawn or under a card: with the cards on, a four-point star in the open beside
-   a moon that a card hides is a point too — none stands so in the standard matrix or the
-   night's): "one
+   round point where a glass card lies over it or the moon stands within 40 pt (the moon
+   as the sky draws it: a card lying over the moon changes nothing about the star, and
+   since the sign-off it changes nothing about the moon either): "one
    mark, one meaning" is bent for it, by choice (the other way — no place under glass — cost
    the strip's window and the poster: "His stars"). Through the lab's glass the points still
    show beside a tile's text, as every ordinary night under a tile always has; whether real
@@ -1430,7 +1614,12 @@ What an item says was measured, was; where it was only read or only made, it say
    by x alone; the notes' "12 of 48"; the pale page's snowfall at a year (item 4 says what
    that cost). In the mend of the polish pass: the slab's July 19:55 without its sun; the
    star's dart and sprouting beside the moon as the cards return; Reduce Motion's
-   three-frame disc. **Not done there: the ruler.** `tools/measure.mjs` still names a disc
+   three-frame disc. **Put back by the owner's decision at the sign-off**, knowingly: the
+   bitten discs at rest and looking up, and the moon read through the returning Today card
+   — two of the lines above (only a disc directly behind the Wi-Fi and battery glyphs is
+   still kept out). In the sign-off pass: the slab's morning sun by the avatar; the July
+   band thinned on the pale page; and, found on the way, the slab's July sun going out and
+   coming back in the middle of the rise. **Not done there: the ruler.** `tools/measure.mjs` still names a disc
    "sun" or "moon" by the state's x alone inside a fifth of the window, at any height,
    whatever place the sky publishes (the check's probe: a sky publishing its moon 150 pt too
    low is still believed on the default day). Naming by the published place only was looked
@@ -1471,13 +1660,16 @@ What an item says was measured, was; where it was only read or only made, it say
   bedtime band without its own light — only the stars' answers — to compare with the held
   band, and to measure the band's light alone (the difference of two films). `band=arc`
   plays the even arc it was.
-- Five more from the polish pass: `glass=place` (a four-point star takes no place inside a
-  glass row of the table: the answer that was asked for and not chosen), `disc=old` (a disc
-  goes out one for one with an arriving card), `disc=caption` (it leaves ahead of the cards,
-  with the caption), `moonstar=old` (a four-point star beside the moon keeps its four
-  points, 32 pt off) and `field=old` (the pale page's field at a year as it was: every
-  ordinary night at its first size, down to the land). And one from its mend: `sunramp=old`
-  (the slab's sun coming out from under the status bar over 15 pt, as it always had).
+- Three from the polish pass: `glass=place` (a four-point star takes no place inside a
+  glass row of the table: the answer that was asked for and not chosen), `moonstar=old` (a
+  four-point star beside the moon keeps its four points, 32 pt off) and `field=old` (the
+  pale page's field at a year as it was: every ordinary night at its first size, down to
+  the land — and with it the bedtime band as it was before the thinning). And one from its
+  mend: `sunramp=old` (the slab's sun coming out from under the status bar over 15 pt on
+  both sides, as it always had, the rising disc above the avatar with it). **Gone with the
+  rules they served** (the sign-off pass): `disc=old` and `disc=caption`, the two other
+  ways for a disc to leave ahead of a returning card — no card takes a disc away now. No
+  switch shoots "whole or not at all": the build before the sign-off is commit `cd2b979`.
 - Four more lab switches of the same kind, each shooting what a choice was made against:
   `sun=old` (the pale page's sun without its edge and apricot halo), `daymoon=old|none` (the
   flat ghost; no day moon), `glare=old` (the sun's glare over the land at the ridge),
@@ -1493,7 +1685,9 @@ What an item says was measured, was; where it was only read or only made, it say
   pass). `tools/measure.mjs` names a disc it has found "sun" or "moon" by the state's x within
   a fifth of the window, or within 12 pt of this place in x and in y; its offset is still
   reported against the state's x. `window.__hillPainted.tree` is how much of the tree is
-  drawn (0 … 1), `.look` the pose, `.stars.marks` the four-point stars in view as last drawn:
+  drawn (0 … 1), `.look` the pose, `.discs` how strongly the two discs are drawn in this
+  frame (`{ sun, moon }`, 0 … 1 — a card over a disc does not change it — and `moonGlow`,
+  the share of its halo the moon keeps: `MOON_GLOW`), `.stars.marks` the four-point stars in view as last drawn:
   `[x, y, kind, how much of the mark is four-point]` (0 under glass or beside the moon; x, y
   where it is drawn, the stand-off from the moon included).
 - `tools/review.mjs`: the July bedtime set is shot at 19:55 (`JULY_BEDTIME`), the joins set
