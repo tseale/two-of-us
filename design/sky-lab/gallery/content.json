@@ -1,0 +1,135 @@
+{
+  "page": {
+    "lede": "Five ways Home's sky could look. Each is a working sky, photographed on the real Home screen: Duo closed, Duo open and iPhone, light and dark, through one late-November day. <strong>Pick a look, a display and an hour below and every direction follows.</strong>",
+    "mine": {
+      "title": "Where I would go",
+      "paragraphs": [
+        "Picture book is the one I would take further. It is the only direction with a subject: one tree on a small hill, with the sun going down behind it. That gives the closed Duo's narrow strip a picture instead of a gradient, gives an ordinary iPhone a small landscape beside his name, and makes it the only direction where you can tell the season at a glance.",
+        "I would light it the way True light does. True light has the best atmosphere of the five (mist lying in the valleys, ridges fading with distance, clouds lit from where the sun really is), but nothing in it is his. Picture book's hills are flat and its clouds are simple by comparison. Round two would be Picture book's place, painted with True light's air.",
+        "None of the five is breathtaking yet at the two moments you picked. At bedtime, every direction lifts the cards away to show stars over a tall, dark, empty land. In round two I want the view to tilt up as the cards leave, so his stars fill the display and the tree stands small at the foot. Opening the Duo widens the picture in all five but reveals nothing new, so the left-hand page needs something of its own to find.",
+        "Paper theatre is the most original and its sunset is handsome, but at night the paper all but disappears. I would set down Wet wash and Night-light: the first reads as bands of strong colour more than watercolour, and the second is calm but is still a gradient. Night-light's ring of light at bedtime is worth keeping whichever way we go."
+      ]
+    },
+    "closing": {
+      "title": "About these mockups",
+      "points": [
+        "These are stills from a browser mockup, not the app. Nothing in the app has changed. Motion (drifting cloud, twinkling stars, the bedtime sequence) is shown as frames.",
+        "The Home screen is redrawn from the app with sample data. The glass tiles only approximate Liquid Glass, and the fonts are stand-ins for the system ones.",
+        "Sunrise, sunset and the moon are worked out for Chicago on 21 November 2026. Chicago is my assumption; tell me where his sky should be.",
+        "His first year assumes Miller was born on 2 July 2026, which is my guess from \"4 months old\". The star count (143 tonight) follows from that.",
+        "On the closed Duo the header fills the top of the screen, so the one tall clear window is the strip down the right. Every direction raises the horizon to the middle of the screen so the sunset happens there. Today's sky keeps its hills about 300 points lower, behind the tab bar.",
+        "Bedtime as shown is my proposal: when a night sleep starts the cards step back for about five seconds, his star for the night is lit, and the cards return. A touch would end it at once, and with Reduce Motion on it would be a simple cross-fade.",
+        "Each direction was built and photographed by its own designer. I looked through every set myself, but the contrast and brightness figures behind the notes are each designer's own measurements and have not been checked independently."
+      ]
+    },
+    "eyebrow": "Two of Us · Home’s sky · round one",
+    "title": "Five skies for Miller’s Home"
+  },
+  "skies": [
+    {
+      "id": "baseline",
+      "name": "Today's sky",
+      "line": "What ships now, for comparison.",
+      "reference": true,
+      "idea": "The real sky by the real clock, hushed to a fifth of its colour: the sun on its arc, the moon in its phase, painted clouds and four misty ridges.",
+      "works": [
+        "It is calm and never fights the cards.",
+        "The sun already sets inside the closed Duo's strip."
+      ],
+      "notyet": [
+        "The hills sit behind the tab bar, so the strip shows a sun and sky with no land under them.",
+        "The sun and moon pass behind his name and age at some hours.",
+        "Nothing in it is his, and nothing marks the season."
+      ]
+    },
+    {
+      "id": "picture-book",
+      "name": "Picture book",
+      "badge": "My pick",
+      "line": "A painted hill with one tree, lit by the real sun and moon.",
+      "idea": "One gouache picture that tells the real time: dry-brushed bands of sky, six rounded hills, and a single tree on a knoll that carries the seasons. His stars are hand-set dots, one for every night; tonight's is lit beside the tree.",
+      "works": [
+        "The tree against the setting sun, in the closed Duo's strip, is the one image of the round I would call a signature.",
+        "The seasons read at a glance: amber leaves, bare limbs over snow, blossom, a full green crown.",
+        "An ordinary iPhone gets a picture too: the tree stands in the gap beside his name.",
+        "Opening the Duo moves nothing. The right-hand page is the same picture, closed or open."
+      ],
+      "notyet": [
+        "The hills are flat shapes and the clouds are simple loaves. It needs True light's mist and depth.",
+        "At bedtime the cards lift away onto a tall, empty, dark land under the stars.",
+        "The left-hand page has nothing of its own, so opening the Duo widens the view more than it reveals.",
+        "In the light look at night it is a pale lavender page with faint stars.",
+        "In the light look at sunset the colour behind the cards is deeper than today's."
+      ],
+      "build": "No shader: pre-painted shapes tinted by the hour and drawn on a SwiftUI Canvas. The risk is animating the bloom smoothly, which the mockup repaints rather than animates."
+    },
+    {
+      "id": "true-light",
+      "name": "True light",
+      "badge": "For its light",
+      "line": "The look you have now, with physically true light.",
+      "idea": "One light source, and everything answers it. The twilight's bands stand tall over the sun and sink away from it, clouds are lit from where the sun is, each ridge takes its colour from the sky behind it, and mist lies level in the valleys.",
+      "works": [
+        "It has the best atmosphere of the five. The whole picture, at the foot of this chapter, shows it best.",
+        "It is the closest to the sky you said you like, so it carries the least risk.",
+        "Nothing bright ever sits behind his name: the sun and moon stay below the header."
+      ],
+      "notyet": [
+        "Nothing in it is his. There is no feature, and with the cards on the seasons are hard to tell apart.",
+        "The clouds are airbrushed bars.",
+        "An ordinary iPhone never sees the sun or moon, only their colour.",
+        "Night with the cards on is refined, not a showpiece, and the light look at night is nearly flat."
+      ],
+      "build": "One Metal shader plus a Canvas for the stars. The risk is matching the colours exactly through SwiftUI, and it has not been run on a phone's GPU."
+    },
+    {
+      "id": "paper-theatre",
+      "name": "Paper theatre",
+      "line": "Layers of cut and torn paper with a lamp behind them.",
+      "idea": "The sky is a stack of paper: a back sheet, torn strips of cloud and eight flats of land. The sun is a round hole in the back sheet, the moon a hole in tonight's phase, and his stars are pin-pricks.",
+      "works": [
+        "It is the most original of the five, and the sunset strip with its ember-lit torn edges is handsome.",
+        "It has a real idea for opening the Duo: the left-hand page's hills swing up like a pop-up book.",
+        "Pin-prick stars suit a star for every night."
+      ],
+      "notyet": [
+        "At night the paper all but vanishes. The closed Duo at 9 pm is a starfield and a moon.",
+        "At sunset it runs brown and heavy, less calm than the others.",
+        "The tree is on the left-hand page, so the closed Duo tells the season only by tint.",
+        "An ordinary iPhone gets a reduced version: one peak beside his name."
+      ],
+      "build": "Paper shapes baked once and relit by a small shader. Memory for fifteen full-width layers is the risk."
+    },
+    {
+      "id": "wet-wash",
+      "name": "Wet wash",
+      "line": "Watercolour, where the bloom is pigment flooding the paper.",
+      "idea": "A sheet of cold-pressed paper with a wash pulled down it. At sunrise and sunset more pigment arrives and feathers wet into wet. There is water in the valley, and the moon lays a path across it.",
+      "works": [
+        "Its idea of the bloom is the best of the five: colour that floods in and dries back.",
+        "It has the strongest sunset, and it is the only direction with water."
+      ],
+      "notyet": [
+        "In the dark look it reads as bands of strong colour, not watercolour. It is the least calm.",
+        "In the light look the edges of the washes show as stray lines between the cards.",
+        "An ordinary iPhone shows almost none of it."
+      ],
+      "build": "A heavy shader that would be rendered to an image and cross-faded, not drawn live."
+    },
+    {
+      "id": "night-light",
+      "name": "Night-light",
+      "line": "No drawing at all: soft light, with his stars the only sharp thing.",
+      "idea": "A field of soft light that follows the sun and the moon. His stars are crisp points. At bedtime a thin ring of light leaves tonight's star and every other star answers as it passes.",
+      "works": [
+        "It is the calmest of the five and the cheapest to build.",
+        "The ring crossing the sky is the best bedtime gesture of the round. I would carry it into whichever direction goes on."
+      ],
+      "notyet": [
+        "It is still a gradient. Nobody would show it to anyone.",
+        "In the light look at night it reads as a star chart."
+      ],
+      "build": "One small shader and a Canvas of points."
+    }
+  ]
+}

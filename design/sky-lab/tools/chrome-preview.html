@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sky lab · chrome preview</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../lab/chrome.css">
+<style>
+  /* A test page for lab/chrome.js on its own: Home's UI over a plain vertical
+     gradient standing in for the sky. Takes the viewer's parameters:
+       ?device=cover|spread|iphone &scheme=dark|light &time=HH:MM &asleep=0|nap|night
+       &date=YYYY-MM-DD &tz=-6 &age=142
+     and a few of its own:
+       &grid=1    the layout lines (head / top / foot, page edges, fold band)
+       &cards=1   the rects update() returned, outlined and labelled
+       &sun=1     a hard-edged disc and bars in the "sky", to judge the glass by
+       &lead=0..1 the leading page's opacity (0 = not drawn)
+       &tonight=0 no "Tonight's Schedule" card on the phone page
+       &avatar=1  the 52 pt avatar in the spread's outer margin (off: Home's spread has none)
+       &toast=1   the undo toast
+     The display is #display, at the page's top-left. window.__labReady is set
+     when the fonts have loaded and the chrome is laid out; window.__cards
+     holds what update() returned. */
+  html, body { margin: 0; background: #77777c; }
+  #display { position: relative; overflow: hidden; }
+  #sky, #chrome, #overlay { position: absolute; inset: 0; }
+  #overlay { pointer-events: none; font: 9px/1 ui-monospace, Menlo, monospace; }
+  #overlay i { position: absolute; display: block; }
+  #overlay .h { left: 0; right: 0; height: 0; border-top: 1px dashed rgba(255, 0, 170, .85); }
+  #overlay .v { top: 0; bottom: 0; width: 0; border-left: 1px dashed rgba(0, 200, 255, .85); }
+  #overlay .band { top: 0; bottom: 0; background: rgba(255, 0, 0, .16); }
+  #overlay .rect { border: 1px solid rgba(255, 220, 0, .95); color: #000; }
+  #overlay .rect b { position: absolute; left: 0; top: 0; background: rgba(255, 220, 0, .95); padding: 1px 3px; font-weight: 400; }
+</style>
+</head>
+<body>
+<div id="display"><div id="sky"></div><div id="chrome"></div><div id="overlay"></div></div>
+<script type="module">
+import { createChrome } from '../lab/chrome.js';
+
+const q = new URLSearchParams(location.search);
+const DEVICES = {
+  cover: { width: 466, height: 678, phone: { x: 0, width: 466 }, fold: null, strip: { side: 'trailing', width: 84 } },
+  spread: { width: 951, height: 669, phone: { x: 485, width: 466 }, fold: { x: 475.5, bandMinX: 455.5, bandMaxX: 495.5 }, strip: { side: 'trailing', width: 84 } },
+  iphone: { width: 402, height: 874, phone: { x: 0, width: 402 }, fold: null, strip: null },
+};
+const device = DEVICES[q.get('device')] ? q.get('device') : 'cover';
+const scheme = q.get('scheme') === 'light' ? 'light' : 'dark';
+const tz = Number(q.get('tz') ?? -6);
+const [year, month, dayOfMonth] = (q.get('date') || '2026-11-21').split('-').map(Number);
+const [hh, mm] = (q.get('time') || '16:10').split(':').map(Number);
+const asleepParam = q.get('asleep');
+const localHour = hh + mm / 60;
+
+const state = {
+  device, scheme, ...DEVICES[device], dpr: window.devicePixelRatio || 1,
+  date: new Date(Date.UTC(year, month - 1, dayOfMonth, hh, mm) - tz * 3600000),
+  tzOffsetHours: tz, localHour,
+  asleep: asleepParam === 'nap' || asleepParam === 'night' ? asleepParam : false,
+  ageDays: Number(q.get('age') ?? 142),
+  cards: [],
+};
+if (q.has('lead')) state.lead = Number(q.get('lead'));
+if (q.get('toast') === '1') state.toast = { message: 'Logged 4.5 oz' };
+
+// The stand-in sky: a plain vertical gradient by the hour, deeper in the dark appearance.
+const lerp = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+const STOPS = [
+  [0, [10, 12, 34], [26, 22, 60]],
+  [5, [16, 18, 48], [60, 44, 86]],
+  [6.8, [70, 88, 150], [246, 170, 120]],
+  [9, [86, 150, 222], [196, 224, 246]],
+  [13, [70, 140, 228], [176, 214, 248]],
+  [16, [84, 132, 210], [236, 206, 170]],
+  [17.2, [72, 70, 140], [250, 146, 96]],
+  [19, [20, 22, 60], [70, 48, 96]],
+  [24, [10, 12, 34], [26, 22, 60]],
+];
+function skyAt(hour) {
+  let i = 0;
+  while (i < STOPS.length - 2 && hour >= STOPS[i + 1][0]) i += 1;
+  const [h0, top0, low0] = STOPS[i];
+  const [h1, top1, low1] = STOPS[i + 1];
+  const t = Math.min(Math.max((hour - h0) / (h1 - h0), 0), 1);
+  return [lerp(top0, top1, t), lerp(low0, low1, t)];
+}
+let [top, low] = skyAt(localHour);
+if (scheme === 'dark') { top = top.map((v) => Math.round(v * 0.24)); low = low.map((v) => Math.round(v * 0.34)); }
+if (scheme === 'light') { top = lerp(top, [242, 242, 247], 0.62); low = lerp(low, [242, 242, 247], 0.62); }
+
+const display = document.getElementById('display');
+display.style.width = `${state.width}px`;
+display.style.height = `${state.height}px`;
+const sky = document.getElementById('sky');
+sky.style.background = `linear-gradient(180deg, rgb(${top}) 0%, rgb(${low}) 100%)`;
+if (q.get('sun') === '1') {
+  // Hard shapes behind the cards: what the glass does to them is the test.
+  sky.innerHTML = `<div style="position:absolute;left:${state.phone.x + 60}px;top:300px;width:150px;height:150px;border-radius:50%;background:#ffd36a"></div>
+    <div style="position:absolute;left:${state.phone.x}px;right:0;top:480px;height:26px;background:#e2466b"></div>
+    <div style="position:absolute;left:${state.phone.x + 250}px;top:250px;width:26px;height:400px;background:#2bd4a0"></div>`;
+}
+
+const chrome = createChrome(document.getElementById('chrome'), { tonightCard: q.get('tonight') !== '0', marginAvatar: q.get('avatar') === '1' });
+let cards = chrome.update(state);
+
+function overlay() {
+  const el = document.getElementById('overlay');
+  let html = '';
+  if (q.get('grid') === '1') {
+    const lines = { cover: { h: [22, 644], v: [20, 362, 382] }, iphone: { h: [62, 70, 840], v: [16, 386] }, spread: { h: [22, 103, 635], v: [97.5, 447.5, 485, 505, 847, 867] } }[device];
+    for (const y of lines.h) html += `<i class="h" style="top:${y}px"></i>`;
+    for (const x of lines.v) html += `<i class="v" style="left:${x}px"></i>`;
+    if (state.fold) html += `<i class="band" style="left:${state.fold.bandMinX}px;width:${state.fold.bandMaxX - state.fold.bandMinX}px"></i>`;
+  }
+  if (q.get('cards') === '1') {
+    for (const c of cards) html += `<i class="rect" style="left:${c.x}px;top:${c.y}px;width:${c.width}px;height:${c.height}px"><b>${c.kind}</b></i>`;
+  }
+  el.innerHTML = html;
+}
+
+document.fonts.ready.then(() => requestAnimationFrame(() => {
+  // A second call with the same state must hand back the same cards, cheaply.
+  const again = chrome.update(state);
+  cards = again;
+  state.cards = cards;
+  window.__cards = cards;
+  window.__chrome = chrome;
+  window.__state = state;
+  overlay();
+  window.__labReady = true;
+}));
+</script>
+</body>
+</html>

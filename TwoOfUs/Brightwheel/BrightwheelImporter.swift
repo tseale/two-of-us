@@ -262,7 +262,7 @@ struct BrightwheelImporter {
         "\(messagePhotoPrefix(messageID))\(attachmentID ?? String(index))"
     }
 
-    static func messagePhotoPrefix(_ messageID: String) -> String { "msg-\(messageID)-photo-" }
+    nonisolated static func messagePhotoPrefix(_ messageID: String) -> String { "msg-\(messageID)-photo-" }
 
     static func messageExternalID(_ objectID: String) -> String { "msg-\(objectID)" }
     /// Broadcasts (`broadcast: true` — center-wide newsletters) are keyed

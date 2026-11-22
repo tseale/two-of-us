@@ -1,0 +1,8 @@
+shots/
+node_modules/
+gallery/img/
+gallery/dist/
+gallery/manifest.json
+gallery/dist-*/
+gallery/manifest-*.json
+gallery/film/

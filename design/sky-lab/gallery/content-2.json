@@ -1,0 +1,99 @@
+{
+  "page": {
+    "tabTitle": "Home Sky Round Two",
+    "eyebrow": "Two of Us · Home’s sky · round two",
+    "title": "Miller’s hill",
+    "lede": "Your four choices, built twice: once starting from the painted look and once from the true-light look. Bedtime now looks up, the left-hand page of the open Duo is a river valley, and the tree is grown. <strong>Start with the films under Painted, then pick a look, a display and an hour below and every sky follows.</strong>",
+    "bedtimeSub": "He goes down for the night at 7:40. The cards step back, the view tilts up, every star of his life comes into view, a soft band of light leaves tonight's star, and the view settles back.",
+    "openSub": "The closed phone's sky is already on the right-hand page. The left page arrives bare, light runs down the river toward you, and then its cards land.",
+    "mine": {
+      "title": "Where I would go",
+      "paragraphs": [
+        "Painted is the one. Its tree has real limbs and the setting sun shines through them, the mist lies in the valleys the way True light's did, and it still looks like something a person drew. Lit has smoother light, but its hills read as computer-made mounds and its tree as a scribble.",
+        "Bedtime is the signature moment. Play it in the Painted chapter: the cards step back, the view tilts up, every star of his life comes down into view, a soft band of light leaves tonight's star beside the tree, and \"Night 143\" stands at the foot. Switch it to July and the tree stands in full leaf with the sun still up beside it.",
+        "Opening the Duo now finds something. The left-hand page arrives as a river winding back through the valley, and light runs down the water toward you before the cards land.",
+        "Painted has since had a finishing pass, a review by an independent critic, and a second pass on what the critic found. The river is water now, not a pale road. The bedtime ring is one soft band. The left-hand page has its own stars at bedtime. The dark look has a real daytime sky at midday, where before it was close to black. Winter is a snow-covered land. The sun sets through the limbs in every season.",
+        "Both moments can now be watched. \"Watch it move\" under Painted plays bedtime and the opening as films, on the closed Duo, the open Duo and an ordinary iPhone. Watching the first opening film showed its light was too faint and came too late, so I reworked it. The films show the timing as designed. How smoothly a phone draws it can only be settled on a phone, which is the next step if you like this direction."
+      ]
+    },
+    "closing": {
+      "title": "About these mockups",
+      "points": [
+        "These are stills and films from a browser mockup, not the app. Nothing in the app has changed. The films are stepped frame by frame, so they show the timing but not real performance.",
+        "Painted is shown after its finishing pass. Lit is as it was first built. Lit's builder was cut off by a usage limit before reporting, so the notes on Lit are mine from looking at its frames.",
+        "Both takes pass every legibility check on the shared measuring tool: 66 of 66 frames each on my own run, through the day and with a night sleep running. Painted was run again after the finishing pass. Today's sky fails 52 of 96.",
+        "The Home screen is redrawn from the app with sample data, the glass tiles only approximate Liquid Glass, and the fonts are stand-ins.",
+        "The mockups use Chicago and a 2 July birthday as stand-ins. The app will use your daycare pin and his real date of birth.",
+        "Picture book and True light, from round one, are at the foot of the page for comparison, with today's sky."
+      ]
+    },
+    "filmSub": "Bedtime and the opening, playing. Each film is the mockup stepped one frame at a time and joined, so the timing is as designed. It does not show how fast a phone will draw it."
+  },
+  "skies": [
+    {
+      "id": "hill-painted",
+      "name": "Painted",
+      "badge": "My pick",
+      "extras": true,
+      "line": "Picture book's hill, repainted with real air.",
+      "idea": "One illustrated land: a river valley on the left-hand page, a few big overlapping hills, a knoll, and one grown tree against the setting sun. Every shape is drawn by hand; the colour comes from True light's twilight, so each hill takes its tone from the sky behind it and mist lies level between them.",
+      "works": [
+        "The tree. Bare limbs that divide like a real tree's, with the sun going down through them in the closed Duo's strip. In leaf, a gap in the crown keeps the sun showing through in every season.",
+        "Bedtime. Looking up turns round one's empty dark land into a sky with every one of his stars on screen at once. The measuring tool finds all 143 on all three displays, on the critic's run and on mine.",
+        "The river. It mirrors the low sky, its far bends thin out toward the horizon, and mist lies on the middle reaches. Opening the Duo sends a crest of light down it toward you.",
+        "Midday in the dark look is now a dusky slate-blue day with the tree in silhouette.",
+        "Winter reads at a glance: snow on the limbs and a pale snow-covered hill.",
+        "An ordinary iPhone keeps the tree beside his name, and at bedtime gets the tallest sky of the three."
+      ],
+      "notyet": [
+        "The motion has only been seen as films stepped frame by frame. They have no jumps, but nobody has seen it at a phone's own frame rate.",
+        "Night with the cards on is still quiet. The legibility limit leaves very little room to lift it.",
+        "In the held bedtime frame the band of light still reads as an arc across the sky.",
+        "July bedtime is better but not yet a showpiece. The stars are faint against the lighter evening sky and there are too many clouds.",
+        "The dark look's lighter daytime sky is new. It puts the sky a step lighter than the cards all day, and that needs judging on a phone.",
+        "The clouds are formed now but small. The crowns in leaf are flatter than the bare tree.",
+        "On an ordinary iPhone at sunset the gear button covers the sun, so only its glow shows.",
+        "The light look at night is pale by design, and its land is close to one value at midday."
+      ],
+      "build": "No shader: one tall sky image, five layers of land and a pre-drawn tree on a SwiftUI Canvas. The bedtime move only slides those layers. The risk is the land's soft brushwork, which has to be re-proved on a phone."
+    },
+    {
+      "id": "hill-lit",
+      "name": "Lit",
+      "extras": true,
+      "line": "True light's sky, with the hill drawn into it.",
+      "idea": "The round-one True light shader keeps the sky, the mist and the land, reshaped into the same valley, hills and knoll. The tree, the stars and the caption are drawn on top.",
+      "works": [
+        "The smoothest light of the two, and the clouds are better formed, with lit undersides at sunset.",
+        "The same bedtime and the same river valley, so the two can be compared frame for frame."
+      ],
+      "notyet": [
+        "The hills read as computer-made mounds, not drawn shapes.",
+        "The tree is a dense scribble against the sun and does not belong to the land under it.",
+        "The bedtime ring is barely there.",
+        "It needs a shader, which the app does not have today."
+      ],
+      "build": "One Metal shader for sky and land, plus a Canvas for the tree and stars."
+    },
+    {
+      "id": "picture-book",
+      "name": "Picture book",
+      "badge": "Round one",
+      "reference": true,
+      "line": "Round one's pick, for comparison: the hill before it had air."
+    },
+    {
+      "id": "true-light",
+      "name": "True light",
+      "badge": "Round one",
+      "reference": true,
+      "line": "Round one's light, for comparison."
+    },
+    {
+      "id": "baseline",
+      "name": "Today's sky",
+      "reference": true,
+      "line": "What ships now."
+    }
+  ]
+}

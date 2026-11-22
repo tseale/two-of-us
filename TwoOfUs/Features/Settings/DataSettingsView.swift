@@ -37,6 +37,19 @@ struct DataSettingsView: View {
             } footer: {
                 Text("Shows sample data so you can explore the app. Your real entries are hidden and untouched, and nothing syncs while demo mode is on.")
             }
+
+            Section {
+                Toggle(isOn: $prefs.paintedSky) {
+                    SettingsIconLabel(title: "Painted sky", systemImage: "moon.stars", tint: AppColor.accentSleep)
+                }
+                if prefs.paintedSky {
+                    NavigationLink("Sky bench") { SkyBench() }
+                }
+            } header: {
+                Text("In the works")
+            } footer: {
+                Text("Home's new sky, still being built. Only this phone is changed, and turning it off puts everything back.")
+            }
         }
         .navigationTitle("Data")
         .navigationBarTitleDisplayMode(.inline)

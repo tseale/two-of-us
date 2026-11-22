@@ -13,5 +13,12 @@ if [ -n "$CI_BUILD_NUMBER" ]; then
     sed -i '' "s/^\([[:space:]]*\)CURRENT_PROJECT_VERSION:.*/\1CURRENT_PROJECT_VERSION: \"$CI_BUILD_NUMBER\"/" project.yml
 fi
 
+# Xcode no longer ships the Metal compiler: without the toolchain component the
+# build of TwoOfUs/Sky/SkyField.metal fails ("missing Metal Toolchain"). Fetch
+# it only where the runner's image does not already have it.
+if ! xcrun metal --version >/dev/null 2>&1; then
+    xcodebuild -downloadComponent MetalToolchain
+fi
+
 brew install xcodegen
 xcodegen generate

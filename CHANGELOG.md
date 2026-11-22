@@ -6,6 +6,16 @@ All notable changes to Two of Us are recorded here. The format loosely follows
 
 ## [Unreleased]
 
+### Added — a preview switch for Home's new sky
+- Settings → Data has a "Painted sky" switch under "In the works". It is off,
+  changes only the phone it is turned on for, and shows an unfinished test
+  version of the new sky on Home (no tree, sun or stars yet). Leave it off
+  unless you are helping test.
+
+### Fixed — builds reach TestFlight again
+- A compile error in the daycare message photos kept builds from uploading
+  after 20 November.
+
 ### Changed — daycare messages read better
 - Long Brightwheel messages no longer take over the timeline. They show 3
   lines (4 for health news) with "Read more", and tapping one opens a

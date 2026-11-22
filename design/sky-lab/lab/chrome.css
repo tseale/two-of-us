@@ -1,0 +1,1143 @@
+/* Home's UI as HTML, drawn over the sky — styles for lab/chrome.js.
+ *
+ * Everything is scoped under .tou-chrome (the root createChrome() is given),
+ * so linking this sheet changes nothing else on the page. Tokens are
+ * DESIGN.md §2 / TwoOfUs/DesignSystem/Colors.swift; type is Typography.swift
+ * with Inter standing in for SF Pro and Nunito for SF Rounded.
+ *
+ * Line heights are the heights SwiftUI gives a one-line Text (UIFont.lineHeight,
+ * ≈ 1.193 × the point size for SF), written out in px so no card's height
+ * depends on a font having loaded.
+ *
+ * Nothing here paints a page background: between and around the cards the
+ * sky shows through.
+ */
+
+/* The stand-in faces, laid on SF's baseline.
+ *
+ * SF Pro and SF Rounded share one set of vertical metrics (UIFont: ascender
+ * 0.952, descender 0.241, no line gap), so a line of size s is 1.193 s tall
+ * with its baseline 0.952 s down. Nunito's own metrics (1.011 / 0.353) put
+ * every rounded line about 2 pt high in that box — the name, the totals, the
+ * tile titles, the timer — and Inter's put a few sizes 1 pt high.
+ *
+ * Chromium snaps a line's ascent and descent to whole px before it places the
+ * baseline, so SF's exact ratios do not give SF's baseline either. The
+ * overrides below are the pairs that land every size this sheet uses within
+ * 0.65 pt of SF's (searched and measured in headless Chromium, with this
+ * root's text-rendering). They only move the baseline inside the line box;
+ * no glyph is redrawn and no box changes size.
+ */
+@font-face {
+  font-family: "Nunito";
+  font-style: normal;
+  font-weight: 200 1000;
+  font-display: block;
+  src: url("../assets/fonts/nunito-latin-wght-normal.woff2") format("woff2");
+  ascent-override: 98%;
+  descent-override: 22.5%;
+  line-gap-override: 0%;
+}
+
+/* Inter, where it is installed (it is not bundled): the same faces under
+   another name, so their metrics can be overridden. Without it these fail to
+   load and --font-text falls through to "Inter" and the system font. */
+@font-face {
+  font-family: "Lab Inter";
+  font-weight: 400;
+  src: local("Inter Regular"), local("Inter-Regular");
+  ascent-override: 97.4%;
+  descent-override: 19.5%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Lab Inter";
+  font-weight: 500;
+  src: local("Inter Medium"), local("Inter-Medium");
+  ascent-override: 97.4%;
+  descent-override: 19.5%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Lab Inter";
+  font-weight: 600;
+  src: local("Inter SemiBold"), local("Inter Semi Bold"), local("Inter-SemiBold");
+  ascent-override: 97.4%;
+  descent-override: 19.5%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Lab Inter";
+  font-weight: 700;
+  src: local("Inter Bold"), local("Inter-Bold");
+  ascent-override: 97.4%;
+  descent-override: 19.5%;
+  line-gap-override: 0%;
+}
+
+/* Noto Color Emoji draws about 14 % larger than Apple Color Emoji at one font
+   size (🍼 at 30 pt: 33 pt wide against the app's 29). Where Apple's face is
+   missing, Noto is used at the size Apple's would be, its glyph centred in
+   the line as Apple's is. */
+@font-face {
+  font-family: "Lab Emoji";
+  src: local("Noto Color Emoji"), local("NotoColorEmoji");
+  size-adjust: 88%;
+  ascent-override: 97%;
+  descent-override: 22%;
+  line-gap-override: 0%;
+}
+
+.tou-chrome {
+  /* Neutrals — light appearance */
+  --bg: #F2F2F7;
+  --card: #FFFFFF;
+  --card2: #ECECF0;
+  --separator: #D1D1D6;
+  --text: #000000;
+  --text2: #6C6C70;
+  --text3: #8E8E93;
+  --urgency-amber-text: #B87B1E;
+  --urgency-red-text: #D94F4F;
+
+  /* Fixed in both appearances */
+  --accent-feed: #5AC8B8;
+  --accent-sleep: #8E8EFF;
+  --accent-diaper: #F5B971;
+  --accent-note: #A8A0B8;
+  --accent-milestone: #E3C158;
+  --urgency-amber: #F5B971;
+  --urgency-red: #FF6B6B;
+  --nightlight-cream: #FFF4E8;
+
+  --hairline: color-mix(in srgb, var(--separator) 50%, transparent);
+  --rail: color-mix(in srgb, var(--separator) 60%, transparent);
+
+  /* Liquid Glass stand-in: what `.glassEffect(.regular)` leaves between the
+     sky and the tint. Measured off the App Store screenshots (flat grounds:
+     #F2F2F7 and black) — the three tiles' fills to within 2 levels, and the
+     shade the glass casts on the light ground (11 levels at a tile's side,
+     18 under it, gone 36 pt out). */
+  --glass-film: rgba(255, 255, 255, 0.28);
+  --glass-edge: rgba(255, 255, 255, 0.55);
+  --glass-shadow: 0 10px 26px rgba(0, 0, 0, 0.09);
+  --bar-film: rgba(255, 255, 255, 0.60);
+  --bar-pill: rgba(118, 118, 128, 0.14);
+  /* The tab bar's selected item: the app's tint (accentFeed) as the system
+     renders it on the bar — a shade deeper in light, brighter in dark. */
+  --tab-tint: #4FBDAF;
+
+  --font-text: "Lab Inter", "Inter", -apple-system, "SF Pro Text", "Helvetica Neue", Arial, "Apple Color Emoji", "Lab Emoji", "Noto Color Emoji", sans-serif;
+  --font-round: "Nunito", "SF Pro Rounded", ui-rounded, "Quicksand", "Inter", "Apple Color Emoji", "Lab Emoji", "Noto Color Emoji", sans-serif;
+  --font-emoji: "Apple Color Emoji", "Lab Emoji", "Noto Color Emoji", sans-serif;
+
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-text);
+  font-size: 15px;
+  line-height: 17.9px;
+  letter-spacing: -0.011em;
+  font-kerning: normal;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+  text-align: left;
+}
+
+.tou-chrome[data-scheme="dark"] {
+  --bg: #000000;
+  --card: #1C1C1E;
+  --card2: #2C2C2E;
+  --separator: #38383A;
+  --text: #FFFFFF;
+  --text2: #98989F;
+  --text3: #636366;
+  --urgency-amber-text: #F0B05A;
+  --urgency-red-text: #FF8A8A;
+
+  --glass-film: rgba(40, 40, 44, 0.46);
+  --glass-edge: rgba(255, 255, 255, 0.10);
+  --glass-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
+  --bar-film: rgba(40, 40, 44, 0.58);
+  --bar-pill: rgba(255, 255, 255, 0.145);
+  --tab-tint: #77E5D5;
+}
+
+.tou-chrome *,
+.tou-chrome *::before,
+.tou-chrome *::after {
+  box-sizing: border-box;
+}
+
+.tou-chrome div,
+.tou-chrome span {
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.tou-chrome svg {
+  display: block;
+  flex: none;
+}
+
+/* ── Type ramp (Typography.swift; iOS text styles at the default size) ── */
+
+.tou-chrome .f-round { font-family: var(--font-round); letter-spacing: 0; }
+.tou-chrome .f-hero { font: 800 34px/40.6px var(--font-round); letter-spacing: 0; }
+.tou-chrome .f-title3r { font: 700 20px/23.9px var(--font-round); letter-spacing: 0; }
+.tou-chrome .f-bodyr { font: 700 17px/20.3px var(--font-round); letter-spacing: 0; }
+.tou-chrome .f-body { font-size: 17px; line-height: 20.3px; }
+.tou-chrome .f-callout { font-size: 16px; line-height: 19.1px; }
+.tou-chrome .f-sub { font-size: 15px; line-height: 17.9px; }
+.tou-chrome .f-foot { font-size: 13px; line-height: 15.5px; }
+.tou-chrome .f-cap { font-size: 12px; line-height: 14.3px; }
+.tou-chrome .f-cap2 { font-size: 11px; line-height: 13.1px; }
+.tou-chrome .w-semi { font-weight: 600; }
+.tou-chrome .w-bold { font-weight: 700; }
+.tou-chrome .f-round.w-semi { font-weight: 700; }
+.tou-chrome .f-round.w-bold { font-weight: 800; }
+.tou-chrome .mono { font-variant-numeric: tabular-nums; }
+
+/* `.sectionLabelStyle()`: caption2 semibold, uppercase, tracked 0.6. */
+.tou-chrome .label {
+  font: 600 11px/13.1px var(--font-text);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text2);
+  white-space: nowrap;
+}
+
+/* Colours come after the styles they recolour. */
+.tou-chrome .c-text { color: var(--text); }
+.tou-chrome .c-text2 { color: var(--text2); }
+.tou-chrome .c-text3 { color: var(--text3); }
+.tou-chrome .c-feed { color: var(--accent-feed); }
+.tou-chrome .c-sleep { color: var(--accent-sleep); }
+.tou-chrome .c-diaper { color: var(--accent-diaper); }
+.tou-chrome .nowrap { white-space: nowrap; }
+.tou-chrome .ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tou-chrome .emoji { flex: none; font-family: var(--font-emoji); letter-spacing: 0; }
+
+/* `AIHintText`: the ✦ mark and the four-stop gradient on the text only. */
+.tou-chrome .ai {
+  background: linear-gradient(90deg, #5AA8FF, #8E8EFF, #D984E0, #F5A97F);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  white-space: nowrap;
+}
+
+/* ── Surfaces (Colors.swift: surfaceCard / glassTile) ── */
+
+.tou-chrome .surface {
+  position: relative;
+  background: var(--card);
+  border-radius: 18px;
+  box-shadow: inset 0 0 0 0.5px var(--hairline);
+}
+
+.tou-chrome .glass {
+  --tint: transparent;
+  position: relative;
+  border-radius: 20px;
+  background:
+    linear-gradient(color-mix(in srgb, var(--tint) 18%, transparent), color-mix(in srgb, var(--tint) 18%, transparent)),
+    linear-gradient(var(--glass-film), var(--glass-film));
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+  box-shadow: inset 0 0 0 0.75px var(--glass-edge), var(--glass-shadow);
+}
+
+/* The monogram is SVG text: its baseline is set exactly (cap height centred),
+   where a line box would snap it to a whole px. */
+.tou-chrome .avatar {
+  flex: none;
+  display: block;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.tou-chrome .avatar svg { display: block; width: 100%; height: 100%; }
+
+.tou-chrome .avatar text {
+  fill: #fff;
+  font-family: var(--font-round);
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+/* ── The phone page (HomeView.compactList) ── */
+
+.tou-chrome .page {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
+.tou-chrome .header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  height: 60.6px;
+}
+
+.tou-chrome .header .who {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tou-chrome .gear {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: inset 0 0 0 0.5px var(--hairline);
+  color: var(--text3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Header row's bottom inset (2) + the next row's top inset (4). */
+.tou-chrome .stack {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Today hero (TodayHeroCard) ── */
+
+.tou-chrome .hero {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* The sunrise band: the three accents across the top, gone a quarter down. */
+.tou-chrome .hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--accent-feed) 35%, transparent),
+    color-mix(in srgb, var(--accent-diaper) 33%, transparent),
+    color-mix(in srgb, var(--accent-sleep) 28%, transparent));
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 25%);
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 25%);
+  pointer-events: none;
+}
+
+.tou-chrome .hero > * { position: relative; }
+
+.tou-chrome .hero-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  height: 23.9px;
+}
+
+.tou-chrome .hero-day {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* DayFlowStrip — 62 pt; band at 32 % down, 30 % tall. */
+.tou-chrome .strip {
+  position: relative;
+  height: 62px;
+}
+
+.tou-chrome .strip .track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 19.84px;
+  height: 18.6px;
+  border-radius: 9.3px;
+  background: var(--card2);
+}
+
+.tou-chrome .strip .nap {
+  position: absolute;
+  top: 23.34px;
+  height: 11.6px;
+  border-radius: 5.8px;
+  background: color-mix(in srgb, var(--accent-sleep) 55%, transparent);
+}
+
+.tou-chrome .strip .mark {
+  position: absolute;
+  width: 16px;
+  margin-left: -8px;
+  height: 14px;
+  margin-top: -7px;
+  font: 10px/14px var(--font-emoji);
+  text-align: center;
+  letter-spacing: 0;
+}
+
+.tou-chrome .strip .hour {
+  position: absolute;
+  top: 58px;
+  transform: translate(-50%, -50%);
+  font: 500 9px/11px var(--font-text);
+  color: var(--text2);
+  white-space: nowrap;
+}
+
+/* A 6 pt circle stroked 1.5 pt on its path: 7.5 pt across, 4.5 pt inside. */
+.tou-chrome .strip .now {
+  position: absolute;
+  top: 29.14px;
+  width: 7.5px;
+  height: 7.5px;
+  margin: -3.75px 0 0 -3.75px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text2);
+}
+
+.tou-chrome .strip .glow {
+  position: absolute;
+  top: 29.14px;
+  width: 20.7px;
+  height: 20.7px;
+  margin: -10.35px 0 0 -10.35px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent-sleep) 45%, transparent);
+  filter: blur(5px);
+}
+
+.tou-chrome .strip .glow-dot {
+  position: absolute;
+  top: 29.14px;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* EqualSlotRow: the middle column pinned to the card's centre. */
+.tou-chrome .totals {
+  position: relative;
+  height: 49.7px;
+}
+
+.tou-chrome .total {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.tou-chrome .total .value {
+  font: 800 28px/33.4px var(--font-round);
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  height: 33.4px;
+}
+
+.tou-chrome .total .unit {
+  font: 700 16px/19.1px var(--font-round);
+  opacity: 0.7;
+}
+
+.tou-chrome .total .caption {
+  font: 500 12px/14.3px var(--font-text);
+  color: var(--text2);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.tou-chrome .total .caption.live {
+  font-weight: 600;
+  color: var(--accent-sleep);
+}
+
+/* ── Log tiles (LogButtons) ── */
+
+.tou-chrome .tiles {
+  display: flex;
+  gap: 12px;
+}
+
+.tou-chrome .tiles > .tile { flex: 1 1 0; }
+
+.tou-chrome .tile {
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 132px;
+}
+
+.tou-chrome .tile .col {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.tou-chrome .tile .glyph {
+  font: 30px/35.8px var(--font-emoji);
+  height: 35.8px;
+  letter-spacing: 0;
+}
+
+.tou-chrome .tile .lines {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tou-chrome .tile .title {
+  font: 800 20px/23.9px var(--font-round);
+  letter-spacing: 0;
+  color: var(--text);
+}
+
+.tou-chrome .since {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text2);
+  white-space: nowrap;
+}
+
+.tou-chrome .since.amber { color: var(--urgency-amber-text); font-weight: 600; }
+.tou-chrome .since.red { color: var(--urgency-red-text); font-weight: 600; }
+.tou-chrome .since.amber svg { color: var(--urgency-amber); }
+.tou-chrome .since.red svg { color: var(--urgency-red); }
+
+.tou-chrome .hint {
+  height: 14.3px;
+  white-space: nowrap;
+  color: var(--text2);
+  transform-origin: left center;
+}
+
+/* plus.circle.fill at 22 pt, padded 14: the symbol's frame is wider than its
+   disc, which lands 15.3 pt down and 15.7 pt in (measured on the app). */
+.tou-chrome .plus {
+  position: absolute;
+  top: 15.33px;
+  right: 15.67px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--tint);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tou-chrome .tile .detail {
+  flex: none;
+  margin-left: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+/* ── Active sleep card (SleepActiveCard) ── */
+
+.tou-chrome .sleepcard {
+  border-radius: 22px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.tou-chrome .sleepcard.short { padding: 16px; }
+
+.tou-chrome .sleepcard .status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.tou-chrome .sleepcard.short .status {
+  align-self: stretch;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+}
+
+.tou-chrome .sleepcard.short .status .lines {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.tou-chrome .sleepcard .timer {
+  font-family: var(--font-round);
+  font-weight: 900;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.tou-chrome .sleepcard .sincerow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text3);
+  height: 14.3px;
+}
+
+/* SlideToConfirmView: 56 pt pill, 80 % of its parent (≤ 360), centred. */
+.tou-chrome .slide {
+  --tint: var(--accent-sleep);
+  position: relative;
+  width: min(80%, 360px);
+  height: 56px;
+  margin-top: 8px;
+  border-radius: 28px;
+  background:
+    linear-gradient(color-mix(in srgb, var(--tint) 10%, transparent), color-mix(in srgb, var(--tint) 10%, transparent)),
+    linear-gradient(var(--glass-film), var(--glass-film));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tint) 22%, transparent);
+}
+
+.tou-chrome .slide .wake {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 28px;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--tint) 38%, transparent),
+    color-mix(in srgb, var(--tint) 16%, transparent));
+}
+
+.tou-chrome .slide .thumb {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, var(--tint), color-mix(in srgb, var(--tint) 80%, transparent));
+  /* .shadow(radius: 6, y: 2) — a SwiftUI radius is about half a CSS blur. */
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--tint) 35%, transparent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tou-chrome .slide .words {
+  position: absolute;
+  left: 46px;
+  right: 26px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--text2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tou-chrome .slide .check {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%) scale(0.5);
+  transform-origin: center;
+  opacity: 0.15;
+  color: var(--tint);
+}
+
+/* ── Tonight's Schedule / Up next (HomeView.tonightCard) ── */
+
+.tou-chrome .tonight {
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.tou-chrome .tonight .head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.tou-chrome .tonight .trow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+}
+
+.tou-chrome .tonight .trow .time { width: 52px; text-align: right; flex: none; }
+
+.tou-chrome .tonight .trail {
+  position: relative;
+  flex: none;
+  width: 12px;
+  align-self: stretch;
+}
+
+.tou-chrome .tonight .trail::before {
+  content: "";
+  position: absolute;
+  left: 5.25px;
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+  background: var(--rail);
+}
+
+.tou-chrome .tonight .trow.last .trail::before { bottom: 50%; }
+
+/* An 8 pt dot whose outer 1.5 pt is a ring of the card's colour (strokeBorder
+   draws inside the frame), so the rail passes behind it. */
+.tou-chrome .tonight .trail i {
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--card);
+}
+
+.tou-chrome .tonight .trail i::after {
+  content: "";
+  position: absolute;
+  inset: 1.5px;
+  border-radius: 50%;
+  background: var(--dot, var(--accent-feed));
+}
+
+.tou-chrome .tonight .foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 8px;
+  color: var(--text3);
+}
+
+.tou-chrome .tonight .foot span { display: inline-flex; align-items: center; gap: 4px; }
+
+/* ── Timeline card (HomeView.timelineSection(card:) + DayTimelineRow) ── */
+
+/* The row above ends 4 pt down; the card starts `TimelineCard.gap` (8) under that. */
+.tou-chrome .timeline {
+  margin-top: 12px;
+  background: var(--card);
+  border-radius: 20px;
+  padding-bottom: 8px;
+}
+
+.tou-chrome .timeline .thead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 2px;
+  height: 45.5px;
+}
+
+.tou-chrome .timeline .thead .titles {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.tou-chrome .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-note) 16%, transparent);
+  color: var(--accent-note);
+  font: 600 13px/15.5px var(--font-text);
+  white-space: nowrap;
+}
+
+.tou-chrome .trowt {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  min-height: 46px;
+  padding: 0 12px;
+}
+
+.tou-chrome .trowt.cap {
+  min-height: 44px;
+  height: 44px;
+  align-items: center;
+}
+
+.tou-chrome .trowt .when {
+  flex: none;
+  width: 64px;
+  align-self: center;
+  text-align: right;
+  color: var(--text3);
+  white-space: nowrap;
+}
+
+.tou-chrome .trowt .when.two {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: visible;
+}
+
+/* A capsule shorter than its two labels: they overhang it evenly. */
+.tou-chrome .trowt .when.two.tight { justify-content: center; }
+
+.tou-chrome .rail {
+  position: relative;
+  flex: none;
+  width: 16px;
+}
+
+.tou-chrome .rail::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--rail);
+}
+
+/* A node is the accent inside a 2 pt ring of the card's own colour, drawn
+   inside the node's frame (strokeBorder), so the rail passes behind it. */
+.tou-chrome .rail .node {
+  position: absolute;
+  left: 2.5px;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  margin-top: -5.5px;
+  border-radius: 50%;
+  background: var(--card);
+}
+
+.tou-chrome .rail .node::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: inherit;
+  background: var(--node);
+}
+
+.tou-chrome .rail .node.bar {
+  left: 3.5px;
+  width: 9px;
+  border-radius: 4.5px;
+}
+
+.tou-chrome .trowt.cap .rail { height: 26px; }
+.tou-chrome .trowt.cap .rail::before { top: 9px; }
+
+.tou-chrome .trowt.cap .ring {
+  position: absolute;
+  left: 3.5px;
+  top: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text3);
+}
+
+.tou-chrome .trowt .what {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The words, then `Spacer(minLength: 8)` at the stack's 6 pt spacing: 14 pt
+   kept clear after them (and 6 more before an avatar). */
+.tou-chrome .trowt .what .words {
+  flex: 1 1 auto;
+  margin-right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tou-chrome .trowt .what .words .t { font-weight: 600; color: var(--text); }
+
+/* ── System chrome ── */
+
+.tou-chrome .sys {
+  position: absolute;
+  color: var(--text);
+}
+
+.tou-chrome .island {
+  position: absolute;
+  background: #000;
+  border-radius: 18.5px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.tou-chrome .island.live {
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 11px 0 10px;
+}
+
+.tou-chrome .clock {
+  position: absolute;
+  font: 600 17px/20px var(--font-text);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.tou-chrome .status-icons {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tou-chrome .tabbar {
+  position: absolute;
+  display: flex;
+  padding: 4px;
+  border-radius: 31px;
+  background: linear-gradient(var(--bar-film), var(--bar-film));
+  -webkit-backdrop-filter: blur(24px) saturate(1.7);
+  backdrop-filter: blur(24px) saturate(1.7);
+  box-shadow: inset 0 0 0 0.75px var(--glass-edge), 0 8px 28px rgba(0, 0, 0, 0.12);
+}
+
+.tou-chrome .tabbar.vertical { flex-direction: column; border-radius: 32px; }
+
+.tou-chrome .tab {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 27px;
+  color: var(--text);
+  font: 500 10px/12px var(--font-text);
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.tou-chrome .tabbar.vertical .tab { border-radius: 28px; }
+
+.tou-chrome .tab.on {
+  background: var(--bar-pill);
+  color: var(--tab-tint);
+  font-weight: 600;
+}
+
+/* ── The spread's leading page (HomeView.spreadDetailsPage) ── */
+
+.tou-chrome .lead-title {
+  position: absolute;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.tou-chrome .lead-title .words {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tou-chrome .weekstamp {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.tou-chrome .lead-col {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tou-chrome .dcard {
+  flex: none;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tou-chrome .dcard.fills {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tou-chrome .rowb {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tou-chrome .figs {
+  display: flex;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.tou-chrome .fig {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.tou-chrome .fig .v { font: 900 20px/23.9px var(--font-round); letter-spacing: 0; }
+
+.tou-chrome .tally {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.tou-chrome .tally .who { display: flex; align-items: center; gap: 8px; height: 24px; }
+
+.tou-chrome .nights {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tou-chrome .nrow {
+  flex: 1 1 0;
+  min-height: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tou-chrome .nrow .day { flex: none; width: 34px; color: var(--text3); }
+.tou-chrome .nrow .sum { flex: none; width: 52px; text-align: right; color: var(--text3); }
+.tou-chrome .nrow.cur .day { color: var(--text); font-weight: 700; }
+.tou-chrome .nrow.cur .sum { color: var(--accent-sleep); font-weight: 700; }
+
+.tou-chrome .ntrack {
+  position: relative;
+  flex: 1 1 0;
+  align-self: stretch;
+}
+
+.tou-chrome .ntrack i {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 999px;
+}
+
+.tou-chrome .naxis {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  color: var(--text3);
+}
+
+.tou-chrome .naxis .ticks { flex: 1; display: flex; justify-content: space-between; }
+
+.tou-chrome .legend { display: inline-flex; align-items: center; gap: 4px; color: var(--text3); }
+.tou-chrome .legend i { width: 7px; height: 7px; border-radius: 50%; }
+
+.tou-chrome .hl {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.tou-chrome .hl .when { flex: none; width: 64px; color: var(--text3); }
+.tou-chrome .hl .words { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+
+.tou-chrome .divider {
+  height: 0.5px;
+  margin: 2px 0;
+  background: var(--separator);
+}
+
+.tou-chrome .chart {
+  flex: 1 1 0;
+  min-height: 0;
+  position: relative;
+}
+
+.tou-chrome .chart svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+
+/* ── Undo toast (LoggedToast) ── */
+
+.tou-chrome .toast {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 999px;
+  background: var(--card2);
+  /* .shadow(radius: 12, y: 4) */
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* The veil (bedtime: the cards fall back). Each card fades on its own. Fading the
+   wrapper would put the glass tiles in a group, where their blur no longer sees
+   the sky, and they would jump as the fade starts and ends. */
+.veiled [data-card] { opacity: var(--veil, 1); }
