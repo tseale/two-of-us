@@ -68,14 +68,18 @@ struct SkyFieldSpike: View {
         let display = display
         let dark = scheme == .dark
         let key = key
+        // As the Land screen does: nothing while the Hour slider is moving,
+        // then one texture, made through the bench's one painter.
+        try? await Task.sleep(for: .seconds(0.2))
+        guard !Task.isCancelled else { return }
         let started = Date.now
-        let result = await Task.detached(priority: .userInitiated) { () -> (SkyFieldTexture, SkyBenchMinute)? in
+        let result = await SkyBenchPainter.shared.paint { () -> (SkyFieldTexture, SkyBenchMinute)? in
             let minute = SkyBenchMinute.at(date, display: display, dark: dark,
                                            calendar: SkyBenchMinute.chicagoTime)
             guard let texture = SkyFieldTexture.make(for: minute) else { return nil }
             return (texture, minute)
-        }.value
-        guard let result, key == self.key else { return }
+        }
+        guard let result, !Task.isCancelled, key == self.key else { return }
         cost = Date.now.timeIntervalSince(started) * 1000
         made = (result.0, result.1, key)
     }

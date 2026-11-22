@@ -159,15 +159,25 @@ struct SkyBenchStage: View {
         let dark = scheme == .dark
         let scale = Double(displayScale)
         let calendar: Calendar = driver.hour == nil ? .current : SkyBenchMinute.chicagoTime
-        let result = await Task.detached(priority: .userInitiated) { () -> Made? in
+        // Through the bench's one painter, in this task: a paint the bench's
+        // own screens have asked for and this one never run together, and
+        // when SwiftUI cancels this task (a new minute, the stage gone) the
+        // paint stops at the next plane and shows nothing.
+        let result = await SkyBenchPainter.shared.paint { () -> Made? in
             let minute = SkyBenchMinute.at(date, display: slab ? .slab : .cover, dark: dark, calendar: calendar)
             guard let texture = SkyFieldTexture.make(for: minute) else { return nil }
-            let plates = slab ? SkyLandPainter.slab.compactMap {
-                SkyLandPainter.paint($0, minute: minute, scale: scale)
-            } : []
+            var plates: [SkyLandPainter.Plate] = []
+            if slab {
+                for plane in SkyLandPainter.slab {
+                    guard !Task.isCancelled else { return nil }
+                    guard let plate = SkyLandPainter.paint(plane, minute: minute, scale: scale) else { continue }
+                    plates.append(plate)
+                }
+            }
             return Made(key: key, minute: minute, texture: texture, plates: plates)
-        }.value
-        if let result { made = result }
+        }
+        guard let result, !Task.isCancelled else { return }
+        made = result
     }
 }
 

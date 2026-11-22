@@ -63,20 +63,28 @@ struct SkyLandSpike: View {
         let dark = scheme == .dark
         let scale = Double(displayScale)
         let key = key
-        let result = await Task.detached(priority: .userInitiated) { () -> Made? in
+        // A drag of the Hour slider asks for a picture at every value it
+        // passes, and each new value cancels this task. So wait for the
+        // slider to rest before painting anything…
+        try? await Task.sleep(for: .seconds(0.2))
+        guard !Task.isCancelled else { return }
+        // …and paint through the bench's one painter, in this task, looking
+        // between planes for a newer value (or the screen gone).
+        let result = await SkyBenchPainter.shared.paint { () -> Made? in
             let minute = SkyBenchMinute.at(date, display: .slab, dark: dark, calendar: SkyBenchMinute.chicagoTime)
             guard let texture = SkyFieldTexture.make(for: minute) else { return nil }
             var plates: [SkyLandPainter.Plate] = []
             var costs: [(String, Double)] = []
             for plane in SkyLandPainter.slab {
+                guard !Task.isCancelled else { return nil }
                 let started = Date.now
                 guard let plate = SkyLandPainter.paint(plane, minute: minute, scale: scale) else { continue }
                 costs.append((plane.id.rawValue, Date.now.timeIntervalSince(started) * 1000))
                 plates.append(plate)
             }
             return Made(key: key, minute: minute, texture: texture, plates: plates, costs: costs)
-        }.value
-        guard let result, key == self.key else { return }
+        }
+        guard let result, !Task.isCancelled, key == self.key else { return }
         made = result
     }
 
