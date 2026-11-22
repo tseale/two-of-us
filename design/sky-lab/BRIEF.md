@@ -370,6 +370,22 @@ wins.**
    glyphs.
 4. **Next: build it in the app.** The SwiftUI version, in stages that can be tried on
    TestFlight.
+5. **Which sleep is the night's** (asked again while the build was being planned; his words:
+   "try to be smart about whether the sleep that's being started is his actual sleep for the
+   night, but we don't need to get too crazy here with logic"). So the fixed 6 pm of "The
+   night stays up" gives way, in the app, to the ground the app already uses for "went down
+   for the night" (`PredictionEngine.bedtime`), and two plain rules:
+   - **The evening opens 90 minutes before the household's night start** (a setting; 8:00 pm
+     by default, so 6:30 pm). A sleep begun from then until 4 am is the night's sleep, and
+     begun by hand on Home it plays the moment.
+   - **A catnap un-begins the night.** A sleep begun in the evening that is over within 45
+     minutes, and before the household's night start, was a nap after all: Home settles
+     quietly, and the next evening sleep begins the night (by hand, with the moment).
+   - **A sleep still running at the household's night start is the night's sleep**, whenever
+     it began (a 5:50 pm bedtime): the night begins then, quietly, with no moment.
+   The lab keeps its own stand-in for the hours (`lab/core.js`); these three are the app's.
+6. **The phones** are an iPhone 17 (402 × 874 pt: the slab's world as it is authored) and
+   the iPhone Duo.
 
 ## What the canvas really is
 
