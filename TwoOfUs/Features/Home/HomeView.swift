@@ -169,6 +169,12 @@ struct HomeView: View {
                 // too narrow for two pages) keeps its panes exactly.
                 let grid = layout.flatMap { $0.shape == .wide ? SpreadGrid(layout: $0, isPhone: isPhone) : nil }
                 ZStack(alignment: .topLeading) {
+                    // The painted hill's bench (docs/SKY_BUILD_PLAN.md,
+                    // stage 1): a stand-in sky hoisted out of the list.
+                    // Never built while the device-local switch is off.
+                    if prefs.paintedSky, layout == nil {
+                        SkyBenchStage()
+                    }
                     if let layout {
                         if let grid {
                             spreadBehindPhone(layout, grid: grid,
@@ -193,6 +199,7 @@ struct HomeView: View {
                     }
                 }
                 .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+                .overlay { if prefs.paintedSky, layout == nil { SkyBenchPill() } }
             }
             // Home has no text field of its own — every one is in a sheet —
             // but a sheet's keyboard insets the screen behind it as well. On
@@ -406,11 +413,14 @@ struct HomeView: View {
                         // daycare day out; checkout brings them back.
                         heroCard(now: ctx.date, attendance: attendance, summary: summary,
                                  active: active, condensedCaption: shortCard)
+                            .skyBenchVeil()
                         if attendance == nil {
                             logButtons(now: ctx.date, activeSleep: active)
+                                .skyBenchVeil()
                         }
                         if let sleep = active {
                             sleepCard(sleep, now: ctx.date, compact: shortCard)
+                                .skyBenchVeil()
                                 .transition(.opacity.combined(with: .scale(0.96, anchor: .top)))
                         }
                         // SNOO suggestions sit directly under the sleep
@@ -442,11 +452,13 @@ struct HomeView: View {
             // The deferred-setup checklist sits where an empty timeline
             // leaves dead space — the logging UI above stays untouched.
             checklistSection(leading: side, trailing: side)
+                .skyBenchVeil()
 
             // The timeline on its own card, so it reads as one surface on
             // the page — not a band of cell backgrounds starting halfway
             // down the screen.
             timelineSection(leading: side, trailing: side, card: true)
+                .skyBenchVeil()
         }
         .listStyle(.plain)
         // The ground is the sky (the time-of-day gradient, deep in the
@@ -459,8 +471,13 @@ struct HomeView: View {
         // no feather and no mask — the ground exactly as before.)
         .scrollContentBackground(.hidden)
         .background {
-            SkyBackground(location: daycareSettings?.daycareCoordinate,
-                          leadingFeather: onSpread ? PhonePage.featherWidth : 0)
+            if prefs.paintedSky, !onSpread {
+                // The bench's hoisted sky shows through (`body`).
+                Color.clear
+            } else {
+                SkyBackground(location: daycareSettings?.daycareCoordinate,
+                              leadingFeather: onSpread ? PhonePage.featherWidth : 0)
+            }
         }
         .loggedToast($toast)
         // The list's top edge: its top inset, and whether it starts at the
@@ -1688,19 +1705,23 @@ struct HomeView: View {
         HStack(alignment: .top, spacing: 14) {
             Avatar(photoData: baby?.photoData, name: baby?.name ?? "Baby",
                    colorHex: ParticipantColors.babyHex, size: 60)
+                .skyBenchMeasure("avatar")
             VStack(alignment: .leading, spacing: 2) {
                 Text(baby?.name ?? "Baby")
                     .font(AppFont.hero())
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    .skyBenchMeasure("name")
                 if let dob = baby?.dateOfBirth {
                     Text(TimeFormatting.age(from: dob))
                         .font(.subheadline)
                         .foregroundStyle(AppColor.text2)
+                        .skyBenchMeasure("age")
                 }
             }
             Spacer()
             settingsButton
+                .skyBenchMeasure("gear")
         }
     }
 
