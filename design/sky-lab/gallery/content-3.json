@@ -3,7 +3,7 @@
     "tabTitle": "Home Sky Round Three",
     "eyebrow": "Two of Us · Home’s sky · round three",
     "title": "Miller’s hill",
-    "lede": "Round three with its last pass in. Bedtime looks up and stays up, the night lasts until first light, and the drawing has had two passes on an illustrator’s and an art director’s notes. Three independent reviews and a final check have been through this build. <strong>Start with the film.</strong>",
+    "lede": "Round three, signed off. This build has your one change in it: the cards now cut the sun and the moon, as in round two. It also has the small fixes from the last check. <strong>Start with the film.</strong>",
     "feature": {
       "sky": "hill-painted",
       "title": "Bedtime, staying up",
@@ -138,27 +138,27 @@
     "bedtimeSub": "The same moment as stills, to hold any instant. The cards step back, the view rises, the band crosses, and the cards return over the sky.",
     "openSub": "The closed phone’s sky is already on the right-hand page. The left page arrives bare, light runs down the river toward you, and then its cards land.",
     "mine": {
-      "title": "What the last pass changed, and what is yours to decide",
+      "title": "What you decided, and what this build changes",
       "paragraphs": [
         [
-          "Yours to decide: the night lasts until first light.",
-          "Home looks up from bedtime until the sky begins to lighten, about 6:12 a.m. in late November. A feed at 3 a.m. moves nothing. I took this from your “looking back down is too much”, and it is the one rule here you have not agreed to. The alternative is that the view comes down when he wakes. The film “First light” shows the one time the view does come down, quietly, behind the cards."
+          "Signed off.",
+          "The night lasts until first light. Summer bedtimes look up even before sunset. The cards cut the sun and the moon. The app build comes next."
         ],
         [
-          "Yours to decide: summer evenings.",
-          "From mid-April to late August a 7:40 bedtime comes before sunset. The view then goes up with the sun still in the tree, and his stars come out over the sunset, as in the July film. The cost is that Home’s own sunset is over once he is down. The alternative is to hold the look-up until sunset on those evenings."
+          "The cards cut the sun and the moon.",
+          "Both now keep their places all day and all night, and the cards cover what they cover. On the closed Duo that means half a sun at the Today card’s edge in the early afternoon, a cap of it in the left margin at sunrise, and late at night the moon as a glow under the glass tiles or a dim ball beside the sleep card. One exception: a disc is not drawn directly behind the Wi-Fi and battery symbols, for about twenty-five minutes as it passes, because white symbols on a pale disc cannot be read. In the bedtime film the Today card now returns over the moon."
         ],
         [
-          "The cost of “nothing cut by a card”.",
-          "A sun or moon is now drawn whole in open sky or not at all, by day as well as by night, and never beside the Wi-Fi and battery symbols. So with the cards on, the closed Duo shows the sun’s disc only in the open strip by the tree, which in late November is the last seventy minutes before sunset, and never at sunrise. At night, with the cards on, the closed Duo and an ordinary iPhone show no moon. Both are whole in the bedtime moment."
+          "Which sleep is the night’s.",
+          "The evening opens ninety minutes before your household night start, so 6:30 p.m. by default. A sleep started from then until 4 a.m. is the night’s sleep, and started by hand on Home it plays the moment. A short evening sleep, over within forty-five minutes and before your night start, lets Home settle back quietly. A sleep still running at your night start counts as the night’s sleep whenever it began. These rules are for the app; the mockup still uses a sample bedtime."
         ],
         [
-          "What the last pass changed.",
-          "On an ordinary iPhone the sun now sets beside the tree instead of behind the gear. His stars have an order: tonight’s is the largest, then his first night’s, then one for each month, then every other night. In the light look the sun has an edge, tonight’s star is ivory instead of white, and the tree no longer shows as a stain under the sleep card at night. Clouds have an uneven underside and are lit from the sun’s side. The July bedtime is filmed at 7:55, when the sun stands in the tree’s crown."
+          "Small fixes since the last build.",
+          "A month-night star under a glass tile is drawn as a plain point, so it no longer reads as the app’s own sparkle beside a tile’s text. A four-pointed star beside the moon draws in to a point. On the iPhone the setting sun is dim under the status bar for under two minutes, where it was four or five, and the rising sun is not drawn above the avatar. In the light look a year of stars is thinned toward the land, and the July bedtime band keeps its stars."
         ],
         [
           "Still not right.",
-          "Three small things are being fixed now: a month-night star can show faintly through the glass Diaper tile; on the iPhone the sun is dim for a minute or two as it comes out from under the status bar; and in the bedtime film the moon fades out under the returning Today card for about half a second. Two larger ones are not fixed: in the light look a year of stars reads as snowfall over a pale hill, and in the dark look by day the clouds are quiet enough to miss. Nothing has been seen moving on a phone."
+          "In the dark look by day the clouds are quiet enough to miss. The mockup’s sleep card does not blur what is behind it, so the moon under it at 3 a.m. is a hard-edged dim ball where real glass will soften it. During an early summer bedtime on the Duo the sun goes out once and comes back as the view rises past the status symbols. Nothing has been seen moving on a phone."
         ]
       ]
     },
@@ -502,7 +502,7 @@
         },
         {
           "title": "The night, with the cards on",
-          "note": "This is the trade to judge. Round two came back down after the moment, so its night kept the tree in the strip with tonight’s star at its shoulder. Now the view stays up: the night is his stars, with tonight’s the large one, and the hill is out of sight until first light.",
+          "note": "This is the trade to judge. Round two came back down after the moment, so its night kept the tree in the strip with tonight’s star at its shoulder. Now the view stays up: the night is his stars, with tonight’s the large one, and the hill is out of sight until first light. The moon is behind the Today card at 9 p.m. and shows under the lower cards later in the night.",
           "device": "cover",
           "width": 330,
           "pairs": [
@@ -540,7 +540,7 @@
       "title": "About these mockups",
       "points": [
         "These are stills and films from a browser mockup, not the app. Nothing in the app has changed. The films are stepped frame by frame at 60 frames a second, so they show the timing but not real performance.",
-        "Every legibility check passes on this build, all 143 of his stars are in view looking up on all three displays, and no event jumps on its first or last frame. Three independent reviews and a final check have been through it. What they found is either fixed or listed above.",
+        "Every legibility check passes on this build, on the sample day and on five more dates across the year. All 143 of his stars are in view looking up on all three displays, and no event jumps on its first or last frame. Every pass of round three was read by independent reviewers and closed by an adversarial final check. What they found is either fixed or listed above.",
         "The Home screen is redrawn from the app with sample data, the glass tiles only approximate Liquid Glass, and the fonts are stand-ins.",
         "The mockups use Chicago and a 2 July birthday as stand-ins. The app will use your daycare pin and his real date of birth.",
         "Round two, as you last saw it, and today’s sky are below Painted for comparison. They follow the same look, display and hour."
@@ -595,17 +595,16 @@
         "Bedtime looks up once and stays. The cards return over the sky, and the caption is gone before they arrive.",
         "A feed in the night moves nothing, and no event jumps on its first or last frame: 312 of 312 measured pairs.",
         "All 143 of his stars are in view looking up, on all three displays, and they have an order: tonight’s, his first night’s, one for each month, then every other night.",
+        "The sun and the moon keep their places behind the cards, as you chose, and the cards’ text stays legible with one behind it.",
         "The ordinary iPhone has its own sunset: the sun goes down beside the tree, clear of the gear.",
-        "Nothing is cut by a card’s edge or sits beside the status symbols, by day or by night.",
         "The tree in leaf is rounded masses of small leaves, and the clouds are quiet banks lit from the sun’s side."
       ],
       "notyet": [
-        "With the cards on, the night is stars and no land. The hill, the tree and the moon are out of sight until first light.",
-        "With the cards on, the closed Duo shows the sun’s disc only in the open strip by the tree: the last seventy minutes before a late-November sunset, and never at sunrise.",
+        "With the cards on, the night is stars and no land. The hill and the tree are out of sight until first light.",
         "From mid-April to late August bedtime comes before sunset, so the view goes up in daylight and Home’s own sunset is cut short.",
-        "In the light look, a year of stars reads as snowfall over a pale hill.",
         "In the dark look by day the clouds are quiet enough to miss.",
-        "A month-night star can show faintly through a glass tile. This is being fixed.",
+        "The mockup’s sleep card does not blur the moon behind it as real glass will.",
+        "During an early summer bedtime on the Duo the sun goes out once and comes back as the view rises.",
         "The motion has only been seen as films stepped frame by frame, never on a phone."
       ],
       "build": "No shader: one tall sky image, five layers of land and a pre-drawn tree on a SwiftUI Canvas. Looking up only slides those layers. Whether Home looks up is worked out from the clock, the sun and the sleep log, so nothing is stored.",
