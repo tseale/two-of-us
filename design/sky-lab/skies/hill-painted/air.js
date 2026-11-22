@@ -95,6 +95,10 @@ const KEYS = [
     light: [0.84, 0.905, 1, 1.1], dark: [0.125, 0.28, 1.5, 0.9],
     S: [[.75, .12, 42], [.85, .09, 65], [.70, .045, 120], [.50, .05, 235], [.36, .065, 258], [.22, .075, 266], [.10, .08, 268], [0, .08, 270]],
     A: [[.24, .05, 258], [.24, .055, 260], [.21, .06, 264], [.17, .065, 266], [.12, .07, 268], [.07, .075, 269], [.03, .08, 270], [0, .08, 270]],
+    // (The low key's last light is not the high key's: its gold and its green-gold breath, hushed,
+    // print as a brown band behind the tree. There the dying glow is one thin ember line that goes
+    // up through wine and plum into the indigo — and it is written strong enough to stay a colour.)
+    Sd: [[.66, .20, 34], [.70, .17, 41], [.52, .09, 20], [.42, .06, 332], [.36, .065, 275], [.22, .075, 266], [.10, .08, 268], [0, .08, 270]],
     sun: [.7, .12, 40], glow: [.8, .1, 45, 0.16],
     lo: { lit: [.4, .05, 20], shade: [.05, .04, 268], amt: 0 },
     hi: { lit: [.4, .05, 300], shade: [.16, .045, 270], amt: 0 },
@@ -275,8 +279,11 @@ export function airFor({ altDeg, dark, morning, presence, depth, moonlight = 0 }
     const pick = (k) => (dark && k[`${name}d`] ? k[`${name}d`] : k[name]);
     const stops = k0[name].map((_, s) => both((k) => pick(k)[s]));
     const top = stops[stops.length - 1];
-    const zen = dark ? 0.016 + 0.012 * night : 0.0;
-    stops.push([top[0] - zen * 0.6, top[1] * 0.96, top[2] * 0.96]);
+    // (While there is still light in the low key's sky — a summer bedtime, the sun a hand above the
+    // hill — the sky the camera looks up into goes a clear shade deeper toward the zenith, as an
+    // evening sky does: his stars are shown against it. Nothing of the everyday view changes.)
+    const zen = dark ? 0.016 + 0.012 * night + 0.064 * (1 - night) : 0.0;
+    stops.push([top[0] - zen * 0.62, top[1] * 0.96, top[2] * 0.96]);
     stops.push([top[0] - zen, top[1] * 0.9, top[2] * 0.9]);
     if (!dark) {
       for (let s = 0; s < stops.length; s += 1) {
