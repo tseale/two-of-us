@@ -350,6 +350,7 @@ struct MainTabView: View {
         // A slot-reminder tap (or Home's "up next" row) lands on its tab.
         .onChange(of: router.pendingTab) { _, _ in consumePendingTab() }
         .onAppear { consumePendingTab() }
+        .modifier(SkyBenchLaunch())
     }
 
     private func consumePendingTab() {

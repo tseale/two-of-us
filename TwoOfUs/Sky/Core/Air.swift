@@ -106,7 +106,7 @@ struct Air: Equatable {
 
     /// How far the light appearance's hush pulls a colour toward the page:
     /// 0.55 by day, 0.10 at night.
-    private let toward: Double
+    let toward: Double
     /// The two columns, `samples` colours each from the horizon to the
     /// zenith, three numbers a colour.
     private let overSun: [Float]
@@ -320,7 +320,7 @@ struct Air: Equatable {
     /// The page's lightness as the lab has it for the pale appearance's
     /// hush. (It writes 0.9612 for #F2F2F7, which is 0.9626 in OKLab; the
     /// signed-off picture was painted with 0.9612, so that is the number.)
-    private static let pageLightness = 0.9612
+    static let pageLightness = 0.9612
 
     /// Where the ten stops of a column stand: 0 the horizon … 1 the top of
     /// the everyday view; then the sky above it.

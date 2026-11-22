@@ -57,6 +57,7 @@ final class LocalPrefs {
         static let deviceID = "sync.deviceID"
         static let syncRole = "sync.role"
         static let demoMode = "demo.enabled"
+        static let paintedSky = "ui.paintedSky"
     }
 
     /// When on, the app runs against a throwaway in-memory store seeded with
@@ -68,6 +69,14 @@ final class LocalPrefs {
 
     var appearance: Appearance {
         didSet { defaults.set(appearance.rawValue, forKey: Key.appearance) }
+    }
+
+    /// The painted hill, Home's new sky, while it is being built
+    /// (`docs/SKY_BUILD_PLAN.md`): off by default and never synced, so the
+    /// unfinished sky is on only the phone that asked for it. While off, Home
+    /// is exactly as it was.
+    var paintedSky: Bool {
+        didSet { defaults.set(paintedSky, forKey: Key.paintedSky) }
     }
 
     /// This phone's stable identity for the shared daycare-presence value —
@@ -182,5 +191,6 @@ final class LocalPrefs {
         }
         syncRole = SyncRole(rawValue: defaults.string(forKey: Key.syncRole) ?? "") ?? .solo
         demoModeEnabled = defaults.object(forKey: Key.demoMode) as? Bool ?? false
+        paintedSky = defaults.object(forKey: Key.paintedSky) as? Bool ?? false
     }
 }
