@@ -106,7 +106,11 @@ const UI = {
   // (the cards come back over the sky that is already there: the view does not come down — BRIEF.md, round three.
   // The curve is the moment's own, lab/presence.js: back over 1.0 s, away until 4.6 s, returned by 5.8 s with an ease-out.)
   bedtime: (age, device, reduceMotion) => {
-    const veil = Math.round(momentVeil(age, reduceMotion) * 1e4) / 1e4;
+    // (never exactly 0 in a film: at veil 0 the lab's chrome draws its cards without the fading layer, and
+    // that other compositing path differs by up to nine levels inside the cards — a one-frame step at 0 s
+    // and at 5.8 s that is the lab's, not the moment's. The film keeps the cards in the one layer throughout;
+    // 0.0002 of a card's opacity is under a hundredth of a level.)
+    const veil = Math.max(0.0002, Math.round(momentVeil(age, reduceMotion) * 1e4) / 1e4);
     return device === 'spread' ? { veil, lead: Math.round((1 - veil) * 1e4) / 1e4 } : { veil };
   },
   open: (age) => ({ lead: smooth(0.9, 1.9, age) }),

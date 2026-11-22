@@ -32,9 +32,11 @@ def wanted(extras=False, sky=None):
       "bed":   [[frame, label], …]  its own bedtime instants, in place of BED;
       "night": true                 the cards-on frames while a night sleep runs
                                     (asleep/, 7:40, 9:00 and 3:00): 18 more;
-      "stills": {key: path}         any other shots, by name (a film's poster, say)."""
+      "stills": {key: path}         any other shots, by name (a film's poster, say);
+      "bedJuly": "1955"             the minute its July bedtime was shot at (1940 unless said)."""
     sky = sky or {}
     bed = [f for f, _ in sky['bed']] if sky.get('bed') else BED
+    july = sky.get('bedJuly') or '1940'
     out = []
     for scheme in ('light', 'dark'):
         for t in TIMES:
@@ -53,10 +55,10 @@ def wanted(extras=False, sky=None):
         out.append((f'open-night-dark-{f}', f'open/night/{f}/spread-dark-2100-night.png'))
     for f in bed:
         out.append((f'bed-nov-cover-dark-{f}', f'bedtime/november/{f}/cover-dark-1940-night.png'))
-        out.append((f'bed-jul-cover-dark-{f}', f'bedtime/july/{f}/cover-dark-1940-night.png'))
+        out.append((f'bed-jul-cover-dark-{f}', f'bedtime/july/{f}/cover-dark-{july}-night.png'))
         if extras:
             out.append((f'bed-nov-cover-light-{f}', f'bedtime/november/{f}/cover-light-1940-night.png'))
-            out.append((f'bed-jul-cover-light-{f}', f'bedtime/july/{f}/cover-light-1940-night.png'))
+            out.append((f'bed-jul-cover-light-{f}', f'bedtime/july/{f}/cover-light-{july}-night.png'))
             out.append((f'bed-nov-spread-dark-{f}', f'bedtime/november/{f}/spread-dark-1940-night.png'))
             out.append((f'bed-nov-iphone-dark-{f}', f'bedtime/november/{f}/iphone-dark-1940-night.png'))
     if sky.get('night'):

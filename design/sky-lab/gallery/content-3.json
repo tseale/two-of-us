@@ -3,11 +3,11 @@
     "tabTitle": "Home Sky Round Three",
     "eyebrow": "Two of Us · Home’s sky · round three",
     "title": "Miller’s hill",
-    "lede": "This build has the fixes from the first review. Bedtime looks up and stays up, the night now lasts until first light, the moment is a second shorter, and the drawing has had a pass on an illustrator’s and an art director’s notes. One more pass is still to come. <strong>Start with the film.</strong>",
+    "lede": "Round three with its last pass in. Bedtime looks up and stays up, the night lasts until first light, and the drawing has had two passes on an illustrator’s and an art director’s notes. Three independent reviews and a final check have been through this build. <strong>Start with the film.</strong>",
     "feature": {
       "sky": "hill-painted",
       "title": "Bedtime, staying up",
-      "sub": "He goes down for the night at 7:40. Each film is the mockup stepped one frame at a time and joined, so the timing is as designed. It does not show how fast a phone will draw it.",
+      "sub": "He goes down for the night at 7:40. Each film is the mockup stepped one frame at a time and joined at 60 frames a second, so the timing is as designed. It does not show how fast a phone will draw it.",
       "beats": {
         "bed": [
           [
@@ -48,7 +48,7 @@
           ],
           [
             "0 – 2.7 s",
-            "The view comes down to the hill behind the cards, and tonight’s star goes out with the last of the stars."
+            "The view comes down to the hill behind the cards, and tonight’s star goes out on the way down."
           ],
           [
             "Otherwise",
@@ -138,13 +138,28 @@
     "bedtimeSub": "The same moment as stills, to hold any instant. The cards step back, the view rises, the band crosses, and the cards return over the sky.",
     "openSub": "The closed phone’s sky is already on the right-hand page. The left page arrives bare, light runs down the river toward you, and then its cards land.",
     "mine": {
-      "title": "What changed since the last build, and what is still open",
+      "title": "What the last pass changed, and what is yours to decide",
       "paragraphs": [
-        "The night lasts until first light. Home looks up from bedtime until the sky begins to lighten, about 6:12 a.m. in late November. A feed at 3 a.m. moves nothing, and waking no longer jumps. I took this from your “looking back down is too much”, and it is the one rule here you have not agreed to. The alternative is that the view comes down when he wakes. The film “First light” shows the one time the view does come down, quietly, behind the cards.",
-        "The moment is a second shorter: 5.8 seconds, down from 6.8. The time came out of the cards, which now leave in one second and return in 1.2. The sky keeps its pace.",
-        "Nothing is cut by a card’s edge when Home looks up. That has a cost. With the cards on at night, the closed Duo and an ordinary iPhone do not show the moon’s disc at all, because everywhere it would stand a card’s edge would cut it. It is still there in the bedtime moment, and briefly on the open Duo as it crosses the gap by the fold.",
-        "The drawing had its pass. An illustrator found the first round-three clouds too modelled and too loud, and the small one under the Wi-Fi and battery symbols read as a weather symbol. Clouds are now quiet flat banks, and that one is gone. The crowns in leaf are rounded masses, the river has no dashed line, and in the light look the sun is brighter than its sky and his stars are round points.",
-        "Still open, and next on my list: in the light look the tree shows as a stain under the sleep card at night; on an ordinary iPhone the sun sets behind the gear; the month-night stars are no stronger than bright ordinary ones; and the daytime moon is a faint flat disc. A second independent check of this build has not run yet."
+        [
+          "Yours to decide: the night lasts until first light.",
+          "Home looks up from bedtime until the sky begins to lighten, about 6:12 a.m. in late November. A feed at 3 a.m. moves nothing. I took this from your “looking back down is too much”, and it is the one rule here you have not agreed to. The alternative is that the view comes down when he wakes. The film “First light” shows the one time the view does come down, quietly, behind the cards."
+        ],
+        [
+          "Yours to decide: summer evenings.",
+          "From mid-April to late August a 7:40 bedtime comes before sunset. The view then goes up with the sun still in the tree, and his stars come out over the sunset, as in the July film. The cost is that Home’s own sunset is over once he is down. The alternative is to hold the look-up until sunset on those evenings."
+        ],
+        [
+          "The cost of “nothing cut by a card”.",
+          "A sun or moon is now drawn whole in open sky or not at all, by day as well as by night, and never beside the Wi-Fi and battery symbols. So with the cards on, the closed Duo shows the sun’s disc only in the open strip by the tree, which in late November is the last seventy minutes before sunset, and never at sunrise. At night, with the cards on, the closed Duo and an ordinary iPhone show no moon. Both are whole in the bedtime moment."
+        ],
+        [
+          "What the last pass changed.",
+          "On an ordinary iPhone the sun now sets beside the tree instead of behind the gear. His stars have an order: tonight’s is the largest, then his first night’s, then one for each month, then every other night. In the light look the sun has an edge, tonight’s star is ivory instead of white, and the tree no longer shows as a stain under the sleep card at night. Clouds have an uneven underside and are lit from the sun’s side. The July bedtime is filmed at 7:55, when the sun stands in the tree’s crown."
+        ],
+        [
+          "Still not right.",
+          "Three small things are being fixed now: a month-night star can show faintly through the glass Diaper tile; on the iPhone the sun is dim for a minute or two as it comes out from under the status bar; and in the bedtime film the moon fades out under the returning Today card for about half a second. Two larger ones are not fixed: in the light look a year of stars reads as snowfall over a pale hill, and in the dark look by day the clouds are quiet enough to miss. Nothing has been seen moving on a phone."
+        ]
       ]
     },
     "better": {
@@ -263,7 +278,7 @@
         },
         {
           "title": "The clouds",
-          "note": "Round two’s clouds were one recipe: a flat hat. They are now quiet banks, each with a contour set by hand, lightest along the top and with no drawn base, held close to the tone of the sky behind them. Shown at 4:10 p.m. over the open Duo with the cards away.",
+          "note": "Round two’s clouds were one recipe: a flat hat. They are now quiet banks, each with a contour set by hand and an uneven underside, lit on the side that faces the sun and held close to the tone of the sky behind them. Shown at 4:10 p.m. over the open Duo with the cards away.",
           "device": "spread",
           "width": 440,
           "pairs": [
@@ -415,8 +430,52 @@
           ]
         },
         {
+          "title": "Sunset on an ordinary iPhone",
+          "note": "On the iPhone the tree stands in the header beside his name. The sun used to go down behind the gear, so the tree against the low sun existed only on the Duo. It now sets beside the tree, clear of the gear.",
+          "device": "iphone",
+          "width": 440,
+          "pairs": [
+            {
+              "key": "iphone-sunset-dark",
+              "label": "4:10 p.m., late November",
+              "shot": "day/iphone-dark-1610.png",
+              "crop": [
+                0,
+                40,
+                402,
+                110
+              ],
+              "natural": 804
+            },
+            {
+              "key": "iphone-sunset-light",
+              "label": "The same, light",
+              "shot": "day/iphone-light-1610.png",
+              "crop": [
+                0,
+                40,
+                402,
+                110
+              ],
+              "natural": 804
+            },
+            {
+              "key": "iphone-sunset-july",
+              "label": "8:15 p.m., early July",
+              "shot": "seasons/summer/iphone-dark-2015.png",
+              "crop": [
+                0,
+                40,
+                402,
+                110
+              ],
+              "natural": 804
+            }
+          ]
+        },
+        {
           "title": "His stars, looking up",
-          "note": "The held bedtime frame with the cards away, three seconds in. His stars are laid out for the looked-up view, thicker overhead and thinning toward the land. The ring of light is now one soft band, and tonight’s star has a home of its own.",
+          "note": "The held bedtime frame with the cards away, three seconds in. His stars are laid out for the looked-up view, thicker overhead and thinning toward the land, and they have an order: tonight’s is the largest, then his first night’s, one for each month, and every other night. The light is one soft band, and tonight’s star has a home of its own.",
           "device": "cover",
           "width": 330,
           "pairs": [
@@ -430,7 +489,8 @@
               "key": "stars-jul-dark",
               "label": "July, the sun still up",
               "shot": "bedtime/july/t3/cover-dark-1940-night.png",
-              "natural": 932
+              "natural": 932,
+              "afterShot": "bedtime/july/t3/cover-dark-1955-night.png"
             },
             {
               "key": "stars-nov-light",
@@ -479,14 +539,14 @@
     "closing": {
       "title": "About these mockups",
       "points": [
-        "These are stills and films from a browser mockup, not the app. Nothing in the app has changed. The films are stepped frame by frame, so they show the timing but not real performance.",
-        "Every legibility check passes on this build, all 143 of his stars are in view looking up on all three displays, and no event jumps on its first or last frame. A second independent review of this build has not run yet.",
+        "These are stills and films from a browser mockup, not the app. Nothing in the app has changed. The films are stepped frame by frame at 60 frames a second, so they show the timing but not real performance.",
+        "Every legibility check passes on this build, all 143 of his stars are in view looking up on all three displays, and no event jumps on its first or last frame. Three independent reviews and a final check have been through it. What they found is either fixed or listed above.",
         "The Home screen is redrawn from the app with sample data, the glass tiles only approximate Liquid Glass, and the fonts are stand-ins.",
         "The mockups use Chicago and a 2 July birthday as stand-ins. The app will use your daycare pin and his real date of birth.",
         "Round two, as you last saw it, and today’s sky are below Painted for comparison. They follow the same look, display and hour."
       ]
     },
-    "filmSub": "Bedtime and the opening, playing. Each film is the mockup stepped one frame at a time and joined, so the timing is as designed. It does not show how fast a phone will draw it."
+    "filmSub": "Bedtime and the opening, playing. Each film is the mockup stepped one frame at a time and joined at 60 frames a second, so the timing is as designed. It does not show how fast a phone will draw it."
   },
   "skies": [
     {
@@ -533,26 +593,27 @@
       "idea": "One illustrated land: a river valley on the left-hand page, a few big overlapping hills, a knoll, and one grown tree against the setting sun. At bedtime the view rises to a sky that holds one star for every night of his life, and stays there until first light.",
       "works": [
         "Bedtime looks up once and stays. The cards return over the sky, and the caption is gone before they arrive.",
-        "A feed in the night moves nothing, and no event jumps on its first or last frame: 288 of 288 measured pairs.",
-        "All 143 of his stars are in view looking up, on all three displays.",
-        "Tonight’s star has a place of its own with the cards on, travels there with the view, and keeps a patch of dark sky round it on the way.",
-        "The clouds are quiet banks in the same hand as the hills, and nothing in the strip reads as a status symbol.",
-        "The tree in leaf is rounded masses of small leaves, and in summer it no longer shows past the sleep card when Home looks up."
+        "A feed in the night moves nothing, and no event jumps on its first or last frame: 312 of 312 measured pairs.",
+        "All 143 of his stars are in view looking up, on all three displays, and they have an order: tonight’s, his first night’s, one for each month, then every other night.",
+        "The ordinary iPhone has its own sunset: the sun goes down beside the tree, clear of the gear.",
+        "Nothing is cut by a card’s edge or sits beside the status symbols, by day or by night.",
+        "The tree in leaf is rounded masses of small leaves, and the clouds are quiet banks lit from the sun’s side."
       ],
       "notyet": [
-        "With the cards on, the night is stars and no land. The hill and the tree are out of sight until first light.",
-        "With the cards on at night, the closed Duo and an ordinary iPhone never show the moon’s disc.",
-        "In the light look at night the tree shows as a stain under the sleep card.",
-        "On an ordinary iPhone the sun sets behind the gear, so the tree against the low sun exists only on the Duo.",
-        "The month-night stars are no stronger than bright ordinary ones, and the daytime moon is a faint flat disc.",
-        "In the dark look by day the clouds are very quiet. They may be too faint to read as weather.",
-        "The motion has only been seen as films stepped frame by frame, never at a phone’s own frame rate."
+        "With the cards on, the night is stars and no land. The hill, the tree and the moon are out of sight until first light.",
+        "With the cards on, the closed Duo shows the sun’s disc only in the open strip by the tree: the last seventy minutes before a late-November sunset, and never at sunrise.",
+        "From mid-April to late August bedtime comes before sunset, so the view goes up in daylight and Home’s own sunset is cut short.",
+        "In the light look, a year of stars reads as snowfall over a pale hill.",
+        "In the dark look by day the clouds are quiet enough to miss.",
+        "A month-night star can show faintly through a glass tile. This is being fixed.",
+        "The motion has only been seen as films stepped frame by frame, never on a phone."
       ],
       "build": "No shader: one tall sky image, five layers of land and a pre-drawn tree on a SwiftUI Canvas. Looking up only slides those layers. Whether Home looks up is worked out from the clock, the sun and the sleep log, so nothing is stored.",
       "stills": {
         "arrive-cover-dark": "arrive/t1_25/cover-dark-1940-night.png",
         "settle-cover-dark": "settle/t0_9/cover-dark-0612-night.png"
-      }
+      },
+      "bedJuly": "1955"
     },
     {
       "id": "hill-painted-r2",

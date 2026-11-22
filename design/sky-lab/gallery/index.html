@@ -52,6 +52,7 @@
   .mine { max-width: 76ch; display: grid; gap: 10px; padding: 18px 20px; border-radius: 16px; background: var(--pick-bg); }
   .mine h2 { font-size: 17px; color: var(--pick); }
   .mine p { font-size: 15.5px; }
+  .mine p strong { font-weight: 600; }
 
   /* ── The conditions bar ── */
   .bar { background: color-mix(in srgb, var(--bg) 88%, transparent); border-block: 1px solid var(--line); z-index: 5; }
@@ -483,7 +484,9 @@ function paint() {
 document.getElementById('eyebrow').textContent = PAGE.eyebrow || 'Two of Us · Home’s sky · round one';
 document.getElementById('title').textContent = PAGE.title || 'Five skies for Miller’s Home';
 document.getElementById('lede').innerHTML = PAGE.lede;
-document.getElementById('mine').append(el('h2', { text: PAGE.mine.title }), ...PAGE.mine.paragraphs.map((t) => el('p', { text: t })));
+// (a paragraph is a string, or [lead-in, text]: the lead-in is set in bold)
+document.getElementById('mine').append(el('h2', { text: PAGE.mine.title }), ...PAGE.mine.paragraphs.map((t) =>
+  (Array.isArray(t) ? el('p', {}, el('strong', { text: t[0] }), ' ' + t[1]) : el('p', { text: t }))));
 document.getElementById('closing').append(el('h2', { text: PAGE.closing.title }), el('ul', {}, PAGE.closing.points.map((t) => el('li', { text: t }))));
 if (PAGE.feature) {
   const films = cinema(PAGE.feature.sky, PAGE.feature.title, PAGE.feature.sub, PAGE.feature.beats);
