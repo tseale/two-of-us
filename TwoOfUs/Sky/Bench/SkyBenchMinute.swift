@@ -15,6 +15,8 @@ struct SkyBenchMinute {
     /// The sun's x as a fraction of the anchor window (`bodyX`: the
     /// baseline's, but for the slab's setting side).
     let sunXFraction: Double
+    /// The moon's, while it is up.
+    let moonXFraction: Double?
 
     var world: SkyWorld { display.world }
     var air: Air { palette.air }
@@ -22,6 +24,11 @@ struct SkyBenchMinute {
     /// The sun's x in world points.
     var sunX: Double { sunXFraction * Double(display.anchorWidth) }
     /// The sun's rest-pose y in the tall sky (`pal.sunSkyY`).
+    /// World x of the light the land answers: the sun until it is well
+    /// down, then the moon.
+    var lampX: Double {
+        palette.byMoon ? (moonXFraction ?? sunXFraction) * Double(display.anchorWidth) : sunX
+    }
     var sunSkyY: Double { Double(world.horizon) - SkyBenchMinute.height(of: sunAltitude, in: world) }
 
     /// The signature frame's minute: 21 November 2026, 4:10 pm in Chicago.
@@ -42,10 +49,18 @@ struct SkyBenchMinute {
                                  calendar: calendar)
         let phase = day.map { SolarClock.phase(at: date, in: $0) } ?? .day(0.5)
         var moon: HillPalette.Moon?
-        if MoonClock.passProgress(at: date, latitude: place.latitude, longitude: place.longitude) != nil {
+        var moonX: Double?
+        let world = display.world
+        if let pass = MoonClock.passProgress(at: date, latitude: place.latitude, longitude: place.longitude) {
             let position = MoonClock.position(at: date, latitude: place.latitude, longitude: place.longitude)
             moon = HillPalette.Moon(altitude: position.altitude * 180 / .pi,
                                     fraction: MoonClock.illumination(at: date).fraction)
+            var x = SkyPalette.bodyPosition(progress: pass).x
+            if let sets = world.sets, let moon {
+                let weight = SkyMath.smoothstep(0.5, 0.62, x) * (1 - SkyMath.smoothstep(6, 12, moon.altitude))
+                x -= weight * Double(sets.moon) / Double(display.anchorWidth)
+            }
+            moonX = x
         }
         let season = SkySeason.at(date, place: place, calendar: calendar)
         let morning = HillPalette.isMorning(phase)
@@ -58,14 +73,13 @@ struct SkyBenchMinute {
                                   season: season, depth: depth)
         }
         let baseline = baselineX(phase: phase, day: day)
-        let world = display.world
         var x = baseline
         if let sets = world.sets {
             let weight = SkyMath.smoothstep(0.5, 0.62, baseline) * (1 - SkyMath.smoothstep(6, 12, altitude))
             x -= weight * Double(sets.sun) / Double(display.anchorWidth)
         }
         return SkyBenchMinute(date: date, display: display, palette: palette, sunAltitude: altitude,
-                              sunXFraction: x)
+                              sunXFraction: x, moonXFraction: moonX)
     }
 
     /// The lab's `sunX`: the baseline's arc by day, and on past sunset at

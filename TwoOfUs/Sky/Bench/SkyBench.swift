@@ -10,6 +10,7 @@ struct SkyBench: View {
         List {
             Section {
                 NavigationLink("1 · Sky field and tone") { SkyFieldSpike() }
+                NavigationLink("2 · Land in Core Graphics") { SkyLandSpike() }
             } footer: {
                 Text("Each screen tries one piece of the new sky on its own. Tap a sky to hide its controls.")
             }
@@ -23,6 +24,7 @@ struct SkyBench: View {
     static func spike(named name: String?) -> some View {
         switch name {
         case "field": SkyFieldSpike()
+        case "land": SkyLandSpike()
         default: SkyBench()
         }
     }
