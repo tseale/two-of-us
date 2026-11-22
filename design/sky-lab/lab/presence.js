@@ -15,8 +15,8 @@
 // sleep starts (with the bedtime moment, or quietly when the sleep `arrive`s from
 // elsewhere) and, when he wakes, eases out from what that sleep had — a night's 1,
 // a nap's 0.45 — so the first frame after a change is the frame before it. The
-// solar bloom is taken from that eased depth. `arrive` and `settle` (first light)
-// have no bloom of their own.
+// solar bloom is taken from that eased depth. `arrive`, `settle` (first light) and
+// `wake` have no bloom of their own: a wake's tone goes one way, to its resting value.
 //
 // Everything here is pure. `state` is the lab's state (README); events arrive as
 // state.event = { kind: 'bedtime' | 'arrive' | 'settle' | 'wake' | 'open' | 'close', age: seconds since,
@@ -51,9 +51,11 @@ export function swell(age, { attack, hold, release }) {
   return 1 - smoothstep(attack + hold, attack + hold + release, age);
 }
 
+// (No `wake`: BRIEF.md, "After the first review" — waking only un-dims the room. It had a bloom of its
+// own, peak 0.35 over 1.2 s and 8 s to let go: at every wake the sky swelled past its resting tone and
+// fell back — 0.00355 asleep, 0.00424 at 5 s, 0.00409 at rest for a 03:00 feed in the dark appearance.)
 export const EVENTS = {
   bedtime: { attack: 1.6, hold: 2.4, release: 14, peak: 0.55 },
-  wake: { attack: 1.2, hold: 1.0, release: 8, peak: 0.35 },
   open: { attack: 0.5, hold: 0.9, release: 5, peak: 0.45 },
   close: { attack: 0.3, hold: 0.2, release: 2, peak: 0.15 },
 };

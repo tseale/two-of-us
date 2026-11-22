@@ -94,11 +94,15 @@ export function joins() {
     { id: 'bedtime-nov', about: '(a, b) evening awake → bedtime → the standing night, November 19:40',
       common: { time: '19:40' }, before: { asleep: '0' }, event: { asleep: 'night', event: 'bedtime' }, after: { asleep: 'night' },
       theirs: 'the strip cloud hides when the clear window shrinks, and the stars it veiled show (the day pass)' },
-    { id: 'bedtime-jul', about: '(a, b) evening awake → bedtime → the standing night, July 19:40 (the sun still up)',
-      common: { time: '19:40', ...JULY }, before: { asleep: '0' }, event: { asleep: 'night', event: 'bedtime' }, after: { asleep: 'night' },
+    { id: 'bedtime-jul', about: '(a, b) evening awake → bedtime → the standing night, July 19:55 (the sun still up, in the crown)',
+      common: { time: '19:55', ...JULY }, before: { asleep: '0' }, event: { asleep: 'night', event: 'bedtime' }, after: { asleep: 'night' },
       theirs: 'the strip cloud hides when the clear window shrinks (the day pass)' },
     { id: 'wake-night', about: '(c) the standing night at 03:00 → wake (a feed) → awake at night: nothing moves, the room un-dims',
       common: { time: '03:00' }, before: { asleep: 'night' }, event: { asleep: '0', event: 'wake', woke: 'night' }, after: { asleep: '0' } },
+    // (the lab has no sleep log: before the sample bedtime, 20:10, a wake has to be TOLD the sleep was the
+    // night's, and the awake frame after it that the night has begun — `woke=night`, `begun=1`)
+    { id: 'wake-night-early', about: '(c) down for the night at 19:40, awake again at 19:55, before the sample bedtime → wake → awake: the view stays up, the star lit (woke=night; the frame after is told begun=1)',
+      common: { time: '19:55' }, before: { asleep: 'night' }, event: { asleep: '0', event: 'wake', woke: 'night' }, after: { asleep: '0', begun: '1' } },
     { id: 'arrive-back', about: '(d) awake at night, 03:00 → arrive (put down again) → the standing night: nothing moves, the room dims',
       common: { time: '03:00' }, before: { asleep: '0' }, event: { asleep: 'night', event: 'arrive' }, after: { asleep: 'night' } },
     { id: 'wake-nap-1310', about: '(e) a nap at 13:10 → wake → awake',

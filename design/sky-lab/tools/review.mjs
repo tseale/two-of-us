@@ -2,7 +2,7 @@
 // The review set: every sky photographed the same way, so directions can be
 // laid side by side. A thin wrapper over tools/shoot.mjs.
 //
-//   node tools/review.mjs --sky <id>                 everything: 718 shots in 117 runs (--list counts them).
+//   node tools/review.mjs --sky <id>                 everything: 726 shots in 121 runs (--list counts them).
 //                                                    Minutes for a 2-D canvas sky; a shader sky in software GL
 //                                                    is ~3 s a shot at --jobs 2 (README)
 //   node tools/review.mjs --sky <id> --only day,open just those sets
@@ -58,6 +58,8 @@ const SEASONS = [
 // back (5 s); back (9 s); settled.
 const veilAt = (age) => Math.round(momentVeil(age) * 1000) / 1000;
 const BEDTIME = [0, 0.5, 1, 3, 4.1, 5, 9, 40].map((age) => ({ age, veil: veilAt(age) }));
+// The July evening's minute (the same in tools/joins.mjs, and what a July bedtime film is given: --time 19:55).
+const JULY_BEDTIME = '19:55';
 
 // A night sleep that arrives from elsewhere (the other phone, Siri, a widget)
 // while Home is on screen, at 19:40: the quiet rise behind the cards, 0 to 1 over
@@ -110,11 +112,14 @@ function sets() {
     }),
   });
   out.push({
-    name: 'bedtime', about: 'He goes down for the night at 19:40 — in November (full dark) and in July (the sun still up). Eight instants; the cards fall back and return.',
-    runs: [{ key: 'november', extra: [] }, { key: 'july', extra: ['--date', '2027-07-04', '--tz', '-5', '--age', '367'] }].flatMap((when) =>
+    // (July at 19:55, not 19:40: the sun falls its own diameter in about ten minutes there, and at 19:40
+    // its disc stands exactly on top of the crown — a ball balanced on the tree. At 19:55 (+4.5°) it is
+    // in the crown's shoulder with light through the leaves: BRIEF.md's "the tree stands against the low sun".)
+    name: 'bedtime', about: `He goes down for the night — in November at 19:40 (full dark) and in July at ${JULY_BEDTIME} (the sun still up, in the crown). Eight instants; the cards fall back and return.`,
+    runs: [{ key: 'november', time: '19:40', extra: [] }, { key: 'july', time: JULY_BEDTIME, extra: ['--date', '2027-07-04', '--tz', '-5', '--age', '367'] }].flatMap((when) =>
       BEDTIME.map((f) => ({
         dir: `${when.key}/${frame(f.age)}`,
-        args: [...when.extra, '--times', '19:40', '--asleep', 'night', '--event', 'bedtime', '--event-age', String(f.age),
+        args: [...when.extra, '--times', when.time, '--asleep', 'night', '--event', 'bedtime', '--event-age', String(f.age),
                '--param', `veil=${f.veil}`, '--lead', String(1 - f.veil)],
       }))),
   });

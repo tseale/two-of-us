@@ -286,7 +286,7 @@ export function crownTop(x) {
 
 /** The crown's OUTLINE in leaf: a few convex masses of unequal size, [cx, cy, r] — the top, the two
  *  shoulders, the heart, the tuft on the low left bough, the spray at the long arm's end (16, 12, 10,
- *  9, 7 and 6 pt on the Duo's 88 pt tree) — and the smaller ones that join them. A leaf grows only on a
+ *  9, 7 and 5 pt on the Duo's 88 pt tree) — and the smaller ones that join them. A leaf grows only on a
  *  twig inside one of them: the silhouette is a run of unequal rounded masses, the sky between two of
  *  them comes to a point (a V, never a square bay), and no mass has a level top or a plumb side. The
  *  great bay at the lower right, where the sun goes down, is simply where no mass is — open in every

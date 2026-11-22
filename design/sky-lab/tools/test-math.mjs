@@ -1461,6 +1461,18 @@ test('events in the night: what the lab makes of each', () => {
   equal(state({ time: '19:50', event: 'wake', woke: 'nap' }).nightBegun, false, 'a nap ended at 19:50: no night yet');
   equal(state({ time: '13:10', event: 'wake' }).event.woke, 'nap', 'wake at 13:10: a nap\'s');
   equal(state({ time: '18:25', event: 'wake' }).event.woke, 'nap', 'wake at 18:25: a nap\'s');
+  // An early night sleep that ends before the sample bedtime: the lab has to be told (no sleep log).
+  ok(/woke=night/.test(state({ time: '19:55', event: 'wake' }).eventNote ?? ''), 'an unsaid wake at 19:55 says it was taken for a nap\'s');
+  equal(state({ time: '13:10', event: 'wake' }).eventNote, undefined, '…by day there is nothing to say');
+  equal(state({ time: '19:55', event: 'wake', woke: 'night' }).eventNote, undefined, '…nor when it is said');
+  // the join `wake-night-early`: the standing night, the wake's two ends and the frame after agree
+  {
+    const up = [state({ time: '19:55', asleep: 'night' }), state({ time: '19:55', event: 'wake', woke: 'night', eventAge: '0' }),
+      state({ time: '19:55', event: 'wake', woke: 'night', eventAge: '40' }), state({ time: '19:55', begun: '1' })];
+    same(up.map((q) => q.nightBegun), [true, true, true, true], 'down at 19:40, awake at 19:55: the night goes on through the wake and after it');
+    equal(roomDepth(up[1]), roomDepth(up[0]), '…its first frame as dim as the sleep was');
+    equal(roomDepth(up[2]), roomDepth(up[3]), '…its last as the awake frame after');
+  }
   equal(state({ time: '06:40', event: 'wake' }).event.woke, 'night', 'wake at 06:40: the night\'s');
   equal(state({ time: '08:59', event: 'wake' }).event.woke, 'night', 'wake at 08:59: the night\'s');
   equal(state({ time: '06:40', event: 'wake' }).nightBegun, false, '…after first light: the day');
@@ -1475,6 +1487,14 @@ test('events in the night: what the lab makes of each', () => {
   equal(kind({ time: '03:00', asleep: 'night', event: 'settle' }), null, 'settle before first light is dropped');
   equal(state({ time: '03:00', asleep: 'night', event: 'settle' }).nightBegun, true, '…and the night stands');
   equal(kind({ time: '16:10', asleep: 'night', event: 'settle' }), null, 'settle in the afternoon is dropped');
+  // …and first light is a minute, not the whole morning: it plays for the first minutes, then never.
+  equal(kind({ time: core.minutesToTime(firstLightMinute() + 2), asleep: 'night', event: 'settle' }), 'settle', 'settle two minutes after first light still plays');
+  for (const time of ['06:30', '07:30', '09:00', '11:30']) {
+    equal(kind({ time, asleep: 'night', event: 'settle' }), null, `settle at ${time} is dropped (first light has passed)`);
+    equal(state({ time, asleep: 'night', event: 'settle' }).nightBegun, false, `…and ${time} stands at rest`);
+    equal(kind({ time, event: 'settle' }), null, `settle at ${time}, awake, is dropped`);
+  }
+  equal(kind({ ...JULY, time: '09:00', asleep: 'night', event: 'settle' }), null, 'settle at 09:00 in July is dropped');
   equal(kind({ time: dawn, asleep: 'night', event: 'settle', begun: '0' }), null, 'settle with no night begun is dropped');
   // open and close leave the night as it stands.
   same(state({ time: '21:00', asleep: 'night', event: 'open' }).event, { kind: 'open', age: 0, begunBefore: true }, 'open at night');
@@ -1499,6 +1519,7 @@ test('the room\'s dimming never jumps: it eases across a sleep\'s start and end'
     ['a nap arrives', { time: '13:10' }, { time: '13:10', asleep: 'nap', event: 'arrive' }, { time: '13:10', asleep: 'nap' }],
     ['a night sleep arrives', { time: '19:40' }, { time: '19:40', asleep: 'night', event: 'arrive' }, { time: '19:40', asleep: 'night' }],
     ['the morning wake at dawn', { time: '06:40', asleep: 'night' }, { time: '06:40', event: 'wake', woke: 'night' }, { time: '06:40' }],
+    ['an early night, awake again at 19:55', { time: '19:55', asleep: 'night' }, { time: '19:55', event: 'wake', woke: 'night' }, { time: '19:55', begun: '1' }],
     ['first light', { time: '06:12', asleep: 'night', begun: '1' }, { time: '06:12', asleep: 'night', event: 'settle' }, { time: '06:12', asleep: 'night' }],
   ];
   for (const [name, before, event, after] of joins) {
@@ -1523,6 +1544,20 @@ test('the room\'s dimming never jumps: it eases across a sleep\'s start and end'
   equal(roomDepth(state({ time: '19:40', asleep: 'night', event: 'arrive', eventAge: '4' })), 1, 'arrive: dimmed by 4 s');
   equal(roomDepth(state({ time: '19:40', asleep: 'night', event: 'bedtime', eventAge: '1.2' })), 0, 'bedtime: not before the cards have gone');
   equal(roomDepth(state({ time: '19:40', asleep: 'night', event: 'bedtime', eventAge: '9' })), 1, 'bedtime: dimmed by 9 s');
+  // A wake has no bloom of its own: the tone goes ONE way, from the sleep's to the waking state's, and
+  // never past it (it used to swell past its resting tone and fall back).
+  for (const [name, wake] of [['a night feed', { time: '03:00', event: 'wake', woke: 'night' }], ['a nap ends at 13:10', { time: '13:10', event: 'wake', woke: 'nap' }],
+    ['a nap ends at 16:10', { time: '16:10', event: 'wake', woke: 'nap' }], ['the morning wake', { time: '06:40', event: 'wake', woke: 'night' }]]) {
+    const rest = presence(state({ ...wake, eventAge: '60' })).presence;
+    let last = presence(state({ ...wake, eventAge: '0' })).presence;
+    const rising = rest >= last;
+    for (let age = 0.25; age <= 12; age += 0.25) {
+      const p = presence(state({ ...wake, eventAge: String(age) }));
+      equal(p.event, 0, `${name}: no bloom of its own (age ${age})`);
+      ok(rising ? p.presence >= last - 1e-12 && p.presence <= rest + 1e-12 : p.presence <= last + 1e-12 && p.presence >= rest - 1e-12, `${name}: the tone goes one way, never past its resting value (age ${age})`);
+      last = p.presence;
+    }
+  }
   // presence() also takes the bare state tools/measure.mjs hands it.
   const bare = state({ time: '21:00', asleep: 'night' });
   same(presence({ sun: bare.sun, moon: bare.moon, event: bare.event, asleep: bare.asleep }), presence(bare), 'presence() needs only sun, moon, event and asleep');

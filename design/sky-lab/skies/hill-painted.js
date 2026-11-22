@@ -105,7 +105,7 @@ const DUO = {
   kind: 'duo',
   H0: 292,                 // the horizon at rest
   D: 312,                  // looking up lowers it this far (→ 604)
-  T: 90,                   // …and the turn slides the far world this far left: the tree to x 318, its whole crown behind the cards when they are on (never a few twigs past a card's edge). Not more: the moon is then 90 pt from the baseline's x, and tools/measure.mjs only knows a disc for the moon within a fifth of the window (93 pt)
+  T: 90,                   // …and the turn slides the far world this far left: the tree to x 318, clear of the tab capsule (x 392–456) with the cards away — the bare poster of the bedtime moment. (With the cards on, looking up, the tree is not drawn: treeShown.)
   table: 292,              // points of sky the twilight's eight stops span
   Emax: 500,               // sun and moon: how high the zenith stands over the horizon, in points of the tall sky
   tree: { x: 408, h: 88 },
@@ -114,6 +114,14 @@ const DUO = {
   firstUp: { x: 262, y: 43 },           // the first night's star, looking up: in the header's clear gap, between his name and the gear
   sunR: 11.5, moonR: 9.5,
   starScale: 1,
+  // The phone page's cards in the standing layouts, looked-up display points (the anchor window's x),
+  // as the lab lays them out (lab/chrome.js; `state.cards`, measured): the three that are there asleep
+  // and awake (Today, the Feed and Diaper tiles), then the night's own — asleep: the sleep card and the
+  // card under it; awake in the night (a feed): the Sleep tile and the timeline. What a four-point
+  // star keeps clear of (starsFor, `free`): the table is fixed, so a star's place does not change when
+  // he wakes. (The first is the Today card: at rest its edges are the header band's foot and the strip's side.)
+  cards: [[20, 88.6, 362, 286.2], [20, 298.2, 185, 438.1], [197, 298.2, 362, 438.1],
+    [20, 450.1, 362, 647.5], [20, 659.5, 362, 678], [20, 450.1, 362, 590], [20, 602, 362, 678]],
   caption: { x: 30, y: 652, size: 15 },
   planes: [
     { id: 'far', sink: 1, slide: 1, tilt: [1.0, 0.5], shapes: [
@@ -179,10 +187,16 @@ const DUO = {
   clouds: [
     { id: 'strip', x: 453, e: 96, len: 98, rise: 10, span: 10, period: 2400, phase: 0.42, rest: true, wob: 0.7,
       top: [[0, 1, 0.46], [-0.30, 0.33, 1.0], [-0.60, 0.22, 0.56], [0.30, 0.30, 0.80], [0.66, 0.2, 0.5]] },
-    { id: 'gap', x: 254, e: 254, len: 62, rise: 8, span: 8, period: 2800, phase: 0.5, rest: true, high: true, wob: 0.6,
-      top: [[0, 1, 0.5], [-0.26, 0.36, 1.0], [0.28, 0.3, 0.72], [-0.68, 0.18, 0.5]] },
-    { id: 'bank', x: -70, e: 222, len: 138, rise: 22, span: 6, period: 3000, phase: 0.5, wob: 1.0,
-      top: [[0.0, 1.0, 0.46], [0.36, 0.38, 1.0], [0.02, 0.25, 0.76], [0.76, 0.2, 0.6], [-0.42, 0.27, 0.7], [-0.7, 0.16, 0.5], [-0.9, 0.08, 0.26]] },
+    // (the second family — a taller mass at one end, tailing off to a thin bar: the gap's stands at its
+    // left end, the bank's at its right, toward the fold. The strip's, the valley's and the looked-up
+    // one are the first: a long low bank.)
+    { id: 'gap', x: 254, e: 254, len: 62, rise: 9, span: 8, period: 2800, phase: 0.5, rest: true, high: true, wob: 0.6,
+      top: [[0.08, 0.92, 0.3], [-0.5, 0.36, 1.0], [-0.14, 0.3, 0.66], [0.3, 0.24, 0.4]] },
+    // (the bank: 100 pt, from two ems after the leading page's longest daytime title to just short of the
+    // fold, and ABOVE the title's line — its foot at y 44, over the x-height — so it is weather over the
+    // page, not a mark appended to the heading. It stood on the title's own line, 22 pt after its last glyph.)
+    { id: 'bank', x: -56, e: 248, len: 100, rise: 20, span: 6, period: 3000, phase: 0.5, wob: 1.0,
+      top: [[0.1, 0.9, 0.3], [0.46, 0.4, 1.0], [0.1, 0.27, 0.68], [0.82, 0.15, 0.5], [-0.36, 0.3, 0.42], [-0.74, 0.2, 0.26]] },
     { id: 'bar', x: -212, e: 82, len: 250, rise: 13, span: 36, period: 2600, phase: 0.48, wob: 0.9,
       top: [[0.1, 0.9, 0.4], [0.04, 0.3, 1.0], [0.34, 0.2, 0.74], [-0.24, 0.16, 0.62], [0.62, 0.16, 0.5], [-0.66, 0.2, 0.52], [-0.86, 0.1, 0.3]] },
     { id: 'low', x: 212, e: 50, len: 176, rise: 11, span: 36, period: 3000, phase: 0.5, up: true, wob: 0.8,
@@ -201,7 +215,15 @@ const SLAB = {
   tonight: { x: 262, y: 66 },
   tonightUp: { x: 270, y: 100 },        // looking up: in the header band, in the gap between his name and the gear
   sunR: 9, moonR: 8,
+  // Where the sun and the moon SET on a slab: the baseline's x there is 386, behind the gear button in
+  // every season. In its last hour a body is brought left by this many points (bodyX): the sun then
+  // comes down behind the crown's right shoulder, limbs across it, and sets at x 324; the moon by less
+  // (it sets at x 340, clear of the gear and of the crown: looking up, with the turn's 30 pt, it must
+  // stay within a fifth of the window of the baseline's x — tools/measure.mjs knows its disc by that).
+  sets: { sun: 62, moon: 46 },
   starScale: 0.9,
+  cards: [[16, 136.6, 386, 334.2], [16, 346.2, 195, 486.1], [207, 346.2, 386, 486.1],      // (as the Duo's: Today, the two tiles; asleep; awake)
+    [16, 498.1, 386, 773.7], [16, 785.7, 386, 874], [16, 498.1, 386, 638], [16, 650, 386, 843.3]],
   caption: { x: 26, y: 774, size: 15 },
   planes: [
     { id: 'far', sink: 1, slide: 1, tilt: [1.0, 0.5], shapes: [
@@ -233,8 +255,15 @@ const SLAB = {
   ],
 };
 
+// The snow under a glass tile, dark appearance (cardShade): `most` — the luminance the ground there may
+// have (a card is 0.0117); `reads` — what the snow's own paint comes to under a tile, as a share of its
+// shaded value (the planes there are part snow, part air and mist); `floor` — never less than this share
+// of its light is left (it is still snow).
+const SNOW_UNDER_GLASS = { most: 0.029, reads: 1.0, floor: 0.4 };
+const WORDS_SHADE_L = 0.345;   // OKLab L of the slab's snow hill behind his age line (the grey line's guard caps at 0.36)
 const NIGHT_MIST = 0.198;   // OKLab L of mist in the dark appearance at night (luminance 0.0078; a card is 0.0117)
 const NIGHT_WATER = 0.196;  // …and of the river there: the faintest line of reflected sky (luminance 0.0076), whatever the room's depth
+const STAR_PEAK = 0.85;     // the peak luminance of an ordinary night's star, as it stands (drawStars: the order of rank)
 const PADL = 34;          // points of world beyond the display's leading edge (tilt, the near planes' slide)
 const PADR = 44;
 
@@ -309,6 +338,10 @@ export function create(host) {
       return Number.isFinite(n) ? clamp01(n) : null;
     } catch { return null; }
   })();
+
+  // (lab switches read from the URL, to shoot a choice both ways: see hill-painted.md, "Lab notes")
+  const urlOpt = (name) => { try { return new URLSearchParams(globalThis.location?.search ?? '').get(name); } catch { return null; } };
+  const urlSun = urlOpt('sun'), urlGlare = urlOpt('glare'), urlSets = urlOpt('sets');
 
   // band=answers: the bedtime band without its own light — only the stars' answers (a lab switch, to
   // compare the two; the sky's own is the band held back until it is wider than the strip).
@@ -411,9 +444,14 @@ export function create(host) {
     ctx.clearRect(0, 0, w, h);
     return ctx;
   }
-  /** A white alpha mask, tinted: → scratch B (use at once). */
+  /** A white alpha mask, tinted: → a scratch of the mask's OWN size (use at once). (It was scratch B,
+   *  which grows to the largest thing ever drawn through it: the tree's first paint in a page went
+   *  through a scratch of exactly its size, every later one through a corner of one as wide as a plane,
+   *  and the canvas rounds a semi-transparent pixel differently when it copies a part of a larger
+   *  canvas — up to 4 levels along every limb and leaf edge between a fresh page and a long-lived one.
+   *  The sizes are a small fixed set: the tree's masks, a cloud's, the sun's rings.) */
   function tinted(mask, colour) {
-    const ctx = scratch('b', mask.width, mask.height);
+    const ctx = scratch(`t${mask.width}x${mask.height}`, mask.width, mask.height);
     ctx.drawImage(mask, 0, 0);
     ctx.globalCompositeOperation = 'source-in';
     ctx.fillStyle = colour;
@@ -683,6 +721,17 @@ export function create(host) {
     if (moving) ctx.imageSmoothingQuality = 'low';
   };
   const SKYPLANE = { slide: 1, sink: 1, tilt: [-1.2, -0.6] };
+  /** The land's skyline on the DISPLAY at display x, in this pose and tilt (points): the highest
+   *  crest of the planes that move with the sky, each where its plane now is. */
+  function skylineNow(x, look, tilt) {
+    let y = Infinity;
+    for (const p of G.planes) {
+      if (p.sink !== 1) continue;
+      const off = planeOffset(p, look, tilt);
+      for (const sh of p.shapes) if (!sh.mist && !sh.floor) y = Math.min(y, sh.at(x - G.ox - off.x) + off.y);
+    }
+    return y;
+  }
 
   // ── where the lights are ─────────────────────────────────────────────
 
@@ -691,6 +740,23 @@ export function create(host) {
   function bodyE(altDeg) {
     if (altDeg < 0) return 8.5 * altDeg;
     return G.cfg.Emax * (1 - Math.exp(-altDeg / 45)) + 12 * (1 - Math.exp(-altDeg / 2.5));
+  }
+
+  /** A body's x as a fraction of the anchor window. It is the baseline's (`state.sun.x`,
+   *  `state.moon.x`: the lab's clock) everywhere but in ONE place, by the director's leave: the
+   *  ordinary iPhone's last hour. There the baseline sets the sun at x 386 — behind the gear button in
+   *  every season, so the picture this sky is for, the tree against the low sun, did not exist on a
+   *  slab. On the slab, on the SETTING side, a body under 12° of altitude is brought left, by 6° the
+   *  whole way (`SLAB.sets`). The easing in (12° … 6°) happens above the header, where a body is not
+   *  drawn (`bodyAt().seen`): in sight it only ever goes down and to the right, at the baseline's own
+   *  pace, as the real one does. The rising side, the Duo, and a body high in the sky are the
+   *  baseline's. A pure function of the baseline's x and the altitude: the sky's glow, the lamp and
+   *  the burn through the crown all follow the same x, in both poses. */
+  function bodyX(xFrac, altDeg, which) {
+    const sets = urlSets === 'old' ? null : G.cfg.sets;
+    if (!sets) return xFrac;
+    const w = smoothstep(0.5, 0.62, xFrac) * (1 - smoothstep(6, 12, altDeg));
+    return xFrac - (w * sets[which]) / G.Wa;
   }
 
   /** Where a body is on the display (points, before tilt). The sun and the moon have ONE place in the
@@ -768,14 +834,15 @@ export function create(host) {
     const air = airFor({ altDeg, dark, morning, presence: B.presence, depth: B.depth, moonlight });
 
     // The sun: the lab's own x (continuous through the night), its real altitude.
-    const sunX = state.sun.x * G.Wa;
-    const sunRest = bodyAt(state, state.sun.x, altDeg, c.sunR, 0);
-    const moonRest = moon ? bodyAt(state, moon.x, moon.altitude / DEG, c.moonR, 0) : null;
+    const sunXf = bodyX(state.sun.x, altDeg, 'sun'), moonXf = moon ? bodyX(moon.x, moon.altitude / DEG, 'moon') : 0;
+    const sunX = sunXf * G.Wa;
+    const sunRest = bodyAt(state, sunXf, altDeg, c.sunR, 0);
+    const moonRest = moon ? bodyAt(state, moonXf, moon.altitude / DEG, c.moonR, 0) : null;
 
     // Which light the land and the clouds answer: the sun until it is well down, then the moon.
     const byMoon = altDeg < -9.5 && moonlight > 0.02;
     const lamp = byMoon
-      ? { kind: 'moon', x: moon.x * G.Wa, y: moonRest.y, power: moonlight }
+      ? { kind: 'moon', x: moonXf * G.Wa, y: moonRest.y, power: moonlight }
       : { kind: 'sun', x: sunX, y: Math.min(sunRest.y, c.H0 + 30), power: smoothstep(-8, -1, altDeg) };
 
     const sl = seasonLand(sea);
@@ -839,7 +906,7 @@ export function create(host) {
 
     return {
       dark, B, air, sea, altDeg, morning, nightness, moonlight, look, shown, deepNight,
-      sunX, sunRest, moonRest, lamp, byMoon,
+      sunX, sunXf, moonXf, sunRest, moonRest, lamp, byMoon,
       C, dxSun, dxLamp,
       ground, snowLit, snowShade, frostLit, mistAmt,
       ink, inkLit: dark ? mix3([ink[0] + 0.16, ink[1], ink[2]], byMoon ? air.silver : air.rim, 0.5)
@@ -1024,17 +1091,23 @@ export function create(host) {
    *     with the camera, so there the rings are two white masks blurred once per display, tinted and
    *     laid each frame (a bilinear copy: within two levels of the exact one, inside the halo only).
    *  → draws them into `ctx`. `alphas`: the two rings' own (0.22 and 0.34) times the halo's amount. */
-  const SUN_RINGS = [[3.3, 0.22, 2.1], [1.95, 0.34, 0.7]];
-  function drawSunHalo(ctx, state, x, y, colour, amount) {
+  const SUN_RINGS = [[3.3, 0.22, 2.1, 1.4], [1.95, 0.34, 0.7, 1.4]];     // [radii, alpha, the hand's seed, the edge's softness in points]
+  // (the pale page's: the same two rings, DEEPER than the sky — there the colour is in them, not in the
+  // disc: an inner one from the disc's edge to 1.9 radii, about a half with the outer one under it, and
+  // an outer one to 3.3 radii at a fifth — and softer-edged: shot with the dark print's crisp edges, two
+  // deeper rings round an edged disc are a target)
+  const SUN_RINGS_LIGHT = [[3.3, 0.2, 2.1, 6.5], [1.95, 0.375, 0.7, 3.2]];
+  function drawSunHalo(ctx, state, x, y, colour, amount, rings = SUN_RINGS) {
     const s = G.s, R = G.cfg.sunR * s;
-    const half = Math.ceil(R * 3.3 * 1.03 + 1.4 * s * 3) + 2;
-    if (!G.sun) G.sun = { key: '', sprites: null, masks: null };
+    const soft = Math.max(...rings.map((r) => r[3]));
+    const half = Math.ceil(R * 3.3 * 1.03 + soft * s * 3) + 2;
+    if (!G.sun) G.sun = { key: '', sprites: null, masks: null, masksFor: null };
     if (state.frozen) {
       const ix = Math.floor(x), iy = Math.floor(y);
-      const alphas = SUN_RINGS.map(([, a]) => clamp01(a * amount));
-      const key = [colour, alphas.map((a) => a.toFixed(5)).join(','), (x - ix).toFixed(4), (y - iy).toFixed(4), half].join('|');
+      const alphas = rings.map(([, a]) => clamp01(a * amount));
+      const key = [colour, alphas.map((a) => a.toFixed(5)).join(','), (x - ix).toFixed(4), (y - iy).toFixed(4), half, soft].join('|');
       if (G.sun.key !== key || !G.sun.sprites) {
-        G.sun.sprites = SUN_RINGS.map(([k, , seed], i) => {
+        G.sun.sprites = rings.map(([k, , seed, blur], i) => {
           const sprite = G.sun.sprites && G.sun.sprites[i] && G.sun.sprites[i].width === half * 2 ? G.sun.sprites[i] : mk(half * 2, half * 2);
           const b = sprite.getContext('2d');
           b.setTransform(1, 0, 0, 1, 0, 0);
@@ -1043,7 +1116,7 @@ export function create(host) {
           b.clearRect(0, 0, half * 2, half * 2);
           b.globalAlpha = alphas[i];
           b.fillStyle = colour;
-          b.filter = `blur(${1.4 * s}px)`;
+          b.filter = `blur(${blur * s}px)`;
           b.fill(discPath(half + (x - ix), half + (y - iy), R * k, 0.02, seed));
           b.filter = 'none';
           return sprite;
@@ -1054,18 +1127,19 @@ export function create(host) {
       for (const sprite of G.sun.sprites) ctx.drawImage(sprite, ix - half, iy - half);
       return;
     }
-    if (!G.sun.masks || G.sun.masks[0].width !== half * 2) {
-      G.sun.masks = SUN_RINGS.map(([k, , seed]) => {
+    if (!G.sun.masks || G.sun.masks[0].width !== half * 2 || G.sun.masksFor !== rings) {
+      G.sun.masksFor = rings;
+      G.sun.masks = rings.map(([k, , seed, blur]) => {
         const mask = mk(half * 2, half * 2);
         const b = mask.getContext('2d');
-        b.filter = `blur(${1.4 * s}px)`;
+        b.filter = `blur(${blur * s}px)`;
         b.fillStyle = '#fff';
         b.fill(discPath(half, half, R * k, 0.02, seed));
         b.filter = 'none';
         return mask;
       });
     }
-    SUN_RINGS.forEach(([, a], i) => {
+    rings.forEach(([, a], i) => {
       ctx.globalAlpha = clamp01(a * amount);
       ctx.drawImage(tinted(G.sun.masks[i], colour), 0, 0, half * 2, half * 2, x - half, y - half, half * 2, half * 2);
     });
@@ -1090,7 +1164,23 @@ export function create(host) {
     return path;
   }
 
-  /** The moon, painted: the whole disc barely there, the lit part in cream with one thin wash. */
+  /** How much the moon is the DAY's moon, 0 … 1: the night's cream moon until the sun is 3° under the
+   *  horizon, wholly the day's once it stands 7° over it — through a dawn or a dusk it goes from one to
+   *  the other by its colour, whole (it used to thin to a quarter of itself: a flat grey ghost). */
+  const urlDayMoon = urlOpt('daymoon');
+  const dayMoonOf = (pal) => (urlDayMoon === 'old' ? 0 : smoothstep(-3, 7, pal.altDeg));
+
+  /** The sky as it is painted behind the moon (the moon has one place in the world, so this is the
+   *  same in both poses): what a day moon is held to. */
+  const skyBehindMoon = (pal) => {
+    const mr = pal.moonRest;
+    return mr ? pal.air.show(pal.air.skyAt((mr.x - pal.sunX) / G.Wa, Math.max(0, mr.E) / G.cfg.table)) : null;
+  };
+
+  /** The moon, painted: the whole disc barely there, the lit part in cream with one thin wash.
+   *  BY DAY it is a real pale day moon, not a flat ghost of the night's: only its lit part, in the
+   *  sky's own colour gone a little toward white — held within 1.15 : 1 of the sky behind it — with a
+   *  soft limb and the seas as the sky showing through. It does not glow, and burns nothing. */
   function paintMoon(state, pal, clear) {
     const m = state.moon;
     const s = G.s;
@@ -1106,7 +1196,11 @@ export function create(host) {
     const night = 1 - smoothstep(-6, -1, pal.altDeg);
     const low = 1 - smoothstep(2, 14, m.altitude / DEG);   // a low moon is warmer and a little dimmer
     const full = pal.dark ? lch(0.925 - 0.05 * low, 0.03 + 0.03 * low, 86 - 10 * low) : lch(0.992 - 0.015 * low, 0.014 + 0.03 * low, 88 - 14 * low);
-    const cream = pal.dark ? mix3(lch(0.34, 0.03, 290), full, clear) : full;
+    const dayAmt = dayMoonOf(pal);
+    const sky = dayAmt > 0 ? skyBehindMoon(pal) : null;
+    const pale = sky ? heldTo(lch(pal.dark ? 0.86 : 0.992, 0.012, 245), sky, 1.15, 1.15, 0.3) : null;
+    let cream = pal.dark ? mix3(lch(0.34, 0.03, 290), full, clear) : full;
+    if (pale) cream = mix3(cream, pale, dayAmt);
     const whole = discPath(c, c, R, 0.012, 2.2);
     const shine = smoothstep(0.03, 0.3, m.fraction);
     ctx.fillStyle = css(pal.dark ? lch(0.27, 0.045, 272) : lch(0.90, 0.03, 275), (pal.dark ? 0.42 : 0.35) * night * shine);
@@ -1116,18 +1210,21 @@ export function create(host) {
     b.translate(c, c);
     b.rotate(m.rotation);
     b.fillStyle = css(cream);
+    if (dayAmt > 0.02) b.filter = `blur(${(0.85 * dayAmt * s).toFixed(2)}px)`;     // a soft limb by day
     b.fill(moonPhasePath(m.fraction, R));
+    b.filter = 'none';
     b.restore();
     b.globalCompositeOperation = 'source-atop';
-    b.fillStyle = css(pal.dark ? mix3(lch(0.32, 0.03, 290), lch(0.84, 0.04, 80), clear) : lch(0.945, 0.028, 82), 0.5);
+    const seas = pal.dark ? mix3(lch(0.32, 0.03, 290), lch(0.84, 0.04, 80), clear) : lch(0.945, 0.028, 82);
+    b.fillStyle = css(sky ? mix3(seas, sky, dayAmt) : seas, lerp(0.5, 0.16, dayAmt));     // (by day a breath of them: two clear patches on a pale disc are a face)
     b.beginPath();
     b.ellipse(c - 0.42 * R, c + 0.36 * R, 0.8 * R, 0.5 * R, -0.7, 0, TAU);       // one thin wash: the seas, as a painter hints them
     b.fill();
     b.beginPath();
     b.ellipse(c + 0.3 * R, c - 0.45 * R, 0.34 * R, 0.24 * R, 0.4, 0, TAU);
     b.fill();
-    const day = m.inDaylight ? lerp(0.6, 1, night) : 1;
-    ctx.globalAlpha = day;
+    const day = lerp(m.inDaylight ? lerp(0.6, 1, night) : 1, 1, dayAmt);      // (the day moon is its own colour, whole: it is not the night's seen through)
+    ctx.globalAlpha = urlDayMoon === 'none' ? 1 - dayAmt : day;
     ctx.drawImage(b.canvas, 0, 0, size, size, 0, 0, size, size);
     ctx.globalAlpha = 1;
   }
@@ -1137,13 +1234,23 @@ export function create(host) {
   /** A cloud is drawn the way this picture draws a hill: ONE top contour set by hand (the table's
    *  `top`), crisp against the sky, and paint laid flat under it — no relief, no outline of circles,
    *  no ruled base. Its masks:
-   *    body   everything under the contour, let go into the air below (the lowest third fades to
-   *           nothing: there is no drawn base, and its thin ends dissolve with it)
+   *    body   everything under the contour, let go into the air below. THE UNDERSIDE IS NOT A LEVEL
+   *           LINE: each stretch of the bank lets go at its own height (`foot`: two or three slow
+   *           swells along it, 3–25 % of the rise) and as softly as it will (`fade`: over 18–42 % of
+   *           the rise), and both ends thin UPWARD — a shallow uneven curve. (It ended on one
+   *           level foot: three flat-bottomed cut-outs of one shape, nearer floating islands than weather.)
    *    lit    the same, fullest at the top edge and gone by 45 % of the rise: the light on its top
-   *    under  the low part of it: what the afterglow warms, and a high sun leaves a breath deeper
+   *    litSide  that light only where the bank is TURNED TO THE LAMP: the third of its length on the
+   *           lamp's side, and the flanks of its masses that face that way; the far side goes without.
+   *           What a low sun, or the moon, puts on it (a high sun lights the whole top: `lit`)
+   *    under  the low part of it: what the afterglow warms, and a high sun leaves a breath deeper.
+   *           (At sunset the body between a lit top and a warm underside reads as a darker lens inside
+   *           the cloud. Warming the cloud all the way up instead was tried: it is then the sunset sky's
+   *           own orange, and at 1× it is gone. The plum body is what makes it a cloud there; what was
+   *           changed is that the light on its top is no longer a line round the whole of it.)
    *    rim    one dry line, a point wide, along the parts of the contour that face the lamp, broken
    *           where the brush skips (under a low sun, or the moon: the knoll's rim is the model)
-   *  Only the rim knows where the lamp is, and only which side of the cloud: `light.side`. */
+   *  The rim and `litSide` know where the lamp is, and only which side of the cloud: `light.side`. */
   function buildCloud(cloud, light) {
     const s = G.s;
     const L = cloud.len, R = cloud.rise;
@@ -1183,20 +1290,27 @@ export function create(host) {
         top[px] = sum / wt;
       }
     }
-    const fade = Math.max(4, 0.28 * R);                   // the lowest of it lets go into the air
     const litDepth = 0.45 * R, rimW = 1.0;
     const reach = Math.max(1, Math.round(2.5 * s));
     const n = w * h;
-    const aBody = new Uint8ClampedArray(n), aLit = new Uint8ClampedArray(n), aUnder = new Uint8ClampedArray(n), aRim = new Uint8ClampedArray(n);
+    const aBody = new Uint8ClampedArray(n), aLit = new Uint8ClampedArray(n), aSide = new Uint8ClampedArray(n), aUnder = new Uint8ClampedArray(n), aRim = new Uint8ClampedArray(n);
+    const sided = Math.abs(light.side);
     for (let px = 0; px < w; px += 1) {
       const t = top[px];
       if (!(t > 0)) continue;
-      const x = (px + 0.5 - cx) / s;
-      const foot = 0.7 * (vn(x / 27 + seed * 0.37, 2.2) - 0.5);        // (the foot's own slow wander: never a ruled level)
-      const dry = smoothstep(0, 0.07, 1 - Math.abs(x) / (L / 2));      // the two ends dry out
+      const x = (px + 0.5 - cx) / s, u = x / (L / 2);
+      // where this stretch lets go, points over the bank's lowest: its own slow swell, and the ends thinning upward
+      const lift = 0.42 * Math.pow(1 - smoothstep(0, 0.2, 1 - Math.abs(u)), 1.3);          // (the last tenth of its length at each end)
+      // (the swell never takes more than half of what stands there: a thin tail stays a thin bar, it is not eaten)
+      const foot = Math.max(R * lift, Math.min(0.5 * t, R * (0.03 + 0.22 * fb(x / (L * 0.23) + seed * 0.71, seed * 1.9 + 3.3, 2)) + 0.7 * (vn(x / 27 + seed * 0.37, 2.2) - 0.5)));
+      const fade = Math.max(0.3, Math.min(0.85 * (t - foot), Math.max(2, R * (0.18 + 0.24 * vn(x / (L * 0.31) + seed * 2.3, 5.5)))));   // …and how softly
+      const dry = smoothstep(0, 0.07, 1 - Math.abs(u));               // the two ends dry out
       // how squarely the contour here faces the lamp's side (its top faces the sky: a little, always)
       const slope = (top[Math.min(w - 1, px + reach)] - top[Math.max(0, px - reach)]) / ((2 * reach) / s);   // + it rises to the right
       const face = clamp01(0.4 - light.side * slope * 1.5);
+      // …and how far this stretch of the bank is turned to the lamp: the third of its length on that side, wholly
+      // (a lamp that stands under or over the bank — neither side — lights its whole top a little less)
+      const turned = lerp(0.72, smoothstep(-0.5, 0.3, Math.sign(light.side) * u) * (0.45 + 0.55 * clamp01(0.6 - Math.sign(light.side) * slope * 1.5)), sided);
       const skip = smoothstep(0.36, 0.5, fb(x / 9 + seed * 1.3, 4.4, 2));   // the brush skipping: runs of line, and gaps
       for (let py = 0; py < h; py += 1) {
         const yUp = (cy - (py + 0.5)) / s;
@@ -1209,6 +1323,7 @@ export function create(host) {
         const k = py * w + px;
         aBody[k] = 255 * a;
         aLit[k] = 255 * a * (1 - smoothstep(0, litDepth, d));
+        aSide[k] = aLit[k] * turned;
         aUnder[k] = 255 * a * (1 - smoothstep(0.12 * R, 0.62 * R, hgt));
         aRim[k] = 255 * edge * dry * skip * face * (1 - smoothstep(rimW * 0.5, rimW, d)) * smoothstep(0, fade * 0.5, hgt);
       }
@@ -1216,7 +1331,7 @@ export function create(host) {
     const cut = (alpha) => imageCanvas(w, h, (d) => {
       for (let k = 0; k < n; k += 1) { d[k * 4] = 255; d[k * 4 + 1] = 255; d[k * 4 + 2] = 255; d[k * 4 + 3] = alpha[k]; }
     });
-    return { w, h, cx, cy, body: cut(aBody), lit: cut(aLit), under: cut(aUnder), rim: cut(aRim) };
+    return { w, h, cx, cy, body: cut(aBody), lit: cut(aLit), litSide: cut(aSide), under: cut(aUnder), rim: cut(aRim) };
   }
 
   /** Where a cloud's light comes from: which side of it the lamp stands on (−1 left … 1 right, in
@@ -1237,7 +1352,7 @@ export function create(host) {
       cloud.maskKey = light.key;
       cloud.canvas = mk(cloud.masks.w, cloud.masks.h);
     }
-    const { w, h, body, lit, under, rim } = cloud.masks;
+    const { w, h, body, lit, litSide, under, rim } = cloud.masks;
     const air = pal.air, cl = air.cloud;
     const hi = Boolean(cloud.high);
     const far = light.far;
@@ -1275,8 +1390,8 @@ export function create(host) {
     }
     if (day > 0) {
       const tame = Math.min(1, 0.012 / (Math.hypot(skyHere[1], skyHere[2]) || 1));
-      const dayLit = air.dark ? [skyHere[0] + 0.095, skyHere[1] * 0.5, skyHere[2] * 0.5] : lch(1.0, 0.006, 90);
-      const dayBody = air.dark ? [skyHere[0] + 0.068, skyHere[1] * 0.8, skyHere[2] * 0.8] : [Math.max(0.985, skyHere[0] + 0.05), skyHere[1] * 0.25, skyHere[2] * 0.25];
+      const dayLit = air.dark ? [skyHere[0] + 0.11, skyHere[1] * 0.5, skyHere[2] * 0.5] : lch(1.0, 0.006, 90);
+      const dayBody = air.dark ? [skyHere[0] + 0.08, skyHere[1] * 0.8, skyHere[2] * 0.8] : [Math.max(0.985, skyHere[0] + 0.05), skyHere[1] * 0.25, skyHere[2] * 0.25];
       const dayDeep = air.dark ? [skyHere[0] + 0.015, skyHere[1], skyHere[2]] : [skyHere[0] - 0.02, skyHere[1] * tame, skyHere[2] * tame];
       litLab = mix3(litLab, dayLit, day); bodyLab = mix3(bodyLab, dayBody, day); deepLab = mix3(deepLab, dayDeep, day);
     }
@@ -1309,9 +1424,19 @@ export function create(host) {
       ctx.globalAlpha = clamp01(0.85 * after * (1 - 0.35 * far));
       ctx.drawImage(tinted(under, C(quiet(underLab, Q.under))), 0, 0, w, h, 0, 0, w, h);
     }
-    // the light on its top
-    ctx.globalAlpha = clamp01(Math.max(day, 0.2 + 0.8 * litAmt)) * (1 - 0.6 * nk);
-    ctx.drawImage(tinted(lit, C(toNight(litLab, 0.008 + 0.012 * pal.moonlight))), 0, 0, w, h, 0, 0, w, h);
+    // the light on its top: the whole top under a high sun; under a low one (below about 12°), or the
+    // moon, only where the bank is turned to it — the far side goes without, to the body's own tone
+    const oneSide = pal.byMoon ? 0.85 : 1 - smoothstep(6, 12, pal.altDeg);
+    const litA = clamp01(Math.max(day, 0.2 + 0.8 * litAmt)) * (1 - 0.6 * nk);
+    const litCss = C(toNight(litLab, 0.008 + 0.012 * pal.moonlight));
+    if (oneSide < 0.99) {
+      ctx.globalAlpha = litA * (1 - oneSide);
+      ctx.drawImage(tinted(lit, litCss), 0, 0, w, h, 0, 0, w, h);
+    }
+    if (oneSide > 0.01) {
+      ctx.globalAlpha = litA * oneSide;
+      ctx.drawImage(tinted(litSide, litCss), 0, 0, w, h, 0, 0, w, h);
+    }
     // the rim: one dry line where the contour faces a low sun, or the moon — nothing of it by day
     const rimAmt = (pal.byMoon ? 0.6 * pal.moonlight : litAmt * smoothstep(12, 5, pal.altDeg) * smoothstep(-7, -1, pal.altDeg)) * (1 - 0.4 * far) * (1 - nk * (1 - 0.5 * pal.moonlight));
     if (rimAmt > 0.03) {
@@ -1457,6 +1582,12 @@ export function create(host) {
       const { body, crestLine, under, raised, px, py } = shapePaths(sh, plane.y0);
       const a = scratch('a', w, h);
       const hz = sh.haze;
+      // THE SLAB'S HILL STANDS IN SHADE WHERE HIS NAME AND AGE STAND ON IT, in snow, in the low key. The
+      // whole age line sits on this hill by design, and pale snow behind grey words is past the limit:
+      // the limiter under the line then cut a dark lozenge into a pale hill, with an end you could see.
+      // So the hill itself is the dark thing there — its flank away from the sunset, as deep as the
+      // words need — and comes back to its snow over 60 pt, past the last glyph. (0 … 1 at world x.)
+      const wordsShade = (x) => (air.dark && G.cfg.kind === 'slab' && plane.id === 'mid' ? smoothstep(0.03, 0.3, sea.snow) * (1 - smoothstep(196, 256, x)) : 0);
       // 1. The fill: its own colour gone `haze` of the way into the horizon sky behind it, at every x.
       const own = (x) => {
         const f = facing(sh, x, lampX);
@@ -1474,6 +1605,9 @@ export function create(host) {
         const snowDeep = air.dark ? sea.snow * (0.085 * smoothstep(0.2, 0.04, hz) + (plane.id === 'mid' ? 0.045 : 0)) * smoothstep(0.22, 0.4, pal.ground[0]) : 0;
         const g = [pal.ground[0] + side - 0.058 * near - 0.125 * step - snowDeep, pal.ground[1] + 0.007 * near + 0.007 * step, pal.ground[2] + 0.006 * near + 0.016 * step];
         const m = mix3(g, air.hazeAt(pal.dxSun(x)), air.dark ? hz : sh.hazeLight ?? hz * 0.78);
+        // (the slab's hill under his name and age, in snow: see `wordsShade`)
+        const ws = wordsShade(x);
+        if (ws > 0) { const cap = WORDS_SHADE_L; if (m[0] > cap) m[0] = lerp(m[0], cap, ws); }
         if (air.dark || sh.hazeLight != null) return m;
         const farK = air.day * smoothstep(0.35, 0.9, hz);
         return [m[0] + 0.014 * farK, m[1] - 0.003 * farK, m[2] - 0.016 * farK];
@@ -1623,7 +1757,7 @@ export function create(host) {
         const lab = sea.snow > 0.03 ? pal.snowLit : pal.frostLit;
         lo.filter = `blur(${(2 + 3 * (1 - hz)) * s * Q}px)`;
         lo.lineWidth = (5 + 16 * (1 - hz)) * s * (sea.snow > 0.03 ? 1.5 : 1);
-        lo.strokeStyle = hGrad(lo, (x) => css(pal.shown(mix3(lab, air.hazeAt(pal.dxSun(x)), hz * 0.8)), white * (sea.snow > 0.03 ? 0.9 * (air.dark ? 1 - 0.45 * smoothstep(0.2, 0.04, hz) : 1) : 0.5)), 40);
+        lo.strokeStyle = hGrad(lo, (x) => css(pal.shown(mix3(lab, air.hazeAt(pal.dxSun(x)), hz * 0.8)), white * (sea.snow > 0.03 ? 0.9 * (air.dark ? 1 - 0.45 * smoothstep(0.2, 0.04, hz) : 1) : 0.5) * (1 - 0.92 * wordsShade(x))), 20);
         lo.stroke(crestLine);
       }
       lo.filter = 'none';
@@ -1663,13 +1797,9 @@ export function create(host) {
       a.globalCompositeOperation = 'source-over';
       const top = Math.max(0, Math.floor(py(sh.top) - 14 * s));
       ctx.drawImage(a.canvas, 0, top, w, h - top, 0, top, w, h - top);
-      // The tree stands on its knoll. (It is ink at its true value: on a plane painted bright it waits.)
-      if (sh.tree && K === 1) {
-        const t = G.tree;
-        ctx.drawImage(t.canvas, Math.round((t.x - G.xL) * s - t.masks.cx), Math.round((t.baseY - plane.y0) * s - t.masks.cy));
-      }
     }
-    // The paint's own unevenness, over the whole plane (not the tree: it is ink).
+    // The paint's own unevenness, over the whole plane. (The tree is not in the plane: it is ink, a
+    // layer of its own that stands on the knoll — drawLand, `treeShown`.)
     ctx.globalCompositeOperation = 'source-atop';
     ctx.globalAlpha = K > 1 ? 0.085 : air.dark ? 0.04 : 0.036;
     X.mottlePattern.setTransform(new DOMMatrix().translate(-G.xL * s, -plane.y0 * s).scale(s / 2 * 1.5));
@@ -1686,12 +1816,6 @@ export function create(host) {
       // (black laid atop at 1 − 1/K: the paint keeps a K-th of its value, and every edge its softness)
       ctx.fillStyle = `rgba(0,0,0,${1 - 1 / K})`;
       ctx.fillRect(0, 0, w, h);
-      ctx.globalCompositeOperation = 'source-over';
-      const tr = plane.shapes.find((sh) => sh.tree);
-      if (tr) {
-        const t = G.tree;
-        ctx.drawImage(t.canvas, Math.round((t.x - G.xL) * s - t.masks.cx), Math.round((t.baseY - plane.y0) * s - t.masks.cy));
-      }
     }
     ctx.globalCompositeOperation = 'source-over';
   }
@@ -2567,7 +2691,14 @@ export function create(host) {
   function buildSprites(s) {
     const out = { s };
     const size = Math.ceil(28 * s);
-    const tints = { cool: lch(0.94, 0.04, 255), plain: lch(0.985, 0.008, 95), warm: lch(0.955, 0.055, 82), rose: lch(0.93, 0.05, 20), tonight: lch(0.965, 0.07, 84), ink: lch(0.40, 0.05, 285), white: lch(1, 0, 0) };
+    // (`month`: tonight's cream at half its warmth — the month-nights' own. On the pale page tonight's
+    // star is ivory, not white — `ivory`, about (255, 244, 214) — the first night's a little less warm,
+    // the month-nights' half as warm: the same order of warmth as in the dark print.)
+    const tints = { cool: lch(0.94, 0.04, 255), plain: lch(0.985, 0.008, 95), warm: lch(0.955, 0.055, 82), rose: lch(0.93, 0.05, 20), tonight: lch(0.965, 0.07, 84), ink: lch(0.40, 0.05, 285), white: lch(1, 0, 0),
+      month: lch(0.965, 0.035, 84), ivory: lch(0.968, 0.041, 90), ivoryFirst: lch(0.972, 0.033, 90), ivoryMonth: lch(0.978, 0.0205, 90) };
+    out.lum = Object.fromEntries(Object.entries(tints).map(([name, lab]) => [name, lab[0] ** 3]));   // (a tint's luminance, near enough: L³)
+    // (a month-night's mark has a core of its own: 1.6 pt in radius at the size it is drawn, 0.70 of the sprite)
+    const cores = { month: 1.6 / 0.70, ivoryMonth: 1.6 / 0.70 };
     for (const [name, lab] of Object.entries(tints)) {
       // a dot: a clean small light, the faintest breath around it (drawn at radius 6 pt)
       const d = mk(size, size);
@@ -2593,12 +2724,12 @@ export function create(host) {
       ctx.closePath();
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(0, 0, 1.9 * s, 0, TAU);
+      ctx.arc(0, 0, (cores[name] ?? 1.9) * s, 0, TAU);
       ctx.fill();
       out[`glint-${name}`] = c;
     }
     // tonight's star: hair-thin flares and a small clean core — a point of light, never a disc
-    for (const [name, lab] of [['tonight', tints.tonight], ['white', tints.white]]) {
+    for (const [name, lab] of [['tonight', tints.tonight], ['ivory', tints.ivory]]) {
       const c = mk(size, size);
       const ctx = c.getContext('2d');
       ctx.translate(size / 2, size / 2);
@@ -2712,7 +2843,11 @@ export function create(host) {
   function starsFor(state) {
     const c = G.cfg;
     const L = state.layout ?? {};
-    const key = [state.ageDays, nightBegunOf(state), c.kind, G.Wa, L.name?.x, L.name?.width, L.age?.width, L.gear?.x].join('|');
+    // (the leading page's stars are thinned against its title and the line under it as the list is built,
+    // and the title changes with the hour — "The day so far", "Miller's book": it is part of the key, or
+    // a long-lived page keeps the stars of the title it was built under)
+    const key = [state.ageDays, nightBegunOf(state), c.kind, G.Wa, L.name?.x, L.name?.width, L.age?.width, L.gear?.x,
+      L.title?.x, L.title?.width, L.subtitle?.width, L.title?.y, L.subtitle?.y, L.subtitle?.height].map((v) => (typeof v === 'number' ? Math.round(v * 2) / 2 : v)).join('|');
     if (G.stars.key === key) return G.stars;
     const outs = starKeepOuts(state);
     const hLook = c.H0 + c.D;
@@ -2771,12 +2906,33 @@ export function create(host) {
       return { x: clamp(x + wx * amt, xMin + 1, xMax - 1), y: Math.max(yMin + 1, Math.min(y + wy * amt, floor(x) - 1)) };
     };
     const apart = Math.max(5.6 * c.starScale, 5.6);     // (never closer: on the light page two stars' soft patches would run together)
+    // A FOUR-POINT STAR IS NEVER AT A CARD'S EDGE. In the 12 pt gap between the Feed and Diaper tiles a
+    // month-night's mark stood exactly where the app's own sparkle glyph would (cover, 191 × 358). So
+    // the first night's and the month-nights' stars keep 10 pt from every edge of every card in the
+    // standing layouts — the night's two (asleep; awake for a feed) and, for the Today card, the rest
+    // pose: such a star is whole in the open, or well behind a card, never in a gap (a 12 pt gap has
+    // no place 10 pt from both sides) and never half out from under an edge. These are taken places:
+    // the night is cast again (below), and the count is what it was.
+    const cardEdges = (c.cards ?? []).concat((c.cards ?? []).slice(0, 1).map(([x0, y0, x1, y1]) => [x0 - c.T, y0 + c.D, x1 - c.T, y1 + c.D]));
+    const atCardEdge = (x, y) => {
+      // (nor is it cut by the display's own edge, in either pose: at 13 pt tall a mark 5 pt under the
+      // top of the everyday view lost the tip of its upper ray)
+      if (x < xMin + 2 || x > xMax - 2 || y < yMin + 2) return true;
+      if (Math.abs(y - c.D) < 9 || (y > c.D - 9 && Math.abs(x + c.T - G.Wa) < 7)) return true;
+      for (const [x0, y0, x1, y1] of cardEdges) {
+        const inside = Math.min(x - x0, x1 - x, y - y0, y1 - y);
+        const d = inside >= 0 ? inside : Math.hypot(Math.max(x0 - x, 0, x - x1), Math.max(y0 - y, 0, y - y1));
+        if (d < 10) return true;
+      }
+      return false;
+    };
     const list = [];
     let firstAt = null;                                  // the first night's own place, once it has taken it
-    const free = (x, y, big) => {
+    const free = (x, y, big, pair = 80) => {
       if (x < xMin || x > xMax || y < yMin || y > floor(x)) return false;
       const wide = big ? 9 : 0;                           // (a four-point star keeps further from the words and the buttons: beside a line of text it is an asterisk)
       for (const r of outs) if (x > r.x0 - wide && x < r.x1 + wide && y > r.y0 - wide && y < r.y1 + wide) return false;
+      if (big && atCardEdge(x, y)) return false;
       // tonight's star has dark sky of its own round it in the clear window (and no four-point star
       // near enough to be taken for it); beside the tree, at rest, a smaller clearing
       if (Math.hypot(x - tonightLook.x, y - tonightLook.y) < (big ? 70 : 30 * c.starScale)) return false;
@@ -2786,7 +2942,9 @@ export function create(host) {
       // is the one star of its kind, at two years as on the first day
       if (firstAt && Math.hypot(x - firstAt.x, y - firstAt.y) < (big ? 60 : 18)) return false;
       for (const o of list) {
-        const gap = (o.kind === 'night' ? apart : apart + 5) + (big ? 5 : 0);
+        // (…and two four-point stars are not neighbours: 80 pt between them while the sky has the room
+        // — `pair` — a month-night cast again beside another made a level pair of marks, 61 pt apart)
+        const gap = big && o.kind !== 'night' && o.kind !== 'tonight' ? pair : (o.kind === 'night' ? apart : apart + 5) + (big ? 5 : 0);
         if (Math.abs(x - o.lx) < gap && Math.hypot(x - o.lx, y - o.ly) < gap) return false;
       }
       return true;
@@ -2809,16 +2967,21 @@ export function create(host) {
         let found = false;
         // first, cast again: the night's own second, third… place, anywhere in the sky (the nearest
         // free place would line the stars up along the edge of whatever they could not sit behind)
-        for (let k = 1; k <= 30 && !found; k += 1) {
-          const fr = (v2) => v2 - Math.floor(v2);
-          const again = place({ ...star, u: fr(star.u + k * 0.6180339887), v: fr(star.v + k * 0.7548776662) });
-          if (free(again.x, again.y, big)) { x = again.x; y = again.y; found = true; }
+        // (a four-point star has more to keep clear of — the cards' edges, the others of its kind — so
+        // it is cast more often; and when his sky is full of them, at two years, it settles for less
+        // room between two of them before it settles for a card's edge)
+        const fr = (v2) => v2 - Math.floor(v2);
+        for (const pair of big ? [80, 60, 44] : [0]) {
+          for (let k = 1; k <= (big ? 90 : 30) && !found; k += 1) {
+            const again = place({ ...star, u: fr(star.u + k * 0.6180339887), v: fr(star.v + k * 0.7548776662) });
+            if (free(again.x, again.y, big, pair)) { x = again.x; y = again.y; found = true; }
+          }
         }
         for (let ring = 1; ring <= 40 && !found; ring += 1) {
           for (let k = 0; k < 12; k += 1) {
             const a = (k / 12 + hash(star.night, 31) + ring * 0.07) * TAU, r = ring * apart * 0.6;
             const nx = at.x + Math.cos(a) * r, ny = at.y + Math.sin(a) * r * 0.9;
-            if (free(nx, ny, big)) { x = nx; y = ny; found = true; break; }
+            if (free(nx, ny, big, 20)) { x = nx; y = ny; found = true; break; }
           }
         }
       }
@@ -2836,7 +2999,8 @@ export function create(host) {
       // (by his nights, tonight's among them whether its star is lit yet or not: the page beside his sky does not gain a star the instant he goes down)
       const count = clamp(Math.round(1.12 * Math.max(1, Math.floor(state.ageDays) + 1) * (span / G.Wa) * 0.84), 80, 460);
       const expShare = 0.36, fall = 190;
-      const title = L.title ? { x0: L.title.x - G.ox - 8, x1: L.title.x - G.ox + Math.max(L.title.width, L.subtitle ? L.subtitle.width : 0) + 22, y0: L.title.y - 8, y1: (L.subtitle ? L.subtitle.y + L.subtitle.height : L.title.y + L.title.height) + 8 } : null;
+      // (20 pt of plain sky before the title's first letter: a star 15 pt left of "T" read as a mark on the title)
+      const title = L.title ? { x0: L.title.x - G.ox - 20, x1: L.title.x - G.ox + Math.max(L.title.width, L.subtitle ? L.subtitle.width : 0) + 22, y0: L.title.y - 8, y1: (L.subtitle ? L.subtitle.y + L.subtitle.height : L.title.y + L.title.height) + 8 } : null;
       for (let n = 0; n < count; n += 1) {
         // how far left of the fold: a third of them crowd toward it, the rest lie evenly
         const u = hash(n, 41);
@@ -2976,13 +3140,13 @@ export function create(host) {
         if (edgeSoft > 0) a *= 1 - smoothstep(edgeX - edgeSoft, edgeX, x);
         a *= 0.35 + 0.65 * smoothstep(4, 46, horizonY - y);   // thinned by the air near the horizon
         // none behind the leading page's title when it is there
-        if (T1 && x > T1.x - 8 && x < T1.x + T1.width + 8 && y > T1.y - 8 && y < (T2 ? T2.y + T2.height : T1.y + T1.height) + 8) a *= 1 - lead;
+        if (T1 && x > T1.x - 20 && x < T1.x + T1.width + 8 && y > T1.y - 8 && y < (T2 ? T2.y + T2.height : T1.y + T1.height) + 8) a *= 1 - lead;
         if (a < 0.006) continue;
-        const r = f.r * s * scale * (1 + 0.3 * wave);
+        const r = Math.min(1.05, f.r) * s * scale * (1 + 0.3 * wave);     // (none larger than the largest of his: 1.15 pt)
         if (light) {
-          // (as his are drawn on the pale page — small crisp points, the few bright ones as small glints — and fainter)
+          // (as his are drawn on the pale page — small crisp points, the few bright ones a larger crisp core — and fainter)
           if (f.m > 0.62) {
-            const half = (2.8 + 2.4 * (f.m - 0.62) / 0.38) * s * scale * (1 + 0.3 * wave);
+            const half = Math.min(1.05 / 0.24, 2.8 + 2.4 * (f.m - 0.62) / 0.38) * s * scale * (1 + 0.3 * wave);
             ctx.globalAlpha = clamp01(a * 0.4);
             ctx.drawImage(sprites.deep, x * s - half * 1.7, y * s - half * 1.7, half * 3.4, half * 3.4);
             ctx.globalAlpha = clamp01(a);
@@ -3003,15 +3167,24 @@ export function create(host) {
       if (star.kind === 'tonight') continue;               // lit over everything: see drawTonight
       let x = G.ox + star.x + off.x, y = star.y + off.y;
       if (y < -8 || y > G.H + 8) continue;
+      const big = star.kind === 'first' || star.kind === 'month';
       if (moonAt) {
         const dx = x - moonAt.x, dy = y - moonAt.y;
         const d = Math.hypot(dx, dy);
-        if (d < mR) {
+        // (a four-point star stands off further — 32 pt from the moon's centre on the Duo: its rays reach
+        // 7 pt, one touching the moon's limb is an emblem, and one 9 pt off it still read as the moon's own)
+        const off2 = big ? mR + 17.5 : mR;
+        if (d < off2) {
           const a = d < 0.01 ? hash(star.night, 9) * TAU : Math.atan2(dy, dx);
-          x = moonAt.x + Math.cos(a) * mR; y = moonAt.y + Math.sin(a) * mR;
+          x = moonAt.x + Math.cos(a) * off2; y = moonAt.y + Math.sin(a) * off2;
         }
       }
-      const tw = time == null ? 0.92 : 1 - (1 - twinkle(star, time)) * still;
+      // THE ORDER OF RANK, by summed light: tonight's star, then the first night's, then the month-nights
+      // (each at twice the brightest ordinary night or more), then the ordinary nights. So a four-point
+      // star is never a ghost: it is not drawn under 0.8 of its full strength — its twinkle is a fifth of
+      // itself at most, and the air near the horizon takes a fifth at most.
+      const twOwn = time == null ? 0.92 : 1 - (1 - twinkle(star, time)) * still;
+      const tw = big ? 1 - (1 - twOwn) * (0.2 / 0.68) : twOwn;
       const wave = answer(x, y);
       // out in the order of brightness as the sky darkens; the ring shows any of them for a breath
       const threshold = (1 - star.magnitude) * 0.8;
@@ -3026,32 +3199,41 @@ export function create(host) {
       alpha *= clearOfTonight(x, y);
       // thinned by the air near the horizon
       const horizonY = c.H0 + (c.D * pal.look) + off.tiltY;
-      alpha *= 0.4 + 0.6 * smoothstep(4, 46, horizonY - y);
+      const thin = 0.4 + 0.6 * smoothstep(4, 46, horizonY - y);
+      alpha *= big ? Math.max(0.8, thin) : thin;
       if (!(alpha > 0.006)) continue;
       const grow = 1 + 0.45 * wave;
       const px = x * s, py = y * s;
       const tint = light ? 'white' : star.warmth > 0.3 ? 'warm' : star.warmth < -0.25 ? 'cool' : hash(star.night, 8) > 0.9 ? 'rose' : 'plain';
-      if (star.kind === 'first' || star.kind === 'month') {
-        const half = 14 * s * scale * (star.kind === 'first' ? 0.78 : 0.52) * grow;
+      if (big) {
+        // The first night's: about 16 pt across. A month-night's: about 10 × 13 pt with a core of
+        // 1.6 pt, in tonight's cream at half its warmth (it took the ordinary nights' tints: one was
+        // rose, one blue, and at 0.52 of the sprite none was stronger than a bright ordinary night).
+        const first = star.kind === 'first';
+        const half = 14 * s * scale * (first ? 0.86 : 0.70) * grow;
         if (light) {
           ctx.globalAlpha = clamp01(alpha * 0.55);
           ctx.drawImage(sprites.deep, px - half * 1.5, py - half * 1.5, half * 3, half * 3);
         } else {
           ctx.globalAlpha = clamp01(alpha * 0.16);
-          const g = star.warmth > 0 ? sprites.glowWarm : sprites.glowCool;
-          ctx.drawImage(g, px - half * 0.7, py - half * 0.7, half * 1.4, half * 1.4);
+          ctx.drawImage(sprites.glowWarm, px - half * 0.7, py - half * 0.7, half * 1.4, half * 1.4);
         }
         ctx.globalAlpha = clamp01(alpha);
-        ctx.drawImage(sprites[`glint-${tint}`], px - half, py - half, half * 2, half * 2);
+        ctx.drawImage(sprites[`glint-${light ? (first ? 'ivoryFirst' : 'ivoryMonth') : first ? 'warm' : 'month'}`], px - half, py - half, half * 2, half * 2);
       } else {
-        const r = (0.52 + 0.95 * Math.pow(m, 0.85)) * s * scale * grow;
+        // (an ordinary night is capped: 1.15 pt in radius, and a peak luminance of 0.85 — the largest
+        // were 1.47 pt and 0.96, as strong as a month-night's mark. Only as it stands: the band's swell is its own.)
+        const r = Math.min(1.15, 0.52 + 0.95 * Math.pow(m, 0.85)) * s * scale * grow;
+        alpha = Math.max(Math.min(alpha, STAR_PEAK / sprites.lum[tint]), Math.min(alpha, wave));
         if (light) {
           // On a pale page a light needs a little deeper sky around it — a soft patch, never a disc.
           // And a field of soft round white dots is falling snow: so here the faint nights are small
-          // crisp points with hardly any patch, and the brighter fifth are drawn as stars are drawn on
-          // paper — small four-point glints, each on its own bit of dusk.
+          // crisp points with no patch at all, and the brighter fifth a larger crisp ROUND core on its
+          // own bit of dusk (one mark, one meaning: four points are kept for the first night, the
+          // month-nights and tonight — the brighter fifth used to be small four-point glints here).
           if (m > 0.6) {
-            const half = (3.4 + 3.0 * (m - 0.6) / 0.4) * s * scale * grow;
+            // (its core is 0.24 of this: 0.82 pt … capped at 1.15 pt — it went on to 1.54)
+            const half = Math.min(1.15 / 0.24, 3.4 + 3.0 * (m - 0.6) / 0.4) * s * scale * grow;
             ctx.globalAlpha = clamp01(alpha * 0.5);
             ctx.drawImage(sprites.deep, px - half * 1.7, py - half * 1.7, half * 3.4, half * 3.4);
             ctx.globalAlpha = clamp01(alpha);
@@ -3109,13 +3291,15 @@ export function create(host) {
         ctx.drawImage(sprites.glowWarm, px - r, py - r, r * 2, r * 2);
       }
     } else {
-      // on a light page: a little dusk gathered round it, so the cream star shows
+      // on a light page: a little dusk gathered round it, so the ivory star shows (it was a white star
+      // on lilac, carried by its patch: the core is ivory now, about (255, 244, 214), and the dusk
+      // under it seven levels deeper)
       const r = 26 * s * scale * (0.7 + 0.3 * k) * breath;
-      ctx.globalAlpha = clamp01(0.62 * k);
+      ctx.globalAlpha = clamp01(0.78 * k);
       ctx.drawImage(sprites.deep, px - r, py - r, r * 2, r * 2);
     }
     const half = 14 * s * scale * (0.62 + 0.38 * k);
-    const sprite = sprites[`spark-${pal.dark ? 'tonight' : 'white'}`];
+    const sprite = sprites[`spark-${pal.dark ? 'tonight' : 'ivory'}`];
     if (up > 0.02) {
       const h2 = half * 0.44;
       ctx.save();
@@ -3127,10 +3311,10 @@ export function create(host) {
     }
     ctx.globalAlpha = clamp01(k) * (0.9 + 0.1 * breath);
     ctx.drawImage(sprite, px - half, py - half, half * 2, half * 2);
-    if (spark > 1) {                                     // past full: the spark
+    if (spark > 1) {                                     // past full: the spark (on the pale page a paler ivory, not white)
       ctx.globalAlpha = clamp01((spark - 1) * 2);
       const r = 2.4 * s;
-      ctx.drawImage(sprites['dot-white'], px - r * 2.33, py - r * 2.33, r * 4.66, r * 4.66);
+      ctx.drawImage(sprites[pal.dark ? 'dot-white' : 'dot-ivoryMonth'], px - r * 2.33, py - r * 2.33, r * 4.66, r * 4.66);
     }
     // The ring is not a line: one soft band of light going out across the sky, once — feathered
     // on both sides, brightest just behind its leading edge, a long soft trail inside it, and
@@ -3149,10 +3333,15 @@ export function create(host) {
       if (band > 0.004) {
         // (it leaves from the star's place in the clear window, which does not move: `ring.at`)
         const bx = ring.at.x * s, by = ring.at.y * s;
-        const Wd = 54 + R * 0.14;                         // it widens as it goes
+        // (broad: 54 pt + 0.14 R made a stroke some 30 pt wide at half strength — a drawn line. It is
+        // nearly twice that now, and its peak is set for that width: less in the dark print, where a
+        // broad swell needs little; more on the pale page, where a broad one is the only kind that
+        // does not read as a ring. `band=arc` in the URL plays the old even arc, to compare.)
+        const arc = urlBand === 'arc';
+        const Wd = (54 + R * 0.14) * (arc ? 1 : 1.8);     // it widens as it goes
         const r0 = Math.max(0, R - Wd * 0.6), r1 = R + Wd * 0.5;
         const tint = pal.dark ? lch(0.88, 0.05, 84) : lch(0.995, 0.012, 95);
-        const peak = (pal.dark ? 0.085 : 0.22) * band;
+        const peak = (pal.dark ? 0.085 : 0.22) * band * (arc ? 1 : pal.dark ? 0.8 : 1.25);
         // (distance from the crest, in band-widths → how much of the peak: a soft swell with no edge on
         // either side — a drawn arc is what a hard leading edge makes — and a short trail, so the sky
         // inside is not left lighter than the sky outside it: no dome)
@@ -3175,6 +3364,23 @@ export function create(host) {
         fall.addColorStop(0, 'rgba(0,0,0,1)'); fall.addColorStop(0.45, 'rgba(0,0,0,0.62)'); fall.addColorStop(1, 'rgba(0,0,0,0)');
         b.fillStyle = fall;
         b.fillRect(0, 0, G.pxW, G.pxH);
+        // IT IS NOT AN ARC EITHER. At one strength all the way round, the crest was a large letter "C"
+        // drawn across the sky (a pale ring on the pale page). Its strength now varies ALONG the crest:
+        // fullest on the bearing from the star to the middle of the open sky, uneven on the way, and gone
+        // a quarter-turn to either side — so what crosses the sky is a soft swell of light with no ends,
+        // not a stroke of even width. (The stars answer all the way round, as they did: `ring.radius`.)
+        if (!arc) {
+          const aim = Math.atan2((c.H0 + c.D) * 0.5 - ring.at.y, G.ox + G.Wa * 0.5 - ring.at.x);
+          const lobe = b.createConicGradient(aim - Math.PI, bx, by);
+          for (let k = 0; k <= 48; k += 1) {
+            const dAng = (k / 48 - 0.5) * 360;               // degrees from the bearing
+            const u = Math.abs(dAng) / 80;
+            const uneven = 0.86 + 0.14 * Math.cos((dAng + 24) * DEG * 3.3);
+            lobe.addColorStop(k / 48, `rgba(0,0,0,${(u >= 1 ? 0 : Math.pow(Math.cos(u * Math.PI / 2), 2) * uneven).toFixed(3)})`);
+          }
+          b.fillStyle = lobe;
+          b.fillRect(0, 0, G.pxW, G.pxH);
+        }
         ctx.save();
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = pal.dark ? 'lighter' : 'source-over';
@@ -3188,7 +3394,7 @@ export function create(host) {
 
   // ── small life: fireflies, leaves, petals, snow, a shooting star ─────
 
-  function drawLife(ctx, state, pal, time, offKnoll, look) {
+  function drawLife(ctx, state, pal, time, offKnoll, look, tree = 1) {
     const s = G.s, c = G.cfg;
     const sea = pal.sea;
     const tr = G.tree;
@@ -3200,9 +3406,10 @@ export function create(host) {
     };
     ctx.globalCompositeOperation = 'source-over';
 
-    // Leaves lying under the tree, and a few on their way down (petals in spring).
+    // Leaves lying under the tree, and a few on their way down (petals in spring) — the tree's own:
+    // where it is not drawn (treeShown), nor are they.
     const falling = Math.max(sea.leafFall * (0.3 + 0.7 * sea.foliage), sea.petals * 0.8);
-    if (falling > 0.03) {
+    if (falling > 0.03 && tree > 0.004) {
       const petals = sea.petals * 0.8 > sea.leafFall;
       const key = `${petals}|${pal.C(petals ? pal.blossom : pal.lastLeaf)}`;
       if (!G.leafSprite || G.leafSprite.key !== key) {
@@ -3220,7 +3427,7 @@ export function create(host) {
       for (let i = 0; i < lying; i += 1) {
         const x = tr.x + (hash(i, 101) - 0.5) * tr.h * 1.0;
         const y = knoll.at(x) + 1.5 + Math.pow(hash(i, 102), 1.5) * 12;
-        dab(sp, x, y, 0.7 + 0.5 * hash(i, 103), 0.75);
+        dab(sp, x, y, 0.7 + 0.5 * hash(i, 103), 0.75 * tree);
       }
       const adrift = Math.round(7 * falling);
       for (let i = 0; i < adrift; i += 1) {
@@ -3228,21 +3435,27 @@ export function create(host) {
         const f = time == null ? hash(i, 105) : (((time / period + hash(i, 105)) % 1) + 1) % 1;
         const x = tr.x + (hash(i, 106) - 0.5) * tr.h * 0.7 + Math.sin(f * 9 + i) * 6 + f * 9;
         const y = tr.baseY - tr.h * 0.7 + f * tr.h * 0.74;
-        dab(sp, x, y, 1.0, Math.sin(Math.PI * f) * 0.9);
+        dab(sp, x, y, 1.0, Math.sin(Math.PI * f) * 0.9 * tree);
       }
     }
 
     // Fireflies beneath the tree on summer evenings, from the last of the sun on.
     const dusk = sea.fireflies * (1 - smoothstep(-2.5, 3.5, pal.altDeg)) * (1 - 0.5 * smoothstep(-14, -30, -pal.altDeg));
     if (dusk > 0.02) {
-      const count = Math.round(12 + 14 * (G.W / 466));
+      // (They are the WORLD's, cast over the anchor window first: twelve by the tree, the rest over its
+      // land — the same ones, in the same places, on the cover and on the spread's phone page — and then
+      // the leading page's own, to the left of it. They were cast over each display's own width, so
+      // after dusk in July the cover and the spread's phone page had different fireflies: up to 255
+      // pixels by up to 105 levels at the foot of the looked-up frame.)
+      const own = Math.round(12 + 14 * (G.Wa / 466));
+      const count = own + Math.round(14 * (G.ox / 466));
       for (let i = 0; i < count; i += 1) {
         let x, y;
         if (i < 12) {
           x = tr.x - tr.h * 0.6 + hash(i, 121) * tr.h * 1.2;
           y = i < 4 ? tr.baseY - 5 - hash(i, 122) * tr.h * 0.3 : knoll.at(x) + 3 + hash(i, 122) * tr.h * 0.5;
         } else {
-          x = -G.ox + hash(i, 121) * (G.W + c.T);
+          x = i < own ? hash(i, 121) * (G.Wa + c.T) : -G.ox * hash(i, 121);
           y = Math.max(G.skyline(x), c.H0) + 16 + hash(i, 122) * 120;
         }
         if (!Number.isFinite(y)) continue;
@@ -3358,22 +3571,28 @@ export function create(host) {
       // the cap takes the sky's own hue there, so it is never a grey patch
       const sky = pal.air.show(pal.air.skyAt(pal.dxSun(box.x + box.width / 2 - G.ox), 0.8));
       const cap = css(pal.dark ? [capL, sky[1] * 0.8, sky[2] * 0.8] : [capL, sky[1] * 0.6, sky[2] * 0.6]);
-      const key = `${w}|${h}|${cap}`;
+      // (A held frame paints the cap's own colour through the blur, as it always did: the picture is
+      // the old one to the level. While the animation RUNS the cap's colour changes with the tone at
+      // every frame of an event — a new blurred fill each time, a canvas made in mid-move: there the
+      // guard is one white mask per size, blurred once and tinted, as the sun's rings are.)
+      const live = !state.frozen;
+      const key = live ? `${w}|${h}` : `${w}|${h}|${cap}`;
       let sprite = guardSprites.get(key);
       if (!sprite) {
         if (guardSprites.size > 24) guardSprites.clear();
         sprite = mk(w, h);
         const b = sprite.getContext('2d');
         b.filter = `blur(${feather * 0.5 * s}px)`;
-        b.fillStyle = cap;
+        b.fillStyle = live ? '#fff' : cap;
         b.beginPath();
         b.roundRect(feather * s, feather * s, w - 2 * feather * s, h - 2 * feather * s, 10 * s);
         b.fill();
         guardSprites.set(key, sprite);
       }
+      if (live) sprite = tinted(sprite, cap);
       ctx.globalCompositeOperation = pal.dark ? 'darken' : 'lighten';
       ctx.globalAlpha = opacity;
-      ctx.drawImage(sprite, Math.round((box.x - pad - feather) * s), Math.round((box.y - pad - feather) * s));
+      ctx.drawImage(sprite, 0, 0, w, h, Math.round((box.x - pad - feather) * s), Math.round((box.y - pad - feather) * s), w, h);
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'source-over';
     };
@@ -3387,86 +3606,88 @@ export function create(host) {
 
   // ── a frame ──────────────────────────────────────────────────────────
 
-  /** With the cards on, looking up, the tree is wholly behind them. Where it would stand past a card's
-   *  edge — a few points of leaf and twig past the sleep card's trailing edge (2–7 pt by the season and
-   *  the tilt), its trunk across the 12 pt gap between two cards when he is awake in the night — it is
-   *  not drawn, and it gives way over the last 8 pt before the edge (so through glass it has no cut
-   *  end). The turn cannot do this: the tree keeps its place against the sun and the moon, which burn
-   *  through its crown, and they may not stand further from the baseline's x. Weighted by the cards'
-   *  opacity: with the cards away the whole tree is there. → null (nothing to do), or the tree's box
-   *  on the display in device pixels, the cards over it, and how far the rule applies. */
-  function treeBehind(state, off, look) {
-    const up = smoothstep(0.85, 1, look);                // (only as the view arrives: on the way it crosses the cards' edge, as anything moving does)
-    if (!(up > 0)) return null;
-    const t = G.tree, s = G.s;
+  /** THE TREE IS A LAYER OF ITS OWN, and with the cards on, looking up, it is not drawn at all — trunk,
+   *  limbs, leaves, blossom, snow, the leaves lying under it: in both appearances. The land stays.
+   *  (It used to be drawn "only behind the cards": through the lab's glass that left a violet stain in
+   *  the sleep card on the pale page, a crown with no trunk under the shorter Sleep tile when he is awake
+   *  in the night, and a trunk stub under the slider on the slab. The night's subject with the cards on
+   *  is tonight's star among his stars; the tree is what the cards uncover at bedtime.)
+   *  → how much of it is drawn, 0 … 1: all of it at rest, and looking up with the cards away (the bare
+   *  poster of the bedtime moment); it goes with the cards' return (their opacity), leaves early in a
+   *  rise behind the cards (`arrive`: gone before it has sunk to the capsule) and comes back over the
+   *  last of the way down at first light (`settle`). Continuous in `look` and in the cards' opacity:
+   *  no pop, no join that jumps. The cards that count are the phone page's own (not the header's words,
+   *  the strip, the tab capsule or the undo toast, which stay through the moment). */
+  function treeShown(state, look) {
+    const up = smoothstep(0.05, 0.45, look);
+    if (!(up > 0)) return 1;
     let on = 0;
-    const cards = [];
-    // crown, limbs and trunk, down to 3 pt above its foot (the knoll's own grass is not the tree)
-    const x0 = Math.floor((G.ox + t.x + off.x - t.h * 0.66) * s), x1 = Math.ceil((G.ox + t.x + off.x + t.h * 0.66) * s);
-    const y0 = Math.floor((t.baseY + off.y - t.h * 1.08) * s), y1 = Math.ceil((t.baseY + off.y - 3) * s);
     for (const card of state.cards ?? []) {
-      if (card.kind === 'header' || card.kind === 'strip' || card.kind === 'tabbar') continue;
-      const o = clamp01(card.opacity ?? 1);
-      if (!(o > 0) || card.x + card.width <= G.ox) continue;
-      on = Math.max(on, o);
-      if (card.x * s < x1 && (card.x + card.width) * s > x0 && card.y * s < y1 && (card.y + card.height) * s > y0) cards.push(card);
+      if (card.kind === 'header' || card.kind === 'strip' || card.kind === 'tabbar' || card.kind === 'toast') continue;
+      if (card.x + card.width <= G.ox) continue;           // (the leading page's cards are not over the tree)
+      on = Math.max(on, clamp01(card.opacity ?? 1));
     }
-    const weight = up * on;
-    if (!(weight > 0.002)) return null;
-    return { x0, y0, w: x1 - x0, h: y1 - y0, cards, weight,
-      key: `${x0},${y0},${Math.round(weight * 500)},${cards.map((cd) => [cd.x, cd.y, cd.width, cd.height].map((v) => Math.round(v * 2)).join(',')).join(';')}` };
+    return 1 - up * on;
   }
 
-  /** The knoll's plane with the tree kept only behind the cards (`hide`: treeBehind). */
-  function drawKnollBehindCards(ctx, plane, px, py, look, hide) {
-    const s = G.s;
-    const { x0, y0, w, h } = hide;
-    // the plane, but for the tree's box…
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, 0, G.pxW, G.pxH);
-    ctx.rect(x0, y0, w, h);
-    ctx.clip('evenodd');
-    drawPlane(ctx, plane.canvas, px, py, look);
-    ctx.restore();
-    // …then the box: how much of the tree stays at each point — all of it well inside a card, none at its edge
-    const cover = scratch('treeCover', w, h);
-    const feather = 8 * s;
-    for (const card of hide.cards) {
-      const cx = card.x * s - x0, cy = card.y * s - y0, cw = card.width * s, ch = card.height * s;
-      const ramp = (a0, a1, len) => {
-        const g = cover.createLinearGradient(a0[0], a0[1], a1[0], a1[1]);
-        const f = Math.min(0.5, feather / len);
-        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(f, 'rgba(0,0,0,1)'); g.addColorStop(1 - f, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-        return g;
-      };
-      cover.save();
-      cover.beginPath();
-      cover.rect(cx, cy, cw, ch);
-      cover.clip();
-      cover.fillStyle = ramp([cx, 0], [cx + cw, 0], cw);
-      cover.fillRect(cx, cy, cw, ch);
-      cover.globalCompositeOperation = 'destination-in';
-      cover.fillStyle = ramp([0, cy], [0, cy + ch], ch);
-      cover.fillRect(cx, cy, cw, ch);
-      cover.restore();
+  /** UNDER THE GLASS TILES THE SNOW IS A STEP DEEPER — a shade that belongs to the cards, not to the land.
+   *  In the dark appearance snow is the palest thing on the ground (a third of the way to white at dusk),
+   *  and a glass tile over it goes milky: on 15 January at 16:28 the ground under the Feed and Diaper
+   *  tiles stood at 4–5 times a card's luminance (0.047 and 0.060 against 0.0117). Painting the snow
+   *  itself deeper there would take it from the bare panorama too — the knoll, the strip and the valley
+   *  are the winter. So the land is painted as it is, and where the phone page's glass tiles lie
+   *  (`tile`, `sleep`: one field, from the first tile's top to the foot of the display, let go over
+   *  12 pt outside it) a soft shade is laid over the LAND alone, by the tiles' opacity: with the cards
+   *  away, or the sky alone, there is none. Its strength comes from how light the snow is at this hour
+   *  against what a tile can take (about 0.03: two and a half cards), so at night, and in any season
+   *  without snow, it is nothing at all. → null, or { amount 0 … 1 of black over the land, mask, key }. */
+  function cardShade(state, pal) {
+    if (!pal.dark || !(pal.sea.snow > 0.03)) return null;
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, on = 0;
+    for (const card of state.cards ?? []) {
+      if ((card.kind !== 'tile' && card.kind !== 'sleep') || card.x + card.width <= G.ox) continue;
+      const o = clamp01(card.opacity ?? 1);
+      if (!(o > 0)) continue;
+      on = Math.max(on, o);
+      x0 = Math.min(x0, card.x); x1 = Math.max(x1, card.x + card.width); y0 = Math.min(y0, card.y);
     }
-    const keep = scratch('treeKeep', w, h);
-    keep.fillStyle = `rgba(0,0,0,${1 - hide.weight})`;
-    keep.fillRect(0, 0, w, h);
-    keep.globalCompositeOperation = 'lighter';
-    keep.globalAlpha = hide.weight;
-    keep.drawImage(cover.canvas, 0, 0, w, h, 0, 0, w, h);
-    const box = scratch('treeBox', w, h);
-    drawPlane(box, plane.canvas, px - x0, py - y0, look);
-    box.globalCompositeOperation = 'destination-in';
-    box.drawImage(keep.canvas, 0, 0, w, h, 0, 0, w, h);
-    ctx.drawImage(box.canvas, 0, 0, w, h, x0, y0, w, h);
+    if (!(on > 0)) return null;
+    const lit = pal.shown(pal.snowShade)[0] ** 3 * SNOW_UNDER_GLASS.reads;       // about what the snow under a tile reads now
+    const keep = clamp(SNOW_UNDER_GLASS.most / Math.max(1e-6, lit), SNOW_UNDER_GLASS.floor, 1);   // the share of its light it may keep
+    const amount = (1 - Math.pow(keep, 1 / 2.2)) * smoothstep(0.03, 0.3, pal.sea.snow) * on;
+    if (!(amount > 0.004)) return null;
+    const s = G.s, q = 0.25;
+    const box = [x0, y0, x1].map((v) => Math.round(v * 2) / 2);
+    const mk2 = `${box.join(',')}|${G.pxW}|${G.pxH}`;
+    if (!G.shade || G.shade.key !== mk2) {
+      const mw = Math.ceil(G.pxW * q) + 2, mh = Math.ceil(G.pxH * q) + 2;
+      const canvas = mk(mw, mh);
+      const m = canvas.getContext('2d');
+      m.setTransform(q * s, 0, 0, q * s, 0, 0);
+      m.filter = `blur(${4 * s * q}px)`;
+      m.fillStyle = '#000';
+      m.fillRect(box[0] - 6, box[1] - 6, box[2] - box[0] + 12, G.H + 60 - box[1]);
+      m.filter = 'none';
+      G.shade = { key: mk2, canvas, mw, mh, q };
+    }
+    return { amount, mask: G.shade, key: `${mk2}|${Math.round(amount * 500)}` };
+  }
+  /** …laid over the land layer `lc` (source-atop: only where there is land). */
+  function layCardShade(lc, shade) {
+    const m = shade.mask;
+    lc.setTransform(1, 0, 0, 1, 0, 0);
+    lc.globalCompositeOperation = 'source-atop';
+    lc.globalAlpha = clamp01(shade.amount);
+    lc.imageSmoothingEnabled = true;
+    lc.drawImage(m.canvas, 0, 0, m.mw, m.mh, 0, 0, m.mw / m.q, m.mh / m.q);
+    lc.globalCompositeOperation = 'source-over';
+    lc.globalAlpha = 1;
   }
 
   /** The planes of land for one pose, far to near, with the mist between them and the sun's bloom
-   *  lying over the far ones. `open`: seconds since the Duo opened, or null. `hide`: treeBehind(). */
-  function drawLand(ctx, pal, look, tilt, breath, open, sunNow, bloomAmt, hide = null) {
+   *  lying over the far ones. `open`: seconds since the Duo opened, or null. `tree`: how much of the
+   *  tree is drawn (treeShown). */
+  function drawLand(ctx, pal, look, tilt, breath, open, sunNow, bloomAmt, tree = 1) {
     const s = G.s, c = G.cfg;
     for (const plane of G.planes) {
       const off = planeOffset(plane, look, tilt);
@@ -3478,8 +3699,14 @@ export function create(host) {
         ctx.drawImage(m.canvas, px, py);
         ctx.globalAlpha = 1;
       });
-      if (hide && plane.id === 'knoll') drawKnollBehindCards(ctx, plane, (G.xL + G.ox + off.x) * s, (plane.y0 + off.y) * s, look, hide);
-      else drawPlane(ctx, plane.canvas, (G.xL + G.ox + off.x) * s, (plane.y0 + off.y) * s, look);
+      drawPlane(ctx, plane.canvas, (G.xL + G.ox + off.x) * s, (plane.y0 + off.y) * s, look);
+      if (plane.id === 'knoll' && tree > 0.004) {
+        // the tree stands on its knoll: ink at its true value, carried by the knoll's plane
+        const t = G.tree;
+        ctx.globalAlpha = Math.min(1, tree);
+        drawPlane(ctx, t.canvas, (G.xL + G.ox + off.x) * s + Math.round((t.x - G.xL) * s - t.masks.cx), (plane.y0 + off.y) * s + Math.round((t.baseY - plane.y0) * s - t.masks.cy), look);
+        ctx.globalAlpha = 1;
+      }
       // Opening the Duo — the one thing that happens in the bare second: light runs down the river
       // toward you. A crest leaves the furthest bend at 0.1 s and is at the foot of the page by 0.9 s,
       // slow among the far bends and quick through the near reach, as anything coming up a valley is.
@@ -3560,24 +3787,58 @@ export function create(host) {
     ctx.filter = 'none';
 
     // where the bodies are in this pose
-    const sunNow = bodyAt(state, state.sun.x, pal.altDeg, c.sunR, look);
+    const sunNow = bodyAt(state, pal.sunXf, pal.altDeg, c.sunR, look);
     sunNow.x += G.ox + tilt.x * SKYPLANE.tilt[0]; sunNow.y += skyOff.tiltY;
     let moonNow = null;
     if (state.moon) {
-      moonNow = bodyAt(state, state.moon.x, state.moon.altitude / DEG, c.moonR, look);
+      moonNow = bodyAt(state, pal.moonXf, state.moon.altitude / DEG, c.moonR, look);
       moonNow.x += G.ox + tilt.x * SKYPLANE.tilt[0]; moonNow.y += skyOff.tiltY;
     }
     pal.moonNow = moonNow && state.moon.altitude > -0.02 ? moonNow : null;
+    // (where this pose puts them, for tools/measure.mjs: it names a disc it has found by the state's x,
+    // and looking up the camera's turn stands between the two — window.__skyBodies)
+    G.bodies = { sun: sunNow.x, moon: pal.moonNow ? moonNow.x : null };
+    // IN THE DUO'S STRIP A DISC IS NOT DRAWN UNDER OR BESIDE THE STATUS ICONS — the moon's or the sun's.
+    // Until its top stands 16 pt clear of them it is out of sight, as it is behind the header: a pale
+    // moon under the Wi-Fi glyph is one more status icon (a crescent there is the Focus moon), a sun's
+    // disc in the icons' row is a weather symbol, and the Wi-Fi glyph drawn on a cream disc is neither.
+    // The whole width of the strip's column counts, not only the icons' own: a disc in the 37 pt between
+    // the cards' edge and the Wi-Fi glyph stands in their row. (With the disc go its halo's rings and its
+    // glare; the sky's own glow round the sun stays.) So a body is first seen in the strip's CLEAR
+    // window. That window is shorter while a sleep runs (the island is longer, the icons sit lower):
+    // `heads` — where it begins awake, and asleep. A sleep that has just begun or ended does not pop a
+    // disc (or a cloud, below) off or on: over the event's first 0.6 s it goes from what the window was.
+    const SC = state.layout?.stripClear;
+    const heads = SC ? [SC.yMin - (state.asleep ? ISLAND_GROWS : 0), SC.yMin + (state.asleep ? 0 : ISLAND_GROWS)] : null;
+    const join = sleepJoin(state.event);
+    // (The icons are the chrome's: with the sky alone — no strip in `state.cards` — nothing is hidden.)
+    const stripOn = clamp01(Math.max(0, ...(state.cards ?? []).filter((cd) => cd.kind === 'strip').map((cd) => cd.opacity ?? 1)));
+    const underIcons = (body, R, ramp) => {
+      if (!heads || !body || !(stripOn > 0)) return 1;
+      const inColumn = smoothstep(SC.x - 2, SC.x + 4, body.x + R);
+      if (!(inColumn > 0)) return 1;
+      const clear = (head) => smoothstep(head + 16 - ramp, head + 16, body.y - R);
+      const now = clear(heads[state.asleep ? 1 : 0]);
+      const was = join < 1 ? clear(heads[state.event.kind === 'wake' ? 1 : 0]) : now;
+      return 1 - stripOn * inColumn * (1 - lerp(was, now, join));
+    };
+    // (the moon comes out over 12 pt — a faint moon is a moon; the sun over 6: a sun at half strength is
+    // a tan ball, and it is on its way down at a point every two or three minutes)
+    if (moonNow) moonNow.seen *= underIcons(moonNow, c.moonR, 12);
+    sunNow.seen *= underIcons(sunNow, c.sunR, 6);
 
     const knollPlane = G.planes.find((p) => p.id === 'knoll');
     const knollOff = planeOffset(knollPlane, look, tilt);
     const tonightAt = tonightHome(look, tilt);
     const ring = ringOf(state, tilt);
     pal.tonightAt = tonightAt; pal.tonightSpark = sparkOf(state);
-    // With the cards on, looking up, the moon's and the sun's disc is drawn only where the whole disc
-    // stands in the open (standsOpen). At rest the rule is not applied: there the bodies keep the
-    // header band and the strip, as they were composed.
-    const cardsRule = smoothstep(0, 0.5, look);
+    // WITH THE CARDS ON A DISC IS DRAWN WHOLE OR NOT AT ALL (standsOpen): the moon's and the sun's, where
+    // the whole disc stands in the open. On the Duo in either pose: at rest too a card's edge cut the
+    // rising sun (a cap in the 20 pt margin under the Today card's corner; half a disc at the fold) and
+    // the afternoon sun coming out from behind the Today card half at a time. On the slab only looking
+    // up: there the header is the whole landscape and the first card's top edge is its foot — the land
+    // goes behind that edge 3 pt under the horizon, and the sun sets behind it as it sets behind land.
+    const cardsRule = c.kind === 'duo' ? 1 : smoothstep(0, 0.5, look);
 
     drawStars(ctx, state, pal, time, skyOff, ring);
     drawShootingStar(ctx, pal, time, skyOff);
@@ -3586,12 +3847,14 @@ export function create(host) {
     if (pal.moonNow) {
       const m = state.moon;
       const clear = pal.dark ? clearOfText(state, moonNow.x, moonNow.y, c.moonR) : 1;
-      const mk2 = [pal.dark, Math.round(m.fraction * 200), Math.round(m.rotation * 60), m.inDaylight, Math.round(pal.altDeg * 4), Math.round(clear * 20), Math.round(m.altitude / DEG)].join('|');
+      const dayMoon = dayMoonOf(pal);
+      const mk2 = [pal.dark, Math.round(m.fraction * 200), Math.round(m.rotation * 60), m.inDaylight, Math.round(pal.altDeg * 4), Math.round(clear * 20), Math.round(m.altitude / DEG),
+        dayMoon > 0 ? `${Math.round(dayMoon * 100)}|${skyBehindMoon(pal).map((v) => Math.round(v * 400)).join(',')}` : ''].join('|');
       if (G.moon.key !== mk2) { paintMoon(state, pal, clear); G.moon.key = mk2; }
       const up = smoothstep(-1.5, 0.5, m.altitude / DEG);
       const night = 1 - smoothstep(-8, 3, pal.altDeg);
       const whole = cardsRule > 0 ? lerp(1, standsOpen(state, moonNow.x, moonNow.y, c.moonR), cardsRule) : 1;
-      const vis = (0.42 + 0.58 * night) * up * lerp(smoothstep(0.04, 0.2, m.fraction), 1, pal.nightness) * moonNow.seen * clearOfButtons(state, moonNow.x, moonNow.y, c.moonR) * whole;
+      const vis = lerp(0.42 + 0.58 * night, 1, dayMoon) * up * lerp(smoothstep(0.04, 0.2, m.fraction), 1, pal.nightness) * moonNow.seen * clearOfButtons(state, moonNow.x, moonNow.y, c.moonR) * whole;
       // (Where the disc is not drawn its halo stays, at a quarter: the glow was sized to stand round a
       // disc. With nothing at its heart it is, in the dark appearance, itself lighter than a card — 0.024
       // against 0.0117, which a dark night does not allow below the band — and on the light page a soft
@@ -3620,17 +3883,46 @@ export function create(host) {
       const air = pal.air;
       const R = c.sunR * s;
       const low = 1 - smoothstep(3, 14, pal.altDeg);
-      const haloAmt = (pal.dark ? 0.16 + 0.34 * low : 0.5 + 0.3 * low) * clear * sunVis * (pal.dark ? 0.35 + 0.65 * air.presence : 1);
       const haloLab = mix3(air.sun, air.glow, 0.5);
-      drawSunHalo(ctx, state, sunNow.x * s, sunNow.y * s, css(air.show(haloLab, { presence: Math.max(air.presence, 0.6) })), haloAmt);
+      const warm = { presence: Math.max(air.presence, 0.6) };
+      // On the pale page the disc is a light — lighter than the paper round it — and so has no colour
+      // of its own: THE COLOUR BELONGS TO WHAT SURROUNDS IT. Its halo is apricot, about (250, 205, 160),
+      // and DEEPER than the sky (it was the disc's own cream, paler than the sky: a pale hole with a
+      // paler smudge round it) — fullest through the last hour, a quieter straw while the sun is high.
+      const lowL = pal.dark ? 0 : 1 - smoothstep(5, 17, pal.altDeg);
+      if (pal.dark || urlSun === 'old') {
+        const haloAmt = (pal.dark ? 0.16 + 0.34 * low : 0.5 + 0.3 * low) * clear * sunVis * (pal.dark ? 0.35 + 0.65 * air.presence : 1);
+        drawSunHalo(ctx, state, sunNow.x * s, sunNow.y * s, css(air.show(haloLab, warm)), haloAmt);
+      } else {
+        const halo = mix3(mix3(haloLab, lch(0.90, 0.062, 80), 0.6), lch(0.877, 0.078, 66.5), lowL);
+        drawSunHalo(ctx, state, sunNow.x * s, sunNow.y * s, css(air.show(halo, warm)), lerp(0.55, 1, lowL) * sunVis, SUN_RINGS_LIGHT);
+      }
       let disc = air.sun;
       if (pal.dark && clear < 1) disc = mix3([0.33, disc[1] * 0.7, disc[2] * 0.7], disc, clear);
       // (never a disc bitten by a button's rim: behind the gear or the avatar there is only its glow —
       // nor, looking up with the cards on, by a card's edge)
-      ctx.globalAlpha = clamp01(sunVis * clearOfButtons(state, sunNow.x, sunNow.y, c.sunR)
+      // (…nor, while the view is on its way between the poses, a disc beside tonight's star: on an early
+      // summer bedtime the sun comes down the strip as the star climbs it, and passed 9 pt from it. The
+      // star keeps its dark sky against the sun's disc as it does against his other stars; the glow stays.)
+      const byStar = onTheWay(look) * clamp01(pal.tonightSpark);
+      const starRoom = byStar > 0 ? lerp(1, smoothstep(c.sunR + 6, c.sunR + 30, Math.hypot(sunNow.x - tonightAt.x, sunNow.y - tonightAt.y)), byStar) : 1;
+      const discA = clamp01(sunVis * clearOfButtons(state, sunNow.x, sunNow.y, c.sunR) * starRoom
         * (cardsRule > 0 ? lerp(1, standsOpen(state, sunNow.x, sunNow.y, c.sunR), cardsRule) : 1));
+      ctx.globalAlpha = discA;
       ctx.fillStyle = css(disc);
-      ctx.fill(discPath(sunNow.x * s, sunNow.y * s, R, 0.012, 4.2));
+      const round = discPath(sunNow.x * s, sunNow.y * s, R, 0.012, 4.2);
+      ctx.fill(round);
+      if (!pal.dark && urlSun !== 'old') {
+        // …and an edge of its own: a thin apricot line just inside the limb, about (255, 196, 140) and
+        // 1.2 pt wide, soft on its inner side — a line of paint, not an outline. The radius and the
+        // place are the disc's.
+        const edge = air.show(mix3(lch(0.90, 0.075, 78), lch(0.861, 0.099, 64.4), lowL), warm);
+        const g = ctx.createRadialGradient(sunNow.x * s, sunNow.y * s, Math.max(0, R - 2.1 * s), sunNow.x * s, sunNow.y * s, R * 1.02);
+        g.addColorStop(0, css(edge, 0)); g.addColorStop(0.32, css(edge, 0.45)); g.addColorStop(0.52, css(edge, 1)); g.addColorStop(1, css(edge, 1));
+        ctx.globalAlpha = discA * lerp(0.6, 1, lowL);
+        ctx.fillStyle = g;
+        ctx.fill(round);
+      }
       ctx.globalAlpha = 1;
     }
 
@@ -3638,12 +3930,13 @@ export function create(host) {
     // that softly hides the stars behind it (a veil of the sky itself, then a breath of its form).
     {
       const nightK = pal.starsOut;
-      const SC = state.layout?.stripClear;
-      // The strip's clear window is shorter while a sleep runs (the island is longer, the status icons
-      // sit lower): `heads` — where it begins awake, and asleep. A sleep that has just begun or ended
-      // does not pop a cloud off or on: over the event's first 0.6 s it goes from what the window was.
-      const heads = SC ? [SC.yMin - (state.asleep ? ISLAND_GROWS : 0), SC.yMin + (state.asleep ? 0 : ISLAND_GROWS)] : null;
-      const join = sleepJoin(state.event);
+      // (`SC`, `heads`, `join`: the strip's clear window, where it begins awake and asleep, and how far a
+      // sleep's start or end has carried what the sky shows there — above, with the discs)
+      // How far the sky's plane has travelled from where it rests, in device pixels (whole ones at
+      // either pose, fractions in between): what carries the clouds.
+      const skyRest = planeOffset(SKYPLANE, 0, tilt);
+      const skyGone = { x: onGrid((G.xL + G.ox + skyOff.x) * s, look) - Math.round((G.xL + G.ox + skyRest.x) * s),
+        y: onGrid((G.skyTop + skyOff.y) * s, look) - Math.round((G.skyTop + skyRest.y) * s) };
       for (const cloud of G.clouds) {
         const f = (((cloud.phase + (time ?? 0) / cloud.period) % 1) + 1) % 1;
         const x = cloud.x + cloud.span * (0.5 - f);            // drifting from the sunset side
@@ -3660,7 +3953,10 @@ export function create(host) {
         // icons and its top, or it is not drawn (close under them it is one more icon) — so while a
         // sleep runs, and the icons sit lower, the strip has none
         if (heads && sx + cloud.len / 2 > SC.x + 20) {
-          const top = sy - cloud.rise;
+          // (asked of the cloud WHERE IT STANDS AT REST, not where the rising camera has carried it: once
+          // the view had sunk it 24 pt below the longer island it was "clear" again and came back to full
+          // in a tenth of a second, 36 pt lower, before leaving a second time with the everyday view's own)
+          const top = sy - cloud.rise - (skyOff.y - skyOff.tiltY);
           const under = (head) => smoothstep(head + 10, head + 24, top);
           const now = under(heads[state.asleep ? 1 : 0]);
           const was = join < 1 ? under(heads[state.event.kind === 'wake' ? 1 : 0]) : now;
@@ -3684,11 +3980,16 @@ export function create(host) {
         const ck = `${keys.air}|${light.key}`;
         if (cloud.key !== ck) { paintCloud(cloud, pal, x, y, light); cloud.key = ck; }
         const m = cloud.masks;
-        const px0 = Math.round(sx * s - m.cx), py0 = Math.round(sy * s - m.cy);
+        // (A cloud is on the sky's plane and keeps its place on it: the whole pixel it has at rest, carried
+        // by the plane's own travel — between pixels while the view moves, where it is drawn smoothed as
+        // the plane is. It used to be rounded to a whole pixel of the DISPLAY in every frame of the move,
+        // and slipped up to a pixel against the sky and the land from one frame to the next.)
+        const px0 = Math.round((G.ox + x + skyRest.x) * s - m.cx) + skyGone.x, py0 = Math.round((y + skyRest.y) * s - m.cy) + skyGone.y;
         if (nightK > 0.02) {
           // the sky's own picture, laid once more over the stars inside the cloud's silhouette
-          // (cut once and kept: it changes only when the sky is repainted or the cloud has drifted a pixel)
-          const vx = Math.round((G.xL + G.ox + skyOff.x) * s) - px0, vy = Math.round((G.skyTop + skyOff.y) * s) - py0;
+          // (cut once and kept: it changes only when the sky is repainted or the cloud has drifted a pixel
+          // — never with the camera: the cloud and the sky move as one)
+          const vx = Math.round(onGrid((G.xL + G.ox + skyOff.x) * s, look) - px0), vy = Math.round(onGrid((G.skyTop + skyOff.y) * s, look) - py0);
           const vk = `${keys.air}|${cloud.maskKey}|${vx}|${vy}`;
           if (!cloud.veil || cloud.veil.width !== m.w || cloud.veil.height !== m.h) { cloud.veil = mk(m.w, m.h); cloud.veilKey = ''; }
           if (cloud.veilKey !== vk) {
@@ -3702,11 +4003,11 @@ export function create(host) {
           }
           ctx.globalAlpha = clamp01(a * 0.5 * nightK);
           ctx.filter = adj;
-          ctx.drawImage(cloud.veil, px0, py0);
+          drawPlane(ctx, cloud.veil, px0, py0, look);
           ctx.filter = 'none';
         }
         ctx.globalAlpha = clamp01(a * (cloud.high ? 0.9 : 0.96) * lerp(1, 0.4, nightK));
-        ctx.drawImage(cloud.canvas, px0, py0);
+        drawPlane(ctx, cloud.canvas, px0, py0, look);
       }
       ctx.globalAlpha = 1;
     }
@@ -3716,10 +4017,13 @@ export function create(host) {
     const bloomAmt = pal.byMoon ? 0 : clamp01(pal.air.glowAmt * 1.3) * smoothstep(-7, -1, pal.altDeg) * (1 - 0.7 * smoothstep(6, 20, pal.altDeg)) * (pal.dark ? 1 : 0.5);
     const open = state.event && state.event.kind === 'open' && !state.reduceMotion ? state.event.age : null;
     const breath = (band) => (time == null ? 0 : Math.round((band.pools ? 7 : 16) * Math.sin(TAU * (time / (240 + 37 * band.seed) + band.seed * 0.37)) * 4) / 4);
-    const hide = treeBehind(state, knollOff, look);
-    if (open == null) {
+    const tree = treeShown(state, look);
+    const shade = cardShade(state, pal);
+    // (with a shade the land is always composed aside — the shade lies on the land alone — the opening's
+    // frames too; they are then keyed by the instant and painted afresh each time)
+    if (open == null || shade) {
       const key = [keys.land, look.toFixed(5), tilt.x, tilt.y, Math.round(sunNow.x * 4), Math.round(bloomAmt * 50),
-        G.planes.map((p) => (p.mists ?? []).map(breath).join(',')).join(';'), hide ? hide.key : ''].join('|');
+        G.planes.map((p) => (p.mists ?? []).map(breath).join(',')).join(';'), Math.round(tree * 1000), shade ? shade.key : '', open == null ? '' : open].join('|');
       if (!G.landCache) G.landCache = { key: '', canvas: mk(G.pxW, G.pxH) };
       if (G.landCache.key !== key) {
         const lc = G.landCache.canvas.getContext('2d');
@@ -3727,7 +4031,8 @@ export function create(host) {
         lc.globalCompositeOperation = 'source-over';
         lc.globalAlpha = 1;
         lc.clearRect(0, 0, G.pxW, G.pxH);
-        drawLand(lc, pal, look, tilt, breath, null, sunNow, bloomAmt, hide);
+        drawLand(lc, pal, look, tilt, breath, open, sunNow, bloomAmt, tree);
+        if (shade) layCardShade(lc, shade);
         G.landCache.key = key;
       }
       ctx.filter = adj;
@@ -3735,7 +4040,7 @@ export function create(host) {
       ctx.filter = 'none';
     } else {
       ctx.filter = adj;
-      drawLand(ctx, pal, look, tilt, breath, open, sunNow, bloomAmt, hide);
+      drawLand(ctx, pal, look, tilt, breath, open, sunNow, bloomAmt, tree);
       ctx.filter = 'none';
     }
     // the sun's glare: light spills round what stands in front of it
@@ -3747,10 +4052,48 @@ export function create(host) {
       g.addColorStop(0, css(tint, 0.9 * k)); g.addColorStop(0.25, css(tint, 0.42 * k)); g.addColorStop(0.6, css(tint, 0.12 * k)); g.addColorStop(1, css(tint, 0));
       ctx.globalCompositeOperation = pal.dark ? 'lighter' : 'source-over';
       ctx.fillStyle = g;
-      ctx.fillRect(sunNow.x * s - r, sunNow.y * s - r, 2 * r, 2 * r);
+      // THE GLARE LIES ON THE LAND ONLY WHILE THE SUN STANDS CLEAR OF IT. While the whole disc is in
+      // the sky with 0.6 of its radius of sky, or more, under its lower limb (its centre 1.6 radii over
+      // the skyline: at the signature minute it is 1.9), light spills round what stands in front of it
+      // — the tree, the ridge under it — as it always did. As the disc comes down onto the far ridge the
+      // spill withdraws to the sky, and to what stands against the sky (the crown), and has left the
+      // land by the time the centre is 0.6 radii over the skyline: a sun that is half behind a hill
+      // cannot throw a round bloom on the near side of that hill — that is a camera's glare. There the
+      // ridge's rim and the mist carry the light (the haze under the sun, drawLand, is level and wide).
+      const onLand = urlGlare === 'old' ? 1 : smoothstep(0.6 * c.sunR, 1.6 * c.sunR, G.skyline(pal.sunRest.x) - pal.sunRest.y);
+      const box = [sunNow.x * s - r, sunNow.y * s - r, 2 * r, 2 * r];
+      if (onLand >= 1) ctx.fillRect(...box);
+      else {
+        // (`onLand` of the gradient everywhere; the rest only above the skyline, let go over the 10 pt
+        // under it so that the trunk, which stands across that line, carries no step. That part is
+        // painted ONCE, aside, and its foot taken off it there — five thin lays of the gradient itself
+        // added up the canvas's own rounding to six levels of noise, different on the cover and the spread.)
+        if (onLand > 0) { ctx.globalAlpha = onLand; ctx.fillRect(...box); }
+        const bx0 = Math.floor(box[0]) - 2, by0 = Math.floor(box[1]) - 2, bw = Math.ceil(box[2]) + 5;
+        const gl = scratch('glare', bw, bw);
+        gl.translate(-bx0, -by0);
+        gl.fillStyle = g;
+        gl.fillRect(...box);
+        gl.globalCompositeOperation = 'destination-out';
+        gl.fillStyle = 'rgba(0,0,0,0.2)';
+        const x0 = sunNow.x - r / s - 4, x1 = sunNow.x + r / s + 4;
+        const line = [];
+        for (let x = x0; x <= x1 + 1; x += 2) line.push([x, Math.min(G.H + 4, skylineNow(x, look, tilt))]);
+        for (let lay = 0; lay < 5; lay += 1) {
+          const land = new Path2D();
+          land.moveTo(x0 * s, by0 + bw + 4);
+          for (const [x, y] of line) land.lineTo(x * s, (y + 2.5 * lay) * s);
+          land.lineTo(x1 * s, by0 + bw + 4);
+          land.closePath();
+          gl.fill(land);
+        }
+        ctx.globalAlpha = 1 - onLand;
+        ctx.drawImage(gl.canvas, 0, 0, bw, bw, bx0, by0, bw, bw);
+        ctx.globalAlpha = 1;
+      }
       ctx.globalCompositeOperation = 'source-over';
     }
-    drawLife(ctx, state, pal, time, knollOff, look);
+    drawLife(ctx, state, pal, time, knollOff, look, tree);
 
     drawTonight(ctx, state, pal, time, tonightAt, ring);
     drawSnowfall(ctx, state, pal, time);
@@ -3857,7 +4200,7 @@ export function create(host) {
       const near = (b, r) => b && Math.abs(b.x - t.x) < t.h * 0.62 + r && b.y > t.baseY - t.h * 1.05 - r && b.y < t.baseY + r;
       const sunPower = smoothstep(-2.4, -0.3, pal.altDeg);
       if (sunPower > 0.05 && near(pal.sunRest, c.sunR)) burns.push({ x: pal.sunRest.x, y: pal.sunRest.y, r: c.sunR, power: sunPower });
-      if (pal.moonRest && state.moon.altitude > -0.01 && near(pal.moonRest, c.moonR)) burns.push({ x: pal.moonRest.x, y: pal.moonRest.y, r: c.moonR, power: (0.4 + 0.6 * pal.nightness) * smoothstep(0.1, 0.4, state.moon.fraction) });
+      if (pal.moonRest && state.moon.altitude > -0.01 && near(pal.moonRest, c.moonR)) burns.push({ x: pal.moonRest.x, y: pal.moonRest.y, r: c.moonR, power: (0.4 + 0.6 * pal.nightness) * smoothstep(0.1, 0.4, state.moon.fraction) * (1 - dayMoonOf(pal)) });
     }
     const landKey = `${keys.air}|${seaKey}|${burns.map((b) => `${Math.round(b.x * 2)},${Math.round(b.y * 2)},${Math.round(b.power * 10)}`).join(';')}`;
     if (keys.land !== landKey) {
@@ -3871,6 +4214,17 @@ export function create(host) {
       }
       timing.land = performance.now() - t0 - timing.tree;
       repainted = true;
+    }
+
+    // Every cloud's masks are cut with the first frame, for the side the lamp stands on now — the
+    // looked-up view's own cloud too, which first shows a third of the way into a rise: cut there, it
+    // made five canvases in the middle of the move.
+    for (const cloud of G.clouds) {
+      if (cloud.masks) continue;
+      const cx = cloud.x, cy = c.H0 - cloud.e;
+      const light = cloudLight(cloud, pal, cx, cy);
+      paintCloud(cloud, pal, cx, cy, light);
+      cloud.key = '';                                      // (painted again where it is, when it is first drawn)
     }
 
     const tCompose = performance.now();
@@ -3911,7 +4265,8 @@ export function create(host) {
     timing.frames += 1;
     if (typeof window !== 'undefined') {
       const st = G.stars.list;
-      window.__hillPainted = { timing, look, stars: st.length ? {
+      window.__skyBodies = G.bodies ?? null;
+      window.__hillPainted = { timing, look, snowShade: pal.shown(pal.snowShade)[0] ** 3, tree: treeShown(state, state.reduceMotion ? Math.round(look) : look), stars: st.length ? {
         total: st.length,
         places: st.map((q) => [Math.round(q.lx * 10) / 10, Math.round(q.ly * 10) / 10, q.kind]),   // looked-up display points (anchor window's x)
         rest: st.filter((q) => q.y > 2 && q.x < G.Wa - 2 && q.x > 2).length,

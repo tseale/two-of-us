@@ -155,7 +155,11 @@ the clock, the sun and the sleep log. The lab has no sleep log, so (`lab/core.js
   bedtime has passed (20:10, `SAMPLE_NIGHT`). So awake at 18:30 is not yet the night;
   awake at 21:00 or 03:00 is;
 - `begun=1|0` forces it (`lit=` is the parameter's old name). With an `event` it says
-  how the night stood *before* the event.
+  how the night stood *before* the event;
+- the lab keeps nothing from one state to the next. So the awake frame that stands after a
+  night sleep begun early and ended before 20:10 (down at 19:40, awake at 19:55) has to be
+  told `begun=1` — by the hour alone the night has not begun there — and the wake itself
+  `woke=night` (`tools/joins.mjs`, `wake-night-early`, shoots exactly that).
 
 **Events** say that something changed `eventAge` seconds ago (`event.age` then runs on
 with the clock). What it changed *from* is the lab's to work out, or the URL's to say:
@@ -164,8 +168,8 @@ with the clock). What it changed *from* is the lab's to work out, or the URL's t
 |---|---|---|---|
 | `bedtime` | A night sleep was started by hand, and the night begins with it (`asleep=night`) | the moment (`BRIEF.md`): the view rises, the star is lit, the band, the cards return | The night had already begun (a feed; any hour after the sample bedtime), or `asleep=nap`: there is no moment — it is played as `arrive`. `begun=0` says the night had not begun. `asleep=0`: dropped |
 | `arrive` | A sleep began elsewhere (the other phone, Siri, a widget, SNOO) | a night sleep that begins the night: the quiet rise behind the cards. Otherwise (a nap; the night had begun) only the room dims | `asleep=0`: dropped |
-| `wake` | The sleep that was running has ended; `woke=night\|nap` says which (unsaid: the night's before 09:00 and from 20:10, a nap's between) | nothing moves; the room un-dims from what that sleep had (a night's 1, a nap's 0.45) | a sleep is running: dropped |
-| `settle` | First light: the night that had begun is over | the quiet settle behind the cards | not morning, not yet first light, or no night had begun: dropped |
+| `wake` | The sleep that was running has ended; `woke=night\|nap` says which (unsaid: the night's before 09:00 and from 20:10, a nap's between) | nothing moves; the room un-dims from what that sleep had (a night's 1, a nap's 0.45), and the sky has no bloom for it | a sleep is running: dropped. A night sleep that ends in the evening before 20:10 must be said (`woke=night`): unsaid it is a nap's, and `state.eventNote` says so |
+| `settle` | First light: the night that had begun is over | the quiet settle behind the cards | not morning, not yet first light, more than half a degree past it (`SETTLE_WITHIN_DEG`: three to five minutes), or no night had begun: dropped |
 | `open`, `close` | The Duo opened, closed | (the sky's own) | |
 
 A dropped event leaves the standing frame (`event: null`). Whenever the lab drops an
@@ -192,7 +196,10 @@ Rules for a sky module: draw only inside `host`; deterministic for a given `stat
 `height` or `dpr` change; no network. Optional: `create()` may be async, `render()`
 may return a promise (the viewer never overlaps two renders), and the object may
 carry `ready`, a Promise for textures still loading — the viewer waits for it and
-renders once more before it calls the frame drawn.
+renders once more before it calls the frame drawn. A sky whose camera turns may say where it
+drew the sun and the moon, `window.__skyBodies = { sun, moon }` (display points, or null):
+`tools/measure.mjs` then also takes a disc within 12 pt of that place for that body (the
+tool's own notes on method, `disc`, printed with `--json`).
 
 ## The viewer's URL
 
@@ -256,7 +263,7 @@ The review set, one folder each under `shots/<sky>/review/`:
 | `day`, `bare` | The standard matrix with the UI, and without. Sheets. |
 | `asleep` | A night sleep at 19:40, 21:00, 03:00; `nap/` at 09:30, 13:10. |
 | `seasons` | Four dates of his first year, 14 min before sunset and 40 after: all three devices; `<season>-bare/` the spread alone. |
-| `bedtime`, `open` | The two showpieces, frame by frame (`BRIEF.md`). Bedtime's cards fall back over 0–1.0 s and return over 4.6–5.8 s with an ease-out — `lab/presence.js`, `momentVeil`, the same curve as `tools/film.mjs`: `t0`, `t0_5`, `t1`, `t3`, `t4_1`, `t5`, `t9`, `t40` (they were `t0_7`, `t1_6`, `t4_4`, `t5_8` while the cards took 1.6 s to go and 2 s to return). |
+| `bedtime`, `open` | The two showpieces, frame by frame (`BRIEF.md`). Bedtime is shot in November at 19:40 and in July at 19:55 (at 19:40 there the sun's disc stands exactly on top of the tree: `skies/hill-painted.md`). Its cards fall back over 0–1.0 s and return over 4.6–5.8 s with an ease-out — `lab/presence.js`, `momentVeil`, the same curve as `tools/film.mjs`: `t0`, `t0_5`, `t1`, `t3`, `t4_1`, `t5`, `t9`, `t40` (they were `t0_7`, `t1_6`, `t4_4`, `t5_8` while the cards took 1.6 s to go and 2 s to return). |
 | `still` | `motion=0`, and `t=95` against the day set's `t=12`. |
 | `text` | The minutes the sun (09:30–10:30) and the moon (17:00–19:40) pass behind the header's text: all three devices, with the UI and in `bare/`. Sheets. |
 | `tilt` | `left-up/` (`tilt=-1,-0.5`) and `right-down/` (`1,0.5`): cover and spread, 16:10 and 21:00. |
@@ -266,8 +273,8 @@ The review set, one folder each under `shots/<sky>/review/`:
 | `settle` | `event=settle` at first light (06:12) with `asleep=night`, the quiet settle: `t0`, `t0_9`, `t1_4`, `t2_7`, `t6`. |
 | `joins` | The pairs `tools/joins.mjs` measures, for the eye: `<join>/before`, `age0`, `age40`, `after` — cover, both schemes, UI on. |
 
-718 shots and 72 sheets in 117 runs of `shoot.mjs` (`--list` counts them; it was 532, 36
-and 62). The whole set has not been timed since it grew: the 532 took a 2-D canvas sky
+726 shots and 72 sheets in 121 runs of `shoot.mjs` (`--list` counts them; it was 532, 36
+and 62, then 718, 72 and 117 before the thirteenth join). The whole set has not been timed since it grew: the 532 took a 2-D canvas sky
 about three minutes (the baseline: 188 s), and the three new still sets (`night`, `arrive`,
 `settle`: 144 shots, 16 runs) took hill-painted 123 s at `--jobs 2` on a busy machine. A
 shader sky is slower: headless Chromium draws WebGL in software, about 3 s a shot at
@@ -278,7 +285,7 @@ begun.)
 
 ## Joins
 
-    node tools/joins.mjs --sky hill-painted               # every join, 3 displays × 2 schemes × sky alone and cards on
+    node tools/joins.mjs --sky hill-painted               # every join (13), 3 displays × 2 schemes × sky alone and cards on: 312 pairs
     node tools/joins.mjs --sky hill-painted --only wake-night,settle-nov --devices cover --save /tmp/pairs
     node tools/joins.mjs --list
 
@@ -292,6 +299,7 @@ header's words; with the cards on, only the open sky (the chrome itself changes 
 sleep starts). Limits, from the picture's grain (a pixel stands about 1.7 levels from its
 neighbours' mean): mean ≤ 0.25 levels, ≤ 0.5 % of pixels over 2, ≤ 0.02 % over 6, no
 pixel over 12. `--self` shoots each standing frame twice and must print 0. The joins:
-bedtime in November and July, a night feed (`wake`, then `arrive`), a nap's wake at 13:10
-and 16:10, a nap arriving, a night sleep arriving, first light in November and June, the
+bedtime in November and July, a night feed (`wake`, then `arrive`), an early night's wake
+before the sample bedtime (`wake-night-early`: told `woke=night`, and its standing frame after
+`begun=1`), a nap's wake at 13:10 and 16:10, a nap arriving, a night sleep arriving, first light in November and June, the
 morning wake after first light, and bedtime by hand once the night has begun.

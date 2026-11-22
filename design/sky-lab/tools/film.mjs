@@ -51,7 +51,9 @@ const USAGE = `Usage: node tools/film.mjs --sky <id> --event bedtime|arrive|sett
 
   --device cover|spread|iphone   (default: cover)      --scheme light|dark   (default: dark)
   --time HH:MM                   local time             (default: 19:40 bedtime and arrive, 03:00 wake, 16:12 open;
-                                                         settle: the date's first light — the first minute the sun is over ${FIRST_LIGHT_DEG}°)
+                                                         settle: the date's first light — the first minute the sun is over ${FIRST_LIGHT_DEG}°).
+                                                         A July bedtime wants --time 19:55 (--date 2027-07-04 --tz -5 --age 367):
+                                                         at 19:40 the sun's disc stands exactly on top of the tree's crown.
   --asleep 0|nap|night           the state from the event on (default: night for bedtime, arrive and settle, else 0)
   --woke night|nap               wake only: the sleep that ended (default: by the hour, as the lab does — night at 03:00)
   --date YYYY-MM-DD  --tz <hours>  --age <days>  --lat <deg>  --lon <deg>   passed to the viewer

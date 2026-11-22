@@ -9,7 +9,7 @@
 //   buildState(params, t, cards, layout) → state   the README's `state` object (pure)
 //   sunX(phase, day) → number            state.sun.x: the sun's x, by day and on past sunset
 //   SAMPLE_NIGHT                         the sample day's bedtime and wake
-//   FIRST_LIGHT_DEG, nightHours(), nightHasBegun(), wokeFrom(), nightOf()
+//   FIRST_LIGHT_DEG, SETTLE_WITHIN_DEG, nightHours(), nightHasBegun(), wokeFrom(), nightOf()
 //                                        "the night has begun" (state.nightBegun) and what an event means in it
 //   estimateLayout(device, asleep)       state.layout where no chrome has been measured
 //   run() → Promise<lab>                 mounts the viewer into #display (browser only)
@@ -299,6 +299,10 @@ export const SAMPLE_NIGHT = Object.freeze({ bedtime: 20 * 60 + 10, wake: 6 * 60 
  *  first band of dawn; at −6° the sky that holds the view up has four stars left. */
 export const FIRST_LIGHT_DEG = -7;
 
+/** `event=settle` plays only AT first light: while the sun stands within this many degrees over
+ *  FIRST_LIGHT_DEG (it climbs about a sixth of a degree a minute in November, a tenth in June). */
+export const SETTLE_WITHIN_DEG = 0.5;
+
 /** The evening: from here on a sleep can be the night's (BRIEF.md, round three:
  *  an evening sleep is one begun between 6 pm and 4 am) — minutes from local
  *  midnight. Where the sun is down before then, the evening begins at sunset. */
@@ -353,9 +357,12 @@ export function wokeFrom(minutes) {
  *            only the room dims. With no sleep running it is dropped.
  *   wake     the sleep that was running has ended (`woke`). The night goes on
  *            as it was: nothing moves, the room un-dims. With a sleep running
- *            it is dropped.
+ *            it is dropped. (Unsaid, `woke` goes by the hour — `wokeFrom` — and
+ *            in the evening before the sample bedtime that is a nap's: a night
+ *            sleep ending there must be said, and `note` says so.)
  *   settle   first light: the night that had begun is over. Dropped unless it
- *            is morning, past first light, and a night had begun.
+ *            is morning, just past first light (the sun within SETTLE_WITHIN_DEG
+ *            of it), and a night had begun.
  *   open, close, anything else: the night is as it stands.
  *
  * A dropped event leaves the standing frame (`event: null`); `note` says what
@@ -384,12 +391,25 @@ export function nightOf({ asleep = false, event = null, eventAge = 0, begun = nu
     if (asleep) return standing('wake: a sleep is running — dropped');
     const from = woke ?? wokeFrom(minutes);
     const before = begun ?? natural(false, from === 'night');
-    return { nightBegun: before, event: { kind: 'wake', age: eventAge, begunBefore: before, woke: from } };
+    const out = { nightBegun: before, event: { kind: 'wake', age: eventAge, begunBefore: before, woke: from } };
+    // The lab has no sleep log. In the evening before the sample bedtime an unsaid wake is taken for a
+    // nap's (the sample day's last nap ends at 18:25) — so a NIGHT sleep that began early and ends
+    // before 20:10 has to be said, or the view comes down with it: `woke=night`. And the awake frame
+    // that stands after such a wake has to be told the night has begun (`begun=1`): by the hour alone
+    // it has not. (tools/joins.mjs, `wake-night-early`, shoots exactly that.)
+    if (woke == null && begun == null && from === 'nap' && nightHours(sun, minutes)) {
+      out.note = 'wake: which sleep ended is unsaid — before the sample bedtime it is taken for a nap\'s (woke=night says it was the night\'s)';
+    }
+    return out;
   }
   if (event === 'settle') {
     const morning = sun.isNight ? sun.progress > 0.5 : sun.progress < 0.5;
     const before = begun ?? (asleep === 'night' || afterSampleBedtime(minutes));
     if (!morning || nightHours(sun, minutes)) return standing('settle: it is not past first light — dropped');
+    // (first light is a minute, not the whole morning: a settle at 09:00 would begin from the looked-up
+    // pose in daylight. It plays while the sun is within SETTLE_WITHIN_DEG of the threshold — the first
+    // three to five minutes — and is dropped after: Home is then simply on the hill.)
+    if (sun.altitude * (180 / Math.PI) > FIRST_LIGHT_DEG + SETTLE_WITHIN_DEG) return standing('settle: first light has passed — dropped');
     if (!before) return standing('settle: no night had begun — dropped');
     return { nightBegun: false, event: { kind: 'settle', age: eventAge, begunBefore: true } };
   }
