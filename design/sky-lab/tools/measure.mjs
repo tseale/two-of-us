@@ -156,7 +156,7 @@ const METHOD = {
   area: 'The brief: "\'Nothing lighter than a card\' is about areas, not star points." A star with its halo can lift the median of one 8 pt block, or of two when it sits on their shared edge. So the dark-night verdict is given on areaLevel — the lightest level that three touching blocks (8-connected; 192 pt² or more) reach together, found by adding the blocks lightest first and joining neighbours until a group has three. "Three" is this tool\'s reading of "area"; the brief gives no size. The strict figure beside it is the lightest single block (max), and ground.maxWithDisc is that with the disc\'s own blocks left in.',
   blocks: 'Blocks are 8 pt × 8 pt on a grid from the display\'s top-left. A block counts for a region when at least half of it lies in the region (and outside any disc); its value is the median luminance of those pixels.',
   regions: 'cards = the union of the opaque (hero, timeline, detail) and glass (tile, sleep, tabbar, toast) card rects; open = below the band and under no card; below = both.',
-  disc: 'The sun\'s / moon\'s disc is detected, not read from the state (a sky may put it at its own height): on 2 pt cell means, the brightest cell\'s connected blob above background + 50 % (then 70 %, 85 %) of its excess; it is a disc if it is 10–90 pt across, no more than 3:1, fills at least 35 % of its box\'s ellipse (so a thin crescent is NOT found, and is then counted as ground), and the ring 4–6 pt outside it has lost at least 30 % of the blob\'s mean excess. Up to two are kept, the second only if its excess is at least a quarter of the first\'s. state.sun.x (or state.scene.body where the lab has no sun.x; the sun is looked for down to −6°) and state.moon only name it: "sun" or "moon" when its x is within a fifth of the anchor window of where the state puts that body — or, where the sky publishes window.__skyBodies = { sun, moon } (display points: a sky whose camera turns), within 12 pt of where the sky says it drew it — else "unknown". A named disc and 3 pt around it are left out of the block statistics and reported apart (ground.maxWithDisc is the figure with it left in); an unknown blob is reported but stays in the ground.',
+  disc: 'The sun\'s / moon\'s disc is detected, not read from the state (a sky may put it at its own height): on 2 pt cell means, the brightest cell\'s connected blob above background + 50 % (then 70 %, 85 %) of its excess; it is a disc if it is 10–90 pt across, no more than 3:1, fills at least 35 % of its box\'s ellipse (so a thin crescent is NOT found, and is then counted as ground), and the ring 4–6 pt outside it has lost at least 30 % of the blob\'s mean excess. Up to two are kept, the second only if its excess is at least a quarter of the first\'s. state.sun.x (or state.scene.body where the lab has no sun.x; the sun is looked for down to −6°) and state.moon only name it: "sun" or "moon" when its x is within a fifth of the anchor window of where the state puts that body — or, where the sky publishes window.__skyBodies = { sun: { x, y }, moon: { x, y } | null } (display points: a sky whose camera turns), within 12 pt of where the sky says it drew it, in x AND in y (by x alone a blob anywhere in the moon\'s column would be the moon) — else "unknown". A named disc and 3 pt around it are left out of the block statistics and reported apart (ground.maxWithDisc is the figure with it left in); an unknown blob is reported but stays in the ground.',
   night: 'A night frame, for "dark night", is one with the sun at or below −10.5° — where lab/presence.js\'s solar bloom has fully settled.',
   chroma: 'OKLab chroma of each 8 pt block\'s mean colour (averaged in linear light), then the mean over the region\'s blocks.',
   points: 'APPROXIMATE. Grey level g = 255·sRGB(L). A pixel is a candidate when g differs from the mean of the 7 pt square around it (taken without the other candidates) by max(6 levels, 6 robust σ of the window, 6 σ of the 15 pt square around it); 8-connected candidates form a fragment when their box is ≤ 12 pt and they are clear of the disc; fragments within 4 pt of each other are one point (the arms of a glint); a run of them longer than 12 pt (a brushed ridge line), a point with three or more others within 8 pt (a texture) and a point on a line with four or more others within 30 pt (a drawn edge) are not counted. Brighter and darker points are counted apart. Counted in the anchor window, all heights. Faint or twinkled-down stars are missed; chips of bright texture are counted. Expected: ageDays, and one more where tonight\'s star is lit (state.tonightLit; asleep=night in a lab without it).',
@@ -565,13 +565,15 @@ function readChrome() {
       moon,
       body: s.scene && s.scene.body ? { x: s.scene.body.x, y: s.scene.body.y } : null,
       event: s.event ?? null, veil: s.veil ?? null, lead: s.lead ?? null,
-      // A sky with a camera may say where it put its bodies (display points): window.__skyBodies = { sun, moon }.
-      // Only used to NAME a detected disc (METHOD.disc); the offset reported is still against the baseline's x.
+      // A sky with a camera may say where it put its bodies (display points):
+      // window.__skyBodies = { sun: { x, y }, moon: { x, y } | null }. Only used to NAME a detected disc
+      // (METHOD.disc); the offset reported is still against the baseline's x. A place is x AND y: a body
+      // given as a bare number (x alone) is not taken.
       skyBodies: (() => {
         const b = window.__skyBodies;
         if (!b || typeof b !== 'object') return null;
-        const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
-        return { sun: num(b.sun), moon: num(b.moon) };
+        const place = (v) => (v && typeof v === 'object' && Number.isFinite(v.x) && Number.isFinite(v.y) ? { x: v.x, y: v.y } : null);
+        return { sun: place(b.sun), moon: place(b.moon) };
       })(),
     },
     origin: { x: frame.left, y: frame.top, scale },
@@ -793,11 +795,12 @@ function findDiscs(picture, geometry) {
   if (state.moon) expected.push({ body: 'moon', x: phone.x + state.moon.x * phone.width });
   // Where the sky itself says it put that body (a sky whose camera turns: the looked-up moon stands the
   // turn away from the baseline's x, and a half moon's lit side a few points further). A disc found
-  // within DECLARED_PT of that place is that body too; its offset is still reported against the
+  // within DECLARED_PT of that place — in x AND in y: by x alone any disc-like blob in the moon's
+  // column, at any height, was the moon — is that body too; its offset is still reported against the
   // baseline's x. (A tight allowance on purpose: a glow 77 pt from where the sky says its sun is, is
   // not the sun.)
   const DECLARED_PT = 12;
-  for (const e of expected) e.at = state.skyBodies && typeof state.skyBodies[e.body] === 'number' ? state.skyBodies[e.body] : null;
+  for (const e of expected) e.at = state.skyBodies && state.skyBodies[e.body] ? state.skyBodies[e.body] : null;
 
   for (let attempt = 0; attempt < 24 && discs.length < 2; attempt += 1) {
     let peak = -1;
@@ -889,7 +892,7 @@ function findDiscs(picture, geometry) {
       for (const e of expected) {
         if (discs.some((disc) => disc.body === e.body)) continue;      // one sun, one moon
         const d = Math.abs(e.x - found.x);
-        const declared = e.at != null && Math.abs(e.at - found.x) <= DECLARED_PT;
+        const declared = e.at != null && Math.abs(e.at.x - found.x) <= DECLARED_PT && Math.abs(e.at.y - found.y) <= DECLARED_PT;
         if (d < best && (d <= 0.2 * phone.width || declared)) { best = d; name = e.body; where = e.x; }
       }
       found.body = name;

@@ -197,9 +197,10 @@ Rules for a sky module: draw only inside `host`; deterministic for a given `stat
 may return a promise (the viewer never overlaps two renders), and the object may
 carry `ready`, a Promise for textures still loading — the viewer waits for it and
 renders once more before it calls the frame drawn. A sky whose camera turns may say where it
-drew the sun and the moon, `window.__skyBodies = { sun, moon }` (display points, or null):
-`tools/measure.mjs` then also takes a disc within 12 pt of that place for that body (the
-tool's own notes on method, `disc`, printed with `--json`).
+drew the sun and the moon, `window.__skyBodies = { sun: { x, y }, moon: { x, y } }` (display
+points; a body that is down is null): `tools/measure.mjs` then also takes a disc within 12 pt
+of that place, in x and in y, for that body (the tool's own notes on method, `disc`, printed
+with `--json`).
 
 ## The viewer's URL
 

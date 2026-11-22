@@ -122,6 +122,7 @@ const DUO = {
   // he wakes. (The first is the Today card: at rest its edges are the header band's foot and the strip's side.)
   cards: [[20, 88.6, 362, 286.2], [20, 298.2, 185, 438.1], [197, 298.2, 362, 438.1],
     [20, 450.1, 362, 647.5], [20, 659.5, 362, 678], [20, 450.1, 362, 590], [20, 602, 362, 678]],
+  glass: [1, 2, 3, 5],     // …of which these are GLASS (lab/chrome.js: `tile`, `sleep`): only the lab switch glass=place asks (starsFor) — the sky's own rule is drawn, not placed (underGlass)
   caption: { x: 30, y: 652, size: 15 },
   planes: [
     { id: 'far', sink: 1, slide: 1, tilt: [1.0, 0.5], shapes: [
@@ -191,7 +192,7 @@ const DUO = {
     // left end, the bank's at its right, toward the fold. The strip's, the valley's and the looked-up
     // one are the first: a long low bank.)
     { id: 'gap', x: 254, e: 254, len: 62, rise: 9, span: 8, period: 2800, phase: 0.5, rest: true, high: true, wob: 0.6,
-      top: [[0.08, 0.92, 0.3], [-0.5, 0.36, 1.0], [-0.14, 0.3, 0.66], [0.3, 0.24, 0.4]] },
+      top: [[0.08, 0.92, 0.3], [-0.5, 0.36, 1.0], [-0.14, 0.3, 0.66], [0.3, 0.24, 0.4], [-0.8, 0.18, 0.45]] },   // (the last: a foot left of the head, so its left end tapers — it was a near-plumb end at 3×)
     // (the bank: 100 pt, from two ems after the leading page's longest daytime title to just short of the
     // fold, and ABOVE the title's line — its foot at y 44, over the x-height — so it is weather over the
     // page, not a mark appended to the heading. It stood on the title's own line, 22 pt after its last glyph.)
@@ -224,6 +225,7 @@ const SLAB = {
   starScale: 0.9,
   cards: [[16, 136.6, 386, 334.2], [16, 346.2, 195, 486.1], [207, 346.2, 386, 486.1],      // (as the Duo's: Today, the two tiles; asleep; awake)
     [16, 498.1, 386, 773.7], [16, 785.7, 386, 874], [16, 498.1, 386, 638], [16, 650, 386, 843.3]],
+  glass: [1, 2, 3, 5],
   caption: { x: 26, y: 774, size: 15 },
   planes: [
     { id: 'far', sink: 1, slide: 1, tilt: [1.0, 0.5], shapes: [
@@ -341,7 +343,7 @@ export function create(host) {
 
   // (lab switches read from the URL, to shoot a choice both ways: see hill-painted.md, "Lab notes")
   const urlOpt = (name) => { try { return new URLSearchParams(globalThis.location?.search ?? '').get(name); } catch { return null; } };
-  const urlSun = urlOpt('sun'), urlGlare = urlOpt('glare'), urlSets = urlOpt('sets');
+  const urlSun = urlOpt('sun'), urlGlare = urlOpt('glare'), urlSets = urlOpt('sets'), urlGlass = urlOpt('glass'), urlDisc = urlOpt('disc'), urlMoonStar = urlOpt('moonstar'), urlField = urlOpt('field'), urlSunRamp = urlOpt('sunramp');
 
   // band=answers: the bedtime band without its own light — only the stars' answers (a lab switch, to
   // compare the two; the sky's own is the band held back until it is wider than the strip).
@@ -768,19 +770,32 @@ export function create(host) {
    *  not only the status bar: during the rise a moon coming down with the sky does not roll through
    *  his name or blink on under the header; it arrives in open sky as the view settles. (Looking up,
    *  no body ever rests that close under the header — the Duo's highest moon stands at y ≈ 183, the
-   *  slab's at y ≈ 250 — so the standing frames are as they were; and at rest nothing changes.) */
-  function bodyAt(state, xFrac, altDeg, R, look) {
+   *  slab's at y ≈ 250 — so the standing frames are as they were; and at rest nothing changes.)
+   *  `ramp`: the points of its descent over which it comes out, from where the header lets it go —
+   *  15, and 6 for the slab's SUN: a sun at half strength is a dim tan ball, and over 15 pt the slab's
+   *  stood above the tree as one for four to five minutes of every afternoon (15:48–15:52 on
+   *  21 November) — behind the gear, where it used to set, nobody saw it. Over 6 it is under two
+   *  minutes, and it is THE DUO'S RULE FOR A SUN UNDER THE STATUS ICONS (compose, underIcons), which
+   *  are what it comes out from under here: nothing of it until its top is 10 pt under them, all of
+   *  it at 16 (the icons' foot is y 39; the disc is whole from y 64). The 6 pt are the HEAD of the
+   *  old 15, not their tail: at the tail (whole at y 73, where it always had been) the sun was out
+   *  of sight for four minutes longer than it ever was, and the minute the tools shoot a July
+   *  evening (19:55: y 68) was one of them — a bedtime that opened on no sun and blinked one on as
+   *  the view began to rise. (sunramp=old: the lab switch, the 15 pt.) */
+  function bodyAt(state, xFrac, altDeg, R, look, ramp = 15) {
     const c = G.cfg;
     const E = bodyE(altDeg);
     const y = c.H0 - E + c.D * look;
     const foot = c.kind === 'duo' ? (state.layout?.firstCardTop ?? 88.6) + R - 3 : 58;
-    let seen = smoothstep(foot, foot + 15, y);
+    let seen = smoothstep(foot, foot + ramp, y);
     if (look > 0) {
       const under = c.kind === 'duo' ? foot : (state.layout?.firstCardTop ?? 136.6) - 6 + R;
       seen = lerp(seen, smoothstep(under, under + 90, y), smoothstep(0, 0.12, look));
     }
     return { x: xFrac * G.Wa - c.T * look, y, E, seen };
   }
+
+  const sunRamp = () => (G.cfg.kind === 'slab' && urlSunRamp !== 'old' ? 6 : 15);
 
   // ── the palette for this minute ──────────────────────────────────────
 
@@ -836,7 +851,7 @@ export function create(host) {
     // The sun: the lab's own x (continuous through the night), its real altitude.
     const sunXf = bodyX(state.sun.x, altDeg, 'sun'), moonXf = moon ? bodyX(moon.x, moon.altitude / DEG, 'moon') : 0;
     const sunX = sunXf * G.Wa;
-    const sunRest = bodyAt(state, sunXf, altDeg, c.sunR, 0);
+    const sunRest = bodyAt(state, sunXf, altDeg, c.sunR, 0, sunRamp());
     const moonRest = moon ? bodyAt(state, moonXf, moon.altitude / DEG, c.moonR, 0) : null;
 
     // Which light the land and the clouds answer: the sun until it is well down, then the moon.
@@ -1057,19 +1072,68 @@ export function create(host) {
     return clear;
   }
 
+  /** THE LEAVING HAS A FLOOR IN TIME. A disc is gone, and a four-point star's rays are in, by the time
+   *  an arriving card is at a fifth of its opacity (standsOpen, underGlass). In the bedtime moment that
+   *  is 0.15 s of the cards' 1.2 s return — eight or nine frames, a quick fade. Reduce Motion's cards
+   *  return in half the time, and there a fifth of a card came in three frames: a cut. So under
+   *  Reduce Motion a card on its way back hides no faster than the full moment's cards would, by the
+   *  time since the return began (lab/presence.js, MOMENT). 1 everywhere else: the full moment and
+   *  every standing frame are as they were. (The app's touch that ends the moment brings the cards
+   *  back in 0.3 s: the same floor is wanted there — port note 3.) */
+  function leavingPace(state) {
+    if (!state.reduceMotion || !state.event || state.event.kind !== 'bedtime' || state.asleep !== 'night') return 1;
+    const since = state.event.age - MOMENT.reduced.back[0];
+    if (!(since >= 0)) return 1;
+    return smoothstep(0, 0.2, easeOut(since / (MOMENT.back[1] - MOMENT.back[0])));
+  }
+
+  /** How far a four-point star at display (x, y) stands UNDER GLASS: 0 in the open or behind an opaque
+   *  card … 1 inside a glass one (`tile`, `sleep`, the tab capsule, the toast — lab/chrome.js), by
+   *  that card's opacity — all of it by the time the card is at a FIFTH of its opacity, as a disc
+   *  leaves (standsOpen): one for one, the mark was still a small sparkle straight after "7:34 PM"
+   *  until a returning tile was half there (4.7–5.0 s of the bedtime moment). Eased over the 7 pt its
+   *  rays reach, for a star the moving camera carries across an edge; in a standing layout a
+   *  four-point star keeps 10 pt from every edge (starsFor), so there it is 0 or 1. It asks the cards
+   *  where they ARE (state.cards), not a table: in the app the rule follows the rows when the list
+   *  scrolls. */
+  function underGlass(state, x, y) {
+    let g = 0;
+    const pace = leavingPace(state);
+    for (const card of state.cards ?? []) {
+      if (card.kind !== 'tile' && card.kind !== 'sleep' && card.kind !== 'tabbar' && card.kind !== 'toast') continue;
+      const o = clamp01(card.opacity ?? 1);
+      if (!(o > 0)) continue;
+      const inside = Math.min(x - card.x, card.x + card.width - x, y - card.y, card.y + card.height - y);
+      g = Math.max(g, (o < 1 ? Math.min(smoothstep(0, 0.2, o), pace) : 1) * smoothstep(-7, 7, inside));
+    }
+    return g;
+  }
+
   /** 1 where a disc of radius `r` at display (x, y) stands wholly in the open with the cards on: 3 pt
    *  clear of every card and of the anchor window's leading edge. 0 where any of it is under a card,
    *  or across the gap between two (a 12 pt gap cannot hold a 19 pt moon), or cut by that edge — a
    *  disc is drawn whole or not at all (its halo's light stays). Weighted by each card's opacity, so
    *  with the cards away (the bedtime moment, the sky alone) it is 1 everywhere and the bare picture
    *  is untouched. The header's words and buttons and the strip's furniture are not cards: see
-   *  clearOfText, clearOfButtons and bodyAt().seen. */
-  function standsOpen(state, x, y, r) {
+   *  clearOfText, clearOfButtons and bodyAt().seen.
+   *  A CARD THAT IS ARRIVING HIDES A DISC BEFORE THE DISC CAN BE READ THROUGH IT: the disc has gone
+   *  by the time the card is at a fifth of its opacity (`gone`). It used to go out as the card came
+   *  in, one for one — so as the cards returned at bedtime the moon was a pale disc behind the day's
+   *  feed total from 4.65 to 5.2 s (a grey dot between "7 feeds" and "7 wet" on the slab), and a July
+   *  sun a ghost under the sleep card's glass until 5.3 s. Now it leaves as the cards first show
+   *  (at half by 4.67 s, gone at 4.75 s), while their words are still too faint to read. A standing frame is as
+   *  it was: there a card is on or it is not. (`asIf`: the lab switch disc=caption — take every card
+   *  of the page to be at least this far back already; disc=old is the one-for-one rule.) */
+  function standsOpen(state, x, y, r, asIf = 0) {
     let open = 1, on = 0;
+    const gone = urlDisc === 'old' || urlDisc === 'caption' ? 1 : 0.2;
+    const pace = gone < 1 ? leavingPace(state) : 1;
     for (const card of state.cards ?? []) {
       if (card.kind === 'header' || card.kind === 'strip') continue;
-      const o = clamp01(card.opacity ?? 1);
+      let o = clamp01(card.opacity ?? 1);
+      if (asIf > 0 && card.kind !== 'tabbar') o = Math.max(o, asIf);
       if (!(o > 0)) continue;
+      if (gone < 1 && o < 1) o = Math.min(smoothstep(0, gone, o), pace);   // (`pace`: under Reduce Motion, no faster than the full moment — leavingPace)
       const dx = Math.max(card.x - x, 0, x - (card.x + card.width)), dy = Math.max(card.y - y, 0, y - (card.y + card.height));
       open = Math.min(open, 1 - o * (1 - smoothstep(r + 0.5, r + 3, Math.hypot(dx, dy))));
       if (card.kind !== 'tabbar' && card.x + card.width > G.ox) on = Math.max(on, o);     // the phone page's own cards are on
@@ -2913,7 +2977,10 @@ export function create(host) {
     // pose: such a star is whole in the open, or well behind a card, never in a gap (a 12 pt gap has
     // no place 10 pt from both sides) and never half out from under an edge. These are taken places:
     // the night is cast again (below), and the count is what it was.
+    // (UNDER GLASS a four-point star is not moved: it is drawn as a point — drawStars, underGlass. The
+    // other way, a place of its own clear of the glass rows, is the lab switch glass=place, below.)
     const cardEdges = (c.cards ?? []).concat((c.cards ?? []).slice(0, 1).map(([x0, y0, x1, y1]) => [x0 - c.T, y0 + c.D, x1 - c.T, y1 + c.D]));
+    const glassRows = (c.glass ?? []).map((i) => c.cards[i]);
     const atCardEdge = (x, y) => {
       // (nor is it cut by the display's own edge, in either pose: at 13 pt tall a mark 5 pt under the
       // top of the everyday view lost the tip of its upper ray)
@@ -2926,9 +2993,11 @@ export function create(host) {
       }
       return false;
     };
+    const inGlassRow = (x, y) => glassRows.some(([x0, y0, x1, y1]) => x > x0 && x < x1 && y > y0 && y < y1);
     const list = [];
+    const placeGlass = urlGlass === 'place', moved = [];
     let firstAt = null;                                  // the first night's own place, once it has taken it
-    const free = (x, y, big, pair = 80) => {
+    const free = (x, y, big, pair = 80, skipMoved = false) => {
       if (x < xMin || x > xMax || y < yMin || y > floor(x)) return false;
       const wide = big ? 9 : 0;                           // (a four-point star keeps further from the words and the buttons: beside a line of text it is an asterisk)
       for (const r of outs) if (x > r.x0 - wide && x < r.x1 + wide && y > r.y0 - wide && y < r.y1 + wide) return false;
@@ -2942,6 +3011,7 @@ export function create(host) {
       // is the one star of its kind, at two years as on the first day
       if (firstAt && Math.hypot(x - firstAt.x, y - firstAt.y) < (big ? 60 : 18)) return false;
       for (const o of list) {
+        if (skipMoved && o.nx != null) continue;          // (glass=place: a star that has been given another place is judged where it now is)
         // (…and two four-point stars are not neighbours: 80 pt between them while the sky has the room
         // — `pair` — a month-night cast again beside another made a level pair of marks, 61 pt apart)
         const gap = big && o.kind !== 'night' && o.kind !== 'tonight' ? pair : (o.kind === 'night' ? apart : apart + 5) + (big ? 5 : 0);
@@ -2985,8 +3055,26 @@ export function create(host) {
           }
         }
       }
-      list.push({ ...star, lx: x, ly: y });
+      const entry = { ...star, lx: x, ly: y };
+      // THE LAB SWITCH glass=place — the other answer to a four-point star under glass, shot to compare
+      // and not chosen (hill-painted.md, "His stars"): a four-point star whose place is inside a glass
+      // row of the table is given another, clear of the glass, of every card's edge, of the nights
+      // before it and of the others so moved. Every other star keeps its place (the nights after it are
+      // still judged against the place it left). It gathers the four-point stars behind the Today card:
+      // the bedtime poster's lower sky loses all of them, and the rest pose has none.
+      if (placeGlass && big && inGlassRow(x, y)) {
+        const fr = (v2) => v2 - Math.floor(v2);
+        const clear = (nx, ny, pair) => !inGlassRow(nx, ny) && free(nx, ny, true, pair, true) && moved.every((m) => Math.hypot(nx - m.nx, ny - m.ny) >= pair);
+        search: for (const pair of [80, 60, 44, 24]) {
+          for (let k = 1; k <= 240; k += 1) {
+            const again = place({ ...star, u: fr(star.u + k * 0.6180339887), v: fr(star.v + k * 0.7548776662) });
+            if (clear(again.x, again.y, pair)) { entry.nx = again.x; entry.ny = again.y; moved.push(entry); break search; }
+          }
+        }
+      }
+      list.push(entry);
     }
+    for (const m of moved) { m.lx = m.nx; m.ly = m.ny; }
     // world coordinates (rest pose): the looked-up place, turned back and lowered (tonight's: its place beside the tree)
     for (const st of list) { st.x = st.lx + c.T; st.y = st.ly - c.D; if (st.kind === 'tonight') { st.x = c.tonight.x; st.y = c.tonight.y; } }
     // The ordinary sky of the leading page (nobody's stars), on the whole tall sky: fainter than
@@ -3061,6 +3149,9 @@ export function create(host) {
     const light = !pal.dark;
     const moonAt = pal.moonNow;
     const mR = c.moonR + 5;
+    // (a four-point star beside a drawn moon is a point within 40 pt of its centre and has its four
+    // points again 60 pt out — on the Duo; by the moon's size on the slab. moonstar=old: the lab switch.)
+    const moonNear = 40, moonFar = 60;
     // A little brighter once he is down; the sky has gone deeper.
     const settle = 1 + 0.1 * pal.B.depth * (bed == null ? 1 : smoothstep(4, 8, bed));
     ctx.globalCompositeOperation = 'source-over';
@@ -3163,16 +3254,46 @@ export function create(host) {
       }
     }
 
+    // THE PALE PAGE'S FIELD AT A YEAR. Some three hundred like-sized white points over a land band that
+    // is nearly white say snow falling before they say stars. Once his sky is dense (`dense`: nothing
+    // at 180 nights, all of it from 330 — at 142 the page is the storybook night it was, to the byte)
+    // the ordinary nights (a) drown toward the land, as stars do in the horizon's glow — their strength
+    // falls to nothing over the lowest 118 pt of sky — and (b) stand on a wider ladder of sizes: the
+    // large core on its dusk is kept for the brightest tenth (it was the brighter fifth: 21 % of his ordinary nights at a year, now 11 %), and the rest
+    // are smaller crisp points, the faint ones smaller and fainter than they were. No place moves; the
+    // four-point stars and the dark print are untouched.
+    const dense = light && urlField !== 'old' ? smoothstep(180, 330, stars.list.length) : 0;
+    const coreAt = lerp(0.6, 0.76, dense);
+    const marks = [];                                      // the four-point stars as drawn: [x, y, kind, how much of the four-point mark] — window.__hillPainted.stars.marks
+    stars.marks = marks;
     for (const star of stars.list) {
       if (star.kind === 'tonight') continue;               // lit over everything: see drawTonight
       let x = G.ox + star.x + off.x, y = star.y + off.y;
       if (y < -8 || y > G.H + 8) continue;
       const big = star.kind === 'first' || star.kind === 'month';
+      let byMoon = 0;
       if (moonAt) {
         const dx = x - moonAt.x, dy = y - moonAt.y;
         const d = Math.hypot(dx, dy);
+        // A FOUR-POINT STAR BESIDE THE MOON IS A POINT. A bright star close to the moon is the moon's
+        // companion — a star and a moon are an emblem (on the default day a month-night's mark stood
+        // 32 pt right of the disc at 21:00, looking up with the cards away, and within 66 pt of it all
+        // evening). Stars near a moon drown in its glare: within `near` of the centre of the moon the
+        // mark is the point an ordinary bright night is, and it has all its four points again `far`
+        // out. By how strongly the moon stands in this sky (`moonSky`: its disc as the cards-away
+        // picture draws it) — NOT by whether a card is hiding the disc just now: a card that comes over
+        // the moon changes nothing about the star. (It asked the drawn disc, `moonDisc`, and the place
+        // below asked it too: as the cards returned at a 21:00 bedtime the disc went out in a tenth of
+        // a second and the star beside it grew its four points and slid 8.8 pt in the same five
+        // frames, under the arriving Today card.) Tonight's star is not in this loop.
+        if (big && urlMoonStar !== 'old') {
+          const k = c.moonR / 9.5;
+          byMoon = (pal.moonSky ?? 0) * (1 - smoothstep(moonNear * k, moonFar * k, d));
+        }
         // (a four-point star stands off further — 32 pt from the moon's centre on the Duo: its rays reach
-        // 7 pt, one touching the moon's limb is an emblem, and one 9 pt off it still read as the moon's own)
+        // 7 pt, one touching the moon's limb is an emblem, and one 9 pt off it still read as the moon's own.
+        // Its PLACE is the sky's: where the star and the moon are, never how the star or the disc is
+        // drawn — as a point it keeps the same 32 pt.)
         const off2 = big ? mR + 17.5 : mR;
         if (d < off2) {
           const a = d < 0.01 ? hash(star.night, 9) * TAU : Math.atan2(dy, dx);
@@ -3193,7 +3314,7 @@ export function create(host) {
       const shown = out > 0.004 ? smoothstep(threshold - 0.05, threshold + 0.2, out) : 0;
       // a real range: most nights are small faint lights, a few are bright (m: 0 the faintest … 1)
       const m = clamp01((star.magnitude - 0.22) / 0.5);
-      let alpha = (light ? 0.74 + 0.26 * m : 0.50 + 0.50 * Math.pow(m, 0.6)) * tw * shown * settle;
+      let alpha = (light ? lerp(0.74 + 0.26 * m, 0.60 + 0.40 * m, big ? 0 : dense) : 0.50 + 0.50 * Math.pow(m, 0.6)) * tw * shown * settle;
       if (bed != null) alpha *= 1 + 0.22 * passed(x, y) * (1 - smoothstep(5.5, 12, bed));   // (it keeps a fifth more light, and lets it go slowly into the settled night's own)
       alpha = Math.max(alpha, wave * (0.6 + 0.4 * star.magnitude), keptAt(x, y) * (0.6 + 0.4 * m)) + 0.4 * wave * shown;
       alpha *= clearOfTonight(x, y);
@@ -3201,26 +3322,56 @@ export function create(host) {
       const horizonY = c.H0 + (c.D * pal.look) + off.tiltY;
       const thin = 0.4 + 0.6 * smoothstep(4, 46, horizonY - y);
       alpha *= big ? Math.max(0.8, thin) : thin;
+      if (dense > 0 && !big) alpha *= lerp(1, smoothstep(8, 118, horizonY - y), dense);     // (the pale page, dense: drowned toward the land)
       if (!(alpha > 0.006)) continue;
       const grow = 1 + 0.45 * wave;
       const px = x * s, py = y * s;
       const tint = light ? 'white' : star.warmth > 0.3 ? 'warm' : star.warmth < -0.25 ? 'cool' : hash(star.night, 8) > 0.9 ? 'rose' : 'plain';
-      if (big) {
+      // A FOUR-POINT STAR IS NEVER SEEN THROUGH GLASS AS FOUR POINTS. Through a glass tile a
+      // month-night's mark is a small sparkle beside the tile's own words — "changed at 7:35 PM ✦", the
+      // app's AI glyph (cover, 326 × 420, in the Diaper tile). Under a glass card it is drawn as the
+      // brightest ordinary night is — a round point — by that card's opacity (underGlass): its place
+      // is its own, so with the cards away (the bedtime moment, the sky alone) it is the mark it was.
+      // And beside a drawn moon (`byMoon`, above). `point`: 0 the four-point mark … 1 the point. On
+      // the way from one to the other its rays draw in — shorter, at their full light until they are
+      // nearly gone — as the point comes up: a smaller sparkle, never a grey ghost of the large one.
+      const point = big ? Math.max(underGlass(state, x, y), byMoon) : 1;
+      if (big) marks.push([Math.round((x - G.ox) * 10) / 10, Math.round(y * 10) / 10, star.kind, Math.round((1 - point) * 1000) / 1000]);
+      if (big && point < 1) {
         // The first night's: about 16 pt across. A month-night's: about 10 × 13 pt with a core of
         // 1.6 pt, in tonight's cream at half its warmth (it took the ordinary nights' tints: one was
         // rose, one blue, and at 0.52 of the sprite none was stronger than a bright ordinary night).
         const first = star.kind === 'first';
-        const half = 14 * s * scale * (first ? 0.86 : 0.70) * grow;
+        const half = 14 * s * scale * (first ? 0.86 : 0.70) * grow * (1 - 0.8 * point);
+        const rays = alpha * (1 - smoothstep(0.6, 1, point));
         if (light) {
-          ctx.globalAlpha = clamp01(alpha * 0.55);
+          ctx.globalAlpha = clamp01(rays * 0.55);
           ctx.drawImage(sprites.deep, px - half * 1.5, py - half * 1.5, half * 3, half * 3);
         } else {
-          ctx.globalAlpha = clamp01(alpha * 0.16);
+          ctx.globalAlpha = clamp01(rays * 0.16);
           ctx.drawImage(sprites.glowWarm, px - half * 0.7, py - half * 0.7, half * 1.4, half * 1.4);
         }
-        ctx.globalAlpha = clamp01(alpha);
+        ctx.globalAlpha = clamp01(rays);
         ctx.drawImage(sprites[`glint-${light ? (first ? 'ivoryFirst' : 'ivoryMonth') : first ? 'warm' : 'month'}`], px - half, py - half, half * 2, half * 2);
-      } else {
+      }
+      if (big && point > 0) {
+        // (…the point: an ordinary night's at its cap — 1.15 pt, a peak luminance of 0.85 — in the mark's own warmth)
+        const r = 1.15 * s * scale * grow;
+        if (light) {
+          const half = (1.15 / 0.24) * s * scale * grow;
+          ctx.globalAlpha = clamp01(alpha * point * 0.5);
+          ctx.drawImage(sprites.deep, px - half * 1.7, py - half * 1.7, half * 3.4, half * 3.4);
+          ctx.globalAlpha = clamp01(alpha * point);
+          ctx.drawImage(sprites.bright, px - half, py - half, half * 2, half * 2);
+        } else {
+          const a = Math.min(alpha, STAR_PEAK / sprites.lum.warm) * point;
+          ctx.globalAlpha = clamp01(a * 0.13);
+          ctx.drawImage(sprites.glowWarm, px - r * 4, py - r * 4, r * 8, r * 8);
+          ctx.globalAlpha = clamp01(a);
+          ctx.drawImage(sprites['dot-warm'], px - r * 2.33, py - r * 2.33, r * 4.66, r * 4.66);
+        }
+      }
+      if (!big) {
         // (an ordinary night is capped: 1.15 pt in radius, and a peak luminance of 0.85 — the largest
         // were 1.47 pt and 0.96, as strong as a month-night's mark. Only as it stands: the band's swell is its own.)
         const r = Math.min(1.15, 0.52 + 0.95 * Math.pow(m, 0.85)) * s * scale * grow;
@@ -3231,17 +3382,17 @@ export function create(host) {
           // crisp points with no patch at all, and the brighter fifth a larger crisp ROUND core on its
           // own bit of dusk (one mark, one meaning: four points are kept for the first night, the
           // month-nights and tonight — the brighter fifth used to be small four-point glints here).
-          if (m > 0.6) {
+          if (m > coreAt) {
             // (its core is 0.24 of this: 0.82 pt … capped at 1.15 pt — it went on to 1.54)
-            const half = Math.min(1.15 / 0.24, 3.4 + 3.0 * (m - 0.6) / 0.4) * s * scale * grow;
+            const half = Math.min(1.15 / 0.24, 3.4 + 3.0 * (m - coreAt) / (1 - coreAt)) * s * scale * grow;
             ctx.globalAlpha = clamp01(alpha * 0.5);
             ctx.drawImage(sprites.deep, px - half * 1.7, py - half * 1.7, half * 3.4, half * 3.4);
             ctx.globalAlpha = clamp01(alpha);
             ctx.drawImage(sprites.bright, px - half, py - half, half * 2, half * 2);
             continue;
           }
-          const rl = (0.56 + 0.62 * m) * s * scale * grow;
-          ctx.globalAlpha = clamp01(alpha * (0.22 + 0.4 * m) * smoothstep(0.25, 0.6, m));   // (a faint night has no patch: only its point)
+          const rl = lerp(0.56 + 0.62 * m, 0.42 + 0.66 * m, dense) * s * scale * grow;
+          ctx.globalAlpha = clamp01(alpha * (0.22 + 0.4 * m) * smoothstep(0.25, 0.6, m) * (1 - 0.6 * dense));   // (a faint night has no patch: only its point)
           ctx.drawImage(sprites.deep, px - rl * 5.2, py - rl * 5.2, rl * 10.4, rl * 10.4);
           ctx.globalAlpha = clamp01(alpha);
           ctx.drawImage(sprites['dot-white'], px - rl * 2.33, py - rl * 2.33, rl * 4.66, rl * 4.66);
@@ -3787,7 +3938,7 @@ export function create(host) {
     ctx.filter = 'none';
 
     // where the bodies are in this pose
-    const sunNow = bodyAt(state, pal.sunXf, pal.altDeg, c.sunR, look);
+    const sunNow = bodyAt(state, pal.sunXf, pal.altDeg, c.sunR, look, sunRamp());
     sunNow.x += G.ox + tilt.x * SKYPLANE.tilt[0]; sunNow.y += skyOff.tiltY;
     let moonNow = null;
     if (state.moon) {
@@ -3796,8 +3947,9 @@ export function create(host) {
     }
     pal.moonNow = moonNow && state.moon.altitude > -0.02 ? moonNow : null;
     // (where this pose puts them, for tools/measure.mjs: it names a disc it has found by the state's x,
-    // and looking up the camera's turn stands between the two — window.__skyBodies)
-    G.bodies = { sun: sunNow.x, moon: pal.moonNow ? moonNow.x : null };
+    // and looking up the camera's turn stands between the two — window.__skyBodies. The place, x AND y:
+    // by x alone any disc-like blob in the moon's column, at any height, would be named the moon.)
+    G.bodies = { sun: { x: sunNow.x, y: sunNow.y }, moon: pal.moonNow ? { x: moonNow.x, y: moonNow.y } : null };
     // IN THE DUO'S STRIP A DISC IS NOT DRAWN UNDER OR BESIDE THE STATUS ICONS — the moon's or the sun's.
     // Until its top stands 16 pt clear of them it is out of sight, as it is behind the header: a pale
     // moon under the Wi-Fi glyph is one more status icon (a crescent there is the Focus moon), a sun's
@@ -3839,6 +3991,26 @@ export function create(host) {
     // up: there the header is the whole landscape and the first card's top edge is its foot — the land
     // goes behind that edge 3 pt under the horizon, and the sun sets behind it as it sets behind land.
     const cardsRule = c.kind === 'duo' ? 1 : smoothstep(0, 0.5, look);
+    // (the lab switch disc=caption: the other way for a disc to leave as the cards return at bedtime —
+    // ahead of them, with the caption, 4.15–4.6 s. Shot beside the rule and not chosen: a moon at half
+    // strength in the open sky is a grey ball for a quarter of a second. See standsOpen.)
+    const capOut = (state.reduceMotion ? MOMENT.reduced : MOMENT).caption.out;
+    const discAsIf = urlDisc === 'caption' && state.event && state.event.kind === 'bedtime' && state.asleep === 'night'
+      ? smoothstep(capOut[0], capOut[1], state.event.age) : 0;
+
+    // (how strongly the moon's disc is drawn in this frame, 0 … 1 — `moonDisc`, the moon is drawn with
+    // it, below — and how strongly it stands in this sky whatever the cards are doing, `moonSky`: the
+    // same without the cards' rule. The stars ask the second: a four-point star beside the moon is a
+    // point, drawStars.)
+    let moonWhole = 1, moonDisc = 0, moonSky = 0;
+    if (pal.moonNow) {
+      const m = state.moon;
+      const up = smoothstep(-1.5, 0.5, m.altitude / DEG), night = 1 - smoothstep(-8, 3, pal.altDeg);
+      moonWhole = cardsRule > 0 ? lerp(1, standsOpen(state, moonNow.x, moonNow.y, c.moonR, discAsIf), cardsRule) : 1;
+      moonSky = lerp(0.42 + 0.58 * night, 1, dayMoonOf(pal)) * up * lerp(smoothstep(0.04, 0.2, m.fraction), 1, pal.nightness) * moonNow.seen * clearOfButtons(state, moonNow.x, moonNow.y, c.moonR);
+      moonDisc = moonSky * moonWhole;
+    }
+    pal.moonSky = clamp01(moonSky);
 
     drawStars(ctx, state, pal, time, skyOff, ring);
     drawShootingStar(ctx, pal, time, skyOff);
@@ -3852,9 +4024,7 @@ export function create(host) {
         dayMoon > 0 ? `${Math.round(dayMoon * 100)}|${skyBehindMoon(pal).map((v) => Math.round(v * 400)).join(',')}` : ''].join('|');
       if (G.moon.key !== mk2) { paintMoon(state, pal, clear); G.moon.key = mk2; }
       const up = smoothstep(-1.5, 0.5, m.altitude / DEG);
-      const night = 1 - smoothstep(-8, 3, pal.altDeg);
-      const whole = cardsRule > 0 ? lerp(1, standsOpen(state, moonNow.x, moonNow.y, c.moonR), cardsRule) : 1;
-      const vis = lerp(0.42 + 0.58 * night, 1, dayMoon) * up * lerp(smoothstep(0.04, 0.2, m.fraction), 1, pal.nightness) * moonNow.seen * clearOfButtons(state, moonNow.x, moonNow.y, c.moonR) * whole;
+      const whole = moonWhole, vis = moonDisc;
       // (Where the disc is not drawn its halo stays, at a quarter: the glow was sized to stand round a
       // disc. With nothing at its heart it is, in the dark appearance, itself lighter than a card — 0.024
       // against 0.0117, which a dark night does not allow below the band — and on the light page a soft
@@ -3907,7 +4077,7 @@ export function create(host) {
       const byStar = onTheWay(look) * clamp01(pal.tonightSpark);
       const starRoom = byStar > 0 ? lerp(1, smoothstep(c.sunR + 6, c.sunR + 30, Math.hypot(sunNow.x - tonightAt.x, sunNow.y - tonightAt.y)), byStar) : 1;
       const discA = clamp01(sunVis * clearOfButtons(state, sunNow.x, sunNow.y, c.sunR) * starRoom
-        * (cardsRule > 0 ? lerp(1, standsOpen(state, sunNow.x, sunNow.y, c.sunR), cardsRule) : 1));
+        * (cardsRule > 0 ? lerp(1, standsOpen(state, sunNow.x, sunNow.y, c.sunR, discAsIf), cardsRule) : 1));
       ctx.globalAlpha = discA;
       ctx.fillStyle = css(disc);
       const round = discPath(sunNow.x * s, sunNow.y * s, R, 0.012, 4.2);
@@ -4269,6 +4439,7 @@ export function create(host) {
       window.__hillPainted = { timing, look, snowShade: pal.shown(pal.snowShade)[0] ** 3, tree: treeShown(state, state.reduceMotion ? Math.round(look) : look), stars: st.length ? {
         total: st.length,
         places: st.map((q) => [Math.round(q.lx * 10) / 10, Math.round(q.ly * 10) / 10, q.kind]),   // looked-up display points (anchor window's x)
+        marks: G.stars.marks ?? [],                        // the four-point stars in view as last drawn: [x, y (display points, the anchor window's x), kind, how much of the mark is four-point 0 … 1]
         rest: st.filter((q) => q.y > 2 && q.x < G.Wa - 2 && q.x > 2).length,
         up: st.filter((q) => q.ly > 2 && q.ly < G.H && q.lx > 2 && q.lx < G.Wa - 2).length,
         restOpen: st.filter((q) => q.y > 2 && q.x < G.Wa - 2 && q.x > 2 && !(state.cards ?? []).some((cd) => cd.kind !== 'header' && cd.kind !== 'strip'
