@@ -300,6 +300,50 @@ In the order the director would fix them:
 None of this may cost the signature frame (`day/cover-dark-1610`), the gates, the star
 count or the render budget.
 
+### After the first review — the night lasts until first light (22 Nov 2026)
+
+Two independent reviewers measured the first build of this round. Bedtime does what Taylor
+asked on all three displays. What they found wrong is at its edges, and the fixes change
+three things above. **Where this subsection differs from "The night stays up", this
+subsection wins.** The first item is the director's reading of Taylor's "looking back down
+is too much"; it has not been put to him yet, and it will be shown to him as such.
+
+1. **Home looks up from the start of tonight's night sleep until first light**, not "while a
+   night sleep runs". One fact, *the night has begun*, is true from the moment tonight's
+   night sleep first starts (by any means) until first light the next morning (the sun
+   coming up through about −6°). While it is true the view is up and tonight's star is lit,
+   whether he is asleep or awake.
+   - **A night feed moves nothing.** He wakes at 3 a.m.: the room un-dims a little, the view
+     stays up, the star stays in its window. He is put down again: the room dims. There is
+     no `resettle` any more.
+   - **Waking never moves the camera**, at any hour, after any sleep. The room only un-dims,
+     from the depth that sleep had (a night's 1, a nap's 0.45), so the first frame after he
+     wakes is the frame before it.
+   - **First light brings the view down.** If Home is on screen at that minute, it is a
+     quiet settle behind the cards (the event `settle`). Otherwise Home is simply on the hill
+     the next time it appears. So the looked-up pose is never seen in morning daylight, and
+     a summer morning with him still asleep is the day's picture, dimmed.
+   - **A night sleep that begins anywhere else** (the other phone, Siri, a widget, SNOO)
+     while Home is on screen plays a quiet rise behind the cards (the event `arrive`): no
+     veil, no band, no caption. If Home was not on screen it is simply up when it appears.
+   - In the app this is a pure function of the clock, the sun and the sleep log; it needs
+     no stored camera state.
+2. **No join may jump.** For every change of state, the frame before and the first frame
+   after must be the same picture (to within the grain), and the last frame of every event
+   must be the standing frame that follows it: sleep starting and ending (night and nap),
+   the moment's start and end, `arrive`, `settle`, a cloud hiding or showing in the strip, a
+   star lighting. The review set must show these pairs.
+3. **The moment is shorter where it was only cards.** The sky keeps its pace (Taylor chose
+   "slow and living"): the rise, the band and the caption are about as they were. The cards
+   fall back in about 1 s instead of 1.6, and return in about 1.2 s with an ease-out, soon
+   after the caption has gone. The whole is under 6 s. In the app a touch ends it at once:
+   cards back in 0.3 s, band and caption out in 0.2 s, the view stays up.
+4. **With the cards on, nothing is bitten.** Looking up, the moon's or the sun's disc is
+   drawn only where the whole disc stands in the open; the tree is wholly behind the cards
+   in every season and under tilt; a cloud does not cross a card's edge.
+5. **Nothing in the strip may read as a status icon.** A small cloud directly under the
+   Wi-Fi and battery glyphs reads as a weather symbol.
+
 ## What the canvas really is
 
 Look at `shots/baseline/` before drawing anything. The sky is **ground behind cards**, and
