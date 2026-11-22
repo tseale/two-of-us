@@ -58,6 +58,85 @@ export const EVENTS = {
   close: { attack: 0.3, hold: 0.2, release: 2, peak: 0.15 },
 };
 
+// ── the bedtime moment's timeline ────────────────────────────────────────
+// BRIEF.md, "After the first review", item 3: the sky keeps its pace, the cards
+// give up the time. Seconds since the tap. One table for the sky (the rise, the
+// band, the caption) and for the lab's UI (the cards: `momentVeil`), so the two
+// cannot drift apart: the caption has gone before a card is back, and the band
+// has crossed before that.
+//
+//   fall      the cards fall back (smoothstep): under 5 % by 0.87 s
+//   rise      the view rises (a quintic ease). The slab's sky is twice as tall as
+//             the Duo's (630 pt against 312), so its rise is 0.3 s longer: at its
+//             peak 492 pt/s, not 563 (the Duo's: 279)
+//   band      it leaves tonight's star as the view arrives and crosses the anchor
+//             window to its farthest corner in `crosses` seconds (Duo 276 pt/s,
+//             slab 410); its own light has gone at nine tenths of the way
+//   caption   "✦ Night 143": in, and out
+//   back      the cards return over the sky that is already there, with an
+//             ease-out (`easeOut`: SwiftUI's .easeOut), starting as the caption
+//             has gone
+//   reduced   Reduce Motion: no move, no band. The cards go, the looked-up still
+//             dissolves in once they are under 10 % (0.6 s), the caption stands
+//             for two seconds, the cards return: about 4 s
+//   quiet     arrive and settle under Reduce Motion: a 0.6 s dissolve
+//
+// In the app a touch ends the moment at once: cards back in 0.3 s, band and
+// caption out in 0.2 s; the view stays up (skies/hill-painted.md, "Bedtime").
+export const MOMENT = Object.freeze({
+  fall: Object.freeze([0, 1.0]),
+  rise: Object.freeze({ duo: Object.freeze([0.3, 2.4]), slab: Object.freeze([0.3, 2.7]) }),
+  band: Object.freeze({ duo: Object.freeze({ leaves: 2.1, crosses: 2.1 }), slab: Object.freeze({ leaves: 2.3, crosses: 2.0 }) }),
+  caption: Object.freeze({ in: Object.freeze([2.0, 2.8]), out: Object.freeze([4.15, 4.6]) }),
+  back: Object.freeze([4.6, 5.8]),
+  reduced: Object.freeze({
+    fall: Object.freeze([0, 0.6]),
+    dissolve: Object.freeze([0.6, 1.2]),
+    caption: Object.freeze({ in: Object.freeze([1.2, 1.6]), out: Object.freeze([3.0, 3.4]) }),
+    back: Object.freeze([3.4, 4.0]),
+  }),
+  quiet: Object.freeze({ dissolve: 0.6 }),
+});
+
+/** SwiftUI's `.easeOut` (the CSS `ease-out`): the cubic Bézier (0, 0, 0.58, 1), y at x = `u`.
+ *  Quick away and soft to rest: half way at a third of the time (0.34), 95 % by 0.83. */
+export function easeOut(u) {
+  if (!(u > 0)) return 0;
+  if (u >= 1) return 1;
+  // x(s) = 3·0.58·(1 − s)·s² + s³ is monotonic on 0–1: solve x(s) = u by bisection
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 40; i += 1) {
+    const s = (lo + hi) / 2;
+    if (1.74 * (1 - s) * s * s + s * s * s < u) lo = s; else hi = s;
+  }
+  const s = (lo + hi) / 2;
+  return 3 * (1 - s) * s * s + s * s * s;
+}
+
+/** How far the phone page's cards have fallen back at `age` seconds into the bedtime moment, 0–1
+ *  (`state.veil`; a card's opacity is 1 − veil): the lab's UI curve — tools/film.mjs and
+ *  tools/review.mjs play this one. They fall back with a smoothstep and return with an ease-out. */
+export function momentVeil(age, reduceMotion = false) {
+  const m = reduceMotion ? MOMENT.reduced : MOMENT;
+  if (!(age > m.fall[0])) return 0;
+  if (age >= m.back[1]) return 0;
+  if (age >= m.back[0]) return 1 - easeOut((age - m.back[0]) / (m.back[1] - m.back[0]));
+  return smoothstep(m.fall[0], m.fall[1], age);
+}
+
+/** How lit the caption is at `age` seconds into the moment, 0–1 (the sky multiplies it by the veil). */
+export function momentCaption(age, reduceMotion = false) {
+  const c = (reduceMotion ? MOMENT.reduced : MOMENT).caption;
+  return smoothstep(c.in[0], c.in[1], age) * (1 - smoothstep(c.out[0], c.out[1], age));
+}
+
+/** How lit tonight's star is in the bedtime moment, given whether it was lit before (the night had
+ *  already begun) and the spark's own curve now (lab/nights.js, `ignition`): a star is lit ONCE, from
+ *  what it was — a lit star is left alone, it is never put out to be lit again, and never flares. */
+export function litFrom(wasLit, sparkNow) {
+  return wasLit ? 1 : sparkNow;
+}
+
 /** How far a sleep dims the room. */
 export const SLEEP_DEPTH = { night: 1, nap: 0.45 };
 

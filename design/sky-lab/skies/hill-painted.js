@@ -45,7 +45,7 @@
 // it is read from location.search here). `window.__hillPainted` carries the
 // render timings and the count of his stars in each pose.
 
-import { presence as bloomOf } from '../lab/presence.js';
+import { presence as bloomOf, MOMENT, momentCaption, litFrom, easeOut } from '../lab/presence.js';
 import { smoothstep, lerp } from '../lab/oklab.js';
 import { nights, twinkle, ignition, hash } from '../lab/nights.js';
 import { season as seasonOf } from '../lab/season.js';
@@ -273,6 +273,12 @@ export function create(host) {
       const n = Number(v);
       return Number.isFinite(n) ? clamp01(n) : null;
     } catch { return null; }
+  })();
+
+  // band=answers: the bedtime band without its own light — only the stars' answers (a lab switch, to
+  // compare the two; the sky's own is the band held back until it is wider than the strip).
+  const urlBand = (() => {
+    try { return new URLSearchParams(globalThis.location?.search ?? '').get('band'); } catch { return null; }
   })();
 
   // ── textures (once per dpr) ──────────────────────────────────────────
@@ -554,22 +560,54 @@ export function create(host) {
 
   /** How far the camera has looked up, 0 rest … 1 up. Looking up is a STATE: the view is up while the
    *  night has begun, and still — 1 then, 0 otherwise, whichever sleep is running or has ended. Three
-   *  events carry it between the two: bedtime (0 until 0.3 s, up by 2.4 s, and it stays), a night
+   *  events carry it between the two: bedtime (0 until 0.3 s, up by 2.4 s on the Duo and by 2.7 s on
+   *  the slab, whose sky is twice as tall — lab/presence.js, MOMENT.rise — and it stays), a night
    *  sleep that arrives from elsewhere (`arrive`: up over 2.5 s, quietly, behind the cards) — both
    *  only where the night begins with them (`event.begunBefore` false) — and first light (`settle`:
    *  down over 2.6 s, behind the cards). Waking moves nothing, at any hour, after any sleep; nor does
-   *  a night feed. The URL's `look=` holds any pose. */
+   *  a night feed. Under Reduce Motion there is no move: this is then the weight of the looked-up
+   *  still in a short dissolve (0.6 s: at bedtime once the cards are away, at once for the other two).
+   *  The URL's `look=` holds any pose. */
   function lookOf(state) {
     if (urlLook != null) return urlLook;
     const e = state.event;
     const a = e ? e.age : 0;
     const ease = (t) => t * t * t * (t * (t * 6 - 15) + 10);
-    if (e && e.kind === 'settle') return a <= 0.1 ? 1 : a < 2.7 ? 1 - ease((a - 0.1) / 2.6) : 0;
+    const still = state.reduceMotion;
+    const fade = MOMENT.quiet.dissolve;
+    if (e && e.kind === 'settle') {
+      if (still) return 1 - smoothstep(0, fade, a);
+      return a <= 0.1 ? 1 : a < 2.7 ? 1 - ease((a - 0.1) / 2.6) : 0;
+    }
     if (!nightBegunOf(state)) return 0;
     if (e && !e.begunBefore && state.asleep === 'night') {
-      if (e.kind === 'bedtime') return a <= 0.3 ? 0 : a < 2.4 ? ease((a - 0.3) / 2.1) : 1;
-      if (e.kind === 'arrive') return a < 2.5 ? ease(a / 2.5) : 1;
+      if (e.kind === 'bedtime') {
+        if (still) return smoothstep(MOMENT.reduced.dissolve[0], MOMENT.reduced.dissolve[1], a);
+        const [t0, t1] = MOMENT.rise[G.cfg.kind];
+        return a <= t0 ? 0 : a < t1 ? ease((a - t0) / (t1 - t0)) : 1;
+      }
+      if (e.kind === 'arrive') return still ? smoothstep(0, fade, a) : a < 2.5 ? ease(a / 2.5) : 1;
     }
+    return 1;
+  }
+
+  /** Is the view on its way between the poses (an event is carrying it)? 0 at rest and up, 1 between:
+   *  a smooth gate for what belongs only to the move. */
+  const onTheWay = (look) => smoothstep(0, 0.08, look) * (1 - smoothstep(0.92, 1, look));
+
+  /** How lit tonight's star is, 0 … 1 (… 1.35 at the spark's flare). Lit exactly while the night has
+   *  begun. It comes on only where the night begins — with the moment's spark, or quietly over the
+   *  first 0.8 s when the night's sleep arrives from elsewhere — and goes out only at first light, as
+   *  the view settles. It is lit once, from what it was (`litFrom`): nothing lights or cools it at a
+   *  wake, and a star that is already lit is never put out to be lit again. Under Reduce Motion it
+   *  has no spark: it belongs to the looked-up still and dissolves in and out with it. */
+  function sparkOf(state) {
+    const e = state.event;
+    if (e && e.kind === 'settle') return state.reduceMotion ? 1 : 1 - smoothstep(0.1, 2.3, e.age);   // first light: it goes out with the other stars
+    if (!nightBegunOf(state)) return 0;
+    if (!e || state.asleep !== 'night' || state.reduceMotion) return 1;
+    if (e.kind === 'bedtime') return litFrom(e.begunBefore, ignition(e.age));
+    if (e.kind === 'arrive') return litFrom(e.begunBefore, smoothstep(0, 0.8, e.age));
     return 1;
   }
 
@@ -623,13 +661,24 @@ export function create(host) {
   /** Where a body is on the display (points, before tilt). The sun and the moon have ONE place in the
    *  world — a high one is above the top of the everyday view and comes down into view with the sky
    *  when the camera looks up. `seen`: they are never drawn behind the header (Duo: the whole band;
-   *  slab: the status bar), so a body crossing it is out of sight until it is clear. */
+   *  slab: the status bar), so a body crossing it is out of sight until it is clear.
+   *  Once the view has left the rest pose a body comes out from under the header slowly, over 90 pt
+   *  of sky and not 15 — and on the slab from under the whole header (his name and age stand in it),
+   *  not only the status bar: during the rise a moon coming down with the sky does not roll through
+   *  his name or blink on under the header; it arrives in open sky as the view settles. (Looking up,
+   *  no body ever rests that close under the header — the Duo's highest moon stands at y ≈ 183, the
+   *  slab's at y ≈ 250 — so the standing frames are as they were; and at rest nothing changes.) */
   function bodyAt(state, xFrac, altDeg, R, look) {
     const c = G.cfg;
     const E = bodyE(altDeg);
     const y = c.H0 - E + c.D * look;
     const foot = c.kind === 'duo' ? (state.layout?.firstCardTop ?? 88.6) + R - 3 : 58;
-    return { x: xFrac * G.Wa - c.T * look, y, E, seen: smoothstep(foot, foot + 15, y) };
+    let seen = smoothstep(foot, foot + 15, y);
+    if (look > 0) {
+      const under = c.kind === 'duo' ? foot : (state.layout?.firstCardTop ?? 136.6) - 6 + R;
+      seen = lerp(seen, smoothstep(under, under + 90, y), smoothstep(0, 0.12, look));
+    }
+    return { x: xFrac * G.Wa - c.T * look, y, E, seen };
   }
 
   // ── the palette for this minute ──────────────────────────────────────
@@ -904,6 +953,87 @@ export function create(host) {
       clear = Math.min(clear, smoothstep(-0.5, 3.5, d));
     }
     return clear;
+  }
+
+  /** 1 where a disc of radius `r` at display (x, y) stands wholly in the open with the cards on: 3 pt
+   *  clear of every card and of the anchor window's leading edge. 0 where any of it is under a card,
+   *  or across the gap between two (a 12 pt gap cannot hold a 19 pt moon), or cut by that edge — a
+   *  disc is drawn whole or not at all (its halo's light stays). Weighted by each card's opacity, so
+   *  with the cards away (the bedtime moment, the sky alone) it is 1 everywhere and the bare picture
+   *  is untouched. The header's words and buttons and the strip's furniture are not cards: see
+   *  clearOfText, clearOfButtons and bodyAt().seen. */
+  function standsOpen(state, x, y, r) {
+    let open = 1, on = 0;
+    for (const card of state.cards ?? []) {
+      if (card.kind === 'header' || card.kind === 'strip') continue;
+      const o = clamp01(card.opacity ?? 1);
+      if (!(o > 0)) continue;
+      const dx = Math.max(card.x - x, 0, x - (card.x + card.width)), dy = Math.max(card.y - y, 0, y - (card.y + card.height));
+      open = Math.min(open, 1 - o * (1 - smoothstep(r + 0.5, r + 3, Math.hypot(dx, dy))));
+      if (card.kind !== 'tabbar' && card.x + card.width > G.ox) on = Math.max(on, o);     // the phone page's own cards are on
+    }
+    // (the anchor window's leading edge is the cover's own edge — and the spread's phone page is the
+    // cover's picture, so a disc is not shown straddling it there either)
+    if (on > 0) open = Math.min(open, 1 - on * (1 - smoothstep(r + 0.5, r + 3, Math.abs(x - G.ox))));
+    return open;
+  }
+
+  /** The sun's halo: two painted rings of light, soft-edged. They were filled through a blur filter on
+   *  EVERY frame, which made any frame with the sun in view cost nine times one without (35 ms against
+   *  4). Now they are painted once into sprites and kept (G.sun), keyed like the moon's:
+   *   · a held frame (a still, a film's frame, a gate's) keeps the two rings exactly as they were
+   *     painted — the same fill through the same blur, at the sun's own sub-pixel place, in its colour
+   *     and at its alpha — so the picture is the old one to the level, and the sprites are painted
+   *     again only when one of those changes (not while only `t` moves);
+   *   · while the animation runs, colour and alpha change with every frame of an event and the place
+   *     with the camera, so there the rings are two white masks blurred once per display, tinted and
+   *     laid each frame (a bilinear copy: within two levels of the exact one, inside the halo only).
+   *  → draws them into `ctx`. `alphas`: the two rings' own (0.22 and 0.34) times the halo's amount. */
+  const SUN_RINGS = [[3.3, 0.22, 2.1], [1.95, 0.34, 0.7]];
+  function drawSunHalo(ctx, state, x, y, colour, amount) {
+    const s = G.s, R = G.cfg.sunR * s;
+    const half = Math.ceil(R * 3.3 * 1.03 + 1.4 * s * 3) + 2;
+    if (!G.sun) G.sun = { key: '', sprites: null, masks: null };
+    if (state.frozen) {
+      const ix = Math.floor(x), iy = Math.floor(y);
+      const alphas = SUN_RINGS.map(([, a]) => clamp01(a * amount));
+      const key = [colour, alphas.map((a) => a.toFixed(5)).join(','), (x - ix).toFixed(4), (y - iy).toFixed(4), half].join('|');
+      if (G.sun.key !== key || !G.sun.sprites) {
+        G.sun.sprites = SUN_RINGS.map(([k, , seed], i) => {
+          const sprite = G.sun.sprites && G.sun.sprites[i] && G.sun.sprites[i].width === half * 2 ? G.sun.sprites[i] : mk(half * 2, half * 2);
+          const b = sprite.getContext('2d');
+          b.setTransform(1, 0, 0, 1, 0, 0);
+          b.filter = 'none';
+          b.globalAlpha = 1;
+          b.clearRect(0, 0, half * 2, half * 2);
+          b.globalAlpha = alphas[i];
+          b.fillStyle = colour;
+          b.filter = `blur(${1.4 * s}px)`;
+          b.fill(discPath(half + (x - ix), half + (y - iy), R * k, 0.02, seed));
+          b.filter = 'none';
+          return sprite;
+        });
+        G.sun.key = key;
+      }
+      ctx.globalAlpha = 1;
+      for (const sprite of G.sun.sprites) ctx.drawImage(sprite, ix - half, iy - half);
+      return;
+    }
+    if (!G.sun.masks || G.sun.masks[0].width !== half * 2) {
+      G.sun.masks = SUN_RINGS.map(([k, , seed]) => {
+        const mask = mk(half * 2, half * 2);
+        const b = mask.getContext('2d');
+        b.filter = `blur(${1.4 * s}px)`;
+        b.fillStyle = '#fff';
+        b.fill(discPath(half, half, R * k, 0.02, seed));
+        b.filter = 'none';
+        return mask;
+      });
+    }
+    SUN_RINGS.forEach(([, a], i) => {
+      ctx.globalAlpha = clamp01(a * amount);
+      ctx.drawImage(tinted(G.sun.masks[i], colour), 0, 0, half * 2, half * 2, x - half, y - half, half * 2, half * 2);
+    });
   }
 
   // ── the moon ─────────────────────────────────────────────────────────
@@ -2636,6 +2766,7 @@ export function create(host) {
     };
     const apart = Math.max(5.6 * c.starScale, 5.6);     // (never closer: on the light page two stars' soft patches would run together)
     const list = [];
+    let firstAt = null;                                  // the first night's own place, once it has taken it
     const free = (x, y, big) => {
       if (x < xMin || x > xMax || y < yMin || y > floor(x)) return false;
       const wide = big ? 9 : 0;                           // (a four-point star keeps further from the words and the buttons: beside a line of text it is an asterisk)
@@ -2644,6 +2775,10 @@ export function create(host) {
       // near enough to be taken for it); beside the tree, at rest, a smaller clearing
       if (Math.hypot(x - tonightLook.x, y - tonightLook.y) < (big ? 70 : 30 * c.starScale)) return false;
       if (Math.hypot(x - tonightRest.x, y - tonightRest.y) < 17) return false;
+      // …and so has the first night's, where it has a place of its own (the Duo's header gap): nothing
+      // within 18 pt of it, and no other four-point star within 60 pt — in the gap beside his name it
+      // is the one star of its kind, at two years as on the first day
+      if (firstAt && Math.hypot(x - firstAt.x, y - firstAt.y) < (big ? 60 : 18)) return false;
       for (const o of list) {
         const gap = (o.kind === 'night' ? apart : apart + 5) + (big ? 5 : 0);
         if (Math.abs(x - o.lx) < gap && Math.hypot(x - o.lx, y - o.ly) < gap) return false;
@@ -2657,9 +2792,11 @@ export function create(host) {
       }
       // the first night — the brightest star in his sky — has a place of its own where the night's
       // view shows it with the cards on (if that place is free on this display)
-      const at = star.kind === 'first' && c.firstUp && free(c.firstUp.x, c.firstUp.y, false) ? { ...c.firstUp } : place(star);
+      const own = star.kind === 'first' && c.firstUp && free(c.firstUp.x, c.firstUp.y, false);
+      const at = own ? { ...c.firstUp } : place(star);
       const big = star.kind !== 'night';
       let { x, y } = at;
+      if (own) { list.push({ ...star, lx: x, ly: y }); firstAt = at; continue; }
       // One star per night has to be countable: a place that is taken, hidden or behind the
       // words gives way to the nearest free one — judged only against the nights before it.
       if (!free(x, y, big)) {
@@ -2715,25 +2852,29 @@ export function create(host) {
   }
 
   /** The band of light that leaves tonight's star at bedtime: where it leaves from, its radius now
-   *  (points), its pace and its strength. It leaves once the view is all but up (2.1 s: the star is
-   *  then within a few points of its place in the clear window) and from THAT place, fixed on the
-   *  display — so it never wobbles with the camera — and it crosses the anchor window to its
-   *  farthest corner in 2.4 s: his last star has answered by 4.5 s and settled before the cards begin
-   *  to come back (4.8 s). The pace is the anchor window's, so the spread's phone page is the cover's
-   *  picture at every instant of it; over the leading page it goes on, and dies away. */
+   *  (points), its pace and its strength. It leaves as the view arrives (lab/presence.js, MOMENT.band:
+   *  2.1 s on the Duo, 2.3 s on the slab — the star is then within a few points of its place in the
+   *  clear window, and the band's own light is held back until it is well away from the star) and
+   *  from THAT place, fixed on the display — so it never wobbles with the camera — and it crosses the
+   *  anchor window to its farthest corner in 2.1 s (Duo, 276 pt/s) or 2.0 s (slab, 410 pt/s): it has
+   *  crossed by 4.2 s (4.3 s), his last star has answered by 4.0 s and settled before the cards begin
+   *  to come back (4.6 s). The pace is the anchor window's, so the spread's phone page is the cover's
+   *  picture at every instant of it. `strength` is 0 once it has crossed; `radius` runs on (which
+   *  stars it has passed is asked of it for as long as the event lasts). */
   function ringOf(state, tilt) {
     const e = state.event;
     if (!e || e.kind !== 'bedtime' || state.asleep !== 'night' || state.reduceMotion) return null;
-    const age = e.age - 2.1;
-    if (age <= 0) return null;
     const c = G.cfg;
+    const band = MOMENT.band[c.kind];
+    const age = e.age - band.leaves;
+    if (age <= 0) return null;
     const at = tonightHome(1, tilt);
     const foot = c.H0 + c.D + (c.kind === 'duo' ? 74 : 104);     // the display's foot, looking up (the cover's: the spread is 9 pt shorter)
     const far = Math.hypot(Math.max(c.tonightUp.x, G.Wa - c.tonightUp.x), Math.max(c.tonightUp.y, foot - c.tonightUp.y));
-    const speed = far / 2.4;
+    const speed = far / band.crosses;
     const radius = speed * age;
-    const strength = smoothstep(0, 0.4, age) * (1 - smoothstep(far * 1.04, far * 1.3, radius));
-    if (strength <= 0.003) return null;
+    let strength = smoothstep(0, 0.4, age) * (1 - smoothstep(far * 1.04, far * 1.3, radius));
+    if (strength <= 0.003) strength = 0;
     return { radius, strength, age, at, far, speed };
   }
 
@@ -2742,7 +2883,7 @@ export function create(host) {
     const out = pal.starsOut;
     const asleepNight = state.asleep === 'night';
     const bed = state.event && state.event.kind === 'bedtime' && asleepNight ? state.event.age : null;
-    if (!(out > 0.004) && !ring) return;
+    if (!(out > 0.004) && bed == null) return;
     const stars = starsFor(state);
     const scale = c.starScale;
     const still = time == null ? 1 : 1 - 0.6 * pal.B.depth;
@@ -2755,18 +2896,38 @@ export function create(host) {
     ctx.globalCompositeOperation = 'source-over';
     /** As the ring passes: [swell — a breath that rises fast and lets go; kept — what stays with a star that is out]. */
     const paceK = ring ? ring.speed / 250 : 1;           // (the swell's lengths were set for a band going 250 pt/s: the same breath in time at any pace)
+    const sinceOf = (x, y) => (ring.radius - Math.hypot(x - ring.at.x, y - ring.at.y)) / paceK;
     const answer = (x, y) => {
-      if (!ring) return 0;
-      const since = (ring.radius - Math.hypot(x - ring.at.x, y - ring.at.y)) / paceK;
+      if (!ring || !(ring.strength > 0)) return 0;
+      const since = sinceOf(x, y);
       if (since < -26) return 0;
       const pulse = since < 0 ? Math.exp(-((since / 10) ** 2)) : Math.exp(-((since / 95) ** 2));
       return pulse * Math.sqrt(ring.strength);
     };
-    const passed = (x, y) => (ring ? smoothstep(-10, 30, (ring.radius - Math.hypot(x - ring.at.x, y - ring.at.y)) / paceK) : bed != null && bed > 2.1 ? 1 : 0);
+    // (which stars the band has passed. Under Reduce Motion there is no band: the looked-up still is
+    // the sky after it, the rest still the sky before it, and the two dissolve.)
+    const passed = (x, y) => (ring ? smoothstep(-10, 30, sinceOf(x, y)) : bed != null && state.reduceMotion ? clamp01(pal.look) : 0);
     // In a sky still too light for stars (a July bedtime) the band shows them one by one — and they keep
-    // a faint presence behind it while the cards are away, so the held frame is a sky of stars, not a
-    // crescent of them; they are let go as the cards come back over the sky.
-    const kept = bed == null ? 0 : 0.34 * smoothstep(2.1, 2.8, bed) * (1 - smoothstep(4.8, 6.8, bed));
+    // a faint presence while the cards are away, so the held frame is a sky of stars, not a crescent of
+    // them; they are let go as the cards come back over the sky. That presence comes up over the whole
+    // sky as the view arrives, at two fifths of itself AHEAD of the band — the band then does not
+    // switch a population on along a hard edge: it finds faint stars and leaves them clearer (the
+    // step from one to the other is spread over a hundred points behind the crest).
+    const mo = state.reduceMotion ? MOMENT.reduced : MOMENT;
+    const leaves = state.reduceMotion ? mo.dissolve[0] : mo.band[c.kind].leaves;
+    const kept = bed == null ? 0 : 0.34 * smoothstep(leaves - 0.5, leaves + 0.4, bed) * (1 - easeOut((bed - mo.back[0]) / (mo.back[1] - mo.back[0])));
+    const keptAt = (x, y) => kept * (state.reduceMotion ? clamp01(pal.look) : ring ? 0.4 + 0.6 * smoothstep(-20, 100, sinceOf(x, y)) : 0.4);   // (before the band leaves, every star is ahead of it)
+    // Tonight's star keeps its own dark sky all the way up: while the view is between the poses the
+    // star crosses the field (236 pt up and 123 across on the Duo, 596 pt on the slab), and any star
+    // that comes near it gives way — nothing runs through it. The clearing it carries opens from the
+    // one laid out beside the tree (nothing within 17 pt there: the rule starts inside it, so no
+    // star is touched in the frame the move begins) to the full 30 pt over the first tenth of the
+    // rise, and is the one laid out in the clear window when it arrives (starsFor).
+    const sparkW = pal.look > 0 && pal.look < 1 ? clamp01(1.5 * (pal.tonightSpark ?? 0)) : 0;
+    const tAt = pal.tonightAt;
+    const opened = smoothstep(0, 0.1, pal.look);
+    const rIn = lerp(7, 14, opened), rOut = lerp(13, 30 * c.starScale - 1, opened);
+    const clearOfTonight = (x, y) => (sparkW > 0 && tAt ? 1 - sparkW * (1 - smoothstep(rIn, rOut, Math.hypot(x - tAt.x, y - tAt.y))) : 1);
 
     // the ordinary sky of the leading page
     if (stars.far.length) {
@@ -2774,23 +2935,39 @@ export function create(host) {
       // Opening the Duo at night: the valley's light is starlight. In the bare second the page's stars
       // come out from the fold outward — once, slowly: dim until the front reaches them, a small
       // swell as it passes, then themselves. (By day there are none; under Reduce Motion nothing moves.)
+      // The front leaves the fold at once and runs at 700 pt/s: it is in the margin column — the one part
+      // of the page its cards never cover — by 0.55 s and has crossed it by 0.7 s, before the cards
+      // begin to land (0.9 s); and its swell is larger there (×1.9), where it will go on being seen.
       const openAge = state.event && state.event.kind === 'open' && !state.reduceMotion ? state.event.age : null;
-      const foldX = G.ox - 10, frontAt = openAge == null ? Infinity : 560 * Math.max(0, openAge - 0.12);
+      const foldX = G.ox - 10, frontAt = openAge == null ? Infinity : 700 * Math.max(0, openAge);
+      const marginX = state.layout?.title ? state.layout.title.x : G.ox - 388;   // the leading page's cards begin here; the margin column is to its left
+      // The bedtime band is the phone page's: its light dies at the fold, and so do the answers — the
+      // leading page's stars are still when its cards come back (they answered to 5.2 s, mid-page, as
+      // the cards returned). Only the stars in the gutter, beside the phone page, still answer.
+      const foldFade = (x) => smoothstep(G.ox - 75, G.ox - 20, x);
+      // A star of the leading page's sky is never seen inside the anchor window: the phone page's sky
+      // is his alone, and the cover's picture. (It is hidden by where it IS, not by how far the view
+      // has turned: for 0.6 s of the rise the spread's phone page showed a few of these that the cover
+      // does not have.) The line is where it always was at the two poses — 3 pt left of the window at
+      // rest, 2 pt looking up — and soft only while the view moves, so a star crossing it fades.
+      const edgeX = G.ox - 3 + clamp01(pal.look), edgeSoft = 6 * onTheWay(pal.look);
       const T1 = lead > 0 ? state.layout?.title : null;
       const T2 = T1 ? state.layout.subtitle : null;
       for (const f of stars.far) {
         const x = G.ox + f.x + off.x, y = f.y + off.y;
         if (y < -4 || y > G.H + 4 || x < -4) continue;
         const tw = time == null || f.steady ? 0.94 : 1 - 0.3 * (0.5 - 0.5 * Math.cos(TAU * (time / f.period + f.phase))) * still;
-        let wave = answer(x, y);
+        if (x > edgeX) continue;                              // (inside the anchor window: his sky alone)
+        let wave = answer(x, y) * foldFade(x);
         let arrived = 1;
         if (openAge != null) {
           const since = frontAt - (foldX - x);
           arrived = 0.4 + 0.6 * smoothstep(-30, 60, since);
-          if (since > -30) wave = Math.max(wave, out * 0.75 * Math.exp(-(((since - 20) / 110) ** 2)) * smoothstep(-30, 10, since));
+          const swell = 0.75 * (1 + 0.9 * (1 - smoothstep(marginX - 14, marginX + 40, x)));
+          if (since > -30) wave = Math.max(wave, out * swell * Math.exp(-(((since - 20) / 110) ** 2)) * smoothstep(-30, 10, since));
         }
-        let a = f.a * Math.max(out, wave * 0.8, kept * 0.5 * passed(x, y)) * tw * (light ? 0.8 : 0.9) * (1 + 0.6 * wave) * settle * arrived;
-        if (f.x > -3) a *= smoothstep(0.55, 1, pal.look);     // the anchor window's sky is his alone, until the camera has turned past it
+        let a = f.a * Math.max(out, wave * 0.8, kept * 0.5) * tw * (light ? 0.8 : 0.9) * (1 + 0.6 * wave) * settle * arrived;
+        if (edgeSoft > 0) a *= 1 - smoothstep(edgeX - edgeSoft, edgeX, x);
         a *= 0.35 + 0.65 * smoothstep(4, 46, horizonY - y);   // thinned by the air near the horizon
         // none behind the leading page's title when it is there
         if (T1 && x > T1.x - 8 && x < T1.x + T1.width + 8 && y > T1.y - 8 && y < (T2 ? T2.y + T2.height : T1.y + T1.height) + 8) a *= 1 - lead;
@@ -2832,12 +3009,15 @@ export function create(host) {
       const wave = answer(x, y);
       // out in the order of brightness as the sky darkens; the ring shows any of them for a breath
       const threshold = (1 - star.magnitude) * 0.8;
-      const shown = smoothstep(threshold - 0.05, threshold + 0.2, out);
+      // (in a sky too light for stars — where a standing frame draws none at all — the moment shows them
+      // only by the band and by what it leaves them, and lets them go: its last frame is the standing one)
+      const shown = out > 0.004 ? smoothstep(threshold - 0.05, threshold + 0.2, out) : 0;
       // a real range: most nights are small faint lights, a few are bright (m: 0 the faintest … 1)
       const m = clamp01((star.magnitude - 0.22) / 0.5);
       let alpha = (light ? 0.74 + 0.26 * m : 0.50 + 0.50 * Math.pow(m, 0.6)) * tw * shown * settle;
       if (bed != null) alpha *= 1 + 0.22 * passed(x, y) * (1 - smoothstep(5.5, 12, bed));   // (it keeps a fifth more light, and lets it go slowly into the settled night's own)
-      alpha = Math.max(alpha, wave * (0.6 + 0.4 * star.magnitude), kept * passed(x, y) * (0.6 + 0.4 * m)) + 0.4 * wave * shown;
+      alpha = Math.max(alpha, wave * (0.6 + 0.4 * star.magnitude), keptAt(x, y) * (0.6 + 0.4 * m)) + 0.4 * wave * shown;
+      alpha *= clearOfTonight(x, y);
       // thinned by the air near the horizon
       const horizonY = c.H0 + (c.D * pal.look) + off.tiltY;
       alpha *= 0.4 + 0.6 * smoothstep(4, 46, horizonY - y);
@@ -2894,19 +3074,14 @@ export function create(host) {
   /** Tonight's star: the evening star above the tree's shoulder. Drawn over the land, so
    *  nothing ever hides it; it travels with the tree. */
   function drawTonight(ctx, state, pal, time, at, ring) {
-    // Lit exactly while the night has begun. It comes on only where the night begins — with the
-    // moment's spark, or quietly over the first second when the night's sleep arrives from elsewhere —
-    // and goes out only at first light, as the view settles. Nothing lights or cools it at a wake.
-    const lit = nightBegunOf(state);
-    const e = state.event;
-    const settle = e && e.kind === 'settle' ? e.age : null;
-    if (!lit && settle == null) return;
-    const s = G.s, c = G.cfg;
-    const bed = e && e.kind === 'bedtime' && state.asleep === 'night' ? e.age : null;
-    let spark = bed == null ? 1 : ignition(bed);
-    if (e && e.kind === 'arrive' && !e.begunBefore && state.asleep === 'night') spark = smoothstep(0, 0.8, e.age);
-    if (settle != null) spark = 1 - smoothstep(0.1, 2.3, settle);           // first light: it goes out with the other stars
+    // How lit it is: sparkOf (lit exactly while the night has begun; lit once, from what it was).
+    const spark = sparkOf(state);
     if (!(spark > 0.004)) return;
+    // Under Reduce Motion the star belongs to the looked-up still: while an event dissolves the two
+    // stills there is one star on screen, not one beside the tree and one in the window.
+    if (state.reduceMotion && state.event && urlLook == null && pal.look < 0.5
+      && ['bedtime', 'arrive', 'settle'].includes(state.event.kind)) return;
+    const s = G.s, c = G.cfg;
     const breath = time == null ? 0.94 : 0.86 + 0.14 * Math.cos((TAU * time) / 5.2);
     const k = Math.min(spark, 1.35);
     const px = at.x * s, py = at.y * s;
@@ -2956,12 +3131,15 @@ export function create(host) {
     // fading as it grows so that it has all but gone before it reaches the far corner. It only
     // tells the eye where to look; the stars answering as it passes carry the gesture (they answer
     // to `ring.strength`, which lasts the whole way — the band's own light does not).
-    if (ring) {
+    if (ring && ring.strength > 0 && urlBand !== 'answers') {
       const R = ring.radius;
       const farC = ring.far;
-      // (it is never a small tight circle round the star — that is sonar: it comes up out of nothing as
-      // it leaves, broad and soft, is fullest a third of the way across, and has gone by nine tenths)
-      const band = smoothstep(farC * 0.03, farC * 0.34, R) * (1 - smoothstep(farC * 0.36, farC * 0.9, R));
+      // (it is never a circle round the star — that is sonar. Its light is HELD until the crest is
+      // 150 pt out: wider than the strip's window, so on the Duo its first visible state is an arc that
+      // already leaves the window on both sides, and on the slab one that already spans the header's
+      // gap. It was visible from 46 pt out, a closed ring round the star for a third of a second. It
+      // comes up broad and soft, is fullest two fifths of the way across, and has gone by nine tenths.)
+      const band = smoothstep(150, Math.max(farC * 0.42, 230), R) * (1 - smoothstep(farC * 0.44, farC * 0.9, R));
       if (band > 0.004) {
         // (it leaves from the star's place in the clear window, which does not move: `ring.at`)
         const bx = ring.at.x * s, by = ring.at.y * s;
@@ -3136,9 +3314,10 @@ export function create(host) {
   function drawCaption(ctx, state, pal, look) {
     if (state.asleep !== 'night' || !(state.veil > 0.01)) return;
     const bed = state.event && state.event.kind === 'bedtime' ? state.event.age : null;
-    // It arrives as the view comes to rest and has gone as the cards begin to come back (4.8 s): the
-    // page's title gives way to the page — it is never seen through a returning card.
-    const arrive = bed == null ? 1 : smoothstep(2.2, 3.0, bed) * (1 - smoothstep(4.5, 5.1, bed));
+    // It arrives as the view comes to rest (in by 2.8 s) and has gone (4.6 s) as the cards begin to
+    // come back: the page's title gives way to the page — it is never read through a returning card.
+    // (lab/presence.js, MOMENT.caption; under Reduce Motion it stands for two seconds after the dissolve.)
+    const arrive = bed == null ? 1 : momentCaption(bed, state.reduceMotion);
     const alpha = clamp01(state.veil) ** 2 * arrive * smoothstep(0.6, 1, look);
     if (!(alpha > 0.01)) return;
     const s = G.s;
@@ -3202,9 +3381,86 @@ export function create(host) {
 
   // ── a frame ──────────────────────────────────────────────────────────
 
+  /** With the cards on, looking up, the tree is wholly behind them. Where it would stand past a card's
+   *  edge — a few points of leaf and twig past the sleep card's trailing edge (2–7 pt by the season and
+   *  the tilt), its trunk across the 12 pt gap between two cards when he is awake in the night — it is
+   *  not drawn, and it gives way over the last 8 pt before the edge (so through glass it has no cut
+   *  end). The turn cannot do this: the tree keeps its place against the sun and the moon, which burn
+   *  through its crown, and they may not stand further from the baseline's x. Weighted by the cards'
+   *  opacity: with the cards away the whole tree is there. → null (nothing to do), or the tree's box
+   *  on the display in device pixels, the cards over it, and how far the rule applies. */
+  function treeBehind(state, off, look) {
+    const up = smoothstep(0.85, 1, look);                // (only as the view arrives: on the way it crosses the cards' edge, as anything moving does)
+    if (!(up > 0)) return null;
+    const t = G.tree, s = G.s;
+    let on = 0;
+    const cards = [];
+    // crown, limbs and trunk, down to 3 pt above its foot (the knoll's own grass is not the tree)
+    const x0 = Math.floor((G.ox + t.x + off.x - t.h * 0.66) * s), x1 = Math.ceil((G.ox + t.x + off.x + t.h * 0.66) * s);
+    const y0 = Math.floor((t.baseY + off.y - t.h * 1.08) * s), y1 = Math.ceil((t.baseY + off.y - 3) * s);
+    for (const card of state.cards ?? []) {
+      if (card.kind === 'header' || card.kind === 'strip' || card.kind === 'tabbar') continue;
+      const o = clamp01(card.opacity ?? 1);
+      if (!(o > 0) || card.x + card.width <= G.ox) continue;
+      on = Math.max(on, o);
+      if (card.x * s < x1 && (card.x + card.width) * s > x0 && card.y * s < y1 && (card.y + card.height) * s > y0) cards.push(card);
+    }
+    const weight = up * on;
+    if (!(weight > 0.002)) return null;
+    return { x0, y0, w: x1 - x0, h: y1 - y0, cards, weight,
+      key: `${x0},${y0},${Math.round(weight * 500)},${cards.map((cd) => [cd.x, cd.y, cd.width, cd.height].map((v) => Math.round(v * 2)).join(',')).join(';')}` };
+  }
+
+  /** The knoll's plane with the tree kept only behind the cards (`hide`: treeBehind). */
+  function drawKnollBehindCards(ctx, plane, px, py, look, hide) {
+    const s = G.s;
+    const { x0, y0, w, h } = hide;
+    // the plane, but for the tree's box…
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, G.pxW, G.pxH);
+    ctx.rect(x0, y0, w, h);
+    ctx.clip('evenodd');
+    drawPlane(ctx, plane.canvas, px, py, look);
+    ctx.restore();
+    // …then the box: how much of the tree stays at each point — all of it well inside a card, none at its edge
+    const cover = scratch('treeCover', w, h);
+    const feather = 8 * s;
+    for (const card of hide.cards) {
+      const cx = card.x * s - x0, cy = card.y * s - y0, cw = card.width * s, ch = card.height * s;
+      const ramp = (a0, a1, len) => {
+        const g = cover.createLinearGradient(a0[0], a0[1], a1[0], a1[1]);
+        const f = Math.min(0.5, feather / len);
+        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(f, 'rgba(0,0,0,1)'); g.addColorStop(1 - f, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        return g;
+      };
+      cover.save();
+      cover.beginPath();
+      cover.rect(cx, cy, cw, ch);
+      cover.clip();
+      cover.fillStyle = ramp([cx, 0], [cx + cw, 0], cw);
+      cover.fillRect(cx, cy, cw, ch);
+      cover.globalCompositeOperation = 'destination-in';
+      cover.fillStyle = ramp([0, cy], [0, cy + ch], ch);
+      cover.fillRect(cx, cy, cw, ch);
+      cover.restore();
+    }
+    const keep = scratch('treeKeep', w, h);
+    keep.fillStyle = `rgba(0,0,0,${1 - hide.weight})`;
+    keep.fillRect(0, 0, w, h);
+    keep.globalCompositeOperation = 'lighter';
+    keep.globalAlpha = hide.weight;
+    keep.drawImage(cover.canvas, 0, 0, w, h, 0, 0, w, h);
+    const box = scratch('treeBox', w, h);
+    drawPlane(box, plane.canvas, px - x0, py - y0, look);
+    box.globalCompositeOperation = 'destination-in';
+    box.drawImage(keep.canvas, 0, 0, w, h, 0, 0, w, h);
+    ctx.drawImage(box.canvas, 0, 0, w, h, x0, y0, w, h);
+  }
+
   /** The planes of land for one pose, far to near, with the mist between them and the sun's bloom
-   *  lying over the far ones. `open`: seconds since the Duo opened, or null. */
-  function drawLand(ctx, pal, look, tilt, breath, open, sunNow, bloomAmt) {
+   *  lying over the far ones. `open`: seconds since the Duo opened, or null. `hide`: treeBehind(). */
+  function drawLand(ctx, pal, look, tilt, breath, open, sunNow, bloomAmt, hide = null) {
     const s = G.s, c = G.cfg;
     for (const plane of G.planes) {
       const off = planeOffset(plane, look, tilt);
@@ -3216,7 +3472,8 @@ export function create(host) {
         ctx.drawImage(m.canvas, px, py);
         ctx.globalAlpha = 1;
       });
-      drawPlane(ctx, plane.canvas, (G.xL + G.ox + off.x) * s, (plane.y0 + off.y) * s, look);
+      if (hide && plane.id === 'knoll') drawKnollBehindCards(ctx, plane, (G.xL + G.ox + off.x) * s, (plane.y0 + off.y) * s, look, hide);
+      else drawPlane(ctx, plane.canvas, (G.xL + G.ox + off.x) * s, (plane.y0 + off.y) * s, look);
       // Opening the Duo — the one thing that happens in the bare second: light runs down the river
       // toward you. A crest leaves the furthest bend at 0.1 s and is at the foot of the page by 0.9 s,
       // slow among the far bends and quick through the near reach, as anything coming up a valley is.
@@ -3310,6 +3567,11 @@ export function create(host) {
     const knollOff = planeOffset(knollPlane, look, tilt);
     const tonightAt = tonightHome(look, tilt);
     const ring = ringOf(state, tilt);
+    pal.tonightAt = tonightAt; pal.tonightSpark = sparkOf(state);
+    // With the cards on, looking up, the moon's and the sun's disc is drawn only where the whole disc
+    // stands in the open (standsOpen). At rest the rule is not applied: there the bodies keep the
+    // header band and the strip, as they were composed.
+    const cardsRule = smoothstep(0, 0.5, look);
 
     drawStars(ctx, state, pal, time, skyOff, ring);
     drawShootingStar(ctx, pal, time, skyOff);
@@ -3322,8 +3584,13 @@ export function create(host) {
       if (G.moon.key !== mk2) { paintMoon(state, pal, clear); G.moon.key = mk2; }
       const up = smoothstep(-1.5, 0.5, m.altitude / DEG);
       const night = 1 - smoothstep(-8, 3, pal.altDeg);
-      const vis = (0.42 + 0.58 * night) * up * lerp(smoothstep(0.04, 0.2, m.fraction), 1, pal.nightness) * moonNow.seen * clearOfButtons(state, moonNow.x, moonNow.y, c.moonR);
-      const haloAmt = pal.nightness * (0.3 + 0.7 * m.fraction) * clear * up * moonNow.seen;
+      const whole = cardsRule > 0 ? lerp(1, standsOpen(state, moonNow.x, moonNow.y, c.moonR), cardsRule) : 1;
+      const vis = (0.42 + 0.58 * night) * up * lerp(smoothstep(0.04, 0.2, m.fraction), 1, pal.nightness) * moonNow.seen * clearOfButtons(state, moonNow.x, moonNow.y, c.moonR) * whole;
+      // (Where the disc is not drawn its halo stays, at a quarter: the glow was sized to stand round a
+      // disc. With nothing at its heart it is, in the dark appearance, itself lighter than a card — 0.024
+      // against 0.0117, which a dark night does not allow below the band — and on the light page a soft
+      // white disc of its own, which a card's edge then bites as it bit the moon.)
+      const haloAmt = pal.nightness * (0.3 + 0.7 * m.fraction) * clear * up * moonNow.seen * lerp(0.25, 1, whole);
       if (haloAmt > 0.02) {
         // two painted rings of light, barely there: the room stays dark. (Looking up, the moon has the
         // sky to itself and nothing under it but sky: its halo is a little fuller there.)
@@ -3349,17 +3616,13 @@ export function create(host) {
       const low = 1 - smoothstep(3, 14, pal.altDeg);
       const haloAmt = (pal.dark ? 0.16 + 0.34 * low : 0.5 + 0.3 * low) * clear * sunVis * (pal.dark ? 0.35 + 0.65 * air.presence : 1);
       const haloLab = mix3(air.sun, air.glow, 0.5);
-      for (const [k, a, seed] of [[3.3, 0.22, 2.1], [1.95, 0.34, 0.7]]) {
-        ctx.globalAlpha = clamp01(a * haloAmt);
-        ctx.fillStyle = css(air.show(haloLab, { presence: Math.max(air.presence, 0.6) }));
-        ctx.filter = `blur(${1.4 * s}px)`;
-        ctx.fill(discPath(sunNow.x * s, sunNow.y * s, R * k, 0.02, seed));
-      }
-      ctx.filter = 'none';
+      drawSunHalo(ctx, state, sunNow.x * s, sunNow.y * s, css(air.show(haloLab, { presence: Math.max(air.presence, 0.6) })), haloAmt);
       let disc = air.sun;
       if (pal.dark && clear < 1) disc = mix3([0.33, disc[1] * 0.7, disc[2] * 0.7], disc, clear);
-      // (never a disc bitten by a button's rim: behind the gear or the avatar there is only its glow)
-      ctx.globalAlpha = clamp01(sunVis * clearOfButtons(state, sunNow.x, sunNow.y, c.sunR));
+      // (never a disc bitten by a button's rim: behind the gear or the avatar there is only its glow —
+      // nor, looking up with the cards on, by a card's edge)
+      ctx.globalAlpha = clamp01(sunVis * clearOfButtons(state, sunNow.x, sunNow.y, c.sunR)
+        * (cardsRule > 0 ? lerp(1, standsOpen(state, sunNow.x, sunNow.y, c.sunR), cardsRule) : 1));
       ctx.fillStyle = css(disc);
       ctx.fill(discPath(sunNow.x * s, sunNow.y * s, R, 0.012, 4.2));
       ctx.globalAlpha = 1;
@@ -3428,9 +3691,10 @@ export function create(host) {
     const bloomAmt = pal.byMoon ? 0 : clamp01(pal.air.glowAmt * 1.3) * smoothstep(-7, -1, pal.altDeg) * (1 - 0.7 * smoothstep(6, 20, pal.altDeg)) * (pal.dark ? 1 : 0.5);
     const open = state.event && state.event.kind === 'open' && !state.reduceMotion ? state.event.age : null;
     const breath = (band) => (time == null ? 0 : Math.round((band.pools ? 7 : 16) * Math.sin(TAU * (time / (240 + 37 * band.seed) + band.seed * 0.37)) * 4) / 4);
+    const hide = treeBehind(state, knollOff, look);
     if (open == null) {
       const key = [keys.land, look.toFixed(5), tilt.x, tilt.y, Math.round(sunNow.x * 4), Math.round(bloomAmt * 50),
-        G.planes.map((p) => (p.mists ?? []).map(breath).join(',')).join(';')].join('|');
+        G.planes.map((p) => (p.mists ?? []).map(breath).join(',')).join(';'), hide ? hide.key : ''].join('|');
       if (!G.landCache) G.landCache = { key: '', canvas: mk(G.pxW, G.pxH) };
       if (G.landCache.key !== key) {
         const lc = G.landCache.canvas.getContext('2d');
@@ -3438,7 +3702,7 @@ export function create(host) {
         lc.globalCompositeOperation = 'source-over';
         lc.globalAlpha = 1;
         lc.clearRect(0, 0, G.pxW, G.pxH);
-        drawLand(lc, pal, look, tilt, breath, null, sunNow, bloomAmt);
+        drawLand(lc, pal, look, tilt, breath, null, sunNow, bloomAmt, hide);
         G.landCache.key = key;
       }
       ctx.filter = adj;
@@ -3446,7 +3710,7 @@ export function create(host) {
       ctx.filter = 'none';
     } else {
       ctx.filter = adj;
-      drawLand(ctx, pal, look, tilt, breath, open, sunNow, bloomAmt);
+      drawLand(ctx, pal, look, tilt, breath, open, sunNow, bloomAmt, hide);
       ctx.filter = 'none';
     }
     // the sun's glare: light spills round what stands in front of it
@@ -3466,6 +3730,18 @@ export function create(host) {
     drawTonight(ctx, state, pal, time, tonightAt, ring);
     drawSnowfall(ctx, state, pal, time);
     drawCaption(ctx, state, pal, look);
+  }
+
+  /** The state a frame is composed from: the lab's, with the strip's clear window eased across a
+   *  sleep's start and end (see render). The same object when there is nothing to ease. */
+  const ISLAND_GROWS = 34;                               // points the island is longer by while a sleep runs
+  function eased(state) {
+    const e = state.event, SC = state.layout?.stripClear;
+    if (!e || !SC || !(e.age < 0.6)) return state;
+    const starts = e.kind === 'bedtime' || e.kind === 'arrive', ends = e.kind === 'wake';
+    if (!starts && !ends) return state;
+    const still = 1 - smoothstep(0, 0.6, e.age);         // how much of the window as it WAS is left
+    return { ...state, layout: { ...state.layout, stripClear: { ...SC, yMin: SC.yMin + (starts ? -1 : 1) * ISLAND_GROWS * still } } };
   }
 
   let lastState = null;
@@ -3585,16 +3861,23 @@ export function create(host) {
     }
 
     const tCompose = performance.now();
+    // The strip's clear window follows the island, and the island does not jump: when a sleep starts
+    // or ends it grows or shrinks over 0.6 s (README: the window's top is 34 pt lower while a sleep
+    // runs). The lab's chrome swaps it in one frame, so whatever is composed against that window — the
+    // strip's cloud, which gives way to the longer island — went or came in that frame: the one thing
+    // still over the limits at every join where a sleep starts or ends. The window is eased HERE, in
+    // what the frame is composed from; nothing in the composition is changed.
+    const seen = eased(state);
     // Reduce Motion: there is no move — the looked-up still cross-fades in and out.
     if (state.reduceMotion && look > 0.001 && look < 0.999) {
-      compose(main, state, pal, 0, time);
+      compose(main, seen, pal, 0, time);
       if (!lookBuffer || lookBuffer.width !== G.pxW || lookBuffer.height !== G.pxH) lookBuffer = mk(G.pxW, G.pxH);
-      compose(lookBuffer.getContext('2d'), state, pal, 1, time);
+      compose(lookBuffer.getContext('2d'), seen, pal, 1, time);
       main.globalAlpha = look;
       main.drawImage(lookBuffer, 0, 0);
       main.globalAlpha = 1;
     } else {
-      compose(main, state, pal, state.reduceMotion ? Math.round(look) : look, time);
+      compose(main, seen, pal, state.reduceMotion ? Math.round(look) : look, time);
     }
     const tc = performance.now();
     timing.compose = tc - tCompose;

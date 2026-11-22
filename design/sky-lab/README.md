@@ -19,13 +19,13 @@ time of day, in both appearances. Mockups only — the app's sky is the Swift co
 | `lab/solar.js` | `SolarClock` + `MoonClock` ported from Swift, plus the sun's altitude/azimuth. Pure. |
 | `lab/palette.js` | `SkyPalette` ported from Swift (looks, frames, ridges, clouds, stars, `scene()`). Pure. |
 | `lab/chrome.js`, `lab/chrome.css` | Home's UI as HTML: the phone page, the spread's leading page, the system strip / tab bar. Sample data, one fixed day. Also measures `state.cards` and `state.layout`. |
-| `lab/presence.js`, `oklab.js`, `nights.js`, `season.js`, `noise.js` | Helpers for new skies (see `BRIEF.md`): the bloom, OKLab colour and the hush, a star per night, the season, seeded noise. The baseline uses none of them. `season(state)` (or `season(dayOfYear, latitude)`) answers with the URL's `snowfall`. |
+| `lab/presence.js`, `oklab.js`, `nights.js`, `season.js`, `noise.js` | Helpers for new skies (see `BRIEF.md`): the bloom, the room's dimming and the bedtime moment's one timeline (`MOMENT`, `momentVeil`: what the cards do, which `film.mjs` and `review.mjs` play and a sky reads), OKLab colour and the hush, a star per night, the season, seeded noise. The baseline uses none of them. `season(state)` (or `season(dayOfYear, latitude)`) answers with the URL's `snowfall`. |
 | `skies/<id>.js` | One sky per file. `skies/baseline.js` is today's sky, ported faithfully. |
 | `skies/index.js` | The ids the panel's picker lists (`sky=<id>` loads any file in `skies/`). |
 | `assets/` | The cloud and grain PNGs copied from `TwoOfUs/Assets.xcassets/Sky`; `fonts/` is Nunito, the chrome's stand-in for SF Rounded. |
 | `tools/shoot.mjs` | Playwright: one PNG per (device × scheme × time), and a contact sheet. |
 | `tools/review.mjs` | The review set: every sky shot the same way (day, bare, asleep, seasons, bedtime, the Duo opening, stillness, the header's text, tilt, snowfall, the night as it stands, a night sleep arriving, first light, the joins) into `shots/<sky>/review/`. `--list` shows it and counts it. |
-| `tools/film.mjs` | A moment (bedtime, a night sleep arriving, first light, waking, the Duo opening) as a video: the viewer stepped one frame at a time and joined by ffmpeg, so the timing is exact at any render cost. It opens on the standing state *before* the event, so a film shows its own first frame's join. Into `gallery/film/<sky>/`. |
+| `tools/film.mjs` | A moment (bedtime, a night sleep arriving, first light, waking, the Duo opening) as a video: the viewer stepped one frame at a time and joined by ffmpeg, so the timing is exact at any render cost. It opens on the standing state *before* the event, so a film shows its own first frame's join. Bedtime runs 7 s by default (the cards are back at 5.8 s); `--fps 60` for judging motion; `--param motion=0` plays Reduce Motion's shorter moment. Into `gallery/film/<sky>/`. |
 | `tools/joins.mjs` | No join may jump: for every change of state, the standing frame before against the event's first frame, and the event's last frame against the standing frame after, measured (below). Exit code 1 if one jumps. |
 | `tools/measure.mjs` | One shared measurement of `BRIEF.md`'s hard limits for any sky; `--help` lists options. |
 | `tools/test-math.mjs` | The Swift unit tests for the sun, moon and palette, ported, and the port checked against the Swift source; then what the viewer adds to the state (`sun.x`, `nightBegun` and what an event means in it, the room's dimming across a sleep's start and end, `snowfall`). |
@@ -111,7 +111,7 @@ export function create(host, env) {       // env = { assets: 'assets/', solar, p
                   begunBefore,          // had the night begun before the event?
                   woke },               // a wake's only: 'night' | 'nap', the sleep that ended
   lead,                                 // only with lead=: the spread's leading page's opacity, 0–1
-  veil,                                 // only with veil=: how far the phone page's cards have fallen back, 0–1
+  veil,                                 // only with veil=: how far the phone page's cards have fallen back, 0–1 (in the bedtime moment: lab/presence.js, momentVeil(event.age))
   snowfall,                             // only with snowfall=: snow in the air, 0–1 — what season() then says
 }
 ```
@@ -256,7 +256,7 @@ The review set, one folder each under `shots/<sky>/review/`:
 | `day`, `bare` | The standard matrix with the UI, and without. Sheets. |
 | `asleep` | A night sleep at 19:40, 21:00, 03:00; `nap/` at 09:30, 13:10. |
 | `seasons` | Four dates of his first year, 14 min before sunset and 40 after: all three devices; `<season>-bare/` the spread alone. |
-| `bedtime`, `open` | The two showpieces, frame by frame (`BRIEF.md`). Bedtime's cards fall back over 0–1.6 s and return over 4.8–6.8 s, the same curve as `tools/film.mjs`: `t0`, `t0_7`, `t1_6`, `t3`, `t4_4`, `t5_8`, `t9`, `t40`. |
+| `bedtime`, `open` | The two showpieces, frame by frame (`BRIEF.md`). Bedtime's cards fall back over 0–1.0 s and return over 4.6–5.8 s with an ease-out — `lab/presence.js`, `momentVeil`, the same curve as `tools/film.mjs`: `t0`, `t0_5`, `t1`, `t3`, `t4_1`, `t5`, `t9`, `t40` (they were `t0_7`, `t1_6`, `t4_4`, `t5_8` while the cards took 1.6 s to go and 2 s to return). |
 | `still` | `motion=0`, and `t=95` against the day set's `t=12`. |
 | `text` | The minutes the sun (09:30–10:30) and the moon (17:00–19:40) pass behind the header's text: all three devices, with the UI and in `bare/`. Sheets. |
 | `tilt` | `left-up/` (`tilt=-1,-0.5`) and `right-down/` (`1,0.5`): cover and spread, 16:10 and 21:00. |

@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { solarDay } from '../lab/solar.js';
 import { joins, framesOf, firstLightTime } from './joins.mjs';
+import { momentVeil } from '../lab/presence.js';
 
 const LAB = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const LAT = 41.88, LON = -87.63;
@@ -48,14 +49,15 @@ const SEASONS = [
 // Bedtime: the cards fall back for a few seconds while his star is lit, then
 // return. `veil` is how far back they are (1 = gone; the header and the system
 // strip stay). On the spread the leading page goes with them. The same curve as
-// tools/film.mjs's (`UI.bedtime`): back over 0–1.6 s, away until 4.8 s, returned
-// by 6.8 s — over the sky that is already there (BRIEF.md, round three: the view
-// does not come down again). The instants: the tap; the cards half away; the
-// cards gone and the view rising; the held frame with the band crossing (3 s) and
-// after it (4.4 s, the poster); the cards half back (5.8 s); back (9 s); settled.
-const smooth = (a, b, x) => { const u = Math.min(1, Math.max(0, (x - a) / (b - a))); return u * u * (3 - 2 * u); };
-const veilAt = (age) => Math.round(smooth(0, 1.6, age) * (1 - smooth(4.8, 6.8, age)) * 1000) / 1000;
-const BEDTIME = [0, 0.7, 1.6, 3, 4.4, 5.8, 9, 40].map((age) => ({ age, veil: veilAt(age) }));
+// tools/film.mjs's (`UI.bedtime`), which is the moment's own (lab/presence.js,
+// `momentVeil`): back over 0–1.0 s, away until 4.6 s, returned by 5.8 s with an
+// ease-out — over the sky that is already there (BRIEF.md, round three: the view
+// does not come down again). The instants: the tap; the cards half away (0.5 s);
+// the cards gone and the view rising (1 s); the held frame with the band crossing
+// (3 s) and after it (4.1 s, the poster: the caption still whole); the cards half
+// back (5 s); back (9 s); settled.
+const veilAt = (age) => Math.round(momentVeil(age) * 1000) / 1000;
+const BEDTIME = [0, 0.5, 1, 3, 4.1, 5, 9, 40].map((age) => ({ age, veil: veilAt(age) }));
 
 // A night sleep that arrives from elsewhere (the other phone, Siri, a widget)
 // while Home is on screen, at 19:40: the quiet rise behind the cards, 0 to 1 over

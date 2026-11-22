@@ -22,8 +22,11 @@
 //
 // The UI's part in each moment is the lab's, the same as tools/review.mjs's
 // stills, made continuous:
-//   bedtime   the cards fall back over 1.6 s, stay away until 4.8 s and are back
-//             by 6.8 s (`veil`); on the spread the leading page goes with them.
+//   bedtime   the cards fall back over 1.0 s, stay away until 4.6 s and are back
+//             by 5.8 s, with an ease-out (`veil`: lab/presence.js, `momentVeil` —
+//             the moment's one timeline, which the sky reads too); on the spread
+//             the leading page goes with them. Under Reduce Motion (--param
+//             motion=0): away by 0.6 s, back over 3.4–4.0 s.
 //   open      the leading page stays bare for 0.9 s and its cards have landed
 //             by 1.9 s (`lead`).
 //   arrive    a sleep that began elsewhere: the UI does nothing (the sleep card
@@ -40,6 +43,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { DEVICES, parseParams, buildState, timeToMinutes, minutesToTime, wokeFrom, FIRST_LIGHT_DEG } from '../lab/core.js';
+import { momentVeil } from '../lab/presence.js';
 
 const LAB_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -51,7 +55,7 @@ const USAGE = `Usage: node tools/film.mjs --sky <id> --event bedtime|arrive|sett
   --asleep 0|nap|night           the state from the event on (default: night for bedtime, arrive and settle, else 0)
   --woke night|nap               wake only: the sleep that ended (default: by the hour, as the lab does — night at 03:00)
   --date YYYY-MM-DD  --tz <hours>  --age <days>  --lat <deg>  --lon <deg>   passed to the viewer
-  --seconds <n>                  how long the moment runs (default: 8 bedtime, 5 arrive, 5 settle, 6.5 wake, 4.5 open)
+  --seconds <n>                  how long the moment runs (default: 7 bedtime — the cards are back at 5.8 s — 5 arrive, 5 settle, 6.5 wake, 4.5 open)
   --before <s>                   the standing state BEFORE the event, held (default: 0.7; 0: the film starts on the event's first frame)
   --after <s>                    the last frame, held (default: 1.2)
   --fps <n>                      (default: 30; 60 for judging motion)   --dpr <n>   (default: 2)
@@ -97,10 +101,11 @@ const smooth = (a, b, x) => {
 
 /** What the lab's UI does at `age` seconds into each moment. */
 const UI = {
-  // (the cards come back over the sky that is already there: the view does not come down — BRIEF.md, round three)
-  bedtime: (age, device) => {
-    const veil = smooth(0, 1.6, age) * (1 - smooth(4.8, 6.8, age));
-    return device === 'spread' ? { veil, lead: 1 - veil } : { veil };
+  // (the cards come back over the sky that is already there: the view does not come down — BRIEF.md, round three.
+  // The curve is the moment's own, lab/presence.js: back over 1.0 s, away until 4.6 s, returned by 5.8 s with an ease-out.)
+  bedtime: (age, device, reduceMotion) => {
+    const veil = Math.round(momentVeil(age, reduceMotion) * 1e4) / 1e4;
+    return device === 'spread' ? { veil, lead: Math.round((1 - veil) * 1e4) / 1e4 } : { veil };
   },
   open: (age) => ({ lead: smooth(0.9, 1.9, age) }),
   arrive: () => ({}),
@@ -108,7 +113,7 @@ const UI = {
   wake: () => ({}),
 };
 const DEFAULTS = {
-  bedtime: { time: '19:40', asleep: 'night', seconds: 8 },
+  bedtime: { time: '19:40', asleep: 'night', seconds: 7 },
   open: { time: '16:12', asleep: '0', seconds: 4.5 },
   arrive: { time: '19:40', asleep: 'night', seconds: 5 },
   settle: { time: null, asleep: 'night', seconds: 5 },          // (time: first light on the date)
@@ -203,7 +208,8 @@ async function main() {
     if (eq < 1) fail(`--param takes key=value (got "${pair}")`);
     query[pair.slice(0, eq)] = pair.slice(eq + 1);
   }
-  Object.assign(query, Object.fromEntries(Object.entries(UI[options.event](0, device)).map(([k, v]) => [k, String(v)])));
+  const reduceMotion = query.motion === '0';
+  Object.assign(query, Object.fromEntries(Object.entries(UI[options.event](0, device, reduceMotion)).map(([k, v]) => [k, String(v)])));
   // …and the standing state before it, which the film opens on.
   const beforePatch = before > 0 ? stateBefore(options.event, query) : null;
   const first = beforePatch ? { ...query, ...beforePatch } : query;
@@ -253,7 +259,7 @@ async function main() {
     const start = { asleep: query.asleep, event: options.event, begun: query.begun ?? '', woke: query.woke ?? '' };
     for (let i = 0; i <= total; i += 1) {
       const age = i / fps;
-      const patch = { ...(i === 0 ? start : {}), eventAge: age, t: 12 + age, ...UI[options.event](age, device) };
+      const patch = { ...(i === 0 ? start : {}), eventAge: age, t: 12 + age, ...UI[options.event](age, device, reduceMotion) };
       await page.evaluate((p) => window.__lab.set(p), patch);
       const error = await page.evaluate(() => window.__labError);
       if (error) throw new Error(`at ${age.toFixed(2)} s: ${error}`);

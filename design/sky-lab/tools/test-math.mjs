@@ -35,7 +35,7 @@ import * as solar from '../lab/solar.js';
 import * as palette from '../lab/palette.js';
 import * as core from '../lab/core.js';
 import { season, forceSnowfall } from '../lab/season.js';
-import { presence, roomDepth, SLEEP_DEPTH } from '../lab/presence.js';
+import { presence, roomDepth, SLEEP_DEPTH, MOMENT, momentVeil, momentCaption, easeOut, litFrom } from '../lab/presence.js';
 import { sampleNight } from '../lab/chrome.js';
 import { sunHalo } from '../skies/baseline.js';
 
@@ -1526,6 +1526,74 @@ test('the room\'s dimming never jumps: it eases across a sleep\'s start and end'
   // presence() also takes the bare state tools/measure.mjs hands it.
   const bare = state({ time: '21:00', asleep: 'night' });
   same(presence({ sun: bare.sun, moon: bare.moon, event: bare.event, asleep: bare.asleep }), presence(bare), 'presence() needs only sun, moon, event and asleep');
+});
+
+test('the bedtime moment: the sky keeps its pace, the cards give up the time', () => {
+  // BRIEF.md, "After the first review", item 3. One table (lab/presence.js, MOMENT) for the sky and the lab's UI.
+  // The cards: back in about a second, away, returned by 5.8 s with an ease-out; never a step.
+  equal(momentVeil(0), 0, 'the cards are whole at the tap');
+  ok(momentVeil(0.9) >= 0.95, `under 5 % by 0.9 s (veil ${momentVeil(0.9).toFixed(3)})`);
+  equal(momentVeil(1.0), 1, 'gone by 1.0 s');
+  equal(momentVeil(4.6), 1, 'still away at 4.6 s');
+  equal(momentVeil(5.8), 0, 'whole by 5.8 s');
+  equal(momentVeil(40), 0, 'and they stay');
+  near(MOMENT.back[1] - MOMENT.back[0], 1.2, 1e-9, 'they return over 1.2 s');
+  ok(MOMENT.back[1] < 6, 'the whole is under 6 s');
+  let prev = momentVeil(0), worst = 0;
+  for (let age = 1 / 120; age <= 7; age += 1 / 120) {
+    const v = momentVeil(age);
+    worst = Math.max(worst, Math.abs(v - prev));
+    if (age > MOMENT.back[0]) ok(v <= prev + 1e-12, `returning, the cards only come back (age ${age.toFixed(3)})`);
+    prev = v;
+  }
+  ok(worst < 0.02, `no step: the largest change in 1/120 s is ${worst.toFixed(4)}`);
+  // An ease-out: quick away, soft to rest — more than half back a third of the way through.
+  ok(1 - momentVeil(MOMENT.back[0] + 0.45) > 0.5, 'half back within 0.45 s');
+  ok(1 - momentVeil(MOMENT.back[0] + 1.0) > 0.95, 'over 95 % after 1.0 s');
+  // easeOut is the cubic Bézier (0, 0, 0.58, 1): checked against the curve walked point by point.
+  equal(easeOut(0), 0, 'easeOut(0)'); equal(easeOut(1), 1, 'easeOut(1)'); equal(easeOut(-1), 0, 'before'); equal(easeOut(2), 1, 'after');
+  const curve = [];
+  for (let k = 0; k <= 20000; k += 1) { const t = k / 20000; curve.push([1.74 * (1 - t) * t * t + t * t * t, 3 * (1 - t) * t * t + t * t * t]); }
+  for (const u of [0.05, 0.1, 0.25, 0.5, 0.75, 0.9]) {
+    const i = curve.findIndex((q) => q[0] >= u);
+    const [x0, y0] = curve[i - 1], [x1, y1] = curve[i];
+    near(easeOut(u), y0 + (y1 - y0) * (u - x0) / (x1 - x0), 1e-6, `easeOut(${u})`);
+  }
+  // The caption: in by about 2.8 s, gone by about 4.7 s — and gone before a card is back at all.
+  near(momentCaption(2.8), 1, 1e-9, 'the caption is in by 2.8 s');
+  equal(momentCaption(1.9), 0, 'not before the view is nearly up');
+  equal(momentCaption(4.7), 0, 'gone by 4.7 s');
+  for (let age = 0; age <= 8; age += 1 / 120) {
+    ok(!(momentCaption(age) > 0 && momentVeil(age) < 1 && age > 2), `the caption is never read through a returning card (age ${age.toFixed(3)})`);
+  }
+  ok(MOMENT.caption.out[0] - MOMENT.caption.in[1] >= 1.3, 'it stands whole for at least 1.3 s');
+  // The rise: the Duo's as it was; the slab's no faster at its peak than about 500 pt/s (a quintic ease peaks at 1.875 × the mean).
+  same([...MOMENT.rise.duo], [0.3, 2.4], 'the Duo rises over 0.3–2.4 s, as it did');
+  const peak = (points, [t0, t1]) => (1.875 * points) / (t1 - t0);
+  ok(peak(630, MOMENT.rise.slab) <= 500, `the slab's 630 pt at ${peak(630, MOMENT.rise.slab).toFixed(0)} pt/s at its peak`);
+  near(peak(312, MOMENT.rise.duo), 278.6, 0.1, 'the Duo\'s 312 pt at 279 pt/s');
+  // The band: it leaves as the view arrives, has crossed by about 4.2 s, and its own light (gone at nine
+  // tenths of the way) has gone before a card comes back.
+  for (const kind of ['duo', 'slab']) {
+    const b = MOMENT.band[kind], rise = MOMENT.rise[kind];
+    ok(b.leaves >= rise[1] - 0.45 && b.leaves <= rise[1], `${kind}: the band leaves as the view arrives (${b.leaves} s, the view at ${rise[1]} s)`);
+    ok(b.leaves + b.crosses <= 4.31, `${kind}: it has crossed by ${(b.leaves + b.crosses).toFixed(2)} s`);
+    ok(b.leaves + 0.9 * b.crosses < MOMENT.back[0] - 0.4, `${kind}: its light has gone ${(MOMENT.back[0] - b.leaves - 0.9 * b.crosses).toFixed(2)} s before the cards return`);
+  }
+  // Reduce Motion: cards away, a 0.6 s dissolve once they are under 10 %, the caption for two seconds, cards back: about 4 s.
+  const r = MOMENT.reduced;
+  ok(momentVeil(r.dissolve[0], true) >= 0.9, 'the dissolve begins once the cards are under 10 %');
+  near(r.dissolve[1] - r.dissolve[0], 0.6, 1e-9, 'a 0.6 s dissolve');
+  near(MOMENT.quiet.dissolve, 0.6, 1e-9, 'arrive and settle: 0.6 s dissolves');
+  ok(r.back[1] <= 4.1, 'the whole moment about 4 s');
+  equal(momentVeil(r.back[1], true), 0, 'the cards whole again');
+  ok(momentCaption(r.caption.in[1], true) === 1 && momentCaption(r.back[0], true) === 0, 'its caption too is gone before the cards return');
+  ok(r.caption.out[1] - r.caption.in[0] >= 2, 'the caption stands for two seconds');
+  // Tonight's star is lit once, from what it was.
+  equal(litFrom(false, 0), 0, 'unlit, the spark starts from nothing');
+  equal(litFrom(false, 1.35), 1.35, 'and flares');
+  equal(litFrom(true, 0), 1, 'a star that is already lit is not put out to be lit again');
+  equal(litFrom(true, 1.35), 1, 'nor does it flare');
 });
 
 test('snowfall, begun and the rest of the URL round-trip', () => {
