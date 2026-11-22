@@ -297,11 +297,11 @@
               "shot": "bare/spread-dark-1610.png",
               "crop": [
                 10,
-                140,
-                290,
-                90
+                135,
+                400,
+                100
               ],
-              "natural": 580
+              "natural": 800
             },
             {
               "key": "cloud-dawn-dark",
@@ -401,7 +401,7 @@
             },
             {
               "key": "river-moon-light",
-              "label": "The moon’s path, light, 9 p.m.",
+              "label": "The moon’s path, light, 9 p.m. before bedtime",
               "shot": "bare/spread-light-2100.png",
               "crop": [
                 0,
@@ -409,7 +409,8 @@
                 300,
                 339
               ],
-              "natural": 600
+              "natural": 600,
+              "afterShot": "rest/spread-light-2100.png"
             }
           ]
         },

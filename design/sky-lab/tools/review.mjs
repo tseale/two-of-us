@@ -97,10 +97,12 @@ function sets() {
            { dir: 'nap', args: ['--sheet', '--times', '09:30,13:10', '--asleep', 'nap'] }],
   });
   out.push({
-    name: 'seasons', about: 'His first year: mid-October, mid-January, late April, early July — each 14 min before sunset and 40 min after, all three devices, UI on; plus the spread bare.',
+    // (--begun 0: before bedtime, the hill at rest. Without it the lab takes the night to have begun
+    // once its sample bedtime, 20:10, has passed, and the late sunsets of April and July are shot looking up.)
+    name: 'seasons', about: 'His first year: mid-October, mid-January, late April, early July — each 14 min before sunset and 40 min after, before bedtime (at rest), all three devices, UI on; plus the spread bare.',
     runs: SEASONS.flatMap((s) => {
       const times = `${fromSunset(s.date, s.tz, -14)},${fromSunset(s.date, s.tz, 40)}`;
-      const base = ['--date', s.date, '--tz', String(s.tz), '--age', String(s.age), '--times', times];
+      const base = ['--date', s.date, '--tz', String(s.tz), '--age', String(s.age), '--times', times, '--begun', '0'];
       return [
         { dir: s.name, args: [...base, '--devices', 'cover,spread,iphone'] },
         { dir: `${s.name}-bare`, args: [...base, '--devices', 'spread', '--chrome', '0'] },
