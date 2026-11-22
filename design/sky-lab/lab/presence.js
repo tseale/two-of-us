@@ -10,12 +10,18 @@
 //   · bedtime — he falls asleep for the night: a breath of bloom as his star is
 //     lit, then the sky settles DEEPER than it was (the room dims).
 //   · opening the Duo — a short swell as the cover's sky widens into the spread.
-//   · a re-settle — the night's sleep was ended (a feed) and is started again the
-//     same night: no bloom at all; the room only dims again, over a few seconds.
+//
+// And the room's dimming (`depth`), which never jumps: it eases in from 0 when a
+// sleep starts (with the bedtime moment, or quietly when the sleep `arrive`s from
+// elsewhere) and, when he wakes, eases out from what that sleep had — a night's 1,
+// a nap's 0.45 — so the first frame after a change is the frame before it. The
+// solar bloom is taken from that eased depth. `arrive` and `settle` (first light)
+// have no bloom of their own.
 //
 // Everything here is pure. `state` is the lab's state (README); events arrive as
-// state.event = { kind: 'bedtime' | 'resettle' | 'wake' | 'open' | 'close', age: seconds since }.
-// (Whether tonight's star is lit is not presence's business: `state.tonightLit`.)
+// state.event = { kind: 'bedtime' | 'arrive' | 'settle' | 'wake' | 'open' | 'close', age: seconds since,
+// woke: 'night' | 'nap' (a wake's: the sleep that ended) }.
+// (Whether the night has begun — the view up, tonight's star lit — is not presence's business: `state.nightBegun`.)
 
 import { smoothstep } from './oklab.js';
 
@@ -52,11 +58,29 @@ export const EVENTS = {
   close: { attack: 0.3, hold: 0.2, release: 2, peak: 0.15 },
 };
 
+/** How far a sleep dims the room. */
+export const SLEEP_DEPTH = { night: 1, nap: 0.45 };
+
+/** The room's dimming, 0–1: the running sleep's own depth, eased across a sleep's start and end. */
+export function roomDepth(state) {
+  const target = SLEEP_DEPTH[state.asleep] ?? 0;
+  const e = state.event;
+  if (!e) return target;                                    // with no event in the URL it has already dimmed
+  // A sleep starts: the room dims over the first seconds — with the moment, after the cards have gone;
+  // quietly, at once, when the sleep arrives from elsewhere.
+  if (e.kind === 'bedtime') return target * smoothstep(1.2, 9, e.age);
+  if (e.kind === 'arrive') return target * smoothstep(0, 4, e.age);
+  // He wakes: the room is still as dim as that sleep had it, and un-dims over about five seconds.
+  if (e.kind === 'wake') return Math.max(target, (SLEEP_DEPTH[e.woke] ?? SLEEP_DEPTH.night) * (1 - smoothstep(0.3, 5, e.age)));
+  return target;
+}
+
 /**
  * → { presence, solar, moon, event, depth, stars }
  *   presence  0–1, what a sky feeds to oklab.present()/presentDark()
  *   depth     0–1, how far the room has dimmed because he sleeps (night sleep 1,
- *             nap 0.45) — a sky gets deeper and stiller with it, never brighter
+ *             nap 0.45; eased across a sleep's start and end: roomDepth) — a sky
+ *             gets deeper and stiller with it, never brighter
  *   stars     0–1, how much of the starfield is out (by the sun's altitude:
  *             none above −4°, all of it below −12°)
  */
@@ -69,13 +93,9 @@ export function presence(state) {
     const e = EVENTS[state.event.kind];
     event = e.peak * swell(state.event.age, e);
   }
-  const target = state.asleep === 'night' ? 1 : state.asleep === 'nap' ? 0.45 : 0;
-  // The room dims over the first seconds of a sleep; with no event in the URL it has already dimmed.
-  // (A re-settle the same night has no moment of its own — it is not in EVENTS — but the room dims again.)
-  const settling = state.event && state.event.kind === 'bedtime' ? smoothstep(1.2, 9, state.event.age)
-    : state.event && state.event.kind === 'resettle' ? smoothstep(0, 4, state.event.age) : 1;
-  const depth = target * settling;
+  const depth = roomDepth(state);
   // Asleep takes a third off the solar bloom: a sunset behind a sleeping baby is still a sunset, just quieter.
+  // (By the eased depth: at a dawn wake that third comes back over the same seconds, not in one frame.)
   const open = Math.max(solar * (1 - 0.35 * depth), moon);
   const total = Math.min(1, open + event * (1 - open));
   const stars = 1 - smoothstep(-12, -4, sunDeg);

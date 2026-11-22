@@ -8,7 +8,9 @@
 //   toSearch(params) → string            the way back: a query without defaults
 //   buildState(params, t, cards, layout) → state   the README's `state` object (pure)
 //   sunX(phase, day) → number            state.sun.x: the sun's x, by day and on past sunset
-//   SAMPLE_NIGHT                         the sample day's bedtime and wake, for state.tonightLit
+//   SAMPLE_NIGHT                         the sample day's bedtime and wake
+//   FIRST_LIGHT_DEG, nightHours(), nightHasBegun(), wokeFrom(), nightOf()
+//                                        "the night has begun" (state.nightBegun) and what an event means in it
 //   estimateLayout(device, asleep)       state.layout where no chrome has been measured
 //   run() → Promise<lab>                 mounts the viewer into #display (browser only)
 //
@@ -65,9 +67,9 @@ const BEZEL = 10;
 // ───────────────────────────────────────────────────────────── parameters ──
 
 /** Every parameter's default (README, "The viewer's URL"), then the lab's
- *  additions: `event` + `eventAge`, `lead`, `veil`, `tilt`, `toast`, `snowfall`,
- *  `lit` (fields BRIEF.md, lab/chrome.js and the helpers read from the state)
- *  and `zoom` (the panel's). */
+ *  additions: `event` + `eventAge` + `woke`, `lead`, `veil`, `tilt`, `toast`,
+ *  `snowfall`, `begun` (fields BRIEF.md, lab/chrome.js and the helpers read
+ *  from the state) and `zoom` (the panel's). */
 export const DEFAULTS = Object.freeze({
   sky: 'baseline',
   device: 'cover',
@@ -85,14 +87,15 @@ export const DEFAULTS = Object.freeze({
   dpr: 2,
   ui: false,
   bezel: false,
-  event: null,         // null | 'bedtime' | 'resettle' | 'wake' | 'open' | 'close' → state.event.kind
+  event: null,         // null | 'bedtime' | 'arrive' | 'settle' | 'wake' | 'open' | 'close' → state.event.kind (see nightOf)
   eventAge: 0,         // seconds since the event → state.event.age
+  woke: null,          // null | 'night' | 'nap': which sleep ended, for event=wake → state.event.woke (null: by the hour, wokeFrom)
   lead: null,          // null | 0–1 → state.lead (the spread's leading page's opacity)
   veil: null,          // null | 0–1 → state.veil (how far the phone page's cards have fallen back)
   tilt: null,          // null | { x, y }, −1…1 each → state.tilt
   toast: false,        // true → state.toast (the undo toast)
   snowfall: null,      // null | 0–1 → state.snowfall, and what lab/season.js's season() says is in the air
-  lit: null,           // null | true | false → state.tonightLit, forced
+  begun: null,         // null | true | false → the night has begun (state.nightBegun), forced: as it was BEFORE the event, if there is one. `lit=` is its old name
   zoom: 1,             // the display's magnification, with ui=1 or bezel=1 only
 });
 
@@ -165,7 +168,8 @@ export function parseParams(searchParams) {
   const lead = number(get('lead'), null, 0, 1);
   const veil = number(get('veil'), null, 0, 1);
   const snowfall = number(get('snowfall'), null, 0, 1);
-  const lit = flag(get('lit'), null);
+  const begun = flag(get('begun'), flag(get('lit'), null));      // (`lit=`: what this parameter was called while it only lit the star)
+  const woke = ['night', 'nap'].includes(get('woke')) ? get('woke') : D.woke;
   const tiltParts = String(get('tilt') ?? '').split(',').map((part) => Number(part));
   const tilt = tiltParts.length === 2 && tiltParts.every(Number.isFinite) && String(get('tilt')).trim() !== ''
     ? { x: clamp(tiltParts[0], -1, 1), y: clamp(tiltParts[1], -1, 1) }
@@ -190,12 +194,13 @@ export function parseParams(searchParams) {
     bezel: flag(get('bezel'), D.bezel),
     event,
     eventAge: number(get('eventAge'), D.eventAge, 0),
+    woke,
     lead,
     veil,
     tilt,
     toast: flag(get('toast'), D.toast),
     snowfall,
-    lit,
+    begun,
     zoom: number(get('zoom'), D.zoom, 0.25, 4),
   };
 }
@@ -222,12 +227,13 @@ export function toSearch(params) {
   put('dpr', p.dpr, p.dpr === D.dpr);
   put('event', p.event, p.event == null);
   put('eventAge', p.eventAge, p.event == null || p.eventAge === D.eventAge);
+  put('woke', p.woke, p.woke == null);
   put('lead', p.lead, p.lead == null);
   put('veil', p.veil, p.veil == null);
   put('tilt', p.tilt ? `${p.tilt.x},${p.tilt.y}` : '', p.tilt == null);
   put('toast', 1, !p.toast);
   put('snowfall', p.snowfall, p.snowfall == null);
-  put('lit', p.lit ? 1 : 0, p.lit == null);
+  put('begun', p.begun ? 1 : 0, p.begun == null);
   put('ui', 1, !p.ui);
   put('bezel', 1, !p.bezel);
   put('zoom', p.zoom, p.zoom === D.zoom);
@@ -273,15 +279,122 @@ export function sunX(phase, day) {
 
 /** The sample day's night (lab/chrome.js's TEMPLATE; its `sampleNight()`), in
  *  minutes from local midnight: down for the night at 20:10, up at 06:40.
- *  tools/test-math.mjs checks this copy against the chrome's data. */
+ *  tools/test-math.mjs checks this copy against the chrome's data. (Awake, the
+ *  lab takes the night to have begun from that bedtime on: `nightHasBegun`.) */
 export const SAMPLE_NIGHT = Object.freeze({ bedtime: 20 * 60 + 10, wake: 6 * 60 + 40 });
 
-/** state.tonightLit, unforced: he is down for the night now, or the sample
- *  day's bedtime has passed and its morning wake has not. */
-function litTonight(asleep, minutes) {
-  if (asleep === 'night') return true;
-  const { bedtime, wake } = SAMPLE_NIGHT;
-  return bedtime > wake ? minutes >= bedtime || minutes < wake : minutes >= bedtime && minutes < wake;
+// ── the night has begun ──────────────────────────────────────────────────
+// BRIEF.md, "After the first review — the night lasts until first light": one
+// fact, THE NIGHT HAS BEGUN, is true from the moment tonight's night sleep first
+// starts (by any means) until first light the next morning, whether he is asleep
+// or awake. While it is true a sky looks up and tonight's star is lit. In the
+// app it is a pure function of the clock, the sun and the sleep log. The lab has
+// no sleep log: it has `asleep`, the hour, the sample day's bedtime — and, for
+// an event, what the URL says about the moment before it (`woke=`, `begun=`).
+
+/** First light: the morning minute the sun comes up through this altitude
+ *  (degrees). Chosen by looking (skies/hill-painted.md, "First light"): just
+ *  under −7° the looked-up sky still holds some twenty of his stars and reads as
+ *  night, and the rest pose a minute later already has the tree against the
+ *  first band of dawn; at −6° the sky that holds the view up has four stars left. */
+export const FIRST_LIGHT_DEG = -7;
+
+/** The evening: from here on a sleep can be the night's (BRIEF.md, round three:
+ *  an evening sleep is one begun between 6 pm and 4 am) — minutes from local
+ *  midnight. Where the sun is down before then, the evening begins at sunset. */
+export const EVENING_FROM = 18 * 60;
+
+/** Is it between the evening and first light?
+ *  @param {{ altitude: number, isNight: boolean, progress: number }} sun  `state.sun`
+ *  @param {number} minutes  since local midnight */
+export function nightHours(sun, minutes) {
+  if (!sun.isNight) return sun.progress >= 0.5 && minutes >= EVENING_FROM;   // the sun is up: only a summer evening counts
+  if (sun.progress <= 0.5) return true;                                      // from sunset to the middle of the night
+  return sun.altitude * (180 / Math.PI) < FIRST_LIGHT_DEG;                   // and on until first light
+}
+
+/** Awake, the lab takes the night to have begun once the sample day's bedtime
+ *  has passed (20:10, and on through the small hours). */
+const afterSampleBedtime = (minutes) => minutes >= SAMPLE_NIGHT.bedtime || minutes < 12 * 60;
+
+/**
+ * The night has begun (no event; the unforced answer):
+ *   · between first light and the evening: never, whatever `asleep` says — a
+ *     summer morning with him still asleep is the day's picture, dimmed;
+ *   · a night sleep is running, or the sleep that has just ended was the
+ *     night's (`wokeNight`): yes;
+ *   · otherwise (awake, or napping): once the sample day's bedtime has passed.
+ */
+export function nightHasBegun({ asleep = false, wokeNight = false, minutes, sun }) {
+  if (!nightHours(sun, minutes)) return false;
+  if (asleep === 'night' || wokeNight) return true;
+  return afterSampleBedtime(minutes);
+}
+
+/** Which sleep ended, where the URL does not say (`woke=`): the night's before
+ *  09:00 and from the sample bedtime on, a nap's in between. */
+export function wokeFrom(minutes) {
+  return minutes < 9 * 60 || minutes >= SAMPLE_NIGHT.bedtime ? 'night' : 'nap';
+}
+
+/**
+ * The lab's night for these params: whether the night has begun NOW, and the
+ * event as a sky is to play it. An event says that something changed
+ * `eventAge` seconds ago; what it changed FROM is the lab's to work out (or
+ * the URL's to say: `begun=` is the night as it was before the event, `woke=`
+ * the sleep that ended):
+ *
+ *   bedtime  a night sleep started by hand, and the night begins with it: the
+ *            moment. Where the night had already begun (a feed; the sample
+ *            bedtime has passed), or the sleep is a nap, there is no moment: it
+ *            is played as `arrive`. With no sleep running it is dropped.
+ *   arrive   a sleep that began elsewhere (the other phone, Siri, a widget).
+ *            A night sleep that begins the night: the quiet rise. Otherwise
+ *            only the room dims. With no sleep running it is dropped.
+ *   wake     the sleep that was running has ended (`woke`). The night goes on
+ *            as it was: nothing moves, the room un-dims. With a sleep running
+ *            it is dropped.
+ *   settle   first light: the night that had begun is over. Dropped unless it
+ *            is morning, past first light, and a night had begun.
+ *   open, close, anything else: the night is as it stands.
+ *
+ * A dropped event leaves the standing frame (`event: null`); `note` says what
+ * was done with an event that did not fit the state.
+ *
+ * @returns {{ nightBegun: boolean, event: null | { kind: string, age: number, begunBefore: boolean, woke?: 'night' | 'nap' }, note?: string }}
+ */
+export function nightOf({ asleep = false, event = null, eventAge = 0, begun = null, woke = null }, minutes, sun) {
+  const natural = (sleep, wokeNight = false) => nightHasBegun({ asleep: sleep, wokeNight, minutes, sun });
+  const standing = (note) => ({ nightBegun: begun ?? natural(asleep), event: null, ...(note ? { note } : {}) });
+  if (!event) return standing();
+  if (event === 'bedtime' || event === 'arrive') {
+    if (!asleep) return standing(`${event}: no sleep is running — dropped`);
+    const before = begun ?? natural(false);                       // he was awake
+    const now = asleep === 'night' ? before || nightHours(sun, minutes) : before;
+    const moment = event === 'bedtime' && asleep === 'night' && !before && now;
+    const out = { nightBegun: now, event: { kind: moment ? 'bedtime' : 'arrive', age: eventAge, begunBefore: before } };
+    if (event === 'bedtime' && !moment) {
+      out.note = asleep !== 'night' ? 'bedtime: a nap has no moment — played as arrive'
+        : before ? 'bedtime: the night had already begun — no moment, played as arrive (begun=0 says it had not)'
+        : 'bedtime: by day the night does not begin — played as arrive';
+    }
+    return out;
+  }
+  if (event === 'wake') {
+    if (asleep) return standing('wake: a sleep is running — dropped');
+    const from = woke ?? wokeFrom(minutes);
+    const before = begun ?? natural(false, from === 'night');
+    return { nightBegun: before, event: { kind: 'wake', age: eventAge, begunBefore: before, woke: from } };
+  }
+  if (event === 'settle') {
+    const morning = sun.isNight ? sun.progress > 0.5 : sun.progress < 0.5;
+    const before = begun ?? (asleep === 'night' || afterSampleBedtime(minutes));
+    if (!morning || nightHours(sun, minutes)) return standing('settle: it is not past first light — dropped');
+    if (!before) return standing('settle: no night had begun — dropped');
+    return { nightBegun: false, event: { kind: 'settle', age: eventAge, begunBefore: true } };
+  }
+  const now = begun ?? natural(asleep);
+  return { nightBegun: now, event: { kind: event, age: eventAge, begunBefore: now } };
 }
 
 const rect = (x, y, width, height) => ({ x, y, width, height });
@@ -337,7 +450,8 @@ const LAYOUT_ESTIMATE = deepFreeze({
  *
  * After the README's first fields, in this order:
  *   tilt      { x, y }, −1…1 each — the device's tilt, for parallax (0, 0 unless `tilt=`)
- *   event     null | { kind, age } — lab/presence.js's events (`event=`, `eventAge=`)
+ *   event     null | { kind, age, begunBefore, woke? } — the event as `nightOf` resolves it (`event=`, `eventAge=`, `woke=`)
+ *   eventNote only when an event did not fit the state: what the lab did with it (dropped, or played as another)
  *   lead      0–1, only when `lead=` is given — the leading page's opacity (lab/chrome.js)
  *   veil      0–1, only when `veil=` is given — how far the phone page's cards have fallen back
  *   snowfall  0–1, only when `snowfall=` is given — snow in the air (lab/season.js)
@@ -367,6 +481,8 @@ export function buildState(params, t, cards = [], layout = null) {
     date, latitude: p.lat, longitude: p.lon, tzOffsetHours: tz, dark: p.scheme === 'dark',
   });
   const m = scene.moon;
+  const night = nightOf({ asleep: p.asleep, event: p.event, eventAge: p.eventAge, begun: p.begun, woke: p.woke }, minutes,
+    { altitude: position.altitude, isNight: phase.isNight, progress: phase.progress });
 
   const state = {
     device,
@@ -409,7 +525,8 @@ export function buildState(params, t, cards = [], layout = null) {
 
     asleep: p.asleep === 'nap' || p.asleep === 'night' ? p.asleep : false,
     ageDays: p.age,
-    tonightLit: p.lit ?? litTonight(p.asleep, minutes),
+    nightBegun: night.nightBegun,
+    tonightLit: night.nightBegun,      // the same fact under its first name (tonight's star is lit exactly while the night has begun)
 
     t: Number.isFinite(t) ? t : (p.t ?? 0),
     reduceMotion: !p.motion,
@@ -417,8 +534,9 @@ export function buildState(params, t, cards = [], layout = null) {
     layout: layout ?? estimateLayout(device, p.asleep),
 
     tilt: p.tilt ? { x: p.tilt.x, y: p.tilt.y } : { x: 0, y: 0 },
-    event: p.event ? { kind: p.event, age: p.eventAge } : null,
+    event: night.event,
   };
+  if (night.note) state.eventNote = night.note;
   if (p.lead != null) state.lead = p.lead;
   if (p.veil != null) state.veil = p.veil;
   if (p.snowfall != null) state.snowfall = p.snowfall;
@@ -865,6 +983,7 @@ export async function run() {
 
   /** Applies a patch of params — validated the way the URL is — and settles. */
   async function change(patch) {
+    if ('lit' in patch && !('begun' in patch)) patch = { ...patch, begun: patch.lit };      // (the parameter's old name)
     const merged = { ...toRaw(params), ...patch };
     const next = parseParams(merged);
     const before = { ...params };
@@ -904,7 +1023,8 @@ export async function run() {
       lead: p.lead == null ? '' : p.lead,
       veil: p.veil == null ? '' : p.veil,
       snowfall: p.snowfall == null ? '' : p.snowfall,
-      lit: p.lit == null ? '' : (p.lit ? '1' : '0'),
+      begun: p.begun == null ? '' : (p.begun ? '1' : '0'),
+      woke: p.woke ?? '',
       tilt: p.tilt ? `${p.tilt.x},${p.tilt.y}` : '',
       event: p.event ?? '',
     };
@@ -949,14 +1069,15 @@ export async function run() {
         <label class="row"><span>Lon</span><input type="number" data-key="lon" min="-180" max="180" step="0.01"></label>
         <label class="row"><span>UTC</span><input type="number" data-key="tz" min="-12" max="14" step="0.5"> h</label>
         <div class="row"><span>Event</span><select data-key="event">
-          <option value="">none</option><option>bedtime</option><option>resettle</option><option>wake</option><option>open</option><option>close</option>
+          <option value="">none</option><option>bedtime</option><option>arrive</option><option>settle</option><option>wake</option><option>open</option><option>close</option>
         </select><input type="number" data-key="eventAge" min="0" step="0.1" title="Seconds since the event"> s</div>
         <label class="row"><span>Lead</span><input type="range" data-key="lead" min="0" max="1" step="0.05" title="The spread's leading page's opacity"></label>
         <div class="row"><span></span>
           <label><input type="checkbox" data-key="reduce"> Reduce Motion</label>
           <label><input type="checkbox" data-key="toast"> toast</label></div>
         <div class="row"><span></span><label><input type="checkbox" data-key="pointerTilt"> tilt follows the pointer</label></div>
-        <div class="row"><span>Star</span>${seg('lit', [['', 'by the day'], ['1', 'lit'], ['0', 'unlit']])}</div>
+        <div class="row" title="woke=: which sleep a wake ended"><span>Woke</span>${seg('woke', [['', 'by the hour'], ['night'], ['nap']])}</div>
+        <div class="row" title="begun=: the night has begun (before the event, if there is one)"><span>Night</span>${seg('begun', [['', 'by the clock'], ['1', 'begun'], ['0', 'not yet']])}</div>
         <div class="row"><span></span><label title="snowfall=1: season() says snow is in the air"><input type="checkbox" data-key="snowfall"> snow falling</label></div>
       </details>
       <pre data-out="readout"></pre>`;
@@ -1034,7 +1155,7 @@ export async function run() {
     const values = {
       device: params.device, scheme: params.scheme, asleep: params.asleep || '0',
       sweep: String(sweep), zoom: String(params.zoom), dpr: String(params.dpr),
-      lit: params.lit == null ? '' : (params.lit ? '1' : '0'),
+      begun: params.begun == null ? '' : (params.begun ? '1' : '0'), woke: params.woke ?? '',
     };
     for (const group of panel.querySelectorAll('[data-seg]')) {
       for (const button of group.children) {
@@ -1097,9 +1218,10 @@ export async function run() {
         ? `moon  alt ${deg(moon.altitude)}  az ${(moon.azimuth * DEG).toFixed(0).padStart(3)}°\n      ${Math.round(moon.fraction * 100)}% lit, ${moon.phase < 0.5 ? 'waxing' : 'waning'}`
         : 'moon  down',
       `day ${state.dayOfYear}  age ${state.ageDays} d  cards ${state.cards.length}`,
-      `sun x ${state.sun.x.toFixed(2)}  star ${state.tonightLit ? 'lit' : 'unlit'}${state.snowfall != null ? `  snowfall ${state.snowfall}` : ''}`,
+      `sun x ${state.sun.x.toFixed(2)}  night ${state.nightBegun ? 'begun' : 'not begun'}${state.snowfall != null ? `  snowfall ${state.snowfall}` : ''}`,
     ];
-    if (state.event) lines.push(`event ${state.event.kind}  age ${state.event.age.toFixed(1)} s`);
+    if (state.event) lines.push(`event ${state.event.kind}${state.event.woke ? ` (${state.event.woke})` : ''}  age ${state.event.age.toFixed(1)} s`);
+    if (state.eventNote) lines.push(state.eventNote);
     if (liveTilt) lines.push(`tilt  ${state.tilt.x.toFixed(2)}, ${state.tilt.y.toFixed(2)}`);
     outputs.readout.textContent = lines.join('\n');
   }

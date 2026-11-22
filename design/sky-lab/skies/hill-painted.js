@@ -31,8 +31,10 @@
 //                (the far ones with the sky, the near ones faster) — nothing is
 //                repainted for the move; a change of tone while an event plays
 //                (the bloom, the dimmed room) is one colour adjustment on the layers.
-//                Looking up is a STATE, not a moment: the view is up for as long as
-//                a night sleep runs (bedtime carries it up, waking brings it down)
+//                Looking up is a STATE, not a moment: the view is up while THE NIGHT
+//                HAS BEGUN — from the start of tonight's night sleep until first
+//                light, asleep or awake (bedtime carries it up; first light brings
+//                it down; waking and a night feed move nothing)
 //
 // World coordinates: points, x = 0 at the anchor window's leading edge
 // (`state.phone.x`), y = the display's y in the REST pose. The Duo's cover and
@@ -54,7 +56,7 @@ import { growTree, treeMasks, crownTop } from './hill-painted/tree.js';
 export const meta = {
   id: 'hill-painted',
   name: 'Hill, painted',
-  blurb: 'Picture book’s place painted in true light’s air: a river valley, a knoll and one grown tree against the setting sun; when he goes down for the night the view looks up into every night of his life, and stays there while he sleeps.',
+  blurb: 'Picture book’s place painted in true light’s air: a river valley, a knoll and one grown tree against the setting sun; when he goes down for the night the view looks up into every night of his life, and stays there until first light.',
 };
 
 const TAU = Math.PI * 2;
@@ -546,26 +548,29 @@ export function create(host) {
 
   // ── the camera ───────────────────────────────────────────────────────
 
-  /** How far the camera has looked up, 0 rest … 1 up. Looking up is a STATE: while a night sleep runs
-   *  the view is up, and still. Events only carry it there and back — bedtime (0 until 0.3 s, up by
-   *  2.4 s, and it stays), a re-settle the same night (up over 2.5 s, quietly), waking (down over
-   *  about 3 s, behind the cards). Naps keep the rest pose. The URL's `look=` holds any pose. */
+  /** The night has begun (README, `state.nightBegun`): from the start of tonight's night sleep until
+   *  first light, asleep or awake. (A lab without the field: while a night sleep runs.) */
+  const nightBegunOf = (state) => state.nightBegun ?? state.tonightLit ?? state.asleep === 'night';
+
+  /** How far the camera has looked up, 0 rest … 1 up. Looking up is a STATE: the view is up while the
+   *  night has begun, and still — 1 then, 0 otherwise, whichever sleep is running or has ended. Three
+   *  events carry it between the two: bedtime (0 until 0.3 s, up by 2.4 s, and it stays), a night
+   *  sleep that arrives from elsewhere (`arrive`: up over 2.5 s, quietly, behind the cards) — both
+   *  only where the night begins with them (`event.begunBefore` false) — and first light (`settle`:
+   *  down over 2.6 s, behind the cards). Waking moves nothing, at any hour, after any sleep; nor does
+   *  a night feed. The URL's `look=` holds any pose. */
   function lookOf(state) {
     if (urlLook != null) return urlLook;
     const e = state.event;
     const a = e ? e.age : 0;
     const ease = (t) => t * t * t * (t * (t * 6 - 15) + 10);
-    if (state.asleep === 'night') {
-      if (e && e.kind === 'bedtime') return a <= 0.3 ? 0 : a < 2.4 ? ease((a - 0.3) / 2.1) : 1;
-      if (e && e.kind === 'resettle') return a < 2.5 ? ease(a / 2.5) : 1;
-      return 1;
+    if (e && e.kind === 'settle') return a <= 0.1 ? 1 : a < 2.7 ? 1 - ease((a - 0.1) / 2.6) : 0;
+    if (!nightBegunOf(state)) return 0;
+    if (e && !e.begunBefore && state.asleep === 'night') {
+      if (e.kind === 'bedtime') return a <= 0.3 ? 0 : a < 2.4 ? ease((a - 0.3) / 2.1) : 1;
+      if (e.kind === 'arrive') return a < 2.5 ? ease(a / 2.5) : 1;
     }
-    // Waking: only a night's sleep leaves the view up. (The lab does not say which sleep ended; its
-    // `wake` is the sample day's morning one, so a wake in the nap hours of the day is taken for a nap's.)
-    if (e && e.kind === 'wake' && !state.asleep && !(state.localHour >= 9 && state.localHour < 18)) {
-      return a <= 0.2 ? 1 : a < 3.2 ? 1 - ease((a - 0.2) / 3.0) : 0;
-    }
-    return 0;
+    return 1;
   }
 
   /** Tonight's star has two homes on the display — above the tree's shoulder at rest, in the clear
@@ -580,14 +585,30 @@ export function create(host) {
     return { x: rx + (ux - rx) * look, y: ry + (uy - ry) * look };
   }
 
-  /** Where a plane's rest-pose picture sits on the display for this pose: an offset in points. */
+  /** Where a plane's rest-pose picture sits on the display for this pose: an offset in points.
+   *  (A plane's whole travel between the poses is a whole number of device pixels, so it comes to
+   *  rest ON the pixel grid: the last frame of a move is the standing frame, not a soft one.) */
   function planeOffset(plane, look, tilt) {
-    const c = G.cfg;
+    const c = G.cfg, s = G.s;
     return {
-      x: -c.T * plane.slide * look + tilt.x * plane.tilt[0],
-      y: c.D * plane.sink * look + tilt.y * plane.tilt[1],
+      x: -(Math.round(c.T * plane.slide * s) / s) * look + tilt.x * plane.tilt[0],
+      y: (Math.round(c.D * plane.sink * s) / s) * look + tilt.y * plane.tilt[1],
     };
   }
+  /** A layer's place in device pixels. At rest it is on the grid (a resampled layer is a soft one).
+   *  While the camera moves (0 < look < 1) it is left where it is, between pixels, and the layer is
+   *  drawn smoothed: a move rounded to whole pixels holds for a frame and then nudges at its slow ends. */
+  const onGrid = (v, look) => (look > 0 && look < 1 ? v : Math.round(v));
+  /** …and a plane between pixels is drawn with the canvas's better resampler: its plain bilinear one
+   *  truncates, which takes a near-black layer down half a level — the whole picture a shade darker
+   *  for the length of the move, and a step at each end. Only the planes: everything else (the mist,
+   *  which breathes between pixels at rest too; the star sprites) is drawn the one way, moving or still. */
+  const drawPlane = (ctx, image, x, y, look) => {
+    const moving = look > 0 && look < 1;
+    if (moving) { ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; }
+    ctx.drawImage(image, onGrid(x, look), onGrid(y, look));
+    if (moving) ctx.imageSmoothingQuality = 'low';
+  };
   const SKYPLANE = { slide: 1, sink: 1, tilt: [-1.2, -0.6] };
 
   // ── where the lights are ─────────────────────────────────────────────
@@ -650,13 +671,9 @@ export function create(host) {
   function resolve(state, look) {
     const c = G.cfg;
     const dark = state.scheme !== 'light';
-    let B = bloomOf(state);
-    // Waking reverses bedtime: at the instant he wakes the room is still as it was while he slept —
-    // dimmed — and it un-dims over the next five seconds, as tonight's star cools and goes out.
-    if (state.event && state.event.kind === 'wake' && state.asleep !== 'night') {
-      const still = 1 - smoothstep(0.3, 5.0, state.event.age);
-      if (still > B.depth) B = { ...B, depth: still };
-    }
+    // (The room's dimming across a sleep's start and end is the lab's — lab/presence.js, roomDepth: at a
+    // wake it starts from what that sleep had and eases out, and the bloom is taken from that eased depth.)
+    const B = bloomOf(state);
     const altDeg = state.sun.altitude / DEG;
     const morning = state.sun.isNight ? state.sun.progress > 0.5 : state.sun.progress < 0.5;
     const sea = seasonOf(state);
@@ -2559,7 +2576,7 @@ export function create(host) {
   function starsFor(state) {
     const c = G.cfg;
     const L = state.layout ?? {};
-    const key = [state.ageDays, state.tonightLit, c.kind, G.Wa, L.name?.x, L.name?.width, L.age?.width, L.gear?.x].join('|');
+    const key = [state.ageDays, nightBegunOf(state), c.kind, G.Wa, L.name?.x, L.name?.width, L.age?.width, L.gear?.x].join('|');
     if (G.stars.key === key) return G.stars;
     const outs = starKeepOuts(state);
     const hLook = c.H0 + c.D;
@@ -2633,7 +2650,7 @@ export function create(host) {
       }
       return true;
     };
-    for (const star of nights(state.ageDays, { tonightLit: state.tonightLit })) {
+    for (const star of nights(state.ageDays, { tonightLit: nightBegunOf(state) })) {
       if (star.kind === 'tonight') {
         list.push({ ...star, lx: tonightLook.x, ly: tonightLook.y });
         continue;
@@ -2673,7 +2690,8 @@ export function create(host) {
     const far = [];
     if (G.ox > 0) {
       const span = G.ox + c.T - 2;                         // from the fold (looking up) to the leading edge
-      const count = clamp(Math.round(1.12 * list.length * (span / G.Wa) * 0.84), 80, 460);
+      // (by his nights, tonight's among them whether its star is lit yet or not: the page beside his sky does not gain a star the instant he goes down)
+      const count = clamp(Math.round(1.12 * Math.max(1, Math.floor(state.ageDays) + 1) * (span / G.Wa) * 0.84), 80, 460);
       const expShare = 0.36, fall = 190;
       const title = L.title ? { x0: L.title.x - G.ox - 8, x1: L.title.x - G.ox + Math.max(L.title.width, L.subtitle ? L.subtitle.width : 0) + 22, y0: L.title.y - 8, y1: (L.subtitle ? L.subtitle.y + L.subtitle.height : L.title.y + L.title.height) + 8 } : null;
       for (let n = 0; n < count; n += 1) {
@@ -2876,13 +2894,18 @@ export function create(host) {
   /** Tonight's star: the evening star above the tree's shoulder. Drawn over the land, so
    *  nothing ever hides it; it travels with the tree. */
   function drawTonight(ctx, state, pal, time, at, ring) {
-    const lit = state.tonightLit;
-    const wake = state.event && state.event.kind === 'wake' ? state.event.age : null;
-    if (!lit && wake == null) return;
+    // Lit exactly while the night has begun. It comes on only where the night begins — with the
+    // moment's spark, or quietly over the first second when the night's sleep arrives from elsewhere —
+    // and goes out only at first light, as the view settles. Nothing lights or cools it at a wake.
+    const lit = nightBegunOf(state);
+    const e = state.event;
+    const settle = e && e.kind === 'settle' ? e.age : null;
+    if (!lit && settle == null) return;
     const s = G.s, c = G.cfg;
-    const bed = state.event && state.event.kind === 'bedtime' && state.asleep === 'night' ? state.event.age : null;
+    const bed = e && e.kind === 'bedtime' && state.asleep === 'night' ? e.age : null;
     let spark = bed == null ? 1 : ignition(bed);
-    if (!lit && wake != null) spark = 1 - smoothstep(0.4, 4.5, wake);       // morning: it cools and joins the rest
+    if (e && e.kind === 'arrive' && !e.begunBefore && state.asleep === 'night') spark = smoothstep(0, 0.8, e.age);
+    if (settle != null) spark = 1 - smoothstep(0.1, 2.3, settle);           // first light: it goes out with the other stars
     if (!(spark > 0.004)) return;
     const breath = time == null ? 0.94 : 0.86 + 0.14 * Math.cos((TAU * time) / 5.2);
     const k = Math.min(spark, 1.35);
@@ -3193,7 +3216,7 @@ export function create(host) {
         ctx.drawImage(m.canvas, px, py);
         ctx.globalAlpha = 1;
       });
-      ctx.drawImage(plane.canvas, Math.round((G.xL + G.ox + off.x) * s), Math.round((plane.y0 + off.y) * s));
+      drawPlane(ctx, plane.canvas, (G.xL + G.ox + off.x) * s, (plane.y0 + off.y) * s, look);
       // Opening the Duo — the one thing that happens in the bare second: light runs down the river
       // toward you. A crest leaves the furthest bend at 0.1 s and is at the foot of the page by 0.9 s,
       // slow among the far bends and quick through the near reach, as anything coming up a valley is.
@@ -3231,7 +3254,7 @@ export function create(host) {
           b.fillRect(0, 0, cw, ch);
           ctx.globalCompositeOperation = pal.dark ? 'lighter' : 'source-over';
           ctx.globalAlpha = clamp01(amount * (pal.dark ? 0.6 : 0.85));
-          ctx.drawImage(b.canvas, 0, 0, cw, ch, Math.round((G.xL + G.ox + off.x) * s) + RL.x, Math.round((RL.y0 + off.y) * s) + RL.y, cw, ch);
+          ctx.drawImage(b.canvas, 0, 0, cw, ch, onGrid((G.xL + G.ox + off.x) * s, look) + RL.x, onGrid((RL.y0 + off.y) * s, look) + RL.y, cw, ch);
           ctx.globalCompositeOperation = 'source-over';
           ctx.globalAlpha = 1;
         }
@@ -3270,7 +3293,7 @@ export function create(host) {
     // the tall sky
     const adj = pal.adjust ?? 'none';
     ctx.filter = adj;
-    ctx.drawImage(G.sky, Math.round((G.xL + G.ox + skyOff.x) * s), Math.round((G.skyTop + skyOff.y) * s));
+    drawPlane(ctx, G.sky, (G.xL + G.ox + skyOff.x) * s, (G.skyTop + skyOff.y) * s, look);
     ctx.filter = 'none';
 
     // where the bodies are in this pose
@@ -3447,7 +3470,7 @@ export function create(host) {
 
   let lastState = null;
   let lookBuffer = null;
-  let painted = null, lastTone = null, lastRenderMs = 0, lastMovedMs = -1e9;
+  let painted = null, lastRaw = null, lastRenderMs = 0, lastMovedMs = -1e9;
   function render(state) {
     if (destroyed || !state || !state.sun) return;
     lastState = state;
@@ -3488,20 +3511,33 @@ export function create(host) {
     // A still (a frozen frame, the first frame) is always painted exactly.
     const nowMs = performance.now();
     const playing = !state.frozen && time != null && Boolean(state.event) && lastRenderMs > 0 && nowMs - lastRenderMs < 600;
-    if (lastTone && Math.abs(tone.p - lastTone.p) + Math.abs(tone.d - lastTone.d) > 0.0005) lastMovedMs = nowMs;
-    const moving = nowMs - lastMovedMs < 350 ? 1 : 0;
+    // The tone is MOVING while its true value (not the stepped one) still changes from one frame to the
+    // next, and for a little over a second after — long enough to bridge a plateau inside an event (the
+    // bloom's hold). So the planes are painted afresh exactly once, when the tone has come to rest.
+    // (Judged by the stepped tone and a third of a second, the tail of a slow settling — steps further
+    // apart than the wait — went back and forth between the exact paint and a filter of 0.999.)
+    const raw = { p: pal.B.presence, d: pal.B.depth };
+    if (lastRaw && Math.abs(raw.p - lastRaw.p) + Math.abs(raw.d - lastRaw.d) > 1e-6) lastMovedMs = nowMs;
+    const moving = nowMs - lastMovedMs < 1200;
     let adjust = null;
-    if (playing && keys.base === baseKey && painted && moving > 0.0005 && Math.abs(tone.p - painted.p) <= 0.62) {
+    if (playing && keys.base === baseKey && painted && moving && Math.abs(tone.p - painted.p) <= 0.62) {
       if (tone.p !== painted.p || tone.d !== painted.d) {
+        let bright, sat;
         if (pal.dark) {
           const f = (t) => (1 - 0.12 * (1 - t.p)) * (1 - 0.14 * t.d), g = (t) => (0.4 + 0.6 * t.p) * (1 - 0.12 * t.d);
           const Lk = f(tone) / f(painted), Ck = g(tone) / g(painted);
-          adjust = `brightness(${Math.pow(Lk, 1.25).toFixed(4)}) saturate(${(Ck / Lk).toFixed(4)})`;
+          bright = Math.pow(Lk, 1.25); sat = Ck / Lk;
         } else {
           const c0 = lerp(0.2, 0.62, pal.air.night);
           const g = (t) => (c0 + (1 - c0) * t.p) * (1 - 0.25 * t.d);
-          adjust = `brightness(${(1 - 0.013 * (tone.d - painted.d)).toFixed(4)}) saturate(${(g(tone) / g(painted)).toFixed(4)})`;
+          bright = 1 - 0.013 * (tone.d - painted.d); sat = g(tone) / g(painted);
         }
+        // (No filter within 0.2 % of 1: on a near-black sky ANY brightness below 1 takes every pixel
+        // down a whole code value — an 8-bit layer cannot be multiplied by 0.999.)
+        const parts = [];
+        if (Math.abs(bright - 1) >= 0.002) parts.push(`brightness(${bright.toFixed(4)})`);
+        if (Math.abs(sat - 1) >= 0.002) parts.push(`saturate(${sat.toFixed(4)})`);
+        if (parts.length) adjust = parts.join(' ');
       }
     } else {
       const airKey = `${baseKey}|${tone.p}|${tone.d}`;
@@ -3516,7 +3552,7 @@ export function create(host) {
         repainted = true;
       }
     }
-    lastTone = tone;
+    lastRaw = raw;
     pal.adjust = adjust;
     if (G.tree.masksKey !== seaKey) {
       const tm = performance.now();

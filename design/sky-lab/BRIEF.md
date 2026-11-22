@@ -311,8 +311,10 @@ is too much"; it has not been put to him yet, and it will be shown to him as suc
 1. **Home looks up from the start of tonight's night sleep until first light**, not "while a
    night sleep runs". One fact, *the night has begun*, is true from the moment tonight's
    night sleep first starts (by any means) until first light the next morning (the sun
-   coming up through about −6°). While it is true the view is up and tonight's star is lit,
-   whether he is asleep or awake.
+   coming up through −7°: the number was chosen by looking — at −6° the sky that is still
+   holding the view up has four stars left in it; `skies/hill-painted.md`, "Composition and
+   camera"). While it is true the view is up and tonight's star is lit, whether he is asleep
+   or awake.
    - **A night feed moves nothing.** He wakes at 3 a.m.: the room un-dims a little, the view
      stays up, the star stays in its window. He is put down again: the room dims. There is
      no `resettle` any more.

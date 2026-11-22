@@ -36,10 +36,12 @@ const USAGE = `Usage: node tools/shoot.mjs --sky <id> [options]
   --sheet                 also a contact sheet per device x scheme: sheet-<device>-<scheme>.png
   --sheet-scale <0-1>     thumbnail size on the sheet    (default: 0.5)
 
-Also passed through: --motion 0|1, --event <kind> --event-age <s>, --lead <0-1>,
---veil <0-1>, --tilt <x,y>, --snowfall <0-1> (snow in the air, forced), --lit 0|1
-(tonight's star, forced), --toast 1, --bezel 1 (shoots the device, bezel included),
-and any other viewer parameter as --param key=value (repeatable).
+Also passed through: --motion 0|1, --event <kind> --event-age <s> (bedtime, arrive,
+settle, wake, open, close), --woke night|nap (the sleep a wake ended), --lead <0-1>,
+--veil <0-1>, --tilt <x,y>, --snowfall <0-1> (snow in the air, forced), --begun 0|1
+(the night has begun — the view up, tonight's star lit — forced; --lit is its old
+name), --toast 1, --bezel 1 (shoots the device, bezel included), and any other
+viewer parameter as --param key=value (repeatable).
 Tuning: --jobs <n> pages at once (default 4), --timeout <s> per shot (default 45),
 --sheet-cols <n> thumbnails per row (default: as many as fit in --sheet-width <px>,
 default 2000 — eight covers or four spreads to a row), --sheet-dpr <n> (default 1).
@@ -81,7 +83,7 @@ function parseArgs(argv) {
 
 const KNOWN = new Set(['sky', 'devices', 'schemes', 'times', 'asleep', 'chrome', 'date', 'lat', 'lon', 'tz', 'age',
   't', 'dpr', 'out', 'sheet', 'sheet-scale', 'sheet-cols', 'sheet-width', 'sheet-dpr', 'motion', 'event', 'event-age',
-  'lead', 'veil', 'tilt', 'snowfall', 'lit', 'toast', 'bezel', 'jobs', 'timeout', 'param', 'help']);
+  'lead', 'veil', 'tilt', 'snowfall', 'begun', 'lit', 'woke', 'toast', 'bezel', 'jobs', 'timeout', 'param', 'help']);
 
 const list = (value, fallback) => (value == null ? fallback : String(value).split(',').map((s) => s.trim()).filter(Boolean));
 
@@ -116,9 +118,10 @@ function readOptions(argv) {
 
   // What every shot's URL carries besides device, scheme and time.
   const query = { sky: options.sky, asleep, chrome, t: numberOption(options, 't', 12, -1e9, 1e9), dpr: numberOption(options, 'dpr', 2, 1, 3) };
-  for (const key of ['date', 'lat', 'lon', 'tz', 'age', 'motion', 'event', 'lead', 'veil', 'tilt', 'snowfall', 'lit', 'toast', 'bezel']) {
+  for (const key of ['date', 'lat', 'lon', 'tz', 'age', 'motion', 'event', 'woke', 'lead', 'veil', 'tilt', 'snowfall', 'begun', 'toast', 'bezel']) {
     if (options[key] != null) query[key] = String(options[key]);
   }
+  if (options.lit != null && options.begun == null) query.begun = String(options.lit);      // (--lit: what --begun was called)
   if (options['event-age'] != null) query.eventAge = String(options['event-age']);
   for (const pair of options.param) {
     const eq = String(pair).indexOf('=');
@@ -138,7 +141,10 @@ function readOptions(argv) {
       fail(`--${key} "${options[key]}" is not a value the viewer accepts (it would use ${read[key]})`);
     }
   }
-  if (options.lit != null && !['0', '1'].includes(String(options.lit))) fail(`--lit is 0 or 1 (got "${options.lit}")`);
+  for (const key of ['begun', 'lit']) {
+    if (options[key] != null && !['0', '1'].includes(String(options[key]))) fail(`--${key} is 0 or 1 (got "${options[key]}")`);
+  }
+  if (options.woke != null && !['night', 'nap'].includes(String(options.woke))) fail(`--woke is night or nap (got "${options.woke}")`);
 
   return {
     sky: options.sky,
@@ -299,7 +305,8 @@ function sheetHtml(options, device, scheme, jobs) {
   const title = [options.sky, device, scheme, read.date,
     options.asleep !== '0' ? `asleep: ${options.asleep}` : '', options.chrome === '0' ? 'sky alone' : '',
     read.event ? `event: ${read.event} +${read.eventAge}s` : '',
-    read.snowfall != null ? `snowfall ${read.snowfall}` : '', read.lit != null ? `star ${read.lit ? 'lit' : 'unlit'}` : '',
+    read.event === 'wake' && read.woke ? `woke: ${read.woke}` : '',
+    read.snowfall != null ? `snowfall ${read.snowfall}` : '', read.begun != null ? `night ${read.begun ? 'begun' : 'not begun'}` : '',
     read.tilt ? `tilt ${read.tilt.x},${read.tilt.y}` : '',
     `t=${options.query.t}`].filter(Boolean).join('  ·  ');
   const cells = jobs.map((job) => `

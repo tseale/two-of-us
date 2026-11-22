@@ -24,8 +24,10 @@
 //    a browser — not here.)
 // 5. What the viewer adds to the state (lab/core.js): `sun.x` (equal to the
 //    baseline's rule by day, continuous through sunset and sunrise),
-//    `tonightLit` against the chrome's sample night, `snowfall` through the URL
-//    and through lab/season.js, the layout's stand-in.
+//    `nightBegun` (the night has begun: from the evening's sleep until first
+//    light) and what an event means in it, the room's dimming across a sleep's
+//    start and end (lab/presence.js), `snowfall` through the URL and through
+//    lab/season.js, the layout's stand-in.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -33,6 +35,7 @@ import * as solar from '../lab/solar.js';
 import * as palette from '../lab/palette.js';
 import * as core from '../lab/core.js';
 import { season, forceSnowfall } from '../lab/season.js';
+import { presence, roomDepth, SLEEP_DEPTH } from '../lab/presence.js';
 import { sampleNight } from '../lab/chrome.js';
 import { sunHalo } from '../skies/baseline.js';
 
@@ -1361,41 +1364,190 @@ test('sun.x jumps once a day, in the middle of the night', () => {
   }
 });
 
-test('tonightLit: asleep for the night, or inside the sample day\'s night', () => {
+/** The first local minute of the morning at which the sun is at or over first light, for a query. */
+function firstLightMinute(query = {}) {
+  for (let m = 0; m < 12 * 60; m += 1) {
+    const state = core.buildState(core.parseParams({ ...query, time: core.minutesToTime(m) }));
+    const morning = state.sun.isNight ? state.sun.progress > 0.5 : state.sun.progress < 0.5;
+    if (morning && state.sun.altitude / DEG >= core.FIRST_LIGHT_DEG) return m;
+  }
+  return NaN;
+}
+const JUNE = { date: '2027-06-21', tz: '-5', age: '354' };
+const JULY = { date: '2027-07-04', tz: '-5', age: '367' };
+
+test('nightBegun: from the night sleep (or the sample bedtime) until first light', () => {
   // lab/core.js keeps a copy of the chrome's sample night (or 19:40–06:30 if the sample had none).
   same(core.SAMPLE_NIGHT, sampleNight() ?? { bedtime: 19 * 60 + 40, wake: 6 * 60 + 30 }, 'SAMPLE_NIGHT is lab/chrome.js\'s sampleNight()');
   same(core.SAMPLE_NIGHT, { bedtime: 1210, wake: 400 }, 'down at 20:10, up at 06:40');
-  const lit = (query) => core.buildState(core.parseParams(query)).tonightLit;
-  for (const [time, expected] of [['20:09', false], ['20:10', true], ['21:00', true], ['23:59', true], ['00:00', true],
-    ['03:00', true], ['06:39', true], ['06:40', false], ['06:50', false], ['12:30', false], ['16:10', false], ['19:40', false]]) {
-    equal(lit({ time }), expected, `awake at ${time}`);
+  equal(core.FIRST_LIGHT_DEG, -7, 'first light: the sun coming up through −7°');
+  const state = (query) => core.buildState(core.parseParams(query));
+  const begun = (query) => state(query).nightBegun;
+  // First light, by the sun: 06:12 on the default day in Chicago, 04:35 on 21 June.
+  const dawn = firstLightMinute();
+  equal(core.minutesToTime(dawn), '06:12', 'first light on 21 November');
+  equal(core.minutesToTime(firstLightMinute(JUNE)), '04:35', 'first light on 21 June');
+  ok(state({ time: core.minutesToTime(dawn - 1) }).sun.altitude / DEG < -7, 'the minute before, the sun is under −7°');
+  // Awake: once the sample bedtime has passed, until first light.
+  for (const [time, expected] of [['16:10', false], ['18:30', false], ['19:40', false], ['20:09', false], ['20:10', true], ['21:00', true],
+    ['23:59', true], ['00:00', true], ['03:00', true], ['06:11', true], ['06:12', false], ['06:40', false], ['06:50', false], ['12:30', false]]) {
+    equal(begun({ time }), expected, `awake at ${time}`);
   }
-  equal(lit({ time: '12:30', asleep: 'night' }), true, 'asleep for the night at midday');
-  equal(lit({ time: '19:40', asleep: 'night' }), true, 'asleep for the night at 19:40');
-  equal(lit({ time: '12:30', asleep: 'nap' }), false, 'a nap lights nothing');
-  equal(lit({ time: '21:00', asleep: 'nap' }), true, 'a nap inside the sample night changes nothing');
-  equal(lit({ time: '12:30', lit: '1' }), true, 'lit=1 forces it');
-  equal(lit({ time: '21:00', lit: '0' }), false, 'lit=0 forces it off');
-  equal(lit({ time: '21:00', asleep: 'night', lit: '0' }), false, 'lit=0 wins over asleep=night');
-  equal(typeof lit({}), 'boolean', 'always a boolean');
+  // A night sleep running: from the evening (sunset, or 18:00 while the sun is up) until first light.
+  for (const [time, expected] of [['16:10', false], ['16:40', true], ['17:30', true], ['19:40', true], ['21:00', true], ['03:00', true],
+    ['06:10', true], ['06:11', true], ['06:12', false], ['07:30', false], ['12:30', false]]) {
+    equal(begun({ time, asleep: 'night' }), expected, `asleep for the night at ${time}`);
+  }
+  equal(begun({ ...JULY, time: '19:40', asleep: 'night' }), true, 'July 19:40, the sun still up: the night has begun');
+  equal(begun({ ...JULY, time: '17:59', asleep: 'night' }), false, 'July 17:59: not the evening yet');
+  equal(begun({ ...JULY, time: '19:40' }), false, 'July 19:40 awake: not yet');
+  equal(begun({ ...JUNE, time: '04:34', asleep: 'night' }), true, '21 June 04:34, asleep: still the night');
+  equal(begun({ ...JUNE, time: '05:30', asleep: 'night' }), false, '21 June 05:30, asleep: the day, dimmed');
+  equal(begun({ ...JUNE, time: '08:00', asleep: 'night' }), false, '21 June 08:00, asleep: the day, dimmed');
+  // A nap changes nothing.
+  equal(begun({ time: '12:30', asleep: 'nap' }), false, 'a nap by day');
+  equal(begun({ time: '21:00', asleep: 'nap' }), true, 'a nap after the sample bedtime');
+  equal(begun({ time: '19:40', asleep: 'nap' }), false, 'a nap before it');
+  // Forced, and its old name.
+  equal(begun({ time: '12:30', begun: '1' }), true, 'begun=1 forces it');
+  equal(begun({ time: '21:00', begun: '0' }), false, 'begun=0 forces it off');
+  equal(begun({ time: '21:00', asleep: 'night', begun: '0' }), false, 'begun=0 wins over asleep=night');
+  equal(begun({ time: '12:30', lit: '1' }), true, 'lit=1 is begun=1');
+  equal(begun({ time: '21:00', lit: '1', begun: '0' }), false, 'begun= wins over its old name');
+  // tonightLit is the same fact.
+  for (const query of [{}, { time: '21:00' }, { time: '03:00', asleep: 'night' }, { time: '07:30', asleep: 'night' }, { time: '12:30', begun: '1' }]) {
+    const st = state(query);
+    equal(typeof st.nightBegun, 'boolean', 'always a boolean');
+    equal(st.tonightLit, st.nightBegun, 'tonightLit is nightBegun');
+  }
+  // nightHours on its own.
+  const sunAt = (query) => state(query).sun;
+  equal(core.nightHours(sunAt({ time: '12:30' }), 750), false, 'midday');
+  equal(core.nightHours(sunAt({ time: '17:00' }), 1020), true, 'after a November sunset');
+  equal(core.nightHours(sunAt({ ...JULY, time: '19:40' }), 1180), true, 'a July evening after 18:00');
+  equal(core.nightHours(sunAt({ time: '06:30' }), 390), false, 'past first light');
 });
 
-test('snowfall, lit and the rest of the URL round-trip', () => {
+test('events in the night: what the lab makes of each', () => {
+  const state = (query) => core.buildState(core.parseParams(query));
+  const kind = (query) => state(query).event?.kind ?? null;
+  // bedtime: the moment, where the night begins with it.
+  let st = state({ time: '19:40', asleep: 'night', event: 'bedtime', eventAge: '3' });
+  same(st.event, { kind: 'bedtime', age: 3, begunBefore: false }, 'bedtime at 19:40');
+  equal(st.nightBegun, true, '…and the night has begun');
+  equal(st.eventNote, undefined, 'nothing to note');
+  st = state({ ...JULY, time: '19:40', asleep: 'night', event: 'bedtime' });
+  equal(st.event.kind, 'bedtime', 'bedtime in July, the sun still up');
+  // …but not where it had already begun (a feed), for a nap, or with nobody asleep.
+  st = state({ time: '21:00', asleep: 'night', event: 'bedtime' });
+  same(st.event, { kind: 'arrive', age: 0, begunBefore: true }, 'bedtime at 21:00 is played as arrive');
+  ok(/already begun/.test(st.eventNote ?? ''), 'and the state says so');
+  equal(kind({ time: '21:00', asleep: 'night', event: 'bedtime', begun: '0' }), 'bedtime', 'begun=0: it had not begun — the moment');
+  equal(kind({ time: '13:10', asleep: 'nap', event: 'bedtime' }), 'arrive', 'a nap has no moment');
+  equal(kind({ time: '19:40', event: 'bedtime' }), null, 'bedtime with no sleep running is dropped');
+  ok(/dropped/.test(state({ time: '19:40', event: 'bedtime' }).eventNote ?? ''), 'and noted');
+  // arrive
+  same(state({ time: '19:40', asleep: 'night', event: 'arrive' }).event, { kind: 'arrive', age: 0, begunBefore: false }, 'arrive at 19:40: the night begins');
+  same(state({ time: '03:00', asleep: 'night', event: 'arrive' }).event, { kind: 'arrive', age: 0, begunBefore: true }, 'arrive at 03:00: it had begun');
+  st = state({ time: '13:10', asleep: 'nap', event: 'arrive' });
+  same([st.event.kind, st.event.begunBefore, st.nightBegun], ['arrive', false, false], 'arrive, a nap: no night');
+  equal(kind({ time: '13:10', event: 'arrive' }), null, 'arrive with no sleep running is dropped');
+  // wake: the night goes on as it was; which sleep ended is said, or taken from the hour.
+  st = state({ time: '03:00', event: 'wake' });
+  same(st.event, { kind: 'wake', age: 0, begunBefore: true, woke: 'night' }, 'wake at 03:00');
+  equal(st.nightBegun, true, 'a night feed: the night goes on');
+  st = state({ time: '19:50', event: 'wake', woke: 'night' });
+  equal(st.nightBegun, true, 'a night sleep ended before the sample bedtime: the night had begun, and goes on');
+  equal(state({ time: '19:50', event: 'wake', woke: 'nap' }).nightBegun, false, 'a nap ended at 19:50: no night yet');
+  equal(state({ time: '13:10', event: 'wake' }).event.woke, 'nap', 'wake at 13:10: a nap\'s');
+  equal(state({ time: '18:25', event: 'wake' }).event.woke, 'nap', 'wake at 18:25: a nap\'s');
+  equal(state({ time: '06:40', event: 'wake' }).event.woke, 'night', 'wake at 06:40: the night\'s');
+  equal(state({ time: '08:59', event: 'wake' }).event.woke, 'night', 'wake at 08:59: the night\'s');
+  equal(state({ time: '06:40', event: 'wake' }).nightBegun, false, '…after first light: the day');
+  equal(kind({ time: '03:00', asleep: 'night', event: 'wake' }), null, 'wake with a sleep running is dropped');
+  same([core.wokeFrom(539), core.wokeFrom(540), core.wokeFrom(1209), core.wokeFrom(1210)], ['night', 'nap', 'nap', 'night'], 'wokeFrom');
+  // settle: first light.
+  const dawn = core.minutesToTime(firstLightMinute());
+  st = state({ time: dawn, asleep: 'night', event: 'settle', eventAge: '1' });
+  same(st.event, { kind: 'settle', age: 1, begunBefore: true }, 'settle at first light');
+  equal(st.nightBegun, false, '…the night is over');
+  equal(state({ time: dawn, event: 'settle' }).event.kind, 'settle', 'settle, awake (the sample bedtime had passed)');
+  equal(kind({ time: '03:00', asleep: 'night', event: 'settle' }), null, 'settle before first light is dropped');
+  equal(state({ time: '03:00', asleep: 'night', event: 'settle' }).nightBegun, true, '…and the night stands');
+  equal(kind({ time: '16:10', asleep: 'night', event: 'settle' }), null, 'settle in the afternoon is dropped');
+  equal(kind({ time: dawn, asleep: 'night', event: 'settle', begun: '0' }), null, 'settle with no night begun is dropped');
+  // open and close leave the night as it stands.
+  same(state({ time: '21:00', asleep: 'night', event: 'open' }).event, { kind: 'open', age: 0, begunBefore: true }, 'open at night');
+  equal(state({ time: '16:12', event: 'open' }).nightBegun, false, 'open by day');
+});
+
+test('the room\'s dimming never jumps: it eases across a sleep\'s start and end', () => {
+  const state = (query) => core.buildState(core.parseParams(query));
+  same(SLEEP_DEPTH, { night: 1, nap: 0.45 }, 'a night dims the room wholly, a nap 0.45');
+  equal(roomDepth(state({ time: '21:00', asleep: 'night' })), 1, 'a night sleep, standing');
+  equal(roomDepth(state({ time: '13:10', asleep: 'nap' })), 0.45, 'a nap, standing');
+  equal(roomDepth(state({ time: '13:10' })), 0, 'awake');
+  // Every join: the event's first frame has the depth and the presence of the standing frame before it,
+  // and its last the standing frame after.
+  const joins = [
+    ['bedtime, November', { time: '19:40' }, { time: '19:40', asleep: 'night', event: 'bedtime' }, { time: '19:40', asleep: 'night' }],
+    ['bedtime, July', { ...JULY, time: '19:40' }, { ...JULY, time: '19:40', asleep: 'night', event: 'bedtime' }, { ...JULY, time: '19:40', asleep: 'night' }],
+    ['a night feed', { time: '03:00', asleep: 'night' }, { time: '03:00', event: 'wake', woke: 'night' }, { time: '03:00' }],
+    ['put down again', { time: '03:00' }, { time: '03:00', asleep: 'night', event: 'arrive' }, { time: '03:00', asleep: 'night' }],
+    ['a nap ends at 13:10', { time: '13:10', asleep: 'nap' }, { time: '13:10', event: 'wake', woke: 'nap' }, { time: '13:10' }],
+    ['a nap ends at 16:10', { time: '16:10', asleep: 'nap' }, { time: '16:10', event: 'wake', woke: 'nap' }, { time: '16:10' }],
+    ['a nap arrives', { time: '13:10' }, { time: '13:10', asleep: 'nap', event: 'arrive' }, { time: '13:10', asleep: 'nap' }],
+    ['a night sleep arrives', { time: '19:40' }, { time: '19:40', asleep: 'night', event: 'arrive' }, { time: '19:40', asleep: 'night' }],
+    ['the morning wake at dawn', { time: '06:40', asleep: 'night' }, { time: '06:40', event: 'wake', woke: 'night' }, { time: '06:40' }],
+    ['first light', { time: '06:12', asleep: 'night', begun: '1' }, { time: '06:12', asleep: 'night', event: 'settle' }, { time: '06:12', asleep: 'night' }],
+  ];
+  for (const [name, before, event, after] of joins) {
+    const b = presence(state(before)), e0 = presence(state({ ...event, eventAge: '0' })), e40 = presence(state({ ...event, eventAge: '40' })), a = presence(state(after));
+    near(e0.depth, b.depth, 1e-12, `${name}: depth at age 0 is the depth before`);
+    near(e0.presence, b.presence, 1e-12, `${name}: presence at age 0 is the presence before`);
+    near(e40.depth, a.depth, 1e-12, `${name}: depth at age 40 is the depth after`);
+    near(e40.presence, a.presence, 1e-12, `${name}: presence at age 40 is the presence after`);
+  }
+  // A wake un-dims from what that sleep had, over about five seconds, and never the other way.
+  let last = 1;
+  for (let age = 0; age <= 6; age += 0.25) {
+    const d = roomDepth(state({ time: '03:00', event: 'wake', woke: 'night', eventAge: String(age) }));
+    ok(d <= last + 1e-12, `a night's wake only un-dims (age ${age})`);
+    last = d;
+  }
+  equal(last, 0, 'un-dimmed by 5 s');
+  equal(roomDepth(state({ time: '13:10', event: 'wake', woke: 'nap', eventAge: '0' })), 0.45, 'a nap\'s wake starts from 0.45, not 1');
+  near(roomDepth(state({ time: '13:10', event: 'wake', woke: 'nap', eventAge: '2.65' })), 0.225, 0.02, '…and is half-way at about 2.65 s');
+  // A sleep that starts eases in from 0.
+  equal(roomDepth(state({ time: '19:40', asleep: 'night', event: 'arrive', eventAge: '0' })), 0, 'arrive: from 0');
+  equal(roomDepth(state({ time: '19:40', asleep: 'night', event: 'arrive', eventAge: '4' })), 1, 'arrive: dimmed by 4 s');
+  equal(roomDepth(state({ time: '19:40', asleep: 'night', event: 'bedtime', eventAge: '1.2' })), 0, 'bedtime: not before the cards have gone');
+  equal(roomDepth(state({ time: '19:40', asleep: 'night', event: 'bedtime', eventAge: '9' })), 1, 'bedtime: dimmed by 9 s');
+  // presence() also takes the bare state tools/measure.mjs hands it.
+  const bare = state({ time: '21:00', asleep: 'night' });
+  same(presence({ sun: bare.sun, moon: bare.moon, event: bare.event, asleep: bare.asleep }), presence(bare), 'presence() needs only sun, moon, event and asleep');
+});
+
+test('snowfall, begun and the rest of the URL round-trip', () => {
   const defaults = core.parseParams('');
   equal(defaults.snowfall, null, 'snowfall is unset by default');
-  equal(defaults.lit, null, 'lit is unset by default');
+  equal(defaults.begun, null, 'begun is unset by default');
+  equal(defaults.woke, null, 'woke is unset by default');
+  equal('lit' in defaults, false, 'there is one flag, not two');
   equal(core.toSearch(defaults), '', 'the defaults are an empty query');
   ok(!('snowfall' in core.buildState(defaults)), 'state.snowfall is absent until asked for');
-  for (const [query, snowfall, lit] of [['snowfall=1', 1, null], ['snowfall=0', 0, null], ['snowfall=0.4&lit=1', 0.4, true],
-    ['lit=0', null, false], ['snowfall=7', 1, null], ['snowfall=-2', 0, null], ['snowfall=deep&lit=perhaps', null, null]]) {
+  for (const [query, snowfall, begun] of [['snowfall=1', 1, null], ['snowfall=0', 0, null], ['snowfall=0.4&begun=1', 0.4, true],
+    ['begun=0', null, false], ['lit=1', null, true], ['lit=0', null, false], ['snowfall=7', 1, null], ['snowfall=-2', 0, null], ['snowfall=deep&begun=perhaps', null, null]]) {
     const params = core.parseParams(query);
     equal(params.snowfall, snowfall, `${query}: snowfall`);
-    equal(params.lit, lit, `${query}: lit`);
+    equal(params.begun, begun, `${query}: begun`);
     same(core.parseParams(core.toSearch(params)), params, `${query}: toSearch and back`);
     equal(core.buildState(params).snowfall, snowfall ?? undefined, `${query}: state.snowfall`);
   }
   const busy = 'sky=wet-wash&device=spread&scheme=light&date=2027-01-15&time=17:22&tz=-5&asleep=night&age=197&chrome=0&t=12'
-    + '&motion=0&event=bedtime&eventAge=3&lead=0.3&veil=0.5&tilt=-1,0.5&toast=1&snowfall=1&lit=0';
+    + '&motion=0&event=wake&eventAge=3&woke=nap&lead=0.3&veil=0.5&tilt=-1,0.5&toast=1&snowfall=1&begun=0';
+  equal(core.parseParams('woke=night').woke, 'night', 'woke=night');
+  equal(core.parseParams('woke=perhaps').woke, null, 'woke: only night or nap');
   equal(core.toSearch(core.parseParams(busy)), busy, 'every parameter comes back in toSearch\'s order');
 });
 

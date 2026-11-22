@@ -2,11 +2,11 @@
 // The review set: every sky photographed the same way, so directions can be
 // laid side by side. A thin wrapper over tools/shoot.mjs.
 //
-//   node tools/review.mjs --sky <id>                 everything: 532 shots. About 3 minutes for a 2-D canvas
-//                                                    sky; a shader sky in software GL is ~3 s a shot, some
-//                                                    25 minutes at --jobs 2 (README)
+//   node tools/review.mjs --sky <id>                 everything: 718 shots in 117 runs (--list counts them).
+//                                                    Minutes for a 2-D canvas sky; a shader sky in software GL
+//                                                    is ~3 s a shot at --jobs 2 (README)
 //   node tools/review.mjs --sky <id> --only day,open just those sets
-//   node tools/review.mjs --list                     the sets and what is in them
+//   node tools/review.mjs --list                     the sets, what is in them, and how many shots
 //   … --jobs 2 --timeout 120                         passed on to shoot.mjs (a busy machine, a heavy shader)
 //   … --out <dir>                                    somewhere else than shots/<sky>/review
 //
@@ -16,9 +16,17 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { solarDay } from '../lab/solar.js';
+import { joins, framesOf, firstLightTime } from './joins.mjs';
 
 const LAB = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const LAT = 41.88, LON = -87.63;
+
+/** What a run makes: [shots, sheets] (three devices, two schemes and eight hours unless its arguments say otherwise). */
+function countOf(run) {
+  const list = (flag, fallback) => { const i = run.args.indexOf(flag); return i >= 0 ? run.args[i + 1].split(',').length : fallback; };
+  const devices = list('--devices', 3);
+  return [devices * 2 * list('--times', 8), run.args.includes('--sheet') ? devices * 2 : 0];
+}
 
 /** Local HH:MM, `offsetMinutes` from that local day's sunset. */
 function fromSunset(dateText, tz, offsetMinutes) {
@@ -49,9 +57,16 @@ const smooth = (a, b, x) => { const u = Math.min(1, Math.max(0, (x - a) / (b - a
 const veilAt = (age) => Math.round(smooth(0, 1.6, age) * (1 - smooth(4.8, 6.8, age)) * 1000) / 1000;
 const BEDTIME = [0, 0.7, 1.6, 3, 4.4, 5.8, 9, 40].map((age) => ({ age, veil: veilAt(age) }));
 
-// A re-settle the same night: the night's sleep was ended for a feed and is
-// started again by hand (asleep=night, event=resettle). No card choreography.
-const RESETTLE = [0, 1.2, 2.5, 6];
+// A night sleep that arrives from elsewhere (the other phone, Siri, a widget)
+// while Home is on screen, at 19:40: the quiet rise behind the cards, 0 to 1 over
+// 2.5 s (asleep=night, event=arrive). No card choreography. The instants: the
+// frame it arrives; a third of the way up; half way; up; the room dimmed.
+const ARRIVE = [0, 0.8, 1.25, 2.5, 6];
+
+// First light, he still sleeps (asleep=night, event=settle, at the first minute
+// the sun is over the lab's threshold): the quiet settle behind the cards, down
+// over 0.1–2.7 s. The instants: first light; a third down; half way; down; after.
+const SETTLE = [0, 0.9, 1.4, 2.7, 6];
 
 // Opening the Duo: the panorama holds on the leading page before its cards land.
 const OPEN = [
@@ -59,10 +74,10 @@ const OPEN = [
   { age: 1.8, lead: 1 }, { age: 3, lead: 1 }, { age: 8, lead: 1 },
 ];
 
-// Waking: the sample day's morning wake (lab/chrome.js; state.tonightLit turns
-// off there), the instant it happens and four after (a sky that looks up while
-// he sleeps settles back to the land over the first three seconds).
-const WAKE = [0, 1.5, 2.5, 4, 9];
+// The joins (tools/joins.mjs): a viewer parameter → the shoot.mjs option that sets it.
+const SHOOT_FLAG = { time: '--times', asleep: '--asleep', date: '--date', tz: '--tz', age: '--age', event: '--event',
+  eventAge: '--event-age', woke: '--woke', begun: '--begun' };
+const JUNE = ['--date', '2027-06-21', '--tz', '-5', '--age', '354'];
 
 // The minutes the sun (mid-morning) and the moon (early evening) cross the
 // header's text on the default day.
@@ -110,7 +125,7 @@ function sets() {
       }))),
   });
   out.push({
-    name: 'still', about: 'Reduce Motion (motion=0) at four hours, and a second instant of the animation (t=95) to compare drift against the day set.',
+    name: 'still', about: 'Reduce Motion (motion=0) at three hours, and a second instant of the animation (t=95) to compare drift against the day set.',
     runs: [{ dir: 'reduce-motion', args: ['--motion', '0', '--times', '09:30,16:10,21:00', '--devices', 'cover,spread'] },
            { dir: 't95', args: ['--t', '95', '--times', '09:30,16:10,21:00', '--devices', 'cover,spread'] }],
   });
@@ -134,12 +149,27 @@ function sets() {
     })),
   });
   out.push({
-    name: 'wake', about: 'He wakes at 06:40 (event=wake): five instants, 0 to 9 s.',
-    runs: WAKE.map((age) => ({ dir: frame(age), args: ['--times', '06:40', '--event', 'wake', '--event-age', String(age)] })),
+    name: 'night', about: 'The night as it stands (BRIEF.md: Home looks up from the night sleep\'s start until first light): awake at 18:30 (before bedtime: at rest), 21:00 and 03:00 (a feed: up, star lit); asleep at 06:10 (up) and 07:30 (after first light: at rest, dimmed); asleep at 05:30 and 08:00 on 21 June (the day, dimmed). With the UI and bare. Sheets.',
+    runs: [['', []], ['-bare', ['--chrome', '0']]].flatMap(([suffix, extra]) => [
+      { dir: `awake${suffix}`, args: ['--sheet', '--times', '18:30,21:00,03:00', ...extra] },
+      { dir: `asleep-nov${suffix}`, args: ['--sheet', '--times', '06:10,07:30', '--asleep', 'night', ...extra] },
+      { dir: `asleep-jun${suffix}`, args: ['--sheet', ...JUNE, '--times', '05:30,08:00', '--asleep', 'night', ...extra] },
+    ]),
   });
   out.push({
-    name: 'resettle', about: 'A re-settle the same night at 03:00 (asleep=night, event=resettle): four instants, 0 to 6 s. No veil.',
-    runs: RESETTLE.map((age) => ({ dir: frame(age), args: ['--times', '03:00', '--asleep', 'night', '--event', 'resettle', '--event-age', String(age)] })),
+    name: 'arrive', about: 'A night sleep arrives from elsewhere at 19:40 (asleep=night, event=arrive): the quiet rise behind the cards, five instants, 0 to 6 s. No veil.',
+    runs: ARRIVE.map((age) => ({ dir: frame(age), args: ['--times', '19:40', '--asleep', 'night', '--event', 'arrive', '--event-age', String(age)] })),
+  });
+  out.push({
+    name: 'settle', about: `First light with him still asleep (${firstLightTime({})}, asleep=night, event=settle): the quiet settle behind the cards, five instants, 0 to 6 s.`,
+    runs: SETTLE.map((age) => ({ dir: frame(age), args: ['--times', firstLightTime({}), '--asleep', 'night', '--event', 'settle', '--event-age', String(age)] })),
+  });
+  out.push({
+    name: 'joins', about: 'No join may jump (tools/joins.mjs measures them): for every change of state, the standing frame before | the event\'s first frame, and the event\'s last frame | the standing frame after. Cover, both schemes, UI on.',
+    runs: joins().flatMap((join) => framesOf(join).map((f) => ({
+      dir: `${join.id}/${f.frame}`,
+      args: ['--devices', 'cover', ...Object.entries(f.params).flatMap(([key, value]) => [SHOOT_FLAG[key], String(value)])],
+    }))),
   });
   return out;
 }
@@ -149,7 +179,14 @@ function main() {
   const value = (flag) => { const i = argv.indexOf(flag); return i >= 0 ? argv[i + 1] : null; };
   const all = sets();
   if (argv.includes('--list') || argv.includes('--help')) {
-    for (const s of all) process.stdout.write(`${s.name.padEnd(9)} ${s.about}\n${s.runs.map((r) => `            ${r.dir || '.'}  ${r.args.join(' ')}`).join('\n')}\n`);
+    let shots = 0, sheets = 0, runs = 0;
+    for (const s of all) {
+      const counts = s.runs.map(countOf);
+      const mine = counts.reduce((sum, c) => sum + c[0], 0);
+      shots += mine; sheets += counts.reduce((sum, c) => sum + c[1], 0); runs += s.runs.length;
+      process.stdout.write(`${s.name.padEnd(9)} ${s.about} (${mine} shots)\n${s.runs.map((r) => `            ${r.dir || '.'}  ${r.args.join(' ')}`).join('\n')}\n`);
+    }
+    process.stdout.write(`\n${shots} shots and ${sheets} sheets in ${runs} runs of shoot.mjs\n`);
     return;
   }
   const unknown = argv.filter((arg, i) => arg.startsWith('--') && !['--sky', '--only', '--jobs', '--timeout', '--out'].includes(arg)

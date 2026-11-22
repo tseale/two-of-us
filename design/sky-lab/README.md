@@ -24,10 +24,11 @@ time of day, in both appearances. Mockups only — the app's sky is the Swift co
 | `skies/index.js` | The ids the panel's picker lists (`sky=<id>` loads any file in `skies/`). |
 | `assets/` | The cloud and grain PNGs copied from `TwoOfUs/Assets.xcassets/Sky`; `fonts/` is Nunito, the chrome's stand-in for SF Rounded. |
 | `tools/shoot.mjs` | Playwright: one PNG per (device × scheme × time), and a contact sheet. |
-| `tools/review.mjs` | The review set: every sky shot the same way (day, bare, asleep, seasons, bedtime, the Duo opening, stillness, the header's text, tilt, snowfall, waking) into `shots/<sky>/review/`. `--list` shows it. |
-| `tools/film.mjs` | A moment (bedtime, the Duo opening, waking, a re-settle) as a video: the viewer stepped one frame at a time and joined by ffmpeg, so the timing is exact at any render cost. Into `gallery/film/<sky>/`. |
+| `tools/review.mjs` | The review set: every sky shot the same way (day, bare, asleep, seasons, bedtime, the Duo opening, stillness, the header's text, tilt, snowfall, the night as it stands, a night sleep arriving, first light, the joins) into `shots/<sky>/review/`. `--list` shows it and counts it. |
+| `tools/film.mjs` | A moment (bedtime, a night sleep arriving, first light, waking, the Duo opening) as a video: the viewer stepped one frame at a time and joined by ffmpeg, so the timing is exact at any render cost. It opens on the standing state *before* the event, so a film shows its own first frame's join. Into `gallery/film/<sky>/`. |
+| `tools/joins.mjs` | No join may jump: for every change of state, the standing frame before against the event's first frame, and the event's last frame against the standing frame after, measured (below). Exit code 1 if one jumps. |
 | `tools/measure.mjs` | One shared measurement of `BRIEF.md`'s hard limits for any sky; `--help` lists options. |
-| `tools/test-math.mjs` | The Swift unit tests for the sun, moon and palette, ported, and the port checked against the Swift source; then what the viewer adds to the state (`sun.x`, `tonightLit`, `snowfall`). |
+| `tools/test-math.mjs` | The Swift unit tests for the sun, moon and palette, ported, and the port checked against the Swift source; then what the viewer adds to the state (`sun.x`, `nightBegun` and what an event means in it, the room's dimming across a sleep's start and end, `snowfall`). |
 | `tools/chrome-preview.html` | The chrome alone over a flat gradient, for working on `lab/chrome.js`. |
 | `shots/` | Output. Not committed. |
 
@@ -92,7 +93,8 @@ export function create(host, env) {       // env = { assets: 'assets/', solar, p
 
   asleep: false | 'nap' | 'night',      // a sleep is running
   ageDays,                              // how old he is (lab default 142)
-  tonightLit,                           // boolean: tonight's star has been lit (below)
+  nightBegun,                           // boolean: THE NIGHT HAS BEGUN — from the start of tonight's night sleep until first light (below)
+  tonightLit,                           // the same boolean under its first name: tonight's star is lit exactly while the night has begun
 
   t,                                    // seconds, monotonic; frozen when the URL has t=
   frozen,                               // true while the clock is held (t=): the frame stands alone, so draw it exactly
@@ -105,7 +107,9 @@ export function create(host, env) {       // env = { assets: 'assets/', solar, p
             measured },                 // true; false only where no chrome could be laid out
 
   tilt:  { x, y },                      // −1…1 each, for parallax; 0, 0 unless tilt= (or the panel's pointer tilt)
-  event: null | { kind, age },          // 'bedtime' | 'resettle' | 'wake' | 'open' | 'close', and seconds since (lab/presence.js)
+  event: null | { kind, age,            // 'bedtime' | 'arrive' | 'settle' | 'wake' | 'open' | 'close', and seconds since (below)
+                  begunBefore,          // had the night begun before the event?
+                  woke },               // a wake's only: 'night' | 'nap', the sleep that ended
   lead,                                 // only with lead=: the spread's leading page's opacity, 0–1
   veil,                                 // only with veil=: how far the phone page's cards have fallen back, 0–1
   snowfall,                             // only with snowfall=: snow in the air, 0–1 — what season() then says
@@ -134,9 +138,42 @@ status icons under the Dynamic Island and the tab capsule, from the cards' trail
 edge to the display's (cover: x 362, width 104, y 151–396; `yMin` is 185 while a sleep
 runs and the island is longer); null on `iphone`.
 
-`tonightLit` is true while `asleep` is `night`, and otherwise from the sample day's
-bedtime to its morning wake, 20:10–06:40 (`lab/chrome.js`); `lit=` forces it. Hand it
-to `nights()`. `snowfall` is absent unless the URL has it; `season(state)` — and
+**The night has begun** (`nightBegun`; `BRIEF.md`, "After the first review"). One fact:
+true from the moment tonight's night sleep first starts until first light the next
+morning, whether he is asleep or awake. While it is true a sky looks up and tonight's
+star is lit (hand it to `nights()` as `tonightLit`). In the app it is a pure function of
+the clock, the sun and the sleep log. The lab has no sleep log, so (`lab/core.js`,
+`nightHasBegun`, `nightOf`):
+
+- **the night's hours** run from the evening — sunset, or 18:00 while the sun is still
+  up — to **first light**, the morning minute the sun comes up through
+  `FIRST_LIGHT_DEG` = −7° (06:12 on the default day, 04:35 on 21 June). Outside them it
+  is false whatever `asleep` says: a summer morning with him still asleep is the day's
+  picture, dimmed;
+- inside them it is true while `asleep` is `night`, after a `wake` whose `woke` is
+  `night` (a feed: the night goes on), and — awake or napping — once the sample day's
+  bedtime has passed (20:10, `SAMPLE_NIGHT`). So awake at 18:30 is not yet the night;
+  awake at 21:00 or 03:00 is;
+- `begun=1|0` forces it (`lit=` is the parameter's old name). With an `event` it says
+  how the night stood *before* the event.
+
+**Events** say that something changed `eventAge` seconds ago (`event.age` then runs on
+with the clock). What it changed *from* is the lab's to work out, or the URL's to say:
+
+| `event` | What happened | What a sky does | Where it does not fit |
+|---|---|---|---|
+| `bedtime` | A night sleep was started by hand, and the night begins with it (`asleep=night`) | the moment (`BRIEF.md`): the view rises, the star is lit, the band, the cards return | The night had already begun (a feed; any hour after the sample bedtime), or `asleep=nap`: there is no moment — it is played as `arrive`. `begun=0` says the night had not begun. `asleep=0`: dropped |
+| `arrive` | A sleep began elsewhere (the other phone, Siri, a widget, SNOO) | a night sleep that begins the night: the quiet rise behind the cards. Otherwise (a nap; the night had begun) only the room dims | `asleep=0`: dropped |
+| `wake` | The sleep that was running has ended; `woke=night\|nap` says which (unsaid: the night's before 09:00 and from 20:10, a nap's between) | nothing moves; the room un-dims from what that sleep had (a night's 1, a nap's 0.45) | a sleep is running: dropped |
+| `settle` | First light: the night that had begun is over | the quiet settle behind the cards | not morning, not yet first light, or no night had begun: dropped |
+| `open`, `close` | The Duo opened, closed | (the sky's own) | |
+
+A dropped event leaves the standing frame (`event: null`). Whenever the lab drops an
+event or plays it as another, `state.eventNote` says so (the panel shows it; `film.mjs`
+prints it). The room's dimming (`presence().depth`) eases across every one of these, so
+an event's first frame is the standing frame before it.
+
+`snowfall` is absent unless the URL has it; `season(state)` — and
 `season(dayOfYear, latitude)`, which the viewer tells too — then answers with it,
 whatever the date (the snow lying on the land is still the date's).
 
@@ -177,13 +214,14 @@ renders once more before it calls the frame drawn.
 | `dpr` | 1–3 | `2` |
 | `ui` | `1` shows the control panel | `0` |
 | `bezel` | `1` draws the device around the display | `0` |
-| `event`, `eventAge` | `bedtime`, `resettle` (the night's sleep, ended for a feed, is started again the same night: give it `asleep=night`; no bloom, the room only dims again), `wake`, `open`, `close`; seconds since it began | (none), `0` |
+| `event`, `eventAge` | `bedtime`, `arrive`, `settle`, `wake`, `open`, `close` (above); seconds since it began | (none), `0` |
+| `woke` | `night`, `nap`: the sleep an `event=wake` ended | (by the hour) |
 | `lead` | 0–1, the spread's leading page's opacity (`0`: the panorama before its cards arrive) | (1) |
 | `veil` | 0–1, how far the phone page's cards have fallen back (`1`: only the header and the system strip remain — the bedtime moment) | (0) |
 | `tilt` | `x,y`, −1…1 each | `0,0` |
 | `toast` | `1` shows the undo toast | `0` |
 | `snowfall` | 0–1, snow in the air whatever the day (`1`: falling hard; `0`: a clear day) → `state.snowfall`, `season().snowfall` | (the day's own) |
-| `lit` | `1`, `0`: tonight's star lit or not → `state.tonightLit` | (by `asleep` and the hour) |
+| `begun` | `1`, `0`: the night has begun, or has not → `state.nightBegun` (the view up, tonight's star lit); with an `event`, as it was before it. `lit` is its old name | (by `asleep`, the hour and the sun) |
 | `zoom` | 0.25–4, the display's size on screen; with `ui=1` or `bezel=1` only | `1` |
 
 The display is the element `#display`, exactly `width × height` CSS px, at the
@@ -204,8 +242,8 @@ gives the same bytes. Files are `<device>-<scheme>-<HHMM>[-<asleep>].png` and
 `sheet-<device>-<scheme>[-<asleep>].png`, in `shots/<sky>/` unless `--out` says
 otherwise (a relative `--out` is relative to where you run it). Other variants —
 `--chrome 0`, `--date`, `--event bedtime --event-age 3`, `--event open --lead 0`,
-`--veil 1`, `--tilt 1,0.5`, `--snowfall 1`, `--lit 1` — reuse those names, so give each
-its own `--out`. `--help` lists every option.
+`--veil 1`, `--tilt 1,0.5`, `--snowfall 1`, `--begun 1`, `--event wake --woke nap` —
+reuse those names, so give each its own `--out`. `--help` lists every option.
 
     node tools/review.mjs --sky baseline                  # the whole review set
     node tools/review.mjs --sky baseline --only bedtime,open
@@ -223,11 +261,37 @@ The review set, one folder each under `shots/<sky>/review/`:
 | `text` | The minutes the sun (09:30–10:30) and the moon (17:00–19:40) pass behind the header's text: all three devices, with the UI and in `bare/`. Sheets. |
 | `tilt` | `left-up/` (`tilt=-1,-0.5`) and `right-down/` (`1,0.5`): cover and spread, 16:10 and 21:00. |
 | `snow` | The winter date with `snowfall=1`: cover and spread, its two times. |
-| `wake` | `event=wake` at 06:40, the sample day's wake: `t0`, `t1_5`, `t2_5`, `t4`, `t9`. (`tonightLit` is false from 06:40; `event.age` carries the change.) |
-| `resettle` | `event=resettle` at 03:00 with `asleep=night`: `t0`, `t1_2`, `t2_5`, `t6`. No veil. |
+| `night` | The night as it stands: `awake/` at 18:30 (before bedtime: at rest), 21:00 and 03:00 (the night has begun: up, star lit); `asleep-nov/` at 06:10 (up) and 07:30 (past first light: at rest, dimmed); `asleep-jun/` at 05:30 and 08:00 on 21 June (the day, dimmed). Each again as `…-bare/`. Sheets. |
+| `arrive` | `event=arrive` at 19:40 with `asleep=night`, the quiet rise: `t0`, `t0_8`, `t1_25`, `t2_5`, `t6`. No veil. |
+| `settle` | `event=settle` at first light (06:12) with `asleep=night`, the quiet settle: `t0`, `t0_9`, `t1_4`, `t2_7`, `t6`. |
+| `joins` | The pairs `tools/joins.mjs` measures, for the eye: `<join>/before`, `age0`, `age40`, `after` — cover, both schemes, UI on. |
 
-532 shots and 36 sheets in 62 runs of `shoot.mjs`. A 2-D canvas sky takes about three
-minutes (the baseline: 188 s). A shader sky does not: headless Chromium draws WebGL in
-software, about 3 s a shot at `--jobs 2` for the heaviest (wet-wash: 151 s for `day`
-alone), so some 25 minutes for everything. Give those `--jobs 2 --timeout 120`, and
-reshoot single sets with `--only`.
+718 shots and 72 sheets in 117 runs of `shoot.mjs` (`--list` counts them; it was 532, 36
+and 62). The whole set has not been timed since it grew: the 532 took a 2-D canvas sky
+about three minutes (the baseline: 188 s), and the three new still sets (`night`, `arrive`,
+`settle`: 144 shots, 16 runs) took hill-painted 123 s at `--jobs 2` on a busy machine. A
+shader sky is slower: headless Chromium draws WebGL in software, about 3 s a shot at
+`--jobs 2` for the heaviest (wet-wash: 151 s for `day` alone). Give those `--jobs 2
+--timeout 120`, and reshoot single sets with `--only`. (The sets `wake` and `resettle` are
+gone: waking moves nothing now, and a re-settle the same night is `arrive` with the night
+begun.)
+
+## Joins
+
+    node tools/joins.mjs --sky hill-painted               # every join, 3 displays × 2 schemes × sky alone and cards on
+    node tools/joins.mjs --sky hill-painted --only wake-night,settle-nov --devices cover --save /tmp/pairs
+    node tools/joins.mjs --list
+
+`BRIEF.md`: for every change of state, the frame before and the first frame after must be
+the same picture, and the last frame of every event must be the standing frame that
+follows. For each join the tool shoots the standing frame before, the event at age 0, the
+event at age 40 and the standing frame after, and prints for both pairs the mean
+difference in levels, the share of pixels more than 2 and more than 6 levels apart, and
+the largest difference with its place. Sky alone it counts the whole frame but the
+header's words; with the cards on, only the open sky (the chrome itself changes when a
+sleep starts). Limits, from the picture's grain (a pixel stands about 1.7 levels from its
+neighbours' mean): mean ≤ 0.25 levels, ≤ 0.5 % of pixels over 2, ≤ 0.02 % over 6, no
+pixel over 12. `--self` shoots each standing frame twice and must print 0. The joins:
+bedtime in November and July, a night feed (`wake`, then `arrive`), a nap's wake at 13:10
+and 16:10, a nap arriving, a night sleep arriving, first light in November and June, the
+morning wake after first light, and bedtime by hand once the night has begun.
