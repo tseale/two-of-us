@@ -97,6 +97,13 @@ extension StaffNoteEvent {
     /// A center-wide Brightwheel broadcast — collapses to one line.
     var isAnnouncement: Bool { externalID?.hasPrefix("msg-b-") == true }
 
+    /// Whether this note is evidence he's AT daycare — the stand-in check-in
+    /// / check-out on marker-less days. Chat messages aren't: staff message
+    /// from the center whether or not he's there yet ("Will Miller be joining
+    /// us today?" at 9:01 on a late doctor's-appointment morning), and
+    /// announcements go out center-wide. `ac_note` activities are.
+    var countsTowardAttendance: Bool { isFromDaycare && !isDaycareMessage }
+
     /// The Brightwheel message's own `object_id` (the external id minus its
     /// "msg-"/"msg-b-" tag) — what its imported photos are keyed under.
     var brightwheelMessageID: String? {
@@ -142,5 +149,14 @@ extension StaffNoteEvent {
         }
         if line.count > 60 { line = String(line.prefix(57)).trimmingCharacters(in: .whitespaces) + "…" }
         return line.isEmpty ? "Announcement" : line
+    }
+}
+
+extension MediaEvent {
+    /// Whether this photo/video is evidence he's AT daycare. A photo attached
+    /// to a chat message isn't (same reasoning as
+    /// `StaffNoteEvent.countsTowardAttendance`); an activity photo is.
+    var countsTowardAttendance: Bool {
+        isFromDaycare && externalID?.hasPrefix("msg-") != true
     }
 }
