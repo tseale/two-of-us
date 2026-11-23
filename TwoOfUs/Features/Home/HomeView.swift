@@ -1850,7 +1850,9 @@ struct HomeView: View {
     /// The earliest daycare-sourced event of any kind today — the stand-in
     /// check-in when the real marker never arrived: if daycare is logging
     /// bottles, he's there. Check markers excluded (they're the primary
-    /// signal), parent-logged events excluded (a home feed isn't attendance).
+    /// signal), parent-logged events excluded (a home feed isn't attendance),
+    /// and Brightwheel chat messages excluded (staff message whether or not
+    /// he's arrived — a 9:01 "is he coming today?" is not a drop-off).
     /// Each @Query is newest-first, so today's slice is a prefix.
     private var firstDaycareEventToday: Date? {
         func earliest<T>(_ items: [T], at time: (T) -> Date,
@@ -1864,13 +1866,13 @@ struct HomeView: View {
             earliest(diapers, at: \.timestamp, fromDaycare: \.isFromDaycare),
             earliest(noteEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
             earliest(activityEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
-            earliest(mediaEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            earliest(mediaEvents, at: \.timestamp, fromDaycare: \.countsTowardAttendance),
             earliest(medicationEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
             earliest(healthCheckEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
             earliest(moodEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
             earliest(pottyEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
             earliest(milestoneEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
-            earliest(staffNoteEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            earliest(staffNoteEvents, at: \.timestamp, fromDaycare: \.countsTowardAttendance),
         ].compactMap { $0 }.min()
     }
 
@@ -1878,6 +1880,8 @@ struct HomeView: View {
     /// stand-in when the real marker never arrived: the hero's capsule window
     /// and strip zone close at the last thing staff logged. A sleep counts by
     /// its END (a nap that ran past the last diaper means he was still there).
+    /// Chat messages excluded, same as the check-in stand-in: an evening
+    /// message doesn't stretch the daycare day.
     private var lastDaycareEventToday: Date? {
         func latest<T>(_ items: [T], at time: (T) -> Date,
                        fromDaycare: (T) -> Bool) -> Date? {
@@ -1890,13 +1894,13 @@ struct HomeView: View {
             latest(diapers, at: \.timestamp, fromDaycare: \.isFromDaycare),
             latest(noteEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
             latest(activityEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
-            latest(mediaEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            latest(mediaEvents, at: \.timestamp, fromDaycare: \.countsTowardAttendance),
             latest(medicationEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
             latest(healthCheckEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
             latest(moodEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
             latest(pottyEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
             latest(milestoneEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
-            latest(staffNoteEvents, at: \.timestamp, fromDaycare: \.isFromDaycare),
+            latest(staffNoteEvents, at: \.timestamp, fromDaycare: \.countsTowardAttendance),
         ].compactMap { $0 }.max()
     }
 

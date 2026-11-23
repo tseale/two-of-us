@@ -56,4 +56,31 @@ final class DaycareHealthAlertTests: XCTestCase {
         XCTAssertEqual(DaycareHealthAlert.headline(for: "He bumped his head on the shelf"), "Incident")
         XCTAssertNil(DaycareHealthAlert.headline(for: "Miller was so smiley today!"))
     }
+
+    // MARK: - Attendance evidence
+
+    /// 2026-11-23: a late doctor's-appointment morning. Staff's 9:01 "Will
+    /// Miller be joining us today?" became the stand-in drop-off. Chat
+    /// messages (and their photos, and announcements) must not count; an
+    /// `ac_note` activity or activity photo still does.
+    @MainActor func testChatMessagesDoNotCountAsAttendance() {
+        let bw = EventSource.brightwheel.rawValue
+        func note(_ externalID: String?, source: String? = bw) -> StaffNoteEvent {
+            StaffNoteEvent(baby: nil, text: "Good morning! Will Miller be joining us today?",
+                           loggedByID: UUID(), loggedByName: "Brightwheel", loggedByColorHex: "",
+                           sourceRaw: source, externalID: externalID)
+        }
+        func photo(_ externalID: String?) -> MediaEvent {
+            MediaEvent(baby: nil, kind: .photo, loggedByID: UUID(), loggedByName: "Brightwheel",
+                       loggedByColorHex: "", sourceRaw: bw, externalID: externalID)
+        }
+        XCTAssertFalse(note(BrightwheelImporter.messageExternalID("m1")).countsTowardAttendance)
+        XCTAssertFalse(note(BrightwheelImporter.announcementExternalID("m2")).countsTowardAttendance)
+        XCTAssertTrue(note("activity-123").countsTowardAttendance)
+        XCTAssertFalse(note("activity-123", source: nil).countsTowardAttendance)   // hand-logged
+
+        XCTAssertFalse(photo(BrightwheelImporter.messagePhotoExternalID(
+            "m1", attachmentID: "a1", index: 0)).countsTowardAttendance)
+        XCTAssertTrue(photo("activity-456").countsTowardAttendance)
+    }
 }
